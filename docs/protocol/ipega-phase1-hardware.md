@@ -106,6 +106,15 @@ Mixed physical control notification window:
 - Payloads included ASCII `ARGun KeyPressed`, a zero frame, `B8DOWN`, `B8UP`, `B4DOWN`, `B4UP`, and `B6DOWN`.
 - This proves app-level BLE notification input exists on `fff3`, but it is not yet a verified semantic map for trigger, reload, joystick, X, Y, A, or B because the capture window did not produce per-control timing labels.
 
+Targeted trigger captures:
+
+- Human reported pressing trigger twice during `trigger-001`.
+- First trigger-only capture emitted one `fff3` zero frame: `00000000000000000000000000000000`.
+- Repeat trigger-only capture emitted `fff3` ASCII `ARGun KeyPressed` (`415247756e204b657950726573736564`), then the same 16-byte zero frame.
+- No Android `KeyEvent` or `MotionEvent` appeared.
+
+Interpretation: trigger most likely maps through BLE `fff3`, with `ARGun KeyPressed` as trigger active/press and zero frame as idle/clear. Keep this as a trigger candidate until Plan 04 fixture normalization decides exact down/up semantics.
+
 Interpretation: direct OS pairing is unnecessary for the BLE path. The custom app handshake currently appears to be GATT connect + service discovery + `fff1`/`fff3` notification enable, but this is still partial until targeted per-control captures and normalized fixtures exist. Rumble is still untested; `fff5` is only proven as read|write.
 
 ## No-Build ADB Observation: 2026-06-06
@@ -144,7 +153,7 @@ Interpretation: the phone can see `ARGunGame` and can briefly establish a low-le
 | ble-gatt-discovery-001 | ble_gatt | ARGUN2021-BLE-001 | Connect to `ARGunGame`, discover GATT services, read candidates, enable notify. | `.evidence/phase1/app-logs/ble-gatt-discovery-001.logcat.txt` | captured_gatt_fff0_characteristics | GATT connect succeeded; `fff0` has `fff1` read|notify, `fff3` read|notify, and `fff5` read|write. |
 | control-actions-001 | control_notifications | ARCHER-INPUT-001 | Mixed physical control press window after `fff3` notifications enabled. | `.evidence/phase1/app-logs/control-actions-001.logcat.txt` | captured_unmapped_ble_notifications | `fff3` emitted ASCII control-like payloads including `B8DOWN/UP`, `B4DOWN/UP`, and `B6DOWN`; targeted semantic mapping still required. |
 | classic-scan-001 | classic_scan | ARCHER-BT-001 | Inspect bonded Classic devices, SPP UUID, and channel-1/socket observations. | `.evidence/phase1/raw/bluetooth-manager-after-diagnostic-001.txt` | captured_unbonded_no_classic_gun | Diagnostic Classic scan showed existing bonded devices only; `ARGunGame` was not bonded and no gun SPP/socket evidence was captured. |
-| trigger-001 | trigger | ARGUN2021-CONTROL-001 | Press trigger down/up once during capture. | `.evidence/phase1/app-logs/trigger-001.logcat.txt` | pending targeted mapping | Expected normalized target: `fixtures/ipega/normalized/trigger.jsonl`; mixed `fff3` notifications exist but are not semantically mapped. |
+| trigger-001 | trigger | ARGUN2021-CONTROL-001 | Press trigger down/up once during capture. | `.evidence/phase1/app-logs/trigger-001-repeat.logcat.txt` | captured_trigger_candidate | `fff3` emitted ASCII `ARGun KeyPressed` followed by zero frame during trigger-only capture; candidate active/idle map pending fixture normalization. |
 | reload-001 | reload | ARGUN2021-CONTROL-001 | Press reload down/up once during capture. | `.evidence/phase1/app-logs/reload-001.logcat.txt` | pending targeted mapping | Expected normalized target: `fixtures/ipega/normalized/reload.jsonl`; mixed `fff3` notifications exist but are not semantically mapped. |
 | joystick-001 | joystick_axes | ARCHER-INPUT-001 | Move stick X/Y through neutral, min, max, and release. | `.evidence/phase1/app-logs/joystick-001.logcat.txt` | pending targeted mapping | Expected normalized target: `fixtures/ipega/normalized/joystick.jsonl`; mixed capture did not isolate axes. |
 | button-x-001 | x_button | ARCHER-INPUT-001 | Press X down/up once during capture. | `.evidence/phase1/app-logs/button-x-001.logcat.txt` | pending targeted mapping | Expected normalized target: `fixtures/ipega/normalized/buttons-xyab.jsonl`; mixed `fff3` notifications exist but are not semantically mapped. |
