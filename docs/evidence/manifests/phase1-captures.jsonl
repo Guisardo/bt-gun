@@ -1,0 +1,1 @@
+{"schema":"btgun.phase1.capture_manifest.v1","record_type":"scaffold","note":"Capture rows added by later hardware plans. Keep raw/HCI/decompile blobs in ignored .evidence/phase1 paths; commit sanitized manifest pointers only."}
