@@ -1,0 +1,8 @@
+# Phase 1 local evidence and generated reverse-engineering output
+.evidence/phase1/raw/
+.evidence/phase1/hci/
+.evidence/phase1/decompile/
+.evidence/phase1/app-logs/
+
+# Throwaway Android diagnostic build output
+android-diagnostic/build/
