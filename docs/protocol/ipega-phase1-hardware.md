@@ -22,6 +22,17 @@ Before any Gradle build/install, human must review:
 
 No dependency has been downloaded or built by Task 1.
 
+## Checkpoint Observation: 2026-06-06
+
+Human checkpoint response:
+
+- Android phone is connected over USB.
+- Android phone can see the iPega device.
+- Direct pairing does not complete; the device appears to require a custom handshake.
+- Gradle/plugin dependency build/install was not approved.
+
+Interpretation: direct Android settings pairing is currently unavailable as an evidence path. This supports keeping the BLE/Classic custom-handshake clues as hypotheses, but it does not prove a transport, input control, or rumble path. No trigger, reload, joystick, X/Y/A/B, or rumble success evidence was captured.
+
 ## Capture Checklist
 
 | capture_id | section | clue_id | action | raw/app/HCI pointer | status | notes |
