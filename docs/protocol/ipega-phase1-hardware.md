@@ -137,6 +137,19 @@ Targeted joystick capture:
 
 Interpretation: the stick appears as four digital direction events over BLE `fff3`, not analog axes. Keep axis semantics pending until Plan 04 fixture normalization decides whether to represent these as digital buttons or normalized axis extremes.
 
+Targeted X/Y/A/B capture:
+
+- Human was instructed to press X, Y, A, then B in order.
+- Sequence capture emitted `BA`, `B3`, and `B2` down/up-style events in that order; the final B event was not completed in that sequence window.
+- Separate B-only capture emitted `B9DOWN`/`B9UP`.
+- X candidate: ASCII `BADOWN`/`BAUP`, hex `4241444f574e` / `42415550`.
+- Y candidate: ASCII `B3DOWN`/`B3UP`, hex `4233444f574e` / `42335550`.
+- A candidate: ASCII `B2DOWN`/`B2UP`, hex `4232444f574e` / `42325550`.
+- B candidate: ASCII `B9DOWN`/`B9UP`, hex `4239444f574e` / `42395550`.
+- No Android `KeyEvent` or `MotionEvent` appeared.
+
+Interpretation: X/Y/A/B appear as digital button events over BLE `fff3`. Keep these as candidate mappings because the clean per-button Y and A windows were empty; the mapping depends on the confirmed sequence capture plus the B-only capture.
+
 Interpretation: direct OS pairing is unnecessary for the BLE path. The custom app handshake currently appears to be GATT connect + service discovery + `fff1`/`fff3` notification enable, but this is still partial until targeted per-control captures and normalized fixtures exist. Rumble is still untested; `fff5` is only proven as read|write.
 
 ## No-Build ADB Observation: 2026-06-06
@@ -178,10 +191,10 @@ Interpretation: the phone can see `ARGunGame` and can briefly establish a low-le
 | trigger-001 | trigger | ARGUN2021-CONTROL-001 | Press trigger down/up once during capture. | `.evidence/phase1/app-logs/trigger-001-repeat.logcat.txt` | captured_trigger_candidate | `fff3` emitted ASCII `ARGun KeyPressed` followed by zero frame during trigger-only capture; candidate active/idle map pending fixture normalization. |
 | reload-001 | reload | ARGUN2021-CONTROL-001 | Press reload down/up once during capture. | `.evidence/phase1/app-logs/reload-001.logcat.txt` | captured_reload_candidate | `fff3` emitted two `B8DOWN`/`B8UP` pairs during reload-only capture; candidate down/up map pending fixture normalization. |
 | joystick-001 | joystick_axes | ARCHER-INPUT-001 | Move stick X/Y through neutral, min, max, and release. | `.evidence/phase1/app-logs/joystick-001-retry-early.logcat.txt` | captured_joystick_candidate | Confirmed order left/right/up/down maps to `B6`/`B4`/`B5`/`B7` down/up pairs on `fff3`; likely digital directions, not analog axes. |
-| button-x-001 | x_button | ARCHER-INPUT-001 | Press X down/up once during capture. | `.evidence/phase1/app-logs/button-x-001.logcat.txt` | pending targeted mapping | Expected normalized target: `fixtures/ipega/normalized/buttons-xyab.jsonl`; mixed `fff3` notifications exist but are not semantically mapped. |
-| button-y-001 | y_button | ARCHER-INPUT-001 | Press Y down/up once during capture. | `.evidence/phase1/app-logs/button-y-001.logcat.txt` | pending targeted mapping | Expected normalized target: `fixtures/ipega/normalized/buttons-xyab.jsonl`; mixed `fff3` notifications exist but are not semantically mapped. |
-| button-a-001 | a_button | ARCHER-INPUT-001 | Press A down/up once during capture. | `.evidence/phase1/app-logs/button-a-001.logcat.txt` | pending targeted mapping | Expected normalized target: `fixtures/ipega/normalized/buttons-xyab.jsonl`; mixed `fff3` notifications exist but are not semantically mapped. |
-| button-b-001 | b_button | ARCHER-INPUT-001 | Press B down/up once during capture. | `.evidence/phase1/app-logs/button-b-001.logcat.txt` | pending targeted mapping | Expected normalized target: `fixtures/ipega/normalized/buttons-xyab.jsonl`; mixed `fff3` notifications exist but are not semantically mapped. |
+| button-x-001 | x_button | ARCHER-INPUT-001 | Press X down/up once during capture. | `.evidence/phase1/app-logs/buttons-xyab-sequence-001.logcat.txt` | captured_button_candidate | Sequence capture maps X to `BADOWN`/`BAUP`; candidate pending fixture normalization. |
+| button-y-001 | y_button | ARCHER-INPUT-001 | Press Y down/up once during capture. | `.evidence/phase1/app-logs/buttons-xyab-sequence-001.logcat.txt` | captured_button_candidate | Sequence capture maps Y to `B3DOWN`/`B3UP`; candidate pending fixture normalization. |
+| button-a-001 | a_button | ARCHER-INPUT-001 | Press A down/up once during capture. | `.evidence/phase1/app-logs/buttons-xyab-sequence-001.logcat.txt` | captured_button_candidate | Sequence capture maps A to `B2DOWN`; matching `B2UP` exists in the noisy X window. |
+| button-b-001 | b_button | ARCHER-INPUT-001 | Press B down/up once during capture. | `.evidence/phase1/app-logs/button-b-001.logcat.txt` | captured_button_candidate | B-only capture maps B to `B9DOWN`/`B9UP`; candidate pending fixture normalization. |
 | rumble-ble-fff5-001 | rumble_attempt | ARGUN2021-RUMBLE-001 | Attempt bounded BLE `fff5` write only after input characteristic evidence exists. | `.evidence/phase1/app-logs/rumble-ble-fff5-001.logcat.txt` | pending hardware | Record payload ref, ack/fail, and physical motor observation or no-motor failure. |
 | rumble-classic-spp-001 | rumble_attempt | ARCHER-RUMBLE-001 | Attempt bounded Classic SPP write only after Classic input evidence exists. | `.evidence/phase1/app-logs/rumble-classic-spp-001.logcat.txt` | pending hardware | Record payload ref, ack/fail, and physical motor observation or no-motor failure. |
 
