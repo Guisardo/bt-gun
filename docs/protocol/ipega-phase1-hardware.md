@@ -125,6 +125,18 @@ Targeted reload capture:
 
 Interpretation: reload maps through BLE `fff3` as `B8DOWN`/`B8UP`. Keep this as a reload candidate until Plan 04 fixture normalization writes down/up semantics.
 
+Targeted joystick capture:
+
+- Human confirmed joystick sequence was left, right, up, then down.
+- Capture emitted `fff3` pairs in that order across the saved retry/early buffers.
+- Left candidate: ASCII `B6DOWN`/`B6UP`, hex `4236444f574e` / `42365550`.
+- Right candidate: ASCII `B4DOWN`/`B4UP`, hex `4234444f574e` / `42345550`.
+- Up candidate: ASCII `B5DOWN`/`B5UP`, hex `4235444f574e` / `42355550`.
+- Down candidate: ASCII `B7DOWN`/`B7UP`, hex `4237444f574e` / `42375550`.
+- No Android `KeyEvent` or `MotionEvent` appeared.
+
+Interpretation: the stick appears as four digital direction events over BLE `fff3`, not analog axes. Keep axis semantics pending until Plan 04 fixture normalization decides whether to represent these as digital buttons or normalized axis extremes.
+
 Interpretation: direct OS pairing is unnecessary for the BLE path. The custom app handshake currently appears to be GATT connect + service discovery + `fff1`/`fff3` notification enable, but this is still partial until targeted per-control captures and normalized fixtures exist. Rumble is still untested; `fff5` is only proven as read|write.
 
 ## No-Build ADB Observation: 2026-06-06
@@ -165,7 +177,7 @@ Interpretation: the phone can see `ARGunGame` and can briefly establish a low-le
 | classic-scan-001 | classic_scan | ARCHER-BT-001 | Inspect bonded Classic devices, SPP UUID, and channel-1/socket observations. | `.evidence/phase1/raw/bluetooth-manager-after-diagnostic-001.txt` | captured_unbonded_no_classic_gun | Diagnostic Classic scan showed existing bonded devices only; `ARGunGame` was not bonded and no gun SPP/socket evidence was captured. |
 | trigger-001 | trigger | ARGUN2021-CONTROL-001 | Press trigger down/up once during capture. | `.evidence/phase1/app-logs/trigger-001-repeat.logcat.txt` | captured_trigger_candidate | `fff3` emitted ASCII `ARGun KeyPressed` followed by zero frame during trigger-only capture; candidate active/idle map pending fixture normalization. |
 | reload-001 | reload | ARGUN2021-CONTROL-001 | Press reload down/up once during capture. | `.evidence/phase1/app-logs/reload-001.logcat.txt` | captured_reload_candidate | `fff3` emitted two `B8DOWN`/`B8UP` pairs during reload-only capture; candidate down/up map pending fixture normalization. |
-| joystick-001 | joystick_axes | ARCHER-INPUT-001 | Move stick X/Y through neutral, min, max, and release. | `.evidence/phase1/app-logs/joystick-001.logcat.txt` | pending targeted mapping | Expected normalized target: `fixtures/ipega/normalized/joystick.jsonl`; mixed capture did not isolate axes. |
+| joystick-001 | joystick_axes | ARCHER-INPUT-001 | Move stick X/Y through neutral, min, max, and release. | `.evidence/phase1/app-logs/joystick-001-retry-early.logcat.txt` | captured_joystick_candidate | Confirmed order left/right/up/down maps to `B6`/`B4`/`B5`/`B7` down/up pairs on `fff3`; likely digital directions, not analog axes. |
 | button-x-001 | x_button | ARCHER-INPUT-001 | Press X down/up once during capture. | `.evidence/phase1/app-logs/button-x-001.logcat.txt` | pending targeted mapping | Expected normalized target: `fixtures/ipega/normalized/buttons-xyab.jsonl`; mixed `fff3` notifications exist but are not semantically mapped. |
 | button-y-001 | y_button | ARCHER-INPUT-001 | Press Y down/up once during capture. | `.evidence/phase1/app-logs/button-y-001.logcat.txt` | pending targeted mapping | Expected normalized target: `fixtures/ipega/normalized/buttons-xyab.jsonl`; mixed `fff3` notifications exist but are not semantically mapped. |
 | button-a-001 | a_button | ARCHER-INPUT-001 | Press A down/up once during capture. | `.evidence/phase1/app-logs/button-a-001.logcat.txt` | pending targeted mapping | Expected normalized target: `fixtures/ipega/normalized/buttons-xyab.jsonl`; mixed `fff3` notifications exist but are not semantically mapped. |
