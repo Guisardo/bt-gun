@@ -476,24 +476,24 @@ val provider =
 | A1 | Platform Views are sufficient for Phase 2 product dashboard without AndroidX/Compose. | Standard Stack | If UI grows more complex, planner may need dependency checkpoint and UI implementation adjustment. |
 | A2 | Normal gyro/accelerometer access should be represented as sensor capability status rather than a runtime "sensor permission" dialog. | Common Pitfalls | If target device/vendor gates sensors unusually, permission gate may need OEM-specific handling. |
 | A3 | BLE callbacks should publish through service state rather than update UI directly. | Anti-Patterns | If implementation stays Activity-only, foreground/background success criteria may fail. |
-| A4 | Local preview aim math can start simple with orientation deltas and recenter baseline. | Open Questions | If device orientation is unstable, planner may need a dedicated calibration/math task. |
+| A4 | Local preview aim math starts as simple orientation deltas against a recenter baseline. | Open Questions (RESOLVED) | Physical orientation check in Plan 02-06 must verify preview dot directions before Phase 2 closeout. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Exact target module layout**
-   - What we know: `android-diagnostic` is diagnostic-only and production should be separate. [VERIFIED: local]
-   - What's unclear: Whether to create `android-host` as a sibling standalone Gradle project or convert repo toward a shared multi-project Android root later. [ASSUMED]
-   - Recommendation: For Phase 2, create `android-host/` sibling project using same plugin versions; defer monorepo Android refactor until desktop/transport structure exists. [ASSUMED]
+1. **Exact target module layout - resolved Phase 2 decision**
+   - Phase 2 uses sibling `android-host/` as the production Android host project, separate from diagnostic-only `android-diagnostic`. [VERIFIED: local]
+   - Phase 2 package/namespace/application id is `com.btgun.host`. [VERIFIED: local]
+   - Phase 2 reuses diagnostic Gradle plugin versions `com.android.application` 8.7.3 and `org.jetbrains.kotlin.android` 2.0.21. [VERIFIED: local]
+   - Android monorepo/shared-root refactor is deferred to a later phase if transport/desktop structure makes it necessary. [ASSUMED]
 
-2. **Motion preview coordinate math**
-   - What we know: provider order is locked and Android sensor docs require attention to device/screen coordinate systems. [VERIFIED: local] [CITED: https://developer.android.com/develop/sensors-and-location/sensors/sensors_overview]
-   - What's unclear: Best local preview transform for the physical phone mounting orientation on the gun. [ASSUMED]
-   - Recommendation: Plan a physical-device tuning/manual check that records phone orientation and verifies preview dot directions before treating math as final. [ASSUMED]
+2. **Motion preview coordinate math - resolved Phase 2 decision**
+   - Phase 2 uses simple orientation-delta preview math against the current recenter baseline. [ASSUMED]
+   - Phase 2 labels this output as preview/calibration only; final profile sensitivity, dead zone, smoothing, inversion, and platform/game mapping remain Phase 8 desktop profile work. [VERIFIED: local]
+   - Plan 02-06 must include a manual physical orientation check before closeout: move the phone/gun through yaw/pitch directions, verify preview dot direction, and record pass/fail plus orientation notes in Phase 2 evidence. [VERIFIED: local]
 
-3. **Target SDK during Phase 2**
-   - What we know: diagnostic uses compile/target SDK 35 and local SDK 35/36 are installed. [VERIFIED: local]
-   - What's unclear: Whether production should target 35 immediately or 36. [ASSUMED]
-   - Recommendation: Reuse target SDK 35 for Phase 2 to match approved diagnostic build; revisit only with a dependency/toolchain checkpoint. [VERIFIED: local]
+3. **Target SDK during Phase 2 - resolved Phase 2 decision**
+   - Phase 2 uses compileSdk 35 and targetSdk 35 to match the approved diagnostic build and local SDK availability. [VERIFIED: local]
+   - Target SDK changes are out of Phase 2 unless a dependency/toolchain checkpoint explicitly approves the change. [VERIFIED: local]
 
 ## Environment Availability
 
