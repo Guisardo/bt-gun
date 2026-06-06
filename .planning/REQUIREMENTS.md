@@ -143,65 +143,65 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DISC-01 | TBD | Pending |
-| DISC-02 | TBD | Pending |
-| DISC-03 | TBD | Pending |
-| DISC-04 | TBD | Pending |
-| DISC-05 | TBD | Pending |
-| DISC-06 | TBD | Pending |
-| DISC-07 | TBD | Pending |
-| ANDR-01 | TBD | Pending |
-| ANDR-02 | TBD | Pending |
-| ANDR-03 | TBD | Pending |
-| ANDR-04 | TBD | Pending |
-| ANDR-05 | TBD | Pending |
-| ANDR-06 | TBD | Pending |
-| ANDR-07 | TBD | Pending |
-| ANDR-08 | TBD | Pending |
-| TRAN-01 | TBD | Pending |
-| TRAN-02 | TBD | Pending |
-| TRAN-03 | TBD | Pending |
-| TRAN-04 | TBD | Pending |
-| TRAN-05 | TBD | Pending |
-| TRAN-06 | TBD | Pending |
-| TRAN-07 | TBD | Pending |
-| TRAN-08 | TBD | Pending |
-| TRAN-09 | TBD | Pending |
-| DESK-01 | TBD | Pending |
-| DESK-02 | TBD | Pending |
-| DESK-03 | TBD | Pending |
-| DESK-04 | TBD | Pending |
-| DESK-05 | TBD | Pending |
-| DESK-06 | TBD | Pending |
-| DESK-07 | TBD | Pending |
-| DESK-08 | TBD | Pending |
-| PROF-01 | TBD | Pending |
-| PROF-02 | TBD | Pending |
-| PROF-03 | TBD | Pending |
-| PROF-04 | TBD | Pending |
-| PROF-05 | TBD | Pending |
-| PROF-06 | TBD | Pending |
-| VIS-01 | TBD | Pending |
-| VIS-02 | TBD | Pending |
-| VIS-03 | TBD | Pending |
-| VIS-04 | TBD | Pending |
-| VIS-05 | TBD | Pending |
-| VIS-06 | TBD | Pending |
-| PERF-01 | TBD | Pending |
-| PERF-02 | TBD | Pending |
-| PERF-03 | TBD | Pending |
-| PERF-04 | TBD | Pending |
-| PERF-05 | TBD | Pending |
-| PACK-01 | TBD | Pending |
-| PACK-02 | TBD | Pending |
-| PACK-03 | TBD | Pending |
-| PACK-04 | TBD | Pending |
-| PACK-05 | TBD | Pending |
+| DISC-01 | Phase 1 | Pending |
+| DISC-02 | Phase 1 | Pending |
+| DISC-03 | Phase 1 | Pending |
+| DISC-04 | Phase 1 | Pending |
+| DISC-05 | Phase 1 | Pending |
+| DISC-06 | Phase 1 | Pending |
+| DISC-07 | Phase 1 | Pending |
+| ANDR-01 | Phase 2 | Pending |
+| ANDR-02 | Phase 2 | Pending |
+| ANDR-03 | Phase 2 | Pending |
+| ANDR-04 | Phase 2 | Pending |
+| ANDR-05 | Phase 2 | Pending |
+| ANDR-06 | Phase 2 | Pending |
+| ANDR-07 | Phase 4 | Pending |
+| ANDR-08 | Phase 2 | Pending |
+| TRAN-01 | Phase 3 | Pending |
+| TRAN-02 | Phase 3 | Pending |
+| TRAN-03 | Phase 3 | Pending |
+| TRAN-04 | Phase 4 | Pending |
+| TRAN-05 | Phase 4 | Pending |
+| TRAN-06 | Phase 3 | Pending |
+| TRAN-07 | Phase 4 | Pending |
+| TRAN-08 | Phase 4 | Pending |
+| TRAN-09 | Phase 4 | Pending |
+| DESK-01 | Phase 4 | Pending |
+| DESK-02 | Phase 6 | Pending |
+| DESK-03 | Phase 7 | Pending |
+| DESK-04 | Phase 5 | Pending |
+| DESK-05 | Phase 6 | Pending |
+| DESK-06 | Phase 7 | Pending |
+| DESK-07 | Phase 5 | Pending |
+| DESK-08 | Phase 5 | Pending |
+| PROF-01 | Phase 8 | Pending |
+| PROF-02 | Phase 8 | Pending |
+| PROF-03 | Phase 8 | Pending |
+| PROF-04 | Phase 8 | Pending |
+| PROF-05 | Phase 8 | Pending |
+| PROF-06 | Phase 8 | Pending |
+| VIS-01 | Phase 9 | Pending |
+| VIS-02 | Phase 9 | Pending |
+| VIS-03 | Phase 9 | Pending |
+| VIS-04 | Phase 9 | Pending |
+| VIS-05 | Phase 9 | Pending |
+| VIS-06 | Phase 9 | Pending |
+| PERF-01 | Phase 9 | Pending |
+| PERF-02 | Phase 9 | Pending |
+| PERF-03 | Phase 4 | Pending |
+| PERF-04 | Phase 10 | Pending |
+| PERF-05 | Phase 10 | Pending |
+| PACK-01 | Phase 10 | Pending |
+| PACK-02 | Phase 6 | Pending |
+| PACK-03 | Phase 7 | Pending |
+| PACK-04 | Phase 10 | Pending |
+| PACK-05 | Phase 10 | Pending |
 
 **Coverage:**
 - v1 requirements: 54 total
-- Mapped to phases: 0
-- Unmapped: 54
+- Mapped to phases: 54
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-06-06*
