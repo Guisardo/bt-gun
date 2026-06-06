@@ -39,11 +39,11 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. Developer can capture trigger, reload, joystick, X/Y/A/B, and rumble evidence from real hardware or app-observed frames.
   4. Developer can map every physical gun control and the vibration command path to saved normalized fixtures.
 
-**Plans:** 1/5 plans executed
+**Plans:** 2/5 plans executed
 Plans:
 
 - [x] 01-01-PLAN.md — Static APK/XAPK inventory, evidence scaffold, and JSONL validator.
-- [ ] 01-02-PLAN.md — Throwaway Android diagnostic module and behavior spec.
+- [x] 01-02-PLAN.md — Throwaway Android diagnostic module and behavior spec.
 - [ ] 01-03-PLAN.md — Physical hardware capture workflow and human verification checkpoint.
 - [ ] 01-04-PLAN.md — Normalized handshake/control fixtures and no-hardware validation.
 - [ ] 01-05-PLAN.md — Rumble activation proof and final evidence gate.
@@ -195,7 +195,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Hardware and Protocol Discovery | 1/5 | In Progress|  |
+| 1. Hardware and Protocol Discovery | 2/5 | In Progress|  |
 | 2. Android Host Live Input | 0/TBD | Not started | - |
 | 3. LAN Pairing and Secure Session | 0/TBD | Not started | - |
 | 4. Input Stream and Rumble Transport | 0/TBD | Not started | - |
