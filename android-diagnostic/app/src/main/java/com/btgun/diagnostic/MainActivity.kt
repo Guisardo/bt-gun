@@ -18,6 +18,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
 import android.os.Looper
 import android.os.ParcelUuid
 import android.os.SystemClock
@@ -38,6 +39,9 @@ class MainActivity : Activity() {
     private var activeGatt: BluetoothGatt? = null
     private var gattCandidateDevice: BluetoothDevice? = null
     private var gattOperationInFlight = false
+    private var pendingRumbleProbe = false
+    private var currentRumbleWrite: RumbleWrite? = null
+    private val mainHandler = Handler(Looper.getMainLooper())
     private val pendingGattOperations = ArrayDeque<PendingGattOperation>()
 
     private val bluetoothAdapter: BluetoothAdapter?
@@ -165,6 +169,32 @@ class MainActivity : Activity() {
         @Suppress("DEPRECATION")
         override fun onCharacteristicChanged(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic) {
             logCharacteristicPayload("ble_gatt_characteristic_changed", characteristic, characteristic.value ?: ByteArray(0), BluetoothGatt.GATT_SUCCESS)
+        }
+
+        override fun onCharacteristicWrite(
+            gatt: BluetoothGatt,
+            characteristic: BluetoothGattCharacteristic,
+            status: Int
+        ) {
+            val rumbleWrite = currentRumbleWrite
+            logCharacteristicPayload("ble_gatt_characteristic_write", characteristic, characteristic.value ?: ByteArray(0), status)
+            if (rumbleWrite != null) {
+                logReport(
+                    "rumble_attempt",
+                    "state" to if (status == BluetoothGatt.GATT_SUCCESS) "write_ack" else "write_failed",
+                    "transport" to "ble_gatt",
+                    "service_uuid" to BLE_SERVICE_UUID,
+                    "characteristic_uuid" to characteristic.uuid,
+                    "candidate_id" to rumbleWrite.candidateId,
+                    "phase" to rumbleWrite.phase,
+                    "payload_len" to rumbleWrite.payload.size,
+                    "payload_hex" to rumbleWrite.payload.toHex(),
+                    "status" to status,
+                    "clue_id" to "ARGUN2021-RUMBLE-001"
+                )
+                currentRumbleWrite = null
+            }
+            completeGattOperation("characteristic_write")
         }
     }
 
@@ -306,6 +336,7 @@ class MainActivity : Activity() {
         stopGattScan()
         closeActiveGatt("restart_gatt_discovery")
         gattCandidateDevice = null
+        currentRumbleWrite = null
         pendingGattOperations.clear()
         gattOperationInFlight = false
 
@@ -506,6 +537,9 @@ class MainActivity : Activity() {
         gattOperationInFlight = false
         logReport("ble_gatt_operation", "state" to "completed", "callback" to callback)
         drainGattOperations()
+        if (!gattOperationInFlight && pendingGattOperations.isEmpty()) {
+            maybeRunPendingRumbleProbe()
+        }
     }
 
     private fun scanClassicDevices() {
@@ -560,17 +594,144 @@ class MainActivity : Activity() {
     private fun recordRumbleAttempt() {
         logReport(
             "rumble_attempt",
-            "state" to "manual_plan03_required",
-            "ble_characteristic_candidate" to "0000fff5-0000-1000-8000-00805f9b34fb",
-            "classic_uuid_candidate" to SPP_UUID.toString(),
+            "state" to "probe_requested",
+            "transport" to "ble_gatt",
+            "service_uuid" to BLE_SERVICE_UUID,
+            "characteristic_uuid" to RUMBLE_CHARACTERISTIC_UUID,
+            "candidate_count" to RUMBLE_CANDIDATES.size,
             "clue_id" to "ARGUN2021-RUMBLE-001"
         )
+        val gatt = activeGatt
+        val characteristic = gatt?.getService(BLE_SERVICE_UUID)?.getCharacteristic(RUMBLE_CHARACTERISTIC_UUID)
+        if (gatt == null || characteristic == null) {
+            pendingRumbleProbe = true
+            logReport(
+                "rumble_attempt",
+                "state" to "waiting_for_gatt",
+                "reason" to "no_active_fff5_characteristic",
+                "clue_id" to "ARGUN2021-RUMBLE-001"
+            )
+            startBleGattDiscovery()
+            return
+        }
+        runBleFff5RumbleProbe(gatt, characteristic)
+    }
+
+    private fun maybeRunPendingRumbleProbe() {
+        if (!pendingRumbleProbe) {
+            return
+        }
+        val gatt = activeGatt ?: return
+        val characteristic = gatt.getService(BLE_SERVICE_UUID)?.getCharacteristic(RUMBLE_CHARACTERISTIC_UUID) ?: return
+        pendingRumbleProbe = false
+        runBleFff5RumbleProbe(gatt, characteristic)
+    }
+
+    private fun runBleFff5RumbleProbe(
+        gatt: BluetoothGatt,
+        characteristic: BluetoothGattCharacteristic
+    ) {
+        val writable = characteristic.properties has BluetoothGattCharacteristic.PROPERTY_WRITE
+        if (!writable) {
+            logReport(
+                "rumble_failed",
+                "state" to "unavailable",
+                "reason" to "fff5_missing_write_property",
+                "properties" to characteristicPropertiesText(characteristic.properties),
+                "clue_id" to "ARGUN2021-RUMBLE-001"
+            )
+            return
+        }
         logReport(
-            "rumble_failed",
-            "state" to "no_payload_sent",
-            "reason" to "Plan 03 must review hardware workflow before bounded output writes",
+            "rumble_attempt",
+            "state" to "sequence_start",
+            "transport" to "ble_gatt",
+            "service_uuid" to BLE_SERVICE_UUID,
+            "characteristic_uuid" to characteristic.uuid,
+            "candidate_count" to RUMBLE_CANDIDATES.size,
+            "human_observation_prompt" to "report first second both or none",
             "clue_id" to "ARGUN2021-RUMBLE-001"
         )
+        var startDelayMs = 0L
+        for (candidate in RUMBLE_CANDIDATES) {
+            mainHandler.postDelayed({
+                enqueueRumbleWrite(gatt, characteristic, candidate, "on", candidate.onPayload)
+            }, startDelayMs)
+            mainHandler.postDelayed({
+                enqueueRumbleWrite(gatt, characteristic, candidate, "off", candidate.offPayload)
+            }, startDelayMs + candidate.durationMs)
+            startDelayMs += candidate.durationMs + RUMBLE_CANDIDATE_GAP_MS
+        }
+        mainHandler.postDelayed({
+            logReport(
+                "rumble_attempt",
+                "state" to "sequence_done",
+                "transport" to "ble_gatt",
+                "service_uuid" to BLE_SERVICE_UUID,
+                "characteristic_uuid" to characteristic.uuid,
+                "candidate_count" to RUMBLE_CANDIDATES.size,
+                "clue_id" to "ARGUN2021-RUMBLE-001"
+            )
+        }, startDelayMs)
+    }
+
+    private fun enqueueRumbleWrite(
+        gatt: BluetoothGatt,
+        characteristic: BluetoothGattCharacteristic,
+        candidate: RumbleCandidate,
+        phase: String,
+        payload: ByteArray
+    ) {
+        logReport(
+            "rumble_attempt",
+            "state" to "write_queued",
+            "transport" to "ble_gatt",
+            "service_uuid" to BLE_SERVICE_UUID,
+            "characteristic_uuid" to characteristic.uuid,
+            "candidate_id" to candidate.id,
+            "phase" to phase,
+            "duration_ms" to candidate.durationMs,
+            "payload_len" to payload.size,
+            "payload_hex" to payload.toHex(),
+            "write_type" to "default",
+            "clue_id" to "ARGUN2021-RUMBLE-001"
+        )
+        enqueueGattOperation("rumble:${candidate.id}:$phase") {
+            try {
+                @Suppress("DEPRECATION")
+                characteristic.value = payload
+                characteristic.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+                currentRumbleWrite = RumbleWrite(candidate.id, phase, payload)
+                @Suppress("DEPRECATION")
+                val started = gatt.writeCharacteristic(characteristic)
+                if (!started) {
+                    currentRumbleWrite = null
+                    logReport(
+                        "rumble_failed",
+                        "state" to "write_start_failed",
+                        "transport" to "ble_gatt",
+                        "candidate_id" to candidate.id,
+                        "phase" to phase,
+                        "payload_len" to payload.size,
+                        "payload_hex" to payload.toHex(),
+                        "clue_id" to "ARGUN2021-RUMBLE-001"
+                    )
+                }
+                started
+            } catch (error: SecurityException) {
+                currentRumbleWrite = null
+                logReport(
+                    "rumble_failed",
+                    "state" to "permission_blocked",
+                    "transport" to "ble_gatt",
+                    "candidate_id" to candidate.id,
+                    "phase" to phase,
+                    "error" to error.javaClass.simpleName,
+                    "clue_id" to "ARGUN2021-RUMBLE-001"
+                )
+                false
+            }
+        }
     }
 
     private fun recordRumbleObservedMarker() {
@@ -787,16 +948,39 @@ class MainActivity : Activity() {
         joinToString(separator = "") { byte -> "%02x".format(byte.toInt() and 0xff) }
 
     private data class PendingGattOperation(val name: String, val start: () -> Boolean)
+    private data class RumbleWrite(val candidateId: String, val phase: String, val payload: ByteArray)
+    private data class RumbleCandidate(
+        val id: String,
+        val onPayload: ByteArray,
+        val offPayload: ByteArray,
+        val durationMs: Long
+    )
 
     companion object {
         private const val ARGUN_DEVICE_NAME = "ARGunGame"
         private val BLE_SERVICE_UUID: UUID = UUID.fromString("0000fff0-0000-1000-8000-00805f9b34fb")
+        private val RUMBLE_CHARACTERISTIC_UUID: UUID = UUID.fromString("0000fff5-0000-1000-8000-00805f9b34fb")
         private val CCCD_UUID: UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
         private val SPP_UUID: UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
+        private const val RUMBLE_CANDIDATE_GAP_MS = 900L
+        private val RUMBLE_CANDIDATES = arrayOf(
+            RumbleCandidate(
+                id = "ble-fff5-01-byte",
+                onPayload = byteArrayOf(0x01),
+                offPayload = byteArrayOf(0x00),
+                durationMs = 350L
+            ),
+            RumbleCandidate(
+                id = "ble-fff5-01-padded16",
+                onPayload = ByteArray(16).also { it[0] = 0x01 },
+                offPayload = ByteArray(16),
+                durationMs = 350L
+            )
+        )
         private val BLE_CHARACTERISTIC_TARGETS = arrayOf(
             Triple(UUID.fromString("0000fff1-0000-1000-8000-00805f9b34fb"), "ARGUN2021-BLE-001", "read_or_notify_candidate"),
             Triple(UUID.fromString("0000fff3-0000-1000-8000-00805f9b34fb"), "ARCHER-BLE-001", "notify_candidate"),
-            Triple(UUID.fromString("0000fff5-0000-1000-8000-00805f9b34fb"), "ARGUN2021-RUMBLE-001", "write_candidate")
+            Triple(RUMBLE_CHARACTERISTIC_UUID, "ARGUN2021-RUMBLE-001", "write_candidate")
         )
         private val MOTION_AXES = intArrayOf(
             MotionEvent.AXIS_X,
