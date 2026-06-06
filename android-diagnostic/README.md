@@ -88,6 +88,8 @@ Required Plan 03 hardware actions:
 
 - `input-device-scan-001` - Android `InputDevice`, `KeyEvent`, and `MotionEvent` visibility.
 - `ble-scan-001` - BLE service and characteristic observations for `fff0`, `fff1`, `fff3`, and `fff5` candidates.
+- `ble-gatt-discovery-001` - App-level BLE connect, service discovery, candidate characteristic reads, and notification subscription without OS pairing.
+- `control-actions-001` - Mixed physical control notification window; use only as unmapped input evidence unless per-control timing is known.
 - `classic-scan-001` - Classic bonded device, SPP UUID, and channel-1 observations.
 - `trigger-001` - Trigger down/up.
 - `reload-001` - Reload down/up.
