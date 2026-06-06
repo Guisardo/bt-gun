@@ -72,6 +72,42 @@ Bluetooth manager after diagnostic:
 
 Interpretation: physical hardware now confirms the deprecated-app BLE `fff0` hypothesis at the advertisement level. It does not yet prove `fff1`, `fff3`, `fff5`, control frames, Classic transport, pairing handshake semantics, or rumble. The next diagnostic step needs GATT connect/service discovery and notification/read capture against the `fff0` device; direct OS pairing remains blocked by the custom-handshake path.
 
+## Diagnostic GATT Observation: 2026-06-06
+
+Diagnostic app-level BLE connection succeeded without Android Settings pairing.
+
+GATT connection:
+
+- `ARGunGame` was found by `fff0` service scan filter.
+- `connectGatt(..., TRANSPORT_LE)` connected with status `0`.
+- Service discovery completed with status `0`.
+
+Discovered services:
+
+- `00001801-0000-1000-8000-00805f9b34fb` with `2a05` indicate.
+- `00001800-0000-1000-8000-00805f9b34fb` with `2a00`, `2a01`, and `2a04` read characteristics.
+- `0000180a-0000-1000-8000-00805f9b34fb` with `2a50` read characteristic.
+- `0000fff0-0000-1000-8000-00805f9b34fb` with five characteristics:
+  - `fff1` read|notify, CCCD `2902`.
+  - `fff2` read.
+  - `fff3` read|notify, CCCD `2902`.
+  - `fff4` read.
+  - `fff5` read|write.
+
+Candidate reads/subscriptions:
+
+- `fff1` read status `0`, 16-byte payload `22000000000000000000000000000005`; CCCD notify enable status `0`.
+- `fff3` read status `0`, 16-byte zero payload; CCCD notify enable status `0`.
+- `fff5` read status `0`, 16-byte zero payload; no write attempted.
+
+Mixed physical control notification window:
+
+- Notifications arrived on `fff3`.
+- Payloads included ASCII `ARGun KeyPressed`, a zero frame, `B8DOWN`, `B8UP`, `B4DOWN`, `B4UP`, and `B6DOWN`.
+- This proves app-level BLE notification input exists on `fff3`, but it is not yet a verified semantic map for trigger, reload, joystick, X, Y, A, or B because the capture window did not produce per-control timing labels.
+
+Interpretation: direct OS pairing is unnecessary for the BLE path. The custom app handshake currently appears to be GATT connect + service discovery + `fff1`/`fff3` notification enable, but this is still partial until targeted per-control captures and normalized fixtures exist. Rumble is still untested; `fff5` is only proven as read|write.
+
 ## No-Build ADB Observation: 2026-06-06
 
 Disk status before Gradle/build: `/System/Volumes/Data` had 7.6 GiB free and 99% capacity used. Gradle CLI was not installed on PATH, and no Gradle wrapper/cache was present under `~/.gradle/wrapper`. To avoid dependency downloads on low disk, the capture path stayed no-build and used ADB `dumpsys` only.
@@ -104,15 +140,17 @@ Interpretation: the phone can see `ARGunGame` and can briefly establish a low-le
 | capture_id | section | clue_id | action | raw/app/HCI pointer | status | notes |
 |------------|---------|---------|--------|---------------------|--------|-------|
 | input-device-scan-001 | input_device_scan | COMMON-GAMEPAD-001 | Run diagnostic device scan with gun powered/pairable; press no controls during baseline. | `.evidence/phase1/app-logs/ble-scan-001.logcat.txt` | captured_diagnostic_no_standard_input_device | Diagnostic APK scan showed no external gun/gamepad InputDevice; raw ADB dumpsys also showed none after direct pairing failure. |
-| ble-scan-001 | ble_scan | ARGUN2021-BLE-001 | Run BLE scan for `fff0`, `fff1`, `fff3`, and `fff5` candidates. | `.evidence/phase1/app-logs/ble-scan-001.logcat.txt` | captured_ble_advertised_fff0 | Diagnostic BLE scan saw `ARGunGame` advertising service `0000fff0-0000-1000-8000-00805f9b34fb`; GATT connect/service discovery still pending. |
+| ble-scan-001 | ble_scan | ARGUN2021-BLE-001 | Run BLE scan for `fff0`, `fff1`, `fff3`, and `fff5` candidates. | `.evidence/phase1/app-logs/ble-scan-001.logcat.txt` | captured_ble_advertised_fff0 | Diagnostic BLE scan saw `ARGunGame` advertising service `0000fff0-0000-1000-8000-00805f9b34fb`; GATT details captured separately in `ble-gatt-discovery-001`. |
+| ble-gatt-discovery-001 | ble_gatt | ARGUN2021-BLE-001 | Connect to `ARGunGame`, discover GATT services, read candidates, enable notify. | `.evidence/phase1/app-logs/ble-gatt-discovery-001.logcat.txt` | captured_gatt_fff0_characteristics | GATT connect succeeded; `fff0` has `fff1` read|notify, `fff3` read|notify, and `fff5` read|write. |
+| control-actions-001 | control_notifications | ARCHER-INPUT-001 | Mixed physical control press window after `fff3` notifications enabled. | `.evidence/phase1/app-logs/control-actions-001.logcat.txt` | captured_unmapped_ble_notifications | `fff3` emitted ASCII control-like payloads including `B8DOWN/UP`, `B4DOWN/UP`, and `B6DOWN`; targeted semantic mapping still required. |
 | classic-scan-001 | classic_scan | ARCHER-BT-001 | Inspect bonded Classic devices, SPP UUID, and channel-1/socket observations. | `.evidence/phase1/raw/bluetooth-manager-after-diagnostic-001.txt` | captured_unbonded_no_classic_gun | Diagnostic Classic scan showed existing bonded devices only; `ARGunGame` was not bonded and no gun SPP/socket evidence was captured. |
-| trigger-001 | trigger | ARGUN2021-CONTROL-001 | Press trigger down/up once during capture. | `.evidence/phase1/app-logs/trigger-001.logcat.txt` | pending hardware | Expected normalized target: `fixtures/ipega/normalized/trigger.jsonl`. |
-| reload-001 | reload | ARGUN2021-CONTROL-001 | Press reload down/up once during capture. | `.evidence/phase1/app-logs/reload-001.logcat.txt` | pending hardware | Expected normalized target: `fixtures/ipega/normalized/reload.jsonl`. |
-| joystick-001 | joystick_axes | ARCHER-INPUT-001 | Move stick X/Y through neutral, min, max, and release. | `.evidence/phase1/app-logs/joystick-001.logcat.txt` | pending hardware | Expected normalized target: `fixtures/ipega/normalized/joystick.jsonl`. |
-| button-x-001 | x_button | ARCHER-INPUT-001 | Press X down/up once during capture. | `.evidence/phase1/app-logs/button-x-001.logcat.txt` | pending hardware | Expected normalized target: `fixtures/ipega/normalized/buttons-xyab.jsonl`. |
-| button-y-001 | y_button | ARCHER-INPUT-001 | Press Y down/up once during capture. | `.evidence/phase1/app-logs/button-y-001.logcat.txt` | pending hardware | Expected normalized target: `fixtures/ipega/normalized/buttons-xyab.jsonl`. |
-| button-a-001 | a_button | ARCHER-INPUT-001 | Press A down/up once during capture. | `.evidence/phase1/app-logs/button-a-001.logcat.txt` | pending hardware | Expected normalized target: `fixtures/ipega/normalized/buttons-xyab.jsonl`. |
-| button-b-001 | b_button | ARCHER-INPUT-001 | Press B down/up once during capture. | `.evidence/phase1/app-logs/button-b-001.logcat.txt` | pending hardware | Expected normalized target: `fixtures/ipega/normalized/buttons-xyab.jsonl`. |
+| trigger-001 | trigger | ARGUN2021-CONTROL-001 | Press trigger down/up once during capture. | `.evidence/phase1/app-logs/trigger-001.logcat.txt` | pending targeted mapping | Expected normalized target: `fixtures/ipega/normalized/trigger.jsonl`; mixed `fff3` notifications exist but are not semantically mapped. |
+| reload-001 | reload | ARGUN2021-CONTROL-001 | Press reload down/up once during capture. | `.evidence/phase1/app-logs/reload-001.logcat.txt` | pending targeted mapping | Expected normalized target: `fixtures/ipega/normalized/reload.jsonl`; mixed `fff3` notifications exist but are not semantically mapped. |
+| joystick-001 | joystick_axes | ARCHER-INPUT-001 | Move stick X/Y through neutral, min, max, and release. | `.evidence/phase1/app-logs/joystick-001.logcat.txt` | pending targeted mapping | Expected normalized target: `fixtures/ipega/normalized/joystick.jsonl`; mixed capture did not isolate axes. |
+| button-x-001 | x_button | ARCHER-INPUT-001 | Press X down/up once during capture. | `.evidence/phase1/app-logs/button-x-001.logcat.txt` | pending targeted mapping | Expected normalized target: `fixtures/ipega/normalized/buttons-xyab.jsonl`; mixed `fff3` notifications exist but are not semantically mapped. |
+| button-y-001 | y_button | ARCHER-INPUT-001 | Press Y down/up once during capture. | `.evidence/phase1/app-logs/button-y-001.logcat.txt` | pending targeted mapping | Expected normalized target: `fixtures/ipega/normalized/buttons-xyab.jsonl`; mixed `fff3` notifications exist but are not semantically mapped. |
+| button-a-001 | a_button | ARCHER-INPUT-001 | Press A down/up once during capture. | `.evidence/phase1/app-logs/button-a-001.logcat.txt` | pending targeted mapping | Expected normalized target: `fixtures/ipega/normalized/buttons-xyab.jsonl`; mixed `fff3` notifications exist but are not semantically mapped. |
+| button-b-001 | b_button | ARCHER-INPUT-001 | Press B down/up once during capture. | `.evidence/phase1/app-logs/button-b-001.logcat.txt` | pending targeted mapping | Expected normalized target: `fixtures/ipega/normalized/buttons-xyab.jsonl`; mixed `fff3` notifications exist but are not semantically mapped. |
 | rumble-ble-fff5-001 | rumble_attempt | ARGUN2021-RUMBLE-001 | Attempt bounded BLE `fff5` write only after input characteristic evidence exists. | `.evidence/phase1/app-logs/rumble-ble-fff5-001.logcat.txt` | pending hardware | Record payload ref, ack/fail, and physical motor observation or no-motor failure. |
 | rumble-classic-spp-001 | rumble_attempt | ARCHER-RUMBLE-001 | Attempt bounded Classic SPP write only after Classic input evidence exists. | `.evidence/phase1/app-logs/rumble-classic-spp-001.logcat.txt` | pending hardware | Record payload ref, ack/fail, and physical motor observation or no-motor failure. |
 
