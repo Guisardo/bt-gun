@@ -14,7 +14,7 @@
 
 ### Discovery
 
-- [ ] **DISC-01**: Developer can inventory every local reference APK/XAPK under `docs/refs/` with package name, target SDK, permissions, app type, and validity status.
+- [x] **DISC-01**: Developer can inventory every local reference APK/XAPK under `docs/refs/` with package name, target SDK, permissions, app type, and validity status.
 - [ ] **DISC-02**: Developer can run an Android diagnostic that reports whether the iPega gun appears as a standard Android input device.
 - [ ] **DISC-03**: Developer can run an Android diagnostic that reports visible Bluetooth Classic and BLE services for the physical iPega gun.
 - [ ] **DISC-04**: Developer can capture and store raw Bluetooth traffic or app-observed frames for trigger, reload, joystick, X/Y/A/B, and rumble tests.
@@ -143,7 +143,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DISC-01 | Phase 1 | Pending |
+| DISC-01 | Phase 1 | Complete |
 | DISC-02 | Phase 1 | Pending |
 | DISC-03 | Phase 1 | Pending |
 | DISC-04 | Phase 1 | Pending |
@@ -199,6 +199,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PACK-05 | Phase 10 | Pending |
 
 **Coverage:**
+
 - v1 requirements: 54 total
 - Mapped to phases: 54
 - Unmapped: 0
