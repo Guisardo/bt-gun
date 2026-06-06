@@ -20,7 +20,13 @@ Before any Gradle build/install, human must review:
 | Repositories | `google()`, `mavenCentral()`, `gradlePluginPortal()` | approved by human 2026-06-06 |
 | App id | `com.btgun.diagnostic` | approved by human 2026-06-06 |
 
-No dependency has been downloaded or built. Build/install is still paused because local disk has only 7.6 GiB free and the data volume is 99% full.
+Dependency review completed before build/install. First successful diagnostic build used:
+
+```bash
+ANDROID_HOME=/Users/lucas.rancez/Library/Android/sdk GRADLE_USER_HOME=/private/tmp/bt-gun-gradle-home gradle assembleDebug
+```
+
+The local Gradle user home override was required because the default user-home native Gradle cache failed to initialize. Build output was installed with `adb install -r android-diagnostic/app/build/outputs/apk/debug/app-debug.apk`.
 
 ## Checkpoint Observation: 2026-06-06
 
@@ -29,9 +35,42 @@ Human checkpoint response:
 - Android phone is connected over USB.
 - Android phone can see the iPega device.
 - Direct pairing does not complete; the device appears to require a custom handshake.
-- Gradle/plugin dependency build/install was not approved.
+- Gradle/plugin dependency build/install was approved later in this checkpoint sequence.
 
 Interpretation: direct Android settings pairing is currently unavailable as an evidence path. This supports keeping the BLE/Classic custom-handshake clues as hypotheses, but it does not prove a transport, input control, or rumble path. No trigger, reload, joystick, X/Y/A/B, or rumble success evidence was captured.
+
+## Diagnostic APK Observation: 2026-06-06
+
+Build/install:
+
+- Disk was freed to about 20 GiB before Gradle build/install continued.
+- `gradle assembleDebug` initially required Android SDK path and JVM target fixes; the module now builds Java/Kotlin bytecode with JVM 17.
+- `com.btgun.diagnostic` installed successfully on `SM_A750G`.
+- Android SDK was 29. Legacy Bluetooth and coarse/fine location permissions were granted; Android 12 `BLUETOOTH_SCAN`/`BLUETOOTH_CONNECT` runtime permissions are not applicable on SDK 29.
+
+Diagnostic `input_device_scan` observation:
+
+- Devices remained `Virtual`, `gpio_keys`, `Codec3035 Headset Events`, `sec_touchscreen`, and `flip_cover`.
+- No `ARGunGame` or external gun/gamepad-like `InputDevice` appeared in the diagnostic scan.
+
+Diagnostic BLE scan observation:
+
+- `ARGunGame` advertisements were captured repeatedly.
+- Committed docs sanitize the address to prefix `FFFF10`; ignored raw logcat keeps the full address.
+- RSSI was approximately `-38` to `-40` during the saved capture window.
+- Advertised service UUID was `0000fff0-0000-1000-8000-00805f9b34fb`.
+
+Diagnostic Classic observation:
+
+- Classic scan enumerated existing bonded devices, but `ARGunGame` was not bonded.
+- No Classic SPP UUID or channel-1 socket evidence was captured for the gun.
+
+Bluetooth manager after diagnostic:
+
+- `com.btgun.diagnostic` registered as a BLE scan client and accumulated scan results.
+- Bluetooth manager still showed `Connections: 0` and no Low Energy connection attempts for the diagnostic app.
+
+Interpretation: physical hardware now confirms the deprecated-app BLE `fff0` hypothesis at the advertisement level. It does not yet prove `fff1`, `fff3`, `fff5`, control frames, Classic transport, pairing handshake semantics, or rumble. The next diagnostic step needs GATT connect/service discovery and notification/read capture against the `fff0` device; direct OS pairing remains blocked by the custom-handshake path.
 
 ## No-Build ADB Observation: 2026-06-06
 
@@ -64,9 +103,9 @@ Interpretation: the phone can see `ARGunGame` and can briefly establish a low-le
 
 | capture_id | section | clue_id | action | raw/app/HCI pointer | status | notes |
 |------------|---------|---------|--------|---------------------|--------|-------|
-| input-device-scan-001 | input_device_scan | COMMON-GAMEPAD-001 | Run diagnostic device scan with gun powered/pairable; press no controls during baseline. | `.evidence/phase1/raw/input-device-scan-001.adb-pointer.txt` | captured_no_standard_input_device | ADB dumpsys showed no current external gun/gamepad InputDevice after direct pairing failure. Diagnostic APK scan still pending if disk allows build/install. |
-| ble-scan-001 | ble_scan | ARGUN2021-BLE-001 | Run BLE scan for `fff0`, `fff1`, `fff3`, and `fff5` candidates. | `.evidence/phase1/raw/bluetooth-manager-001.adb-pointer.txt` | captured_settings_pairing_failure | ADB dumpsys showed ARGunGame bond attempt and BLE link drop with no client app; service/characteristic discovery still pending. |
-| classic-scan-001 | classic_scan | ARCHER-BT-001 | Inspect bonded Classic devices, SPP UUID, and channel-1/socket observations. | `.evidence/phase1/raw/bluetooth-manager-001.adb-pointer.txt` | captured_unbonded_pairing_failure | ADB dumpsys showed ARGunGame not bonded after failed Settings pairing; SPP/socket capture still pending. |
+| input-device-scan-001 | input_device_scan | COMMON-GAMEPAD-001 | Run diagnostic device scan with gun powered/pairable; press no controls during baseline. | `.evidence/phase1/app-logs/ble-scan-001.logcat.txt` | captured_diagnostic_no_standard_input_device | Diagnostic APK scan showed no external gun/gamepad InputDevice; raw ADB dumpsys also showed none after direct pairing failure. |
+| ble-scan-001 | ble_scan | ARGUN2021-BLE-001 | Run BLE scan for `fff0`, `fff1`, `fff3`, and `fff5` candidates. | `.evidence/phase1/app-logs/ble-scan-001.logcat.txt` | captured_ble_advertised_fff0 | Diagnostic BLE scan saw `ARGunGame` advertising service `0000fff0-0000-1000-8000-00805f9b34fb`; GATT connect/service discovery still pending. |
+| classic-scan-001 | classic_scan | ARCHER-BT-001 | Inspect bonded Classic devices, SPP UUID, and channel-1/socket observations. | `.evidence/phase1/raw/bluetooth-manager-after-diagnostic-001.txt` | captured_unbonded_no_classic_gun | Diagnostic Classic scan showed existing bonded devices only; `ARGunGame` was not bonded and no gun SPP/socket evidence was captured. |
 | trigger-001 | trigger | ARGUN2021-CONTROL-001 | Press trigger down/up once during capture. | `.evidence/phase1/app-logs/trigger-001.logcat.txt` | pending hardware | Expected normalized target: `fixtures/ipega/normalized/trigger.jsonl`. |
 | reload-001 | reload | ARGUN2021-CONTROL-001 | Press reload down/up once during capture. | `.evidence/phase1/app-logs/reload-001.logcat.txt` | pending hardware | Expected normalized target: `fixtures/ipega/normalized/reload.jsonl`. |
 | joystick-001 | joystick_axes | ARCHER-INPUT-001 | Move stick X/Y through neutral, min, max, and release. | `.evidence/phase1/app-logs/joystick-001.logcat.txt` | pending hardware | Expected normalized target: `fixtures/ipega/normalized/joystick.jsonl`. |
