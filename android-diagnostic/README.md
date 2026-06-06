@@ -27,11 +27,21 @@ Static clues from `docs/protocol/ipega-phase1-clues.md` are hypotheses. A findin
 
 ## Build Boundary
 
-Gradle files are scaffolding only. Do not build, install, or download Gradle/plugin dependencies until Plan 03 performs human dependency review.
+Gradle files are diagnostic scaffolding only. Dependency coordinates were approved by human checkpoint on 2026-06-06 before the first build/install.
+
+Known local build command:
+
+```bash
+ANDROID_HOME=/Users/lucas.rancez/Library/Android/sdk \
+GRADLE_USER_HOME=/private/tmp/bt-gun-gradle-home \
+gradle assembleDebug
+```
+
+`GRADLE_USER_HOME=/private/tmp/bt-gun-gradle-home` avoids a broken local native Gradle cache under the user home. Keep using the dependency review gate for any new plugin, repository, or package coordinate.
 
 ## Dependency Review Gate
 
-Do not run Gradle build/install commands until a human reviews these generated coordinates:
+Do not run new Gradle build/install commands after dependency changes until a human reviews the generated coordinates:
 
 - Root plugin: `com.android.application` version `8.7.3`
 - Root plugin: `org.jetbrains.kotlin.android` version `2.0.21`
@@ -39,7 +49,7 @@ Do not run Gradle build/install commands until a human reviews these generated c
 - App package: `com.btgun.diagnostic`
 - SDKs: `compileSdk = 35`, `minSdk = 23`, `targetSdk = 35`
 
-Plan 03 Task 2 is the blocking checkpoint for this review and for physical capture. No dependency download or Android install is part of Task 1.
+Plan 03 Task 2 is the blocking checkpoint for this review and for physical capture. The approved 2026-06-06 build produced and installed `android-diagnostic/app/build/outputs/apk/debug/app-debug.apk` for package `com.btgun.diagnostic`.
 
 ## Physical Capture Workflow
 
