@@ -88,7 +88,7 @@ Plans:
   3. Pairing creates an authenticated local session using a short-lived one-time secret with replay protection.
   4. Android and desktop maintain a reliable control channel for pairing state, heartbeat, diagnostics, profile metadata, and haptic commands.
 
-**Plans:** 1/8 plans executed
+**Plans:** 2/8 plans executed
 Plans:
 
 **Wave 0**
@@ -97,7 +97,7 @@ Plans:
 
 **Wave 1** *(blocked on Wave 0 completion)*
 
-- [ ] 03-02-PLAN.md — Android QR/manual parser, trusted desktop store, and desktop-link dashboard state.
+- [x] 03-02-PLAN.md — Android QR/manual parser, trusted desktop store, and desktop-link dashboard state.
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -241,7 +241,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 |-------|----------------|--------|-----------|
 | 1. Hardware and Protocol Discovery | 5/5 | Complete | 2026-06-06 |
 | 2. Android Host Live Input | 6/6 | Complete | 2026-06-07 |
-| 3. LAN Pairing and Secure Session | 1/8 | Executing | - |
+| 3. LAN Pairing and Secure Session | 2/8 | Executing | - |
 | 4. Input Stream and Haptic Transport | 0/TBD | Not started | - |
 | 5. Desktop Backend Contract and Smoke Harness | 0/TBD | Not started | - |
 | 6. Windows Virtual Joystick Path | 0/TBD | Not started | - |
