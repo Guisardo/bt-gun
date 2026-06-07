@@ -27,7 +27,7 @@ class StreamSequencer {
     private val nextByStream = mutableMapOf<StreamKind, Long>()
 
     fun next(stream: StreamKind): Long {
-        val next = nextByStream.getOrDefault(stream, 1L)
+        val next = nextByStream[stream] ?: 1L
         nextByStream[stream] = next + 1L
         return next
     }
