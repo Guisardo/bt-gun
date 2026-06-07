@@ -203,7 +203,7 @@ private fun previewMapperUsesShortestAngleDeltas() {
     val wrapForward = PreviewAimMapper(AimBaseline(yaw = 350f, pitch = 10f, roll = 0f, elapsedNanos = 100L))
         .map(sample(provider = MotionProvider.GAME_ROTATION_VECTOR, yaw = 10f, pitch = -5f, roll = 0f))
     expectNear("wrapped yaw right", 20f / 45f, wrapForward.x)
-    expectNear("pitch delta up", -15f / 45f, wrapForward.y)
+    expectNear("negative pitch moves graph up", 15f / 45f, wrapForward.y)
 
     val wrapBackward = PreviewAimMapper(AimBaseline(yaw = 10f, pitch = 0f, roll = 0f, elapsedNanos = 100L))
         .map(sample(provider = MotionProvider.GAME_ROTATION_VECTOR, yaw = 350f, pitch = 0f, roll = 0f))
