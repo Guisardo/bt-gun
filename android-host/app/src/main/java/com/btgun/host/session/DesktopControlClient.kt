@@ -85,22 +85,31 @@ data class DesktopControlConnectionRequest(
         fun fromTrustedDesktop(
             metadata: TrustedDesktopMetadata,
             androidNonce: String,
-        ): DesktopControlConnectionRequest =
-            DesktopControlConnectionRequest(
+        ): DesktopControlConnectionRequest {
+            val fingerprint = metadata.fingerprintSha256.lowercase(Locale.US)
+            val sid = "trusted-${fingerprint.takeLast(8)}"
+            return DesktopControlConnectionRequest(
                 config = DesktopControlClientConfig(
                     url = "wss://${metadata.lastHost}:${metadata.lastPort}/control",
-                    expectedDesktopSpkiSha256 = metadata.fingerprintSha256.lowercase(Locale.US),
+                    expectedDesktopSpkiSha256 = fingerprint,
                 ),
                 proofRequest = ControlProofRequest(
-                    sid = "trusted-${metadata.fingerprintSha256.takeLast(8)}",
+                    sid = sid,
                     androidNonce = androidNonce,
-                    desktopSpkiSha256 = metadata.fingerprintSha256.lowercase(Locale.US),
-                    proofHex = "",
+                    desktopSpkiSha256 = fingerprint,
+                    proofHex = PairingProof.create(
+                        sid = sid,
+                        desktopNonce = fingerprint.take(32),
+                        androidNonce = androidNonce,
+                        desktopSpkiSha256 = fingerprint,
+                        oneTimeMaterial = fingerprint,
+                    ),
                 ),
                 displayName = metadata.displayName,
                 host = metadata.lastHost,
                 port = metadata.lastPort,
             )
+        }
 
         const val DEFAULT_DESKTOP_DISPLAY_NAME: String = "BT Gun Desktop"
     }
