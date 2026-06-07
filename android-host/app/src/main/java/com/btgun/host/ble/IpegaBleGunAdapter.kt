@@ -114,7 +114,7 @@ class IpegaBleGunAdapter(
 
         override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
             if (status != BluetoothGatt.GATT_SUCCESS) {
-                handleError("service discovery failed status=$status")
+                handleError("gatt discovery failed status=$status")
                 return
             }
             emitStatus("ble_gatt_discovery", "services_discovered")
