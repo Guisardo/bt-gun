@@ -12,27 +12,97 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.location.LocationManager
 import android.net.ConnectivityManager
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
+import android.os.SystemClock
 import android.os.Vibrator
 import com.btgun.host.ble.BleGunConnectionPhase
 import com.btgun.host.ble.BleGunConnectionState
 import com.btgun.host.ble.IpegaBleGunAdapter
 import com.btgun.host.model.GunEvent
 import com.btgun.host.model.LiveEnvelope
+import com.btgun.host.model.MotionProvider
+import com.btgun.host.model.MotionSample
 import com.btgun.host.model.StatusEvent
+import com.btgun.host.motion.AimBaseline
+import com.btgun.host.motion.MotionAimProvider
+import com.btgun.host.motion.OrientationAngles
+import com.btgun.host.motion.PreviewAim
+import com.btgun.host.motion.PreviewAimMapper
+import com.btgun.host.motion.SelectedMotionProvider
 import com.btgun.host.permissions.PermissionGate
 import com.btgun.host.permissions.PermissionGateInput
 import com.btgun.host.permissions.PermissionGateState
+import com.btgun.host.recenter.ReloadHoldRecenter
+import com.btgun.host.recenter.ReloadHoldState
 
 class HostSessionService : Service() {
     private var adapter: IpegaBleGunAdapter? = null
+    private val handler = Handler(Looper.getMainLooper())
+    private val recenter = ReloadHoldRecenter()
+    private var motionAimProvider: MotionAimProvider? = null
+    private var selectedMotionProvider: SelectedMotionProvider? = null
+    private var activeSensor: Sensor? = null
+    private var currentAimBaseline: AimBaseline = AimBaseline(0f, 0f, 0f, 0L)
 
     @Volatile
     private var currentState: HostSessionState = HostSessionState()
+        set(value) {
+            field = value
+            latestState = value
+        }
+
+    private val recenterTick = Runnable {
+        val emitted = recenter.onTick(SystemClock.elapsedRealtimeNanos()).firstOrNull()
+        if (emitted != null) {
+            val lastMotion = currentState.lastMotionSample?.payload
+            if (lastMotion != null) {
+                currentAimBaseline = AimBaseline(
+                    yaw = lastMotion.yaw,
+                    pitch = lastMotion.pitch,
+                    roll = lastMotion.roll,
+                    elapsedNanos = emitted.payload.baselineElapsedNanos ?: emitted.captureElapsedNanos,
+                )
+            }
+            currentState = currentState.copy(
+                reloadHoldState = recenter.state,
+                lastRecenterStatus = emitted,
+                aimBaseline = currentAimBaseline,
+            )
+        }
+    }
+
+    private val sensorListener = object : SensorEventListener {
+        override fun onSensorChanged(event: SensorEvent) {
+            val provider = motionAimProvider ?: return
+            val selection = selectedMotionProvider ?: provider.currentSelection()
+            if (!selection.isAvailable) {
+                val unavailable = provider.unavailableSample()
+                currentState = currentState.copy(lastMotionSample = unavailable)
+                return
+            }
+            val envelope = provider.envelopeForSensorEvent(
+                event = event,
+                orientation = orientationFrom(event, selection.provider),
+                selection = selection,
+            )
+            val preview = PreviewAimMapper(currentAimBaseline).map(envelope)
+            currentState = currentState.copy(
+                lastMotionSample = envelope,
+                lastPreviewAim = preview,
+                aimBaseline = currentAimBaseline,
+            )
+        }
+
+        override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
+    }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -62,6 +132,7 @@ class HostSessionService : Service() {
 
         currentState = HostSessionState(phase = HostSessionPhase.STARTING)
         startHostForeground()
+        startMotionCapture()
 
         val listener = object : IpegaBleGunAdapter.Listener {
             override fun onConnectionState(state: BleGunConnectionState) {
@@ -70,13 +141,19 @@ class HostSessionService : Service() {
                     foregroundActive = currentState.foregroundActive,
                     reconnectAttempt = state.reconnectAttempt,
                     lastError = state.lastError,
+                    lastBleConnectionState = state,
                 )
             }
 
-            override fun onGunEvent(envelope: LiveEnvelope<GunEvent>) = Unit
+            override fun onGunEvent(envelope: LiveEnvelope<GunEvent>) {
+                handleGunEvent(envelope)
+            }
 
             override fun onStatus(envelope: LiveEnvelope<StatusEvent>) {
-                currentState = currentState.copy(lastError = envelope.payload.message ?: currentState.lastError)
+                currentState = currentState.copy(
+                    lastStatusEvent = envelope,
+                    lastError = envelope.payload.message ?: currentState.lastError,
+                )
             }
         }
 
@@ -86,6 +163,8 @@ class HostSessionService : Service() {
 
     private fun stopSession() {
         currentState = currentState.copy(phase = HostSessionPhase.STOPPING)
+        stopMotionCapture()
+        handler.removeCallbacks(recenterTick)
         adapter?.stopSession()
         adapter = null
         currentState = HostSessionState(phase = HostSessionPhase.STOPPED)
@@ -197,6 +276,103 @@ class HostSessionService : Service() {
     private fun hasNetwork(): Boolean =
         getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager != null
 
+    private fun startMotionCapture() {
+        val sensorManager = getSystemService(Context.SENSOR_SERVICE) as? SensorManager ?: return
+        val provider = MotionAimProvider(
+            sensorManager = sensorManager,
+            clock = { SystemClock.elapsedRealtimeNanos() },
+        )
+        val selection = provider.currentSelection()
+        motionAimProvider = provider
+        selectedMotionProvider = selection
+        currentAimBaseline = AimBaseline(0f, 0f, 0f, SystemClock.elapsedRealtimeNanos())
+        currentState = currentState.copy(aimBaseline = currentAimBaseline)
+
+        if (!selection.isAvailable) {
+            currentState = currentState.copy(lastMotionSample = provider.unavailableSample())
+            return
+        }
+
+        activeSensor = sensorForSelection(sensorManager, selection.provider)
+        val registered = activeSensor?.let { sensor ->
+            sensorManager.registerListener(sensorListener, sensor, SensorManager.SENSOR_DELAY_GAME)
+        } == true
+        if (!registered) {
+            currentState = currentState.copy(lastMotionSample = provider.unavailableSample())
+        }
+    }
+
+    private fun stopMotionCapture() {
+        val sensorManager = getSystemService(Context.SENSOR_SERVICE) as? SensorManager ?: return
+        sensorManager.unregisterListener(sensorListener)
+        activeSensor = null
+        motionAimProvider = null
+        selectedMotionProvider = null
+    }
+
+    private fun sensorForSelection(sensorManager: SensorManager, provider: MotionProvider): Sensor? =
+        when (provider) {
+            MotionProvider.GAME_ROTATION_VECTOR -> sensorManager.getDefaultSensor(Sensor.TYPE_GAME_ROTATION_VECTOR)
+            MotionProvider.ROTATION_VECTOR -> sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
+            MotionProvider.GYRO_GRAVITY -> sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE)
+            MotionProvider.TILT_FALLBACK -> sensorManager.getDefaultSensor(Sensor.TYPE_GRAVITY)
+                ?: sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+            MotionProvider.UNAVAILABLE -> null
+        }
+
+    private fun orientationFrom(event: SensorEvent, provider: MotionProvider): OrientationAngles =
+        when (provider) {
+            MotionProvider.GAME_ROTATION_VECTOR,
+            MotionProvider.ROTATION_VECTOR,
+            -> rotationVectorOrientation(event.values)
+            MotionProvider.TILT_FALLBACK -> tiltOrientation(event.values)
+            MotionProvider.GYRO_GRAVITY -> OrientationAngles(
+                yaw = event.values.getOrElse(2) { 0f },
+                pitch = event.values.getOrElse(0) { 0f },
+                roll = event.values.getOrElse(1) { 0f },
+            )
+            MotionProvider.UNAVAILABLE -> OrientationAngles(0f, 0f, 0f)
+        }
+
+    private fun rotationVectorOrientation(values: FloatArray): OrientationAngles {
+        val rotationMatrix = FloatArray(9)
+        val orientation = FloatArray(3)
+        SensorManager.getRotationMatrixFromVector(rotationMatrix, values)
+        SensorManager.getOrientation(rotationMatrix, orientation)
+        return OrientationAngles(
+            yaw = Math.toDegrees(orientation[0].toDouble()).toFloat(),
+            pitch = Math.toDegrees(orientation[1].toDouble()).toFloat(),
+            roll = Math.toDegrees(orientation[2].toDouble()).toFloat(),
+        )
+    }
+
+    private fun tiltOrientation(values: FloatArray): OrientationAngles {
+        val x = values.getOrElse(0) { 0f }
+        val y = values.getOrElse(1) { 0f }
+        val z = values.getOrElse(2) { 9.8f }
+        return OrientationAngles(
+            yaw = 0f,
+            pitch = Math.toDegrees(kotlin.math.atan2((-x).toDouble(), z.toDouble())).toFloat(),
+            roll = Math.toDegrees(kotlin.math.atan2(y.toDouble(), z.toDouble())).toFloat(),
+        )
+    }
+
+    private fun handleGunEvent(envelope: LiveEnvelope<GunEvent>) {
+        if (envelope.payload.name == "reload" && envelope.payload.pressed != null) {
+            recenter.onReload(envelope.payload.pressed, envelope.captureElapsedNanos)
+            if (envelope.payload.pressed) {
+                handler.removeCallbacks(recenterTick)
+                handler.postDelayed(recenterTick, ReloadHoldRecenter.RELOAD_HOLD_NANOS / 1_000_000L)
+            } else {
+                handler.removeCallbacks(recenterTick)
+            }
+        }
+        currentState = currentState.copy(
+            lastGunEvent = envelope,
+            reloadHoldState = recenter.state,
+        )
+    }
+
     companion object {
         const val ACTION_START_SESSION: String = "com.btgun.host.action.START_SESSION"
         const val ACTION_STOP_SESSION: String = "com.btgun.host.action.STOP_SESSION"
@@ -204,6 +380,10 @@ class HostSessionService : Service() {
         const val NOTIFICATION_TITLE: String = "BT Gun Host"
         const val NOTIFICATION_TEXT: String = "BT Gun Host running - live input active"
         private const val NOTIFICATION_ID: Int = 1001
+
+        @Volatile
+        var latestState: HostSessionState = HostSessionState()
+            private set
 
         fun canStartWithPermissionGate(state: PermissionGateState): Boolean =
             state.canStartSession
@@ -221,6 +401,14 @@ data class HostSessionState(
     val foregroundActive: Boolean = false,
     val reconnectAttempt: Int = 0,
     val lastError: String? = null,
+    val lastBleConnectionState: BleGunConnectionState = BleGunConnectionState(),
+    val lastGunEvent: LiveEnvelope<GunEvent>? = null,
+    val lastMotionSample: LiveEnvelope<MotionSample>? = null,
+    val lastStatusEvent: LiveEnvelope<StatusEvent>? = null,
+    val reloadHoldState: ReloadHoldState = ReloadHoldState(),
+    val lastRecenterStatus: LiveEnvelope<StatusEvent>? = null,
+    val aimBaseline: AimBaseline? = null,
+    val lastPreviewAim: PreviewAim? = null,
 ) {
     val wireState: String = phase.wireName
     val isActive: Boolean =
