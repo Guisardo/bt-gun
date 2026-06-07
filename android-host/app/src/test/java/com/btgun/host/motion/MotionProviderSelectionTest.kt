@@ -14,6 +14,7 @@ fun main() {
     providerSelectionReportsCapabilityFlagsAndTimestampSource()
     motionSampleEnvelopeCarriesProviderAndCapabilityMetadata()
     previewMapperCentersBaselineAndBoundsDeltas()
+    previewMapperUsesShortestAngleDeltas()
     previewMapperDisablesPadWhenMotionUnavailable()
     previewMapperDoesNotExposeDesktopProfileMapping()
 }
@@ -174,6 +175,17 @@ private fun previewMapperCentersBaselineAndBoundsDeltas() {
     )
     expectTrue("moved x bounded", moved.x in -1f..1f)
     expectTrue("moved y bounded", moved.y in -1f..1f)
+}
+
+private fun previewMapperUsesShortestAngleDeltas() {
+    val wrapForward = PreviewAimMapper(AimBaseline(yaw = 350f, pitch = 10f, roll = 0f, elapsedNanos = 100L))
+        .map(sample(provider = MotionProvider.GAME_ROTATION_VECTOR, yaw = 10f, pitch = -5f, roll = 0f))
+    expectNear("wrapped yaw right", 20f / 45f, wrapForward.x)
+    expectNear("pitch delta up", -15f / 45f, wrapForward.y)
+
+    val wrapBackward = PreviewAimMapper(AimBaseline(yaw = 10f, pitch = 0f, roll = 0f, elapsedNanos = 100L))
+        .map(sample(provider = MotionProvider.GAME_ROTATION_VECTOR, yaw = 350f, pitch = 0f, roll = 0f))
+    expectNear("wrapped yaw left", -20f / 45f, wrapBackward.x)
 }
 
 private fun previewMapperDisablesPadWhenMotionUnavailable() {
