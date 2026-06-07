@@ -27,6 +27,8 @@ import com.btgun.host.permissions.CapabilityState
 import com.btgun.host.permissions.CapabilityStatus
 import com.btgun.host.permissions.PermissionGateState
 import com.btgun.host.recenter.ReloadHoldState
+import com.btgun.host.session.DesktopLinkPhase
+import com.btgun.host.session.DesktopLinkState
 
 fun main() {
     initialStateUsesRequiredShellCopyAndCollapsedDebugPanels()
@@ -37,7 +39,9 @@ fun main() {
     calibrationGraphShowsMarkProgressAndLatency()
     recenterShowsCountdownEmissionAndReloadVisibility()
     debugDetailsStayCollapsedUntilToggled()
-    futureDesktopAndPacketSurfacesStayInactive()
+    desktopLinkStateActivatesPairingActionsAndKeepsPacketStreamInactive()
+    desktopLinkStateShowsExpiryReachabilityAndTrustProblemCopy()
+    trustedDesktopDisplayDoesNotActivatePacketStream()
     phoneHapticsStayLocalOnly()
 }
 
@@ -318,13 +322,69 @@ private fun debugDetailsStayCollapsedUntilToggled() {
     expectContains("gatt status", state.debugPanels.gattStatus.body, "fff3_notifications_enabled")
 }
 
-private fun futureDesktopAndPacketSurfacesStayInactive() {
+private fun desktopLinkStateActivatesPairingActionsAndKeepsPacketStreamInactive() {
     val state = DashboardState.initial(permissionGateState())
 
     expectEquals("desktop title", "Desktop link", state.placeholders.desktopLink.title)
-    expectEquals("desktop body", "Not built yet. Pending Phase 3.", state.placeholders.desktopLink.body)
-    expectFalse("desktop inactive", state.placeholders.desktopLink.active)
+    expectContains("desktop empty body", state.placeholders.desktopLink.body, "No desktop paired yet")
+    expectContains("desktop scan action", state.placeholders.desktopLink.body, "Scan desktop QR")
+    expectContains("desktop manual action", state.placeholders.desktopLink.body, "Enter manually")
+    expectTrue("desktop active", state.placeholders.desktopLink.active)
     expectEquals("packet title", "Packet stream", state.placeholders.packetStream.title)
+    expectEquals("packet body", "Not built yet. Pending Phase 4.", state.placeholders.packetStream.body)
+    expectFalse("packet inactive", state.placeholders.packetStream.active)
+}
+
+private fun desktopLinkStateShowsExpiryReachabilityAndTrustProblemCopy() {
+    val expired = DashboardState.from(
+        permissionGateState = permissionGateState(),
+        hostSessionState = HostSessionState(),
+        desktopLinkState = DesktopLinkState(
+            phase = DesktopLinkPhase.DISCONNECTED,
+            lastControlError = "QR expired. Cannot reach desktop. Rescan the QR code or enter the endpoint and 6-digit code manually.",
+        ),
+    )
+    expectContains("expired copy", expired.placeholders.desktopLink.body, "Cannot reach desktop")
+    expectContains("expired rescan", expired.placeholders.desktopLink.body, "Rescan QR")
+    expectContains("expired manual", expired.placeholders.desktopLink.body, "Enter manually")
+    expectFalse("expired no discovery", expired.placeholders.desktopLink.body.contains("LAN discovery", ignoreCase = true))
+    expectFalse("expired no service discovery", expired.placeholders.desktopLink.body.contains("service discovery", ignoreCase = true))
+    expectFalse("expired packet inactive", expired.placeholders.packetStream.active)
+
+    val trustProblem = DashboardState.from(
+        permissionGateState = permissionGateState(),
+        hostSessionState = HostSessionState(),
+        desktopLinkState = DesktopLinkState(
+            phase = DesktopLinkPhase.TRUST_PROBLEM,
+            desktopDisplayName = "BT Gun Desktop",
+            fingerprintSuffix = "11223344",
+            lastControlError = "Desktop identity changed",
+        ),
+    )
+    expectContains("trust heading", trustProblem.placeholders.desktopLink.body, "Desktop identity changed")
+    expectContains("trust body", trustProblem.placeholders.desktopLink.body, "saved fingerprint does not match")
+    expectContains("trust suffix", trustProblem.placeholders.desktopLink.body, "11223344")
+}
+
+private fun trustedDesktopDisplayDoesNotActivatePacketStream() {
+    val state = DashboardState.from(
+        permissionGateState = permissionGateState(),
+        hostSessionState = HostSessionState(),
+        desktopLinkState = DesktopLinkState(
+            phase = DesktopLinkPhase.CONNECTED,
+            desktopDisplayName = "BT Gun Desktop",
+            fingerprintSuffix = "11223344",
+            heartbeatAgeMillis = 1_500L,
+            lastControlError = "none",
+        ),
+    )
+
+    expectContains("trusted display", state.placeholders.desktopLink.body, "BT Gun Desktop")
+    expectContains("trusted action", state.placeholders.desktopLink.body, "Use trusted desktop")
+    expectContains("trusted suffix", state.placeholders.desktopLink.body, "11223344")
+    expectContains("heartbeat seconds", state.placeholders.desktopLink.body, "heartbeat=1s")
+    expectFalse("no packet loss metric", state.placeholders.desktopLink.body.contains("packet loss", ignoreCase = true))
+    expectFalse("no jitter metric", state.placeholders.desktopLink.body.contains("jitter", ignoreCase = true))
     expectEquals("packet body", "Not built yet. Pending Phase 4.", state.placeholders.packetStream.body)
     expectFalse("packet inactive", state.placeholders.packetStream.active)
 }
