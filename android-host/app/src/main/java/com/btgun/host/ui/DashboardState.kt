@@ -21,6 +21,8 @@ import com.btgun.host.permissions.PermissionGateState
 import com.btgun.host.recenter.ReloadHoldRecenter
 import com.btgun.host.recenter.ReloadHoldState
 import com.btgun.host.recenter.recenterEvent
+import com.btgun.host.session.DesktopLinkPhase
+import com.btgun.host.session.DesktopLinkState
 
 enum class DashboardEventMode {
     PRODUCT_EVENTS,
@@ -150,6 +152,7 @@ data class DashboardState(
             reloadHoldState: ReloadHoldState = hostSessionState.reloadHoldState,
             lastRecenterStatus: LiveEnvelope<StatusEvent>? = hostSessionState.lastRecenterStatus,
             phoneHapticStatus: PhoneHapticStatus = PhoneHapticStatus.available(),
+            desktopLinkState: DesktopLinkState = DesktopLinkState(),
             debugExpanded: DebugExpansion = DebugExpansion(),
             eventMode: DashboardEventMode = DashboardEventMode.PRODUCT_EVENTS,
             nowElapsedNanos: Long = lastGunEvent?.emittedElapsedNanos
@@ -157,7 +160,9 @@ data class DashboardState(
                 ?: lastRecenterStatus?.emittedElapsedNanos
                 ?: 0L,
         ): DashboardState {
-            val placeholders = DashboardPlaceholders()
+            val placeholders = DashboardPlaceholders(
+                desktopLink = formatDesktopLink(desktopLinkState),
+            )
             return DashboardState(
                 appTitle = "BT Gun Host",
                 permission = permissionState(permissionGateState),
@@ -372,5 +377,21 @@ data class DashboardState(
                 "lan=${state.lanNetwork.label}",
                 "vibration=${state.vibration.label}",
             ).joinToString("\n")
+
+        private fun formatDesktopLink(state: DesktopLinkState): PlaceholderSurface =
+            PlaceholderSurface(
+                title = "Desktop link",
+                body = listOf(
+                    state.diagnosticText,
+                    "session_state=${state.phase.wireName}",
+                    "primary_action=${state.primaryActionLabel}",
+                    "manual_action=${state.manualActionLabel}",
+                    when (state.phase) {
+                        DesktopLinkPhase.DISCONNECTED -> "Rescan QR"
+                        else -> null
+                    },
+                ).filterNotNull().joinToString(" | "),
+                active = true,
+            )
     }
 }
