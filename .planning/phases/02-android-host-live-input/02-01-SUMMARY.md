@@ -66,6 +66,7 @@ completed: 2026-06-07
 1. **Task 1: RED gate for permission and host scaffold** - `3484777` (test)
 2. **Task 2: GREEN permission gate and shared live envelope contracts** - `f2c78bb` (feat)
 3. **Task 3: REFACTOR permission and envelope boundaries** - `d5b44de` (refactor)
+4. **Post-wave lint fix** - `f2d0680` (fix)
 
 ## Files Created/Modified
 
@@ -106,14 +107,22 @@ completed: 2026-06-07
 - **Verification:** Focused and full unit-test commands passed under JDK 17.
 - **Committed in:** none - environment-only verification fix
 
+**3. [Rule 3 - Blocking] Removed API 24 `Map.getOrDefault` call for minSdk 23**
+- **Found during:** Post-wave `lintDebug`
+- **Issue:** Android lint flagged `java.util.Map#getOrDefault` in `StreamSequencer` because the host app supports minSdk 23.
+- **Fix:** Replaced it with Kotlin map access plus Elvis default.
+- **Files modified:** `android-host/app/src/main/java/com/btgun/host/model/NormalizedEvents.kt`
+- **Verification:** `gradle -p android-host testDebugUnitTest` and `gradle -p android-host lintDebug` passed under JDK 17.
+- **Committed in:** `f2d0680`
+
 ---
 
-**Total deviations:** 2 auto-fixed (2 blocking)
-**Impact on plan:** Both preserved the no-new-dependencies and Android/JVM 17 constraints. No UI, BLE adapter, SensorManager, LAN transport, dashboard, or haptic command behavior was added.
+**Total deviations:** 3 auto-fixed (3 blocking)
+**Impact on plan:** Fixes preserved the no-new-dependencies, Android/JVM 17, and minSdk 23 constraints. No UI, BLE adapter, SensorManager, LAN transport, dashboard, or haptic command behavior was added.
 
 ## Issues Encountered
 
-- `lintDebug` could not complete because Android lint attempted to resolve uncached `com.android.tools.lint:lint-gradle:31.7.3` from `dl.google.com`, and DNS/network access was unavailable. Quick verification passed; lint remains to rerun once the lint artifact is cached or network access is available.
+- `lintDebug` initially needed uncached Android lint artifacts and then found the minSdk 23 issue above. After sandbox-approved Gradle execution and `f2d0680`, lint passes.
 
 ## Known Stubs
 
@@ -132,13 +141,14 @@ None - no external service configuration required. Android Gradle verification s
 - `node tools/phase1/validate-fixtures.mjs --full` - PASS
 - `JAVA_HOME=/opt/homebrew/Cellar/openjdk@17/17.0.19/libexec/openjdk.jdk/Contents/Home ANDROID_HOME=/Users/lucas.rancez/Library/Android/sdk GRADLE_USER_HOME=/private/tmp/bt-gun-gradle-home gradle -p android-host testDebugUnitTest --tests '*PermissionGate*'` - PASS
 - `JAVA_HOME=/opt/homebrew/Cellar/openjdk@17/17.0.19/libexec/openjdk.jdk/Contents/Home ANDROID_HOME=/Users/lucas.rancez/Library/Android/sdk GRADLE_USER_HOME=/private/tmp/bt-gun-gradle-home gradle -p android-host testDebugUnitTest` - PASS
-- `JAVA_HOME=/opt/homebrew/Cellar/openjdk@17/17.0.19/libexec/openjdk.jdk/Contents/Home ANDROID_HOME=/Users/lucas.rancez/Library/Android/sdk GRADLE_USER_HOME=/private/tmp/bt-gun-gradle-home gradle -p android-host testDebugUnitTest lintDebug` - PARTIAL; unit tests passed, lint blocked by uncached Android lint artifact DNS failure.
+- `JAVA_HOME=/opt/homebrew/Cellar/openjdk@17/17.0.19/libexec/openjdk.jdk/Contents/Home ANDROID_HOME=/Users/lucas.rancez/Library/Android/sdk GRADLE_USER_HOME=/private/tmp/bt-gun-gradle-home gradle -p android-host lintDebug` - PASS
 
 ## TDD Gate Compliance
 
 - RED commit exists before GREEN: `3484777`
 - GREEN implementation commit exists after RED: `f2c78bb`
 - REFACTOR commit exists after GREEN: `d5b44de`
+- Post-wave lint fix commit exists after REFACTOR: `f2d0680`
 
 ## Next Phase Readiness
 
@@ -149,7 +159,7 @@ Plan 02-02 can add fixture-backed packet parser tests and code against `LiveEnve
 - Found `.planning/phases/02-android-host-live-input/02-01-SUMMARY.md`
 - Found `android-host/app/src/main/java/com/btgun/host/permissions/PermissionGate.kt`
 - Found `android-host/app/src/main/java/com/btgun/host/model/NormalizedEvents.kt`
-- Found task commits `3484777`, `f2c78bb`, and `d5b44de`
+- Found task commits `3484777`, `f2c78bb`, `d5b44de`, and post-wave fix `f2d0680`
 
 ---
 *Phase: 02-android-host-live-input*
