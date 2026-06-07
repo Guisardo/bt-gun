@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 02-03-PLAN.md
-last_updated: "2026-06-07T00:42:28Z"
-last_activity: 2026-06-07 -- Plan 02-03 complete
+stopped_at: Completed 02-05-PLAN.md
+last_updated: "2026-06-07T00:49:25Z"
+last_activity: 2026-06-07 -- Plan 02-05 complete
 progress:
   total_phases: 10
   completed_phases: 1
@@ -26,17 +26,17 @@ See: .planning/PROJECT.md (updated 2026-06-06)
 ## Current Position
 
 Phase: 02 (android-host-live-input) — EXECUTING
-Plan: 5 of 6
+Plan: 6 of 6
 Status: Ready to execute
-Last activity: 2026-06-07 -- Plan 02-03 complete
+Last activity: 2026-06-07 -- Plan 02-05 complete
 
-Progress: [████████░░] 82% overall; Phase 01 is 100% complete; Phase 02 is 4/6 complete.
+Progress: [█████████░] 91% overall; Phase 01 is 100% complete; Phase 02 is 5/6 complete.
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 9
+- Total plans completed: 10
 - Average duration: not tracked for hardware-interactive plans
 - Total execution time: not tracked after Plan 02
 
@@ -45,11 +45,11 @@ Progress: [████████░░] 82% overall; Phase 01 is 100% complet
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01 | 5 | not tracked | not tracked |
-| 02 | 4 | 31 min | 7.75 min |
+| 02 | 5 | 44 min | 8.8 min |
 
 **Recent Trend:**
 
-- Last 5 plans: P05, P01, P02, P04, P03 complete
+- Last 5 plans: P01, P02, P04, P03, P05 complete
 - Trend: Phase 02 in progress
 
 *Updated after each plan completion*
@@ -62,6 +62,7 @@ Progress: [████████░░] 82% overall; Phase 01 is 100% complet
 | Phase 02 P02 | 9 min | 3 tasks | 4 files |
 | Phase 02 P04 | 5 min | 3 tasks | 5 files |
 | Phase 02 P03 | 7 min | 3 tasks | 6 files |
+| Phase 02 P05 | 13 min | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -83,10 +84,11 @@ Recent decisions affecting current work:
 - [Phase 02]: Keep candidate control confidence in parser provenance rather than flattening noisy evidence into product UI fields. — Preserves Phase 1 evidence quality for debug mode.
 - [Phase 02]: Motion provider selection is pure and preview aim is Android-local calibration only. — Desktop profile/HID mapping remains deferred to later desktop profile phases.
 - [Phase 02]: Foreground HostSessionService owns the active BLE connection and IpegaBleGunAdapter accepts only ARGunGame/fff0 before parsing fff3 notifications. — Keeps BLE lifecycle visible, bounded, and scoped before LAN/control phases.
+- [Phase 02]: Reload-hold recenter is a pure elapsed-nanos state machine. — Reload down/up remain gun events, while recenter emits a separate status event after a two-second hold.
 
 ### Pending Todos
 
-- Continue Phase 02: Android Host Live Input; Plan 02-05 and Plan 02-06 remain pending after out-of-order Plan 02-04 and completed Plan 02-03.
+- Continue Phase 02: Android Host Live Input; Plan 02-06 remains pending after reload-hold recenter completion.
 
 ### Blockers/Concerns
 
@@ -103,6 +105,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-07T00:42:28Z
-Stopped at: Completed 02-03-PLAN.md
-Resume file: .planning/phases/02-android-host-live-input/02-05-PLAN.md
+Last session: 2026-06-07T00:49:25Z
+Stopped at: Completed 02-05-PLAN.md
+Resume file: .planning/phases/02-android-host-live-input/02-06-PLAN.md
