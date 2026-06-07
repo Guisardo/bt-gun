@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 03-02-PLAN.md
-last_updated: "2026-06-07T19:06:33Z"
-last_activity: 2026-06-07 -- Phase 03 Plan 03 authenticated pairing proof complete
+stopped_at: Completed 03-03-PLAN.md
+last_updated: "2026-06-07T23:05:48Z"
+last_activity: 2026-06-07 -- Phase 03 Plan 04 reliable control channel core complete
 progress:
   total_phases: 10
   completed_phases: 2
   total_plans: 19
-  completed_plans: 14
-  percent: 20
+  completed_plans: 15
+  percent: 79
 ---
 
 # Project State
@@ -26,17 +26,17 @@ See: .planning/PROJECT.md (updated 2026-06-07)
 ## Current Position
 
 Phase: 03 (lan-pairing-and-secure-session) — EXECUTING
-Plan: 4 of 8
-Status: Executing Phase 03
-Last activity: 2026-06-07 -- Phase 03 Plan 03 authenticated pairing proof complete
+Plan: 5 of 8
+Status: Ready to execute
+Last activity: 2026-06-07 -- Phase 03 Plan 04 reliable control channel core complete
 
-Progress: [██░░░░░░░░] 20% by phase; Phase 01 and Phase 02 are complete; Phase 03 has 8 planned execution prompts, 3 complete.
+Progress: [████████░░] 79% by plan; Phase 01 and Phase 02 are complete; Phase 03 has 8 planned execution prompts, 4 complete.
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 14
+- Total plans completed: 15
 - Average duration: not tracked for hardware-interactive plans
 - Total execution time: not tracked after Plan 02
 
@@ -49,8 +49,8 @@ Progress: [██░░░░░░░░] 20% by phase; Phase 01 and Phase 02 a
 
 **Recent Trend:**
 
-- Last 5 plans: P05, P06, 03-P01, 03-P02, 03-P03 complete
-- Trend: Phase 03 authenticated proof gate complete; reliable control channel next
+- Last 5 plans: P06, 03-P01, 03-P02, 03-P03, 03-P04 complete
+- Trend: Phase 03 control-channel core complete; heartbeat/liveness next
 
 *Updated after each plan completion*
 | Phase 01 P01 | 10 min | 3 tasks | 6 files |
@@ -67,6 +67,7 @@ Progress: [██░░░░░░░░] 20% by phase; Phase 01 and Phase 02 a
 | Phase 03 P01 | 9 min | 3 tasks | 17 files |
 | Phase 03 P02 | 8 min | 3 tasks | 9 files |
 | Phase 03 P03 | 19 min | 3 tasks | 9 files |
+| Phase 03 P04 | 35 min | 2 tasks | 13 files |
 
 ## Accumulated Context
 
@@ -97,10 +98,12 @@ Recent decisions affecting current work:
 - [Phase 03]: Android pairing entry stores trusted desktop metadata by SPKI SHA-256 fingerprint and keeps packet stream inactive. — QR/manual parsing and dashboard state are ready for proof/control-channel plans without adding Phase 4 transport behavior.
 - [Phase 03]: Pairing proof uses a versioned HMAC transcript and consumes accepted sessions. — Replay, wrong proof, expiry, rate-limit, and fingerprint mismatch all fail before trusted control state exists.
 - [Phase 03]: Android trust validation reports first-trust, trusted, missing, or mismatch without silent fingerprint overwrite. — Display name and endpoint remain metadata only.
+- [Phase 03]: Control channel uses versioned JSON envelopes over WSS with proof-gated desktop handling. — Haptic support stays reserved type only until Phase 4.
+- [Phase 03]: Approved Ktor/OkHttp deps compile under the current Kotlin 2.0.21 plugin with metadata-version skip. — No unapproved dependency coordinates were added.
 
 ### Pending Todos
 
-- Continue Phase 03 with Plan 03-04: reliable WSS control-channel core, envelope allowlist, and proof-gated client/server.
+- Continue Phase 03 with Plan 03-05: heartbeat/liveness, diagnostics, and minimal profile metadata.
 
 ### Blockers/Concerns
 
@@ -117,6 +120,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-07T19:06:33Z
-Stopped at: Completed 03-03-PLAN.md
-Resume file: .planning/phases/03-lan-pairing-and-secure-session/03-04-PLAN.md
+Last session: 2026-06-07T23:05:48Z
+Stopped at: Completed 03-04-PLAN.md
+Resume file: .planning/phases/03-lan-pairing-and-secure-session/03-05-PLAN.md
