@@ -17,6 +17,12 @@ fun main() {
     reservedHapticCommandAllowsEmptyBodyOnly()
     controlServerRejectsControlEnvelopeBeforeProof()
     controlServerAcceptsKnownEnvelopeAfterProof()
+    heartbeatMonitorTransitionsConnectedDegradedDisconnected()
+    heartbeatPingAndPongRefreshLiveness()
+    diagnosticsPayloadContainsOnlyControlFields()
+    profileMetadataContainsOnlyRequiredFields()
+    controlEnvelopeAllowsHeartbeatDiagnosticsAndProfileTypes()
+    reservedHapticRejectsExecutionResultBody()
 }
 
 private fun envelopeCodecAcceptsOnlyVersionOneAndKnownTypes() {
@@ -88,6 +94,95 @@ private fun controlServerAcceptsKnownEnvelopeAfterProof() {
     expectEquals("trusted sid", session.sid, result.trustedSession.sid)
 }
 
+private fun heartbeatMonitorTransitionsConnectedDegradedDisconnected() {
+    val monitor = HeartbeatMonitor(
+        connectedTimeoutNanos = 1_000_000_000L,
+        disconnectedTimeoutNanos = 3_000_000_000L,
+    )
+
+    expectEquals("before heartbeat disconnected", LivenessState.DISCONNECTED, monitor.stateAt(500_000_000L))
+    monitor.observePing(nowElapsedNanos = 1_000_000_000L)
+
+    expectEquals("fresh ping connected", LivenessState.CONNECTED, monitor.stateAt(1_500_000_000L))
+    expectEquals("stale ping degraded", LivenessState.DEGRADED, monitor.stateAt(2_500_000_001L))
+    expectEquals("missing ping disconnected", LivenessState.DISCONNECTED, monitor.stateAt(4_000_000_001L))
+}
+
+private fun heartbeatPingAndPongRefreshLiveness() {
+    val monitor = HeartbeatMonitor(
+        connectedTimeoutNanos = 1_000_000_000L,
+        disconnectedTimeoutNanos = 3_000_000_000L,
+    )
+
+    monitor.observePing(nowElapsedNanos = 1_000_000_000L)
+    expectEquals("ping becomes degraded", LivenessState.DEGRADED, monitor.stateAt(2_500_000_001L))
+    monitor.observePong(nowElapsedNanos = 2_600_000_000L)
+
+    expectEquals("pong refreshes connected state", LivenessState.CONNECTED, monitor.stateAt(3_000_000_000L))
+    expectEquals("heartbeat age millis", 400L, monitor.heartbeatAgeMillisAt(3_000_000_000L))
+}
+
+private fun diagnosticsPayloadContainsOnlyControlFields() {
+    val diagnostics = ControlDiagnostics(
+        sessionState = "connected",
+        desktopIdentitySuffix = "11223344",
+        heartbeatAgeMillis = 400L,
+        lastControlError = "none",
+    )
+
+    expectEquals("session state", "connected", diagnostics.sessionState)
+    expectEquals(
+        "diagnostic fields",
+        listOf("sessionState", "desktopIdentitySuffix", "heartbeatAgeMillis", "lastControlError"),
+        dataFieldNames(ControlDiagnostics::class.java),
+    )
+}
+
+private fun profileMetadataContainsOnlyRequiredFields() {
+    val profile = ProfileMetadata(
+        profileId = "default",
+        displayName = "Default profile",
+        revision = 1L,
+    )
+
+    expectEquals("profile id", "default", profile.profileId)
+    expectEquals(
+        "profile fields",
+        listOf("profileId", "displayName", "revision"),
+        dataFieldNames(ProfileMetadata::class.java),
+    )
+}
+
+private fun controlEnvelopeAllowsHeartbeatDiagnosticsAndProfileTypes() {
+    expectEquals("heartbeat ping wire name", "heartbeat_ping", ControlMessageType.HEARTBEAT_PING.wireName)
+    expectEquals("heartbeat pong wire name", "heartbeat_pong", ControlMessageType.HEARTBEAT_PONG.wireName)
+    expectEquals("diagnostics wire name", "diagnostics", ControlMessageType.DIAGNOSTICS.wireName)
+    expectEquals("profile metadata wire name", "profile_metadata", ControlMessageType.PROFILE_METADATA.wireName)
+
+    listOf(
+        ControlMessageType.HEARTBEAT_PING,
+        ControlMessageType.HEARTBEAT_PONG,
+        ControlMessageType.DIAGNOSTICS,
+        ControlMessageType.PROFILE_METADATA,
+    ).forEach { type ->
+        val decoded = ControlEnvelopeCodec.decode(ControlEnvelopeCodec.encode(envelope(type)))
+        expectTrue("${type.wireName} accepted", decoded is ControlDecodeResult.Accepted)
+    }
+}
+
+private fun reservedHapticRejectsExecutionResultBody() {
+    val decoded = ControlEnvelopeCodec.decode(
+        ControlEnvelopeCodec.encode(
+            envelope(
+                ControlMessageType.RESERVED_HAPTIC_COMMAND,
+                body = JsonObject(mapOf("result" to JsonPrimitive("done"))),
+            ),
+        ),
+    )
+
+    expectRejected("reserved haptic result body", ControlEnvelopeError.RESERVED_HAPTIC_BODY, decoded)
+}
+
 private fun envelope(
     type: ControlMessageType,
     sessionId: String = "sid-1",
@@ -142,5 +237,10 @@ private fun expectTrue(label: String, condition: Boolean) {
         throw AssertionError(label)
     }
 }
+
+private fun dataFieldNames(type: Class<*>): List<String> =
+    type.declaredFields
+        .filterNot { it.isSynthetic }
+        .map { it.name }
 
 private const val FINGERPRINT = "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff"
