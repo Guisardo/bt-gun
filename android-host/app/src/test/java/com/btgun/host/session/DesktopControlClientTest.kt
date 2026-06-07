@@ -13,6 +13,7 @@ fun main() {
     trustMismatchMovesToTrustProblemWithoutOpeningSocket()
     clientSendRejectsInvalidEnvelopeBeforeSocketWrite()
     desktopLinkHeartbeatMapsLivenessStates()
+    clientCloseStopsSocketAndDisconnectsLinkState()
     clientUpdatesLinkStateFromHeartbeatDiagnosticsAndErrors()
     profileMetadataModelContainsOnlyRequiredFields()
     controlEnvelopeAllowsHeartbeatDiagnosticsAndProfileTypes()
@@ -167,6 +168,25 @@ private fun desktopLinkHeartbeatMapsLivenessStates() {
 
     client.refreshLiveness(nowElapsedNanos = 4_000_000_001L)
     expectEquals("missing link", DesktopLinkPhase.DISCONNECTED, client.currentLinkState().phase)
+}
+
+private fun clientCloseStopsSocketAndDisconnectsLinkState() {
+    val socket = FakeSocket()
+    val client = DesktopControlClient(
+        config = DesktopControlClientConfig(
+            url = "wss://192.168.50.25:41731/control",
+            expectedDesktopSpkiSha256 = FINGERPRINT,
+            maxMessageBytes = 512,
+        ),
+        socketFactory = { _, _ -> socket },
+    )
+    client.connect(proofRequest())
+
+    client.close()
+
+    expectTrue("socket closed", socket.closed)
+    expectEquals("link disconnected", DesktopLinkPhase.DISCONNECTED, client.currentLinkState().phase)
+    expectEquals("send after close", DesktopControlSendResult.NotConnected, client.send(envelope(ControlMessageType.PAIRING_STATE)))
 }
 
 private fun clientUpdatesLinkStateFromHeartbeatDiagnosticsAndErrors() {
