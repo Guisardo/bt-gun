@@ -346,11 +346,7 @@ class HostSessionService : Service() {
             MotionProvider.ROTATION_VECTOR,
             -> rotationVectorOrientation(event.values, displayRotation)
             MotionProvider.TILT_FALLBACK -> tiltOrientation(event.values, displayRotation)
-            MotionProvider.GYRO_GRAVITY -> OrientationAngles(
-                yaw = event.values.getOrElse(2) { 0f },
-                pitch = event.values.getOrElse(0) { 0f },
-                roll = event.values.getOrElse(1) { 0f },
-            )
+            MotionProvider.GYRO_GRAVITY -> gyroGravityOrientation(event.values, displayRotation)
             MotionProvider.UNAVAILABLE -> OrientationAngles(0f, 0f, 0f)
         }
 
@@ -387,6 +383,19 @@ class HostSessionService : Service() {
             yaw = 0f,
             pitch = Math.toDegrees(kotlin.math.atan2((-x).toDouble(), z.toDouble())).toFloat(),
             roll = Math.toDegrees(kotlin.math.atan2(y.toDouble(), z.toDouble())).toFloat(),
+        )
+    }
+
+    private fun gyroGravityOrientation(values: FloatArray, displayRotation: Int): OrientationAngles {
+        val (x, y) = DisplayRotationRemap.remapTiltXY(
+            rotation = displayRotation,
+            x = values.getOrElse(0) { 0f },
+            y = values.getOrElse(1) { 0f },
+        )
+        return OrientationAngles(
+            yaw = values.getOrElse(2) { 0f },
+            pitch = x,
+            roll = y,
         )
     }
 
