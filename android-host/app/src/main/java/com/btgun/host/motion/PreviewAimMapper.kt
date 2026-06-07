@@ -37,8 +37,8 @@ class PreviewAimMapper(
         }
 
         return PreviewAim(
-            x = clampUnit((motion.yaw - baseline.yaw) / PREVIEW_DEGREES_TO_EDGE),
-            y = clampUnit((motion.pitch - baseline.pitch) / PREVIEW_DEGREES_TO_EDGE),
+            x = clampUnit(shortestAngleDelta(motion.yaw, baseline.yaw) / PREVIEW_DEGREES_TO_EDGE),
+            y = clampUnit(shortestAngleDelta(motion.pitch, baseline.pitch) / PREVIEW_DEGREES_TO_EDGE),
             padEnabled = true,
             statusLabel = "Preview calibration",
             baselineElapsedNanos = baseline.elapsedNanos,
@@ -47,6 +47,16 @@ class PreviewAimMapper(
 
     private fun clampUnit(value: Float): Float =
         max(-1f, min(1f, value))
+
+    private fun shortestAngleDelta(current: Float, baseline: Float): Float {
+        var delta = (current - baseline) % 360f
+        if (delta > 180f) {
+            delta -= 360f
+        } else if (delta < -180f) {
+            delta += 360f
+        }
+        return delta
+    }
 
     private companion object {
         const val PREVIEW_DEGREES_TO_EDGE = 45f

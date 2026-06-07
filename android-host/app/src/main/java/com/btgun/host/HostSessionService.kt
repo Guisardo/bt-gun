@@ -51,6 +51,7 @@ class HostSessionService : Service() {
     private var selectedMotionProvider: SelectedMotionProvider? = null
     private var activeSensor: Sensor? = null
     private var currentAimBaseline: AimBaseline = AimBaseline(0f, 0f, 0f, 0L)
+    private var hasLiveAimBaseline: Boolean = false
 
     @Volatile
     private var currentState: HostSessionState = HostSessionState()
@@ -93,6 +94,10 @@ class HostSessionService : Service() {
                 orientation = orientationFrom(event, selection.provider),
                 selection = selection,
             )
+            if (!hasLiveAimBaseline) {
+                currentAimBaseline = envelope.payload.toAimBaseline(envelope.captureElapsedNanos)
+                hasLiveAimBaseline = true
+            }
             val preview = PreviewAimMapper(currentAimBaseline).map(envelope)
             currentState = currentState.copy(
                 lastMotionSample = envelope,
@@ -286,6 +291,7 @@ class HostSessionService : Service() {
         motionAimProvider = provider
         selectedMotionProvider = selection
         currentAimBaseline = AimBaseline(0f, 0f, 0f, SystemClock.elapsedRealtimeNanos())
+        hasLiveAimBaseline = false
         currentState = currentState.copy(aimBaseline = currentAimBaseline)
 
         if (!selection.isAvailable) {
@@ -308,6 +314,7 @@ class HostSessionService : Service() {
         activeSensor = null
         motionAimProvider = null
         selectedMotionProvider = null
+        hasLiveAimBaseline = false
     }
 
     private fun sensorForSelection(sensorManager: SensorManager, provider: MotionProvider): Sensor? =
@@ -372,6 +379,14 @@ class HostSessionService : Service() {
             reloadHoldState = recenter.state,
         )
     }
+
+    private fun MotionSample.toAimBaseline(elapsedNanos: Long): AimBaseline =
+        AimBaseline(
+            yaw = yaw,
+            pitch = pitch,
+            roll = roll,
+            elapsedNanos = elapsedNanos,
+        )
 
     companion object {
         const val ACTION_START_SESSION: String = "com.btgun.host.action.START_SESSION"
