@@ -27,6 +27,7 @@ import com.btgun.host.ble.BleGunConnectionPhase
 import com.btgun.host.ble.BleGunConnectionState
 import com.btgun.host.ble.IpegaBleGunAdapter
 import com.btgun.host.model.GunEvent
+import com.btgun.host.model.GunInputState
 import com.btgun.host.model.LiveEnvelope
 import com.btgun.host.model.MotionProvider
 import com.btgun.host.model.MotionSample
@@ -365,6 +366,7 @@ class HostSessionService : Service() {
     }
 
     private fun handleGunEvent(envelope: LiveEnvelope<GunEvent>) {
+        val gunInputState = currentState.gunInputState.apply(envelope.payload)
         if (envelope.payload.name == "reload" && envelope.payload.pressed != null) {
             recenter.onReload(envelope.payload.pressed, envelope.captureElapsedNanos)
             if (envelope.payload.pressed) {
@@ -376,6 +378,7 @@ class HostSessionService : Service() {
         }
         currentState = currentState.copy(
             lastGunEvent = envelope,
+            gunInputState = gunInputState,
             reloadHoldState = recenter.state,
         )
     }
@@ -418,6 +421,7 @@ data class HostSessionState(
     val lastError: String? = null,
     val lastBleConnectionState: BleGunConnectionState = BleGunConnectionState(),
     val lastGunEvent: LiveEnvelope<GunEvent>? = null,
+    val gunInputState: GunInputState = GunInputState(),
     val lastMotionSample: LiveEnvelope<MotionSample>? = null,
     val lastStatusEvent: LiveEnvelope<StatusEvent>? = null,
     val reloadHoldState: ReloadHoldState = ReloadHoldState(),

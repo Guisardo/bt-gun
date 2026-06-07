@@ -3,6 +3,7 @@ package com.btgun.host.model
 fun main() {
     streamSequencerUsesIndependentCounters()
     liveEnvelopeUsesElapsedNanosOnlyAndRejectsImpossibleTiming()
+    gunInputStateTracksSimultaneousPressedControls()
 }
 
 private fun streamSequencerUsesIndependentCounters() {
@@ -41,6 +42,17 @@ private fun liveEnvelopeUsesElapsedNanosOnlyAndRejectsImpossibleTiming() {
             payload = StatusEvent(name = "bad_time"),
         )
     }
+}
+
+private fun gunInputStateTracksSimultaneousPressedControls() {
+    val state = GunInputState()
+        .apply(GunEvent(name = "button_y", pressed = true))
+        .apply(GunEvent(name = "trigger", pressed = true))
+        .apply(GunEvent(name = "button_x", pressed = true))
+        .apply(GunEvent(name = "button_y", pressed = false))
+
+    expectEquals("pressed set", setOf("trigger", "button_x"), state.pressedControls)
+    expectEquals("display order", listOf("trigger", "button_x"), state.activeControls())
 }
 
 private fun expectEquals(label: String, expected: Any?, actual: Any?) {

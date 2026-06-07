@@ -108,6 +108,7 @@ class MainActivity : Activity() {
             "foreground_service",
             "current_error",
             "last_gun_event",
+            "active_controls",
             "motion_provider",
             "motion_capabilities",
             "preview_aim",
@@ -179,6 +180,7 @@ class MainActivity : Activity() {
         setField("foreground_service", "${dashboard.foregroundService.label}: ${dashboard.foregroundService.value}")
         setField("current_error", "${dashboard.currentError.label}: ${dashboard.currentError.value}")
         setField("last_gun_event", "${dashboard.lastGunEvent.label}: ${dashboard.lastGunEvent.value}")
+        setField("active_controls", "${dashboard.activeGunControls.label}: ${dashboard.activeGunControls.value}")
         setField("motion_provider", "${dashboard.motionProvider.label}: ${dashboard.motionProvider.value}")
         setField("motion_capabilities", dashboard.motionCapabilities.value)
         setField(
