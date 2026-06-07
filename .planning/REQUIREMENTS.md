@@ -40,7 +40,7 @@
 - [x] **TRAN-03**: Pairing creates an authenticated local session with a short-lived one-time secret and replay protection.
 - [ ] **TRAN-04**: Android host app streams high-rate input and motion samples to desktop using versioned UDP input frames.
 - [ ] **TRAN-05**: UDP input frames include sequence number, session id, capture timestamp, send timestamp, button bitmask, axes, motion payload, and motion provider/capability flags.
-- [ ] **TRAN-06**: Android and desktop maintain a reliable control channel for pairing state, heartbeat, diagnostics, profile metadata, and haptic commands.
+- [x] **TRAN-06**: Android and desktop maintain a reliable control channel for pairing state, heartbeat, diagnostics, profile metadata, and haptic commands.
 - [ ] **TRAN-07**: Desktop can send a haptic command with command id, strength, duration, expiry/TTL, and optional pattern.
 - [ ] **TRAN-08**: Android host app returns haptic acknowledgement or failure status to desktop.
 - [ ] **TRAN-09**: Desktop and Android can recover cleanly from LAN disconnect without playing stale haptic commands.
@@ -169,7 +169,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | TRAN-03 | Phase 3 | Complete |
 | TRAN-04 | Phase 4 | Pending |
 | TRAN-05 | Phase 4 | Pending |
-| TRAN-06 | Phase 3 | Pending |
+| TRAN-06 | Phase 3 | Complete |
 | TRAN-07 | Phase 4 | Pending |
 | TRAN-08 | Phase 4 | Pending |
 | TRAN-09 | Phase 4 | Pending |

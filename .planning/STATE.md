@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 03-03-PLAN.md
-last_updated: "2026-06-07T23:05:48Z"
-last_activity: 2026-06-07 -- Phase 03 Plan 04 reliable control channel core complete
+stopped_at: Completed 03-05-PLAN.md
+last_updated: "2026-06-07T23:13:23.372Z"
+last_activity: 2026-06-07 -- Phase 03 Plan 05 heartbeat, diagnostics, and profile metadata complete
 progress:
   total_phases: 10
   completed_phases: 2
   total_plans: 19
   completed_plans: 15
-  percent: 79
+  percent: 84
 ---
 
 # Project State
@@ -26,17 +26,17 @@ See: .planning/PROJECT.md (updated 2026-06-07)
 ## Current Position
 
 Phase: 03 (lan-pairing-and-secure-session) — EXECUTING
-Plan: 5 of 8
+Plan: 6 of 8
 Status: Ready to execute
-Last activity: 2026-06-07 -- Phase 03 Plan 04 reliable control channel core complete
+Last activity: 2026-06-07 -- Phase 03 Plan 05 heartbeat, diagnostics, and profile metadata complete
 
-Progress: [████████░░] 79% by plan; Phase 01 and Phase 02 are complete; Phase 03 has 8 planned execution prompts, 4 complete.
+Progress: [████████░░] 84% by plan; Phase 01 and Phase 02 are complete; Phase 03 has 8 planned execution prompts, 5 complete.
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 15
+- Total plans completed: 16
 - Average duration: not tracked for hardware-interactive plans
 - Total execution time: not tracked after Plan 02
 
@@ -49,8 +49,8 @@ Progress: [████████░░] 79% by plan; Phase 01 and Phase 02 ar
 
 **Recent Trend:**
 
-- Last 5 plans: P06, 03-P01, 03-P02, 03-P03, 03-P04 complete
-- Trend: Phase 03 control-channel core complete; heartbeat/liveness next
+- Last 5 plans: 03-P01, 03-P02, 03-P03, 03-P04, 03-P05 complete
+- Trend: Phase 03 control-channel semantics complete; desktop companion launch/lifecycle next
 
 *Updated after each plan completion*
 | Phase 01 P01 | 10 min | 3 tasks | 6 files |
@@ -68,6 +68,7 @@ Progress: [████████░░] 79% by plan; Phase 01 and Phase 02 ar
 | Phase 03 P02 | 8 min | 3 tasks | 9 files |
 | Phase 03 P03 | 19 min | 3 tasks | 9 files |
 | Phase 03 P04 | 35 min | 2 tasks | 13 files |
+| Phase 03 P05 | 18 min | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -100,10 +101,11 @@ Recent decisions affecting current work:
 - [Phase 03]: Android trust validation reports first-trust, trusted, missing, or mismatch without silent fingerprint overwrite. — Display name and endpoint remain metadata only.
 - [Phase 03]: Control channel uses versioned JSON envelopes over WSS with proof-gated desktop handling. — Haptic support stays reserved type only until Phase 4.
 - [Phase 03]: Approved Ktor/OkHttp deps compile under the current Kotlin 2.0.21 plugin with metadata-version skip. — No unapproved dependency coordinates were added.
+- [Phase 03]: Heartbeat/liveness is monotonic elapsed-time state with connected, degraded, and disconnected views. — Diagnostics and profile metadata remain minimal and Phase 4 haptic execution stays out of scope.
 
 ### Pending Todos
 
-- Continue Phase 03 with Plan 03-05: heartbeat/liveness, diagnostics, and minimal profile metadata.
+- Continue Phase 03 with Plan 03-06: desktop companion launch and pairing/control window lifecycle.
 
 ### Blockers/Concerns
 
@@ -120,6 +122,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-07T23:05:48Z
-Stopped at: Completed 03-04-PLAN.md
-Resume file: .planning/phases/03-lan-pairing-and-secure-session/03-05-PLAN.md
+Last session: 2026-06-07T23:13:23.364Z
+Stopped at: Completed 03-05-PLAN.md
+Resume file: .planning/phases/03-lan-pairing-and-secure-session/03-06-PLAN.md

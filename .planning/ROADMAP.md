@@ -88,7 +88,7 @@ Plans:
   3. Pairing creates an authenticated local session using a short-lived one-time secret with replay protection.
   4. Android and desktop maintain a reliable control channel for pairing state, heartbeat, diagnostics, profile metadata, and haptic commands.
 
-**Plans:** 4/8 plans executed
+**Plans:** 5/8 plans executed
 Plans:
 
 **Wave 0**
@@ -109,7 +109,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 03-05-PLAN.md — Heartbeat/liveness, diagnostics, and minimal profile metadata implementation.
+- [x] 03-05-PLAN.md — Heartbeat/liveness, diagnostics, and minimal profile metadata implementation.
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
@@ -241,7 +241,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 |-------|----------------|--------|-----------|
 | 1. Hardware and Protocol Discovery | 5/5 | Complete | 2026-06-06 |
 | 2. Android Host Live Input | 6/6 | Complete | 2026-06-07 |
-| 3. LAN Pairing and Secure Session | 4/8 | Executing | - |
+| 3. LAN Pairing and Secure Session | 5/8 | In Progress|  |
 | 4. Input Stream and Haptic Transport | 0/TBD | Not started | - |
 | 5. Desktop Backend Contract and Smoke Harness | 0/TBD | Not started | - |
 | 6. Windows Virtual Joystick Path | 0/TBD | Not started | - |
