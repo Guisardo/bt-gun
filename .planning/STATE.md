@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 03-05-PLAN.md
-last_updated: "2026-06-07T23:13:23.372Z"
-last_activity: 2026-06-07 -- Phase 03 Plan 05 heartbeat, diagnostics, and profile metadata complete
+stopped_at: Completed 03-06-PLAN.md
+last_updated: "2026-06-07T23:22:20.401Z"
+last_activity: 2026-06-07 -- Phase 03 Plan 06 desktop companion launch and pairing window lifecycle complete
 progress:
   total_phases: 10
   completed_phases: 2
   total_plans: 19
-  completed_plans: 15
-  percent: 84
+  completed_plans: 17
+  percent: 89
 ---
 
 # Project State
@@ -26,17 +26,17 @@ See: .planning/PROJECT.md (updated 2026-06-07)
 ## Current Position
 
 Phase: 03 (lan-pairing-and-secure-session) — EXECUTING
-Plan: 6 of 8
+Plan: 7 of 8
 Status: Ready to execute
-Last activity: 2026-06-07 -- Phase 03 Plan 05 heartbeat, diagnostics, and profile metadata complete
+Last activity: 2026-06-07 -- Phase 03 Plan 06 desktop companion launch and pairing window lifecycle complete
 
-Progress: [████████░░] 84% by plan; Phase 01 and Phase 02 are complete; Phase 03 has 8 planned execution prompts, 5 complete.
+Progress: [█████████░] 89% by plan; Phase 01 and Phase 02 are complete; Phase 03 has 8 planned execution prompts, 6 complete.
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 16
+- Total plans completed: 17
 - Average duration: not tracked for hardware-interactive plans
 - Total execution time: not tracked after Plan 02
 
@@ -49,8 +49,8 @@ Progress: [████████░░] 84% by plan; Phase 01 and Phase 02 ar
 
 **Recent Trend:**
 
-- Last 5 plans: 03-P01, 03-P02, 03-P03, 03-P04, 03-P05 complete
-- Trend: Phase 03 control-channel semantics complete; desktop companion launch/lifecycle next
+- Last 5 plans: 03-P02, 03-P03, 03-P04, 03-P05, 03-P06 complete
+- Trend: Phase 03 desktop companion launch/lifecycle complete; Android QR/manual wiring next
 
 *Updated after each plan completion*
 | Phase 01 P01 | 10 min | 3 tasks | 6 files |
@@ -69,6 +69,7 @@ Progress: [████████░░] 84% by plan; Phase 01 and Phase 02 ar
 | Phase 03 P03 | 19 min | 3 tasks | 9 files |
 | Phase 03 P04 | 35 min | 2 tasks | 13 files |
 | Phase 03 P05 | 18 min | 2 tasks | 8 files |
+| Phase 03 P06 | 5 min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -102,10 +103,11 @@ Recent decisions affecting current work:
 - [Phase 03]: Control channel uses versioned JSON envelopes over WSS with proof-gated desktop handling. — Haptic support stays reserved type only until Phase 4.
 - [Phase 03]: Approved Ktor/OkHttp deps compile under the current Kotlin 2.0.21 plugin with metadata-version skip. — No unapproved dependency coordinates were added.
 - [Phase 03]: Heartbeat/liveness is monotonic elapsed-time state with connected, degraded, and disconnected views. — Diagnostics and profile metadata remain minimal and Phase 4 haptic execution stays out of scope.
+- [Phase 03]: Desktop launch constructs identity/registry/server dependencies once and injects them into the Swing pairing window. — Keeps launch thin and protocol logic inside pairing/control classes.
 
 ### Pending Todos
 
-- Continue Phase 03 with Plan 03-06: desktop companion launch and pairing/control window lifecycle.
+- Continue Phase 03 with Plan 03-07: Android QR/manual/trusted-desktop wiring and service ownership.
 
 ### Blockers/Concerns
 
@@ -122,6 +124,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-07T23:13:23.364Z
-Stopped at: Completed 03-05-PLAN.md
-Resume file: .planning/phases/03-lan-pairing-and-secure-session/03-06-PLAN.md
+Last session: 2026-06-07T23:22:20.387Z
+Stopped at: Completed 03-06-PLAN.md
+Resume file: .planning/phases/03-lan-pairing-and-secure-session/03-07-PLAN.md
