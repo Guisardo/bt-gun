@@ -20,6 +20,8 @@ import com.btgun.host.motion.AimBaseline
 import com.btgun.host.permissions.CapabilityState
 import com.btgun.host.permissions.HostCapabilityProbe
 import com.btgun.host.permissions.PermissionGateState
+import com.btgun.host.session.DesktopLinkPhase
+import com.btgun.host.session.DesktopLinkState
 import com.btgun.host.ui.AimGraphView
 import com.btgun.host.ui.DashboardEventMode
 import com.btgun.host.ui.DashboardState
@@ -32,6 +34,8 @@ class MainActivity : Activity() {
     private lateinit var primaryAction: Button
     private lateinit var hapticAction: Button
     private lateinit var permissionAction: Button
+    private lateinit var scanDesktopQrAction: Button
+    private lateinit var manualDesktopEntryAction: Button
     private lateinit var debugModeAction: Button
     private lateinit var bleDebugAction: Button
     private lateinit var permissionDebugAction: Button
@@ -40,6 +44,8 @@ class MainActivity : Activity() {
     private val fields = mutableMapOf<String, TextView>()
     private var lastPhoneHapticStatus: PhoneHapticStatus = PhoneHapticStatus.available()
     private var localStartError: String? = null
+    private var desktopLinkState: DesktopLinkState = DesktopLinkState()
+    private var manualEntryVisible: Boolean = false
     private var eventMode: DashboardEventMode = DashboardEventMode.PRODUCT_EVENTS
     private var debugExpansion = DebugExpansion()
     private val refreshRunnable = object : Runnable {
@@ -117,6 +123,17 @@ class MainActivity : Activity() {
             "aim_calibration",
             "recenter_state",
             "desktop_link",
+        ).forEach(::addField)
+
+        root.addView(row().apply {
+            scanDesktopQrAction = button("Scan desktop QR") { showQrScanState() }
+            manualDesktopEntryAction = button("Enter manually") { showManualEntryState() }
+            addView(scanDesktopQrAction)
+            addView(manualDesktopEntryAction)
+        })
+        addField("manual_pairing_entry")
+
+        listOf(
             "packet_stream",
             "phone_haptic",
         ).forEach(::addField)
@@ -166,6 +183,7 @@ class MainActivity : Activity() {
             hostSessionState = serviceState,
             bleConnectionState = serviceState.lastBleConnectionState,
             phoneHapticStatus = lastPhoneHapticStatus,
+            desktopLinkState = desktopLinkState,
             eventMode = eventMode,
             debugExpanded = debugExpansion,
             previewAim = serviceState.lastPreviewAim,
@@ -199,6 +217,12 @@ class MainActivity : Activity() {
         setField("aim_calibration", "${dashboard.aimCalibration.label}: ${dashboard.aimCalibration.value}")
         setField("recenter_state", "${dashboard.recenterState.label}: ${dashboard.recenterState.value}")
         setField("desktop_link", "${dashboard.placeholders.desktopLink.title}: ${dashboard.placeholders.desktopLink.body}")
+        scanDesktopQrAction.text = "Scan desktop QR"
+        manualDesktopEntryAction.text = dashboard.placeholders.desktopLink.body
+            .substringAfter("manual_action=", "Enter manually")
+            .substringBefore(" | ")
+            .ifBlank { "Enter manually" }
+        setManualEntryField()
         setField("packet_stream", "${dashboard.placeholders.packetStream.title}: ${dashboard.placeholders.packetStream.body}")
         setField("phone_haptic", "${dashboard.phoneHaptic.label}: ${dashboard.phoneHaptic.capability}; ${dashboard.phoneHaptic.lastLocalTest}")
 
@@ -241,6 +265,24 @@ class MainActivity : Activity() {
         requestPermissions(HostCapabilityProbe.runtimePermissionsForHost(), REQUEST_PERMISSIONS)
     }
 
+    private fun showQrScanState() {
+        manualEntryVisible = false
+        desktopLinkState = DesktopLinkState(
+            phase = DesktopLinkPhase.SCANNING_QR,
+            diagnosticText = "Scanning desktop QR. Keep the desktop pairing QR visible.",
+        )
+        renderDashboard()
+    }
+
+    private fun showManualEntryState() {
+        manualEntryVisible = true
+        desktopLinkState = DesktopLinkState(
+            phase = DesktopLinkPhase.CONNECTING,
+            diagnosticText = "Manual entry ready. Enter host/IP, port, and 6-digit code from the desktop.",
+        )
+        renderDashboard()
+    }
+
     override fun onRequestPermissionsResult(
         requestCode: Int,
         permissions: Array<out String>,
@@ -273,6 +315,17 @@ class MainActivity : Activity() {
 
     private fun setField(key: String, value: String) {
         fields.getValue(key).text = value
+    }
+
+    private fun setManualEntryField() {
+        fields.getValue("manual_pairing_entry").visibility = if (manualEntryVisible) View.VISIBLE else View.GONE
+        fields.getValue("manual_pairing_entry").text = listOf(
+            "Manual pairing",
+            "Host/IP:",
+            "Port:",
+            "6-digit code:",
+            "No network connection is started in this phase.",
+        ).joinToString("\n")
     }
 
     private fun setDebugField(key: String, expanded: Boolean, value: String) {
