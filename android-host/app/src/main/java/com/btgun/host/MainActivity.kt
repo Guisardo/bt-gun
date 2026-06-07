@@ -94,7 +94,7 @@ class MainActivity : Activity() {
 
         root.addView(row().apply {
             primaryAction = button("Start live session") { toggleSession() }
-            hapticAction = button("Test phone vibration") {
+            hapticAction = button("Test local haptic") {
                 lastPhoneHapticStatus = phoneHaptics.test()
                 renderDashboard()
             }

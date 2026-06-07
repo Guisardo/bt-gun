@@ -14,35 +14,35 @@ data class PhoneHapticStatus(
         fun available(): PhoneHapticStatus =
             PhoneHapticStatus(
                 code = "available",
-                capability = "Phone vibration available",
+                capability = "Phone haptic available",
                 lastLocalTest = "not tested",
             )
 
         fun unavailable(reason: String = "device reports no vibrator"): PhoneHapticStatus =
             PhoneHapticStatus(
                 code = "unavailable",
-                capability = "Phone vibration unavailable",
+                capability = "Phone haptic unavailable",
                 lastLocalTest = "unavailable | $reason",
             )
 
         fun started(durationMs: Long): PhoneHapticStatus =
             PhoneHapticStatus(
                 code = "started",
-                capability = "Phone vibration available",
-                lastLocalTest = "started | local phone vibration ${durationMs}ms",
+                capability = "Phone haptic available",
+                lastLocalTest = "started | local haptic ${durationMs}ms",
             )
 
         fun permissionBlocked(): PhoneHapticStatus =
             PhoneHapticStatus(
                 code = "permission_blocked",
-                capability = "Phone vibration available",
-                lastLocalTest = "permission_blocked | local phone vibration",
+                capability = "Phone haptic available",
+                lastLocalTest = "permission_blocked | local haptic",
             )
 
         fun failed(error: String): PhoneHapticStatus =
             PhoneHapticStatus(
                 code = "failed",
-                capability = "Phone vibration available",
+                capability = "Phone haptic available",
                 lastLocalTest = "failed | $error",
             )
     }

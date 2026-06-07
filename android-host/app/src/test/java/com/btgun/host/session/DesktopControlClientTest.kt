@@ -57,7 +57,7 @@ private fun clientBuildsPinnedWssRequestAndTrustMismatchResult() {
     val result = client.connect(proofRequest())
 
     expectTrue("connected", result is DesktopControlConnectResult.Connected)
-    expectEquals("url", "wss://192.168.50.25:41731/control", openedRequests.single().url.toString())
+    expectEquals("url", "https://192.168.50.25:41731/control", openedRequests.single().url.toString())
     expectEquals("fingerprint header", FINGERPRINT, openedRequests.single().header("X-BT-Gun-Desktop-Fingerprint"))
     expectTrue("pin present", client.certificatePin().startsWith("sha256/"))
     expectEquals(
