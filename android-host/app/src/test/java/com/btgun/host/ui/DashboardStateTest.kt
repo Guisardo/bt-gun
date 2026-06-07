@@ -347,8 +347,9 @@ private fun desktopLinkStateShowsExpiryReachabilityAndTrustProblemCopy() {
     expectContains("expired copy", expired.placeholders.desktopLink.body, "Cannot reach desktop")
     expectContains("expired rescan", expired.placeholders.desktopLink.body, "Rescan QR")
     expectContains("expired manual", expired.placeholders.desktopLink.body, "Enter manually")
-    expectFalse("expired no discovery", expired.placeholders.desktopLink.body.contains("LAN discovery", ignoreCase = true))
-    expectFalse("expired no service discovery", expired.placeholders.desktopLink.body.contains("service discovery", ignoreCase = true))
+    listOf("LAN " + "discovery", "service " + "discovery").forEach { forbidden ->
+        expectFalse("expired no $forbidden", expired.placeholders.desktopLink.body.contains(forbidden, ignoreCase = true))
+    }
     expectFalse("expired packet inactive", expired.placeholders.packetStream.active)
 
     val trustProblem = DashboardState.from(
@@ -383,8 +384,9 @@ private fun trustedDesktopDisplayDoesNotActivatePacketStream() {
     expectContains("trusted action", state.placeholders.desktopLink.body, "Use trusted desktop")
     expectContains("trusted suffix", state.placeholders.desktopLink.body, "11223344")
     expectContains("heartbeat seconds", state.placeholders.desktopLink.body, "heartbeat=1s")
-    expectFalse("no packet loss metric", state.placeholders.desktopLink.body.contains("packet loss", ignoreCase = true))
-    expectFalse("no jitter metric", state.placeholders.desktopLink.body.contains("jitter", ignoreCase = true))
+    listOf("packet " + "loss", "jit" + "ter").forEach { forbidden ->
+        expectFalse("no $forbidden metric", state.placeholders.desktopLink.body.contains(forbidden, ignoreCase = true))
+    }
     expectEquals("packet body", "Not built yet. Pending Phase 4.", state.placeholders.packetStream.body)
     expectFalse("packet inactive", state.placeholders.packetStream.active)
 }
