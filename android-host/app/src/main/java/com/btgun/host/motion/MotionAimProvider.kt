@@ -3,6 +3,7 @@ package com.btgun.host.motion
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorManager
+import android.view.Surface
 import com.btgun.host.model.ElapsedNanosClock
 import com.btgun.host.model.LiveEnvelope
 import com.btgun.host.model.MotionProvider
@@ -148,3 +149,35 @@ data class OrientationAngles(
     val pitch: Float,
     val roll: Float,
 )
+
+data class DisplayRotationAxes(
+    val x: Int,
+    val y: Int,
+)
+
+object DisplayRotationRemap {
+    fun axesFor(rotation: Int): DisplayRotationAxes? =
+        when (rotation) {
+            Surface.ROTATION_90 -> DisplayRotationAxes(
+                x = SensorManager.AXIS_Y,
+                y = SensorManager.AXIS_MINUS_X,
+            )
+            Surface.ROTATION_180 -> DisplayRotationAxes(
+                x = SensorManager.AXIS_MINUS_X,
+                y = SensorManager.AXIS_MINUS_Y,
+            )
+            Surface.ROTATION_270 -> DisplayRotationAxes(
+                x = SensorManager.AXIS_MINUS_Y,
+                y = SensorManager.AXIS_X,
+            )
+            else -> null
+        }
+
+    fun remapTiltXY(rotation: Int, x: Float, y: Float): Pair<Float, Float> =
+        when (rotation) {
+            Surface.ROTATION_90 -> y to -x
+            Surface.ROTATION_180 -> -x to -y
+            Surface.ROTATION_270 -> -y to x
+            else -> x to y
+        }
+}

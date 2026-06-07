@@ -1,5 +1,7 @@
 package com.btgun.host.motion
 
+import android.hardware.SensorManager
+import android.view.Surface
 import com.btgun.host.model.LiveEnvelope
 import com.btgun.host.model.MotionProvider
 import com.btgun.host.model.MotionSample
@@ -12,6 +14,7 @@ fun main() {
     providerSelectionUsesTiltFallbackWithoutGyroscope()
     providerSelectionReportsUnavailableWithoutFakeAim()
     providerSelectionReportsCapabilityFlagsAndTimestampSource()
+    displayRotationRemapMatchesAndroidScreenRotations()
     motionSampleEnvelopeCarriesProviderAndCapabilityMetadata()
     previewMapperCentersBaselineAndBoundsDeltas()
     previewMapperUsesShortestAngleDeltas()
@@ -115,6 +118,25 @@ private fun providerSelectionReportsCapabilityFlagsAndTimestampSource() {
     expectTrue("gravity flag", selection.capabilities.gravity)
     expectTrue("tilt flag exists", MotionCapabilityFlags::class.java.declaredFields.any { it.name == "tiltFallback" })
     expectEquals("timestamp source", "sensor_event_elapsed_nanos", selection.capabilities.timestampSource)
+}
+
+private fun displayRotationRemapMatchesAndroidScreenRotations() {
+    expectEquals("rotation 0 has no remap", null, DisplayRotationRemap.axesFor(Surface.ROTATION_0))
+
+    val rotation90 = DisplayRotationRemap.axesFor(Surface.ROTATION_90)
+    expectEquals("rotation 90 x", SensorManager.AXIS_Y, rotation90?.x)
+    expectEquals("rotation 90 y", SensorManager.AXIS_MINUS_X, rotation90?.y)
+    expectEquals("rotation 90 tilt", 2f to -1f, DisplayRotationRemap.remapTiltXY(Surface.ROTATION_90, 1f, 2f))
+
+    val rotation180 = DisplayRotationRemap.axesFor(Surface.ROTATION_180)
+    expectEquals("rotation 180 x", SensorManager.AXIS_MINUS_X, rotation180?.x)
+    expectEquals("rotation 180 y", SensorManager.AXIS_MINUS_Y, rotation180?.y)
+    expectEquals("rotation 180 tilt", -1f to -2f, DisplayRotationRemap.remapTiltXY(Surface.ROTATION_180, 1f, 2f))
+
+    val rotation270 = DisplayRotationRemap.axesFor(Surface.ROTATION_270)
+    expectEquals("rotation 270 x", SensorManager.AXIS_MINUS_Y, rotation270?.x)
+    expectEquals("rotation 270 y", SensorManager.AXIS_X, rotation270?.y)
+    expectEquals("rotation 270 tilt", -2f to 1f, DisplayRotationRemap.remapTiltXY(Surface.ROTATION_270, 1f, 2f))
 }
 
 private fun motionSampleEnvelopeCarriesProviderAndCapabilityMetadata() {

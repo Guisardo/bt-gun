@@ -23,6 +23,8 @@ import android.os.IBinder
 import android.os.Looper
 import android.os.SystemClock
 import android.os.Vibrator
+import android.view.Surface
+import android.view.WindowManager
 import com.btgun.host.ble.BleGunConnectionPhase
 import com.btgun.host.ble.BleGunConnectionState
 import com.btgun.host.ble.IpegaBleGunAdapter
@@ -33,6 +35,7 @@ import com.btgun.host.model.MotionProvider
 import com.btgun.host.model.MotionSample
 import com.btgun.host.model.StatusEvent
 import com.btgun.host.motion.AimBaseline
+import com.btgun.host.motion.DisplayRotationRemap
 import com.btgun.host.motion.MotionAimProvider
 import com.btgun.host.motion.OrientationAngles
 import com.btgun.host.motion.PreviewAim
@@ -53,6 +56,7 @@ class HostSessionService : Service() {
     private var activeSensor: Sensor? = null
     private var currentAimBaseline: AimBaseline = AimBaseline(0f, 0f, 0f, 0L)
     private var hasLiveAimBaseline: Boolean = false
+    private var currentDisplayRotation: Int = Surface.ROTATION_0
 
     @Volatile
     private var currentState: HostSessionState = HostSessionState()
@@ -90,14 +94,16 @@ class HostSessionService : Service() {
                 currentState = currentState.copy(lastMotionSample = unavailable)
                 return
             }
+            val displayRotation = displayRotation()
             val envelope = provider.envelopeForSensorEvent(
                 event = event,
-                orientation = orientationFrom(event, selection.provider),
+                orientation = orientationFrom(event, selection.provider, displayRotation),
                 selection = selection,
             )
-            if (!hasLiveAimBaseline) {
+            if (!hasLiveAimBaseline || displayRotation != currentDisplayRotation) {
                 currentAimBaseline = envelope.payload.toAimBaseline(envelope.captureElapsedNanos)
                 hasLiveAimBaseline = true
+                currentDisplayRotation = displayRotation
             }
             val preview = PreviewAimMapper(currentAimBaseline).map(envelope)
             currentState = currentState.copy(
@@ -293,6 +299,7 @@ class HostSessionService : Service() {
         selectedMotionProvider = selection
         currentAimBaseline = AimBaseline(0f, 0f, 0f, SystemClock.elapsedRealtimeNanos())
         hasLiveAimBaseline = false
+        currentDisplayRotation = displayRotation()
         currentState = currentState.copy(aimBaseline = currentAimBaseline)
 
         if (!selection.isAvailable) {
@@ -316,6 +323,7 @@ class HostSessionService : Service() {
         motionAimProvider = null
         selectedMotionProvider = null
         hasLiveAimBaseline = false
+        currentDisplayRotation = Surface.ROTATION_0
     }
 
     private fun sensorForSelection(sensorManager: SensorManager, provider: MotionProvider): Sensor? =
@@ -328,12 +336,16 @@ class HostSessionService : Service() {
             MotionProvider.UNAVAILABLE -> null
         }
 
-    private fun orientationFrom(event: SensorEvent, provider: MotionProvider): OrientationAngles =
+    private fun orientationFrom(
+        event: SensorEvent,
+        provider: MotionProvider,
+        displayRotation: Int,
+    ): OrientationAngles =
         when (provider) {
             MotionProvider.GAME_ROTATION_VECTOR,
             MotionProvider.ROTATION_VECTOR,
-            -> rotationVectorOrientation(event.values)
-            MotionProvider.TILT_FALLBACK -> tiltOrientation(event.values)
+            -> rotationVectorOrientation(event.values, displayRotation)
+            MotionProvider.TILT_FALLBACK -> tiltOrientation(event.values, displayRotation)
             MotionProvider.GYRO_GRAVITY -> OrientationAngles(
                 yaw = event.values.getOrElse(2) { 0f },
                 pitch = event.values.getOrElse(0) { 0f },
@@ -342,11 +354,11 @@ class HostSessionService : Service() {
             MotionProvider.UNAVAILABLE -> OrientationAngles(0f, 0f, 0f)
         }
 
-    private fun rotationVectorOrientation(values: FloatArray): OrientationAngles {
+    private fun rotationVectorOrientation(values: FloatArray, displayRotation: Int): OrientationAngles {
         val rotationMatrix = FloatArray(9)
         val orientation = FloatArray(3)
         SensorManager.getRotationMatrixFromVector(rotationMatrix, values)
-        SensorManager.getOrientation(rotationMatrix, orientation)
+        SensorManager.getOrientation(remapRotationMatrix(rotationMatrix, displayRotation), orientation)
         return OrientationAngles(
             yaw = Math.toDegrees(orientation[0].toDouble()).toFloat(),
             pitch = Math.toDegrees(orientation[1].toDouble()).toFloat(),
@@ -354,9 +366,22 @@ class HostSessionService : Service() {
         )
     }
 
-    private fun tiltOrientation(values: FloatArray): OrientationAngles {
-        val x = values.getOrElse(0) { 0f }
-        val y = values.getOrElse(1) { 0f }
+    private fun remapRotationMatrix(rotationMatrix: FloatArray, displayRotation: Int): FloatArray {
+        val axes = DisplayRotationRemap.axesFor(displayRotation) ?: return rotationMatrix
+        val adjusted = FloatArray(9)
+        return if (SensorManager.remapCoordinateSystem(rotationMatrix, axes.x, axes.y, adjusted)) {
+            adjusted
+        } else {
+            rotationMatrix
+        }
+    }
+
+    private fun tiltOrientation(values: FloatArray, displayRotation: Int): OrientationAngles {
+        val (x, y) = DisplayRotationRemap.remapTiltXY(
+            rotation = displayRotation,
+            x = values.getOrElse(0) { 0f },
+            y = values.getOrElse(1) { 0f },
+        )
         val z = values.getOrElse(2) { 9.8f }
         return OrientationAngles(
             yaw = 0f,
@@ -364,6 +389,11 @@ class HostSessionService : Service() {
             roll = Math.toDegrees(kotlin.math.atan2(y.toDouble(), z.toDouble())).toFloat(),
         )
     }
+
+    @Suppress("DEPRECATION")
+    private fun displayRotation(): Int =
+        (getSystemService(Context.WINDOW_SERVICE) as? WindowManager)?.defaultDisplay?.rotation
+            ?: Surface.ROTATION_0
 
     private fun handleGunEvent(envelope: LiveEnvelope<GunEvent>) {
         val gunInputState = currentState.gunInputState.apply(envelope.payload)
