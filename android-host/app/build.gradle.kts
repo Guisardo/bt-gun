@@ -46,6 +46,8 @@ tasks.withType<Test>().configureEach {
             "com.btgun.host.motion.MotionProviderSelectionTestKt",
             "com.btgun.host.motion.AimCalibrationTestKt",
             "com.btgun.host.recenter.ReloadHoldRecenterTestKt",
+            "com.btgun.host.session.PairingPayloadTestKt",
+            "com.btgun.host.session.TrustedDesktopStoreTestKt",
             "com.btgun.host.ui.DashboardStateTestKt",
         ).forEach { testClass ->
             providers.exec {
