@@ -91,14 +91,38 @@ Plans:
 **Plans:** 8 plans
 Plans:
 
+**Wave 0**
+
 - [ ] 03-01-PLAN.md — Desktop pairing session, QR/manual fallback, and Wave 0 desktop test harness.
+
+**Wave 1** *(blocked on Wave 0 completion)*
+
 - [ ] 03-02-PLAN.md — Android QR/manual parser, trusted desktop store, and desktop-link dashboard state.
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 03-03-PLAN.md — Authenticated pairing proof, replay/rate-limit defenses, and fail-closed trust anchor.
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 03-04-PLAN.md — Reliable WSS control-channel core, envelope allowlist, and proof-gated client/server.
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
 - [ ] 03-05-PLAN.md — Heartbeat/liveness, diagnostics, and minimal profile metadata implementation.
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
 - [ ] 03-06-PLAN.md — Desktop companion launch and pairing/control window lifecycle.
+
+**Wave 6** *(blocked on Wave 5 completion)*
+
 - [ ] 03-07-PLAN.md — Android QR/manual/trusted-desktop wiring and service ownership.
+
+**Wave 7** *(blocked on Wave 6 completion)*
+
 - [ ] 03-08-PLAN.md — Protocol finalization, manual smoke guide, and Phase 4 boundary gates.
+
 **UI hint**: yes
 
 ### Phase 4: Input Stream and Haptic Transport
