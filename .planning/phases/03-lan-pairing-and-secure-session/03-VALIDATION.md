@@ -11,6 +11,10 @@ created: 2026-06-07
 
 Per-phase validation contract for feedback sampling during Phase 03 execution.
 
+## Planned vs Achieved Status
+
+`nyquist_compliant: false` and `wave_0_complete: false` are intentional pre-execution values. This document defines the Wave 0 validation plan and the commands that must become green during execution; it does not claim those checks have already run. Executors may set `wave_0_complete: true` only after the Wave 0 desktop and Android test harnesses exist and their mapped checks pass. Executors may set `nyquist_compliant: true` only after every task in the Per-Task Verification Map has an automated command that exists, runs, and passes, plus any listed manual-only verifications are captured in the phase summary.
+
 ## Test Infrastructure
 
 | Property | Value |
