@@ -61,6 +61,8 @@ data class MotionSample(
 data class StatusEvent(
     val name: String,
     val message: String? = null,
+    val baselineElapsedNanos: Long? = null,
+    val statusLabel: String? = null,
 ) : LivePayload
 
 enum class MotionProvider {
