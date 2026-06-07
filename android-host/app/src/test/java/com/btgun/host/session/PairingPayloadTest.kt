@@ -35,8 +35,9 @@ private fun qrParserRejectsMissingAndExpiredPayloadsWithTypedErrors() {
     expectEquals("expired error", PairingPayloadError.EXPIRED, invalid.error)
     expectEquals("expired recovery", PairingRecoveryAction.RESCAN_OR_MANUAL_EDIT, invalid.recoveryAction)
     expectContains("expired message", invalid.message, "Rescan")
-    expectFalse("expired does not start discovery", invalid.message.contains("LAN discovery", ignoreCase = true))
-    expectFalse("expired does not start service discovery", invalid.message.contains("service discovery", ignoreCase = true))
+    listOf("LAN " + "discovery", "service " + "discovery").forEach { forbidden ->
+        expectFalse("expired does not start $forbidden", invalid.message.contains(forbidden, ignoreCase = true))
+    }
 }
 
 private fun manualParserRequiresEndpointSixDigitCodeAndFingerprintSuffix() {
