@@ -46,6 +46,17 @@ import com.btgun.host.permissions.HostCapabilityProbe
 import com.btgun.host.permissions.PermissionGateState
 import com.btgun.host.recenter.ReloadHoldRecenter
 import com.btgun.host.recenter.ReloadHoldState
+import com.btgun.host.session.DesktopControlClient
+import com.btgun.host.session.DesktopControlConnectResult
+import com.btgun.host.session.DesktopControlConnectionRequest
+import com.btgun.host.session.DesktopLinkPhase
+import com.btgun.host.session.DesktopLinkState
+import com.btgun.host.session.PairingParseResult
+import com.btgun.host.session.PairingPayload
+import com.btgun.host.session.TrustValidationResult
+import com.btgun.host.session.TrustedDesktopMetadata
+import com.btgun.host.session.TrustedDesktopStore
+import java.security.SecureRandom
 
 class HostSessionService : Service() {
     private var adapter: IpegaBleGunAdapter? = null
@@ -64,6 +75,9 @@ class HostSessionService : Service() {
     private val aimCalibrationSession = AimCalibrationSession()
     private var activeAimCalibration: AimCalibration? = null
     private val aimCalibrationStore: AimCalibrationStore by lazy { AimCalibrationStore(applicationContext) }
+    private val trustedDesktopStore: TrustedDesktopStore by lazy { TrustedDesktopStore(applicationContext) }
+    private var desktopControlClient: DesktopControlClient? = null
+    private val nonceRandom = SecureRandom()
 
     @Volatile
     private var currentState: HostSessionState = HostSessionState()
@@ -124,6 +138,10 @@ class HostSessionService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_STOP_SESSION -> stopSession()
+            ACTION_CONNECT_DESKTOP_QR -> connectDesktopFromQr(intent.getStringExtra(EXTRA_QR_PAYLOAD).orEmpty())
+            ACTION_CONNECT_TRUSTED_DESKTOP -> connectTrustedDesktop(intent.getStringExtra(EXTRA_DESKTOP_FINGERPRINT))
+            ACTION_CONNECT_MANUAL_DESKTOP -> connectManualDesktop(intent)
+            ACTION_STOP_DESKTOP_CONTROL -> stopDesktopControl()
             ACTION_START_SESSION, null -> startSession()
         }
         return START_STICKY
@@ -199,6 +217,7 @@ class HostSessionService : Service() {
 
     private fun stopSession() {
         currentState = currentState.copy(phase = HostSessionPhase.STOPPING)
+        stopDesktopControl()
         stopMotionCapture()
         handler.removeCallbacks(reloadHoldTick)
         recenter.onReload(pressed = false, nowElapsedNanos = SystemClock.elapsedRealtimeNanos())
@@ -207,6 +226,199 @@ class HostSessionService : Service() {
         currentState = HostSessionState(phase = HostSessionPhase.STOPPED)
         stopForegroundCompat()
         stopSelf()
+    }
+
+    private fun connectDesktopFromQr(rawPayload: String) {
+        if (!ensureForegroundForDesktopControl()) {
+            return
+        }
+        currentState = currentState.copy(
+            desktopLinkState = DesktopLinkState(phase = DesktopLinkPhase.CONNECTING),
+        )
+        when (val parsed = PairingPayload.parseQrUri(rawPayload, nowEpochMillis = System.currentTimeMillis())) {
+            is PairingParseResult.Invalid -> {
+                currentState = currentState.copy(
+                    desktopLinkState = DesktopLinkState(
+                        phase = DesktopLinkPhase.DISCONNECTED,
+                        lastControlError = parsed.message,
+                    ),
+                )
+            }
+            is PairingParseResult.Valid -> {
+                val payload = parsed.value
+                when (
+                    val trust = trustedDesktopStore.validateIdentity(
+                        fingerprintSha256 = payload.desktopSpkiSha256,
+                        displayName = DesktopControlConnectionRequest.DEFAULT_DESKTOP_DISPLAY_NAME,
+                        host = payload.host,
+                        port = payload.port,
+                    )
+                ) {
+                    is TrustValidationResult.Mismatch -> {
+                        currentState = currentState.copy(
+                            desktopLinkState = trustProblemState(trust.stored, payload.desktopSpkiSha256),
+                        )
+                    }
+                    TrustValidationResult.Missing -> {
+                        currentState = currentState.copy(
+                            desktopLinkState = DesktopLinkState(
+                                phase = DesktopLinkPhase.TRUST_PROBLEM,
+                                lastControlError = "Desktop identity changed",
+                            ),
+                        )
+                    }
+                    is TrustValidationResult.FirstTrust,
+                    is TrustValidationResult.Trusted,
+                    -> connectDesktopControl(
+                        request = DesktopControlConnectionRequest.fromQrPayload(
+                            payload = payload,
+                            androidNonce = newAndroidNonce(),
+                        ),
+                        saveOnSuccess = true,
+                    )
+                }
+            }
+        }
+    }
+
+    private fun connectTrustedDesktop(fingerprint: String?) {
+        if (!ensureForegroundForDesktopControl()) {
+            return
+        }
+        val metadata = trustedDesktopStore.loadTrustedDesktops()
+            .firstOrNull { desktop -> fingerprint == null || desktop.fingerprintSha256 == fingerprint }
+        if (metadata == null) {
+            currentState = currentState.copy(
+                desktopLinkState = DesktopLinkState(
+                    phase = DesktopLinkPhase.DISCONNECTED,
+                    lastControlError = "No trusted desktop stored. Scan desktop QR first.",
+                ),
+            )
+            return
+        }
+        connectDesktopControl(
+            request = DesktopControlConnectionRequest.fromTrustedDesktop(
+                metadata = metadata,
+                androidNonce = newAndroidNonce(),
+            ),
+            saveOnSuccess = false,
+        )
+    }
+
+    private fun connectManualDesktop(intent: Intent?) {
+        if (!ensureForegroundForDesktopControl()) {
+            return
+        }
+        val host = intent?.getStringExtra(EXTRA_MANUAL_HOST).orEmpty()
+        val port = intent?.getStringExtra(EXTRA_MANUAL_PORT).orEmpty()
+        val code = intent?.getStringExtra(EXTRA_MANUAL_CODE).orEmpty()
+        val suffix = intent?.getStringExtra(EXTRA_MANUAL_FINGERPRINT_SUFFIX).orEmpty()
+        val sid = intent?.getStringExtra(EXTRA_MANUAL_SESSION_ID).orEmpty().ifBlank { "manual" }
+        when (val parsed = PairingPayload.parseManual(host, port, code, suffix, sid)) {
+            is PairingParseResult.Invalid -> {
+                currentState = currentState.copy(
+                    desktopLinkState = DesktopLinkState(
+                        phase = DesktopLinkPhase.DISCONNECTED,
+                        lastControlError = parsed.message,
+                    ),
+                )
+            }
+            is PairingParseResult.Valid -> {
+                val trusted = trustedDesktopStore.loadTrustedDesktops()
+                    .firstOrNull { desktop ->
+                        desktop.fingerprintSha256.endsWith(parsed.value.desktopSpkiSha256Suffix)
+                    }
+                if (trusted == null) {
+                    currentState = currentState.copy(
+                        desktopLinkState = DesktopLinkState(
+                            phase = DesktopLinkPhase.TRUST_PROBLEM,
+                            lastControlError = "Manual pairing needs a saved trusted desktop fingerprint. Scan desktop QR first.",
+                        ),
+                    )
+                    return
+                }
+                connectDesktopControl(
+                    request = DesktopControlConnectionRequest.fromTrustedDesktop(
+                        metadata = trusted.copy(lastHost = parsed.value.host, lastPort = parsed.value.port),
+                        androidNonce = newAndroidNonce(),
+                    ),
+                    saveOnSuccess = false,
+                )
+            }
+        }
+    }
+
+    private fun connectDesktopControl(
+        request: DesktopControlConnectionRequest,
+        saveOnSuccess: Boolean,
+    ) {
+        currentState = currentState.copy(
+            desktopLinkState = DesktopLinkState(
+                phase = DesktopLinkPhase.PAIRING_PROOF,
+                desktopDisplayName = request.displayName,
+                fingerprintSuffix = request.config.expectedDesktopSpkiSha256.takeLast(FINGERPRINT_SUFFIX_LENGTH),
+            ),
+        )
+        val client = DesktopControlClient(request.config)
+        when (val result = client.connect(request.proofRequest)) {
+            DesktopControlConnectResult.Connected -> {
+                desktopControlClient?.close()
+                desktopControlClient = client
+                if (saveOnSuccess) {
+                    trustedDesktopStore.saveTrustedDesktop(request.trustedMetadata(System.currentTimeMillis()))
+                }
+                currentState = currentState.copy(
+                    desktopLinkState = client.currentLinkState().copy(
+                        desktopDisplayName = request.displayName,
+                        fingerprintSuffix = request.config.expectedDesktopSpkiSha256.takeLast(FINGERPRINT_SUFFIX_LENGTH),
+                    ),
+                )
+            }
+            is DesktopControlConnectResult.TrustMismatch -> {
+                client.close()
+                currentState = currentState.copy(
+                    desktopLinkState = DesktopLinkState(
+                        phase = DesktopLinkPhase.TRUST_PROBLEM,
+                        desktopDisplayName = request.displayName,
+                        fingerprintSuffix = result.presented.takeLast(FINGERPRINT_SUFFIX_LENGTH),
+                        lastControlError = "Desktop identity changed",
+                    ),
+                )
+            }
+        }
+    }
+
+    private fun stopDesktopControl() {
+        desktopControlClient?.close()
+        desktopControlClient = null
+        currentState = currentState.copy(desktopLinkState = DesktopLinkState(phase = DesktopLinkPhase.DISCONNECTED))
+    }
+
+    private fun ensureForegroundForDesktopControl(): Boolean {
+        if (currentState.foregroundActive) {
+            return true
+        }
+        currentState = currentState.copy(phase = HostSessionPhase.STARTING)
+        return if (startHostForegroundSafely()) {
+            true
+        } else {
+            stopSelf()
+            false
+        }
+    }
+
+    private fun trustProblemState(stored: TrustedDesktopMetadata, presentedFingerprint: String): DesktopLinkState =
+        DesktopLinkState(
+            phase = DesktopLinkPhase.TRUST_PROBLEM,
+            desktopDisplayName = stored.displayName,
+            fingerprintSuffix = presentedFingerprint.takeLast(FINGERPRINT_SUFFIX_LENGTH),
+            lastControlError = "Desktop identity changed",
+        )
+
+    private fun newAndroidNonce(): String {
+        val bytes = ByteArray(16)
+        nonceRandom.nextBytes(bytes)
+        return bytes.joinToString(separator = "") { byte -> "%02x".format(byte) }
     }
 
     private fun startHostForeground() {
@@ -565,10 +777,22 @@ class HostSessionService : Service() {
     companion object {
         const val ACTION_START_SESSION: String = "com.btgun.host.action.START_SESSION"
         const val ACTION_STOP_SESSION: String = "com.btgun.host.action.STOP_SESSION"
+        const val ACTION_CONNECT_DESKTOP_QR: String = "com.btgun.host.action.CONNECT_DESKTOP_QR"
+        const val ACTION_CONNECT_TRUSTED_DESKTOP: String = "com.btgun.host.action.CONNECT_TRUSTED_DESKTOP"
+        const val ACTION_CONNECT_MANUAL_DESKTOP: String = "com.btgun.host.action.CONNECT_MANUAL_DESKTOP"
+        const val ACTION_STOP_DESKTOP_CONTROL: String = "com.btgun.host.action.STOP_DESKTOP_CONTROL"
+        const val EXTRA_QR_PAYLOAD: String = "com.btgun.host.extra.QR_PAYLOAD"
+        const val EXTRA_DESKTOP_FINGERPRINT: String = "com.btgun.host.extra.DESKTOP_FINGERPRINT"
+        const val EXTRA_MANUAL_HOST: String = "com.btgun.host.extra.MANUAL_HOST"
+        const val EXTRA_MANUAL_PORT: String = "com.btgun.host.extra.MANUAL_PORT"
+        const val EXTRA_MANUAL_CODE: String = "com.btgun.host.extra.MANUAL_CODE"
+        const val EXTRA_MANUAL_FINGERPRINT_SUFFIX: String = "com.btgun.host.extra.MANUAL_FINGERPRINT_SUFFIX"
+        const val EXTRA_MANUAL_SESSION_ID: String = "com.btgun.host.extra.MANUAL_SESSION_ID"
         const val NOTIFICATION_CHANNEL_ID: String = "bt_gun_host_session"
         const val NOTIFICATION_TITLE: String = "BT Gun Host"
         const val NOTIFICATION_TEXT: String = "BT Gun Host running - live input active"
         private const val NOTIFICATION_ID: Int = 1001
+        private const val FINGERPRINT_SUFFIX_LENGTH: Int = 8
 
         @Volatile
         var latestState: HostSessionState = HostSessionState()
@@ -600,6 +824,7 @@ data class HostSessionState(
     val aimBaseline: AimBaseline? = null,
     val lastPreviewAim: PreviewAim? = null,
     val aimCalibrationState: AimCalibrationState = AimCalibrationState(),
+    val desktopLinkState: DesktopLinkState = DesktopLinkState(),
 ) {
     val wireState: String = phase.wireName
     val isActive: Boolean =
