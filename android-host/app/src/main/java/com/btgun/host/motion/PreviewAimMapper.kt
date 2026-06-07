@@ -3,8 +3,6 @@ package com.btgun.host.motion
 import com.btgun.host.model.LiveEnvelope
 import com.btgun.host.model.MotionProvider
 import com.btgun.host.model.MotionSample
-import kotlin.math.max
-import kotlin.math.min
 
 data class AimBaseline(
     val yaw: Float,
@@ -19,6 +17,10 @@ data class PreviewAim(
     val padEnabled: Boolean,
     val statusLabel: String,
     val baselineElapsedNanos: Long,
+    val rawX: Float = x,
+    val rawY: Float = y,
+    val calibrated: Boolean = false,
+    val latencyMillis: Long? = null,
 )
 
 class PreviewAimMapper(
@@ -36,17 +38,23 @@ class PreviewAimMapper(
             )
         }
 
+        val fallbackRaw = RawAimPoint(
+            xDegrees = shortestAngleDelta(motion.yaw, baseline.yaw),
+            yDegrees = shortestAngleDelta(motion.pitch, baseline.pitch),
+        )
+        val fallback = fallbackAim(fallbackRaw)
         return PreviewAim(
-            x = clampUnit(shortestAngleDelta(motion.yaw, baseline.yaw) / PREVIEW_DEGREES_TO_EDGE),
-            y = clampUnit(shortestAngleDelta(motion.pitch, baseline.pitch) / PREVIEW_DEGREES_TO_EDGE),
+            x = motion.aimX ?: fallback.x,
+            y = motion.aimY ?: fallback.y,
             padEnabled = true,
-            statusLabel = "Preview calibration",
+            statusLabel = if (motion.aimCalibrated) "Calibrated aim" else "Uncalibrated preview",
             baselineElapsedNanos = baseline.elapsedNanos,
+            rawX = motion.rawAimX ?: fallbackRaw.xDegrees,
+            rawY = motion.rawAimY ?: fallbackRaw.yDegrees,
+            calibrated = motion.aimCalibrated,
+            latencyMillis = motion.aimLatencyMillis,
         )
     }
-
-    private fun clampUnit(value: Float): Float =
-        max(-1f, min(1f, value))
 
     private fun shortestAngleDelta(current: Float, baseline: Float): Float {
         var delta = (current - baseline) % 360f
@@ -56,9 +64,5 @@ class PreviewAimMapper(
             delta += 360f
         }
         return delta
-    }
-
-    private companion object {
-        const val PREVIEW_DEGREES_TO_EDGE = 45f
     }
 }

@@ -44,6 +44,7 @@ tasks.withType<Test>().configureEach {
             "com.btgun.host.ble.IpegaBleGunAdapterTestKt",
             "com.btgun.host.model.NormalizedEventEnvelopeTestKt",
             "com.btgun.host.motion.MotionProviderSelectionTestKt",
+            "com.btgun.host.motion.AimCalibrationTestKt",
             "com.btgun.host.recenter.ReloadHoldRecenterTestKt",
             "com.btgun.host.ui.DashboardStateTestKt",
         ).forEach { testClass ->

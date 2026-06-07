@@ -88,6 +88,13 @@ data class MotionSample(
     val yaw: Float,
     val pitch: Float,
     val roll: Float,
+    val rawAimX: Float? = null,
+    val rawAimY: Float? = null,
+    val aimX: Float? = null,
+    val aimY: Float? = null,
+    val aimCalibrated: Boolean = false,
+    val aimCalibrationProvider: String? = null,
+    val aimLatencyMillis: Long? = null,
 ) : LivePayload
 
 data class StatusEvent(

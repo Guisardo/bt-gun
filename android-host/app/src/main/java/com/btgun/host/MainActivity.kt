@@ -30,6 +30,7 @@ import com.btgun.host.motion.AimBaseline
 import com.btgun.host.permissions.PermissionGate
 import com.btgun.host.permissions.PermissionGateInput
 import com.btgun.host.permissions.PermissionGateState
+import com.btgun.host.ui.AimGraphView
 import com.btgun.host.ui.DashboardEventMode
 import com.btgun.host.ui.DashboardState
 import com.btgun.host.ui.DebugExpansion
@@ -45,6 +46,7 @@ class MainActivity : Activity() {
     private lateinit var bleDebugAction: Button
     private lateinit var permissionDebugAction: Button
     private lateinit var gattDebugAction: Button
+    private lateinit var aimGraph: AimGraphView
     private val fields = mutableMapOf<String, TextView>()
     private var lastPhoneHapticStatus: PhoneHapticStatus = PhoneHapticStatus.available()
     private var eventMode: DashboardEventMode = DashboardEventMode.PRODUCT_EVENTS
@@ -103,6 +105,15 @@ class MainActivity : Activity() {
             addView(hapticAction)
         })
 
+        aimGraph = AimGraphView(this)
+        root.addView(
+            aimGraph,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(220),
+            ),
+        )
+
         listOf(
             "gun_connection",
             "foreground_service",
@@ -112,6 +123,7 @@ class MainActivity : Activity() {
             "motion_provider",
             "motion_capabilities",
             "preview_aim",
+            "aim_calibration",
             "recenter_state",
             "desktop_link",
             "packet_stream",
@@ -164,6 +176,7 @@ class MainActivity : Activity() {
             aimBaseline = serviceState.aimBaseline ?: AimBaseline(0f, 0f, 0f, 0L),
             nowElapsedNanos = SystemClock.elapsedRealtimeNanos(),
         )
+        aimGraph.render(dashboard.aimGraph)
 
         setField("permission_title", dashboard.permission.title)
         setField("permission_body", dashboard.permission.body + "\n" + dashboard.permission.details)
@@ -185,8 +198,9 @@ class MainActivity : Activity() {
         setField("motion_capabilities", dashboard.motionCapabilities.value)
         setField(
             "preview_aim",
-            "${dashboard.previewAim.label}: x=${dashboard.previewAim.x} y=${dashboard.previewAim.y} baseline=${dashboard.previewAim.baselineElapsedNanos}ns ${dashboard.previewAim.statusLabel}",
+            "${dashboard.previewAim.label}: x=${dashboard.previewAim.x} y=${dashboard.previewAim.y} rawX=${dashboard.previewAim.rawX} rawY=${dashboard.previewAim.rawY} baseline=${dashboard.previewAim.baselineElapsedNanos}ns ${dashboard.previewAim.statusLabel}",
         )
+        setField("aim_calibration", "${dashboard.aimCalibration.label}: ${dashboard.aimCalibration.value}")
         setField("recenter_state", "${dashboard.recenterState.label}: ${dashboard.recenterState.value}")
         setField("desktop_link", "${dashboard.placeholders.desktopLink.title}: ${dashboard.placeholders.desktopLink.body}")
         setField("packet_stream", "${dashboard.placeholders.packetStream.title}: ${dashboard.placeholders.packetStream.body}")
