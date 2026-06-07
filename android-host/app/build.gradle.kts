@@ -42,6 +42,7 @@ tasks.withType<Test>().configureEach {
             "com.btgun.host.permissions.PermissionGateTest",
             "com.btgun.host.ble.IpegaPacketParserTestKt",
             "com.btgun.host.model.NormalizedEventEnvelopeTestKt",
+            "com.btgun.host.motion.MotionProviderSelectionTestKt",
         ).forEach { testClass ->
             providers.exec {
                 commandLine(
