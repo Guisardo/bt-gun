@@ -1,5 +1,12 @@
 package com.btgun.host.permissions;
 
+import com.btgun.host.model.GunEvent;
+import com.btgun.host.model.LiveEnvelope;
+import com.btgun.host.model.Provenance;
+import com.btgun.host.model.SemanticConfidence;
+import com.btgun.host.model.StreamKind;
+import com.btgun.host.model.StreamSequencer;
+
 import java.util.Set;
 
 public final class PermissionGateTest {
@@ -9,6 +16,8 @@ public final class PermissionGateTest {
         sensorCapabilityReportsAvailableAndUnavailableWithoutRuntimePermission();
         vibrationCapabilityReportsHardwareState();
         lanCapabilityReportsNetworkState();
+        envelopeSequencesAreIndependentPerStream();
+        envelopeCarriesOptionalDebugProvenance();
     }
 
     private static void android12ScanAndConnectRequireNearbyDevicePermissions() {
@@ -169,6 +178,41 @@ public final class PermissionGateTest {
         ));
 
         expectState("lan network unavailable", CapabilityState.UNAVAILABLE, noNetwork.getLanNetwork().getState());
+    }
+
+    private static void envelopeSequencesAreIndependentPerStream() {
+        StreamSequencer sequencer = new StreamSequencer();
+
+        expectEquals("gun seq 1", 1L, sequencer.next(StreamKind.GUN));
+        expectEquals("gun seq 2", 2L, sequencer.next(StreamKind.GUN));
+        expectEquals("motion seq 1", 1L, sequencer.next(StreamKind.MOTION));
+        expectEquals("status seq 1", 1L, sequencer.next(StreamKind.STATUS));
+    }
+
+    private static void envelopeCarriesOptionalDebugProvenance() {
+        Provenance provenance = new Provenance(
+                "T",
+                "54",
+                "0000fff0-0000-1000-8000-00805f9b34fb",
+                "0000fff3-0000-1000-8000-00805f9b34fb",
+                "input-trigger-001",
+                "phase1-trigger-capture",
+                SemanticConfidence.CONFIRMED
+        );
+        LiveEnvelope<GunEvent> envelope = new LiveEnvelope<>(
+                StreamKind.GUN,
+                1L,
+                100L,
+                150L,
+                new GunEvent("trigger", true, null, null),
+                provenance
+        );
+
+        expectEquals("stream wire name", "gun", envelope.getStream().getWireName());
+        expectEquals("capture elapsed", 100L, envelope.getCaptureElapsedNanos());
+        expectEquals("emitted elapsed", 150L, envelope.getEmittedElapsedNanos());
+        expectEquals("provenance characteristic", "0000fff3-0000-1000-8000-00805f9b34fb", envelope.getProvenance().getBleCharacteristicUuid());
+        expectEquals("semantic confidence", SemanticConfidence.CONFIRMED, envelope.getProvenance().getSemanticConfidence());
     }
 
     private static void expectState(String label, CapabilityState expected, CapabilityState actual) {

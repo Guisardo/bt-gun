@@ -31,6 +31,7 @@ kotlin {
 
 tasks.withType<Test>().configureEach {
     val unitTestTask = this
+    failOnNoDiscoveredTests = false
 
     filter {
         isFailOnNoMatchingTests = false
