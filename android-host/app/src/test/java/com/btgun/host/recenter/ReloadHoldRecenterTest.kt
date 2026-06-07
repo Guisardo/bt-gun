@@ -7,8 +7,12 @@ import com.btgun.host.model.StreamKind
 
 fun main() {
     reloadDownEmitsImmediatelyAndHoldEmitsOneRecenter()
+    sameHoldCanEmitCalibrationStartAfterRecenter()
     earlyReloadReleaseDoesNotEmitRecenter()
+    releaseBeforeTenSecondsCancelsCalibrationStart()
+    releaseAfterTenSecondsDoesNotDuplicateCalibration()
     secondHoldCanEmitAfterPreviousRelease()
+    duplicateReloadDownDoesNotResetHoldTimers()
     repeatedTicksAfterRecenterDoNotDuplicate()
     eventOrderPreservesReloadSemantics()
 }
@@ -38,6 +42,18 @@ private fun reloadDownEmitsImmediatelyAndHoldEmitsOneRecenter() {
     expectEquals("up capture", 3_100_000_000L, up.captureElapsedNanos)
 }
 
+private fun sameHoldCanEmitCalibrationStartAfterRecenter() {
+    val recenter = ReloadHoldRecenter()
+
+    recenter.onReload(pressed = true, nowElapsedNanos = 1_000_000_000L).singleGun("down")
+    recenter.onTick(nowElapsedNanos = 3_000_000_000L).singleStatus("recenter")
+
+    val calibration = recenter.onTick(nowElapsedNanos = 11_000_000_000L).singleStatus("calibration")
+    expectEquals("calibration stream", StreamKind.STATUS, calibration.stream)
+    expectEquals("calibration name", "aim_calibration_start", calibration.payload.name)
+    expectEquals("calibration label", "aim calibration start", calibration.payload.statusLabel)
+}
+
 private fun earlyReloadReleaseDoesNotEmitRecenter() {
     val recenter = ReloadHoldRecenter()
 
@@ -47,6 +63,29 @@ private fun earlyReloadReleaseDoesNotEmitRecenter() {
     val up = recenter.onReload(pressed = false, nowElapsedNanos = 2_700_000_000L).singleGun("early up")
     expectEquals("early up emitted", false, up.payload.pressed)
     expectEmpty("post-release tick cannot recenter", recenter.onTick(nowElapsedNanos = 3_000_000_000L))
+}
+
+private fun releaseBeforeTenSecondsCancelsCalibrationStart() {
+    val recenter = ReloadHoldRecenter()
+
+    recenter.onReload(pressed = true, nowElapsedNanos = 1_000_000_000L).singleGun("down")
+    recenter.onTick(nowElapsedNanos = 3_000_000_000L).singleStatus("recenter")
+    recenter.onReload(pressed = false, nowElapsedNanos = 9_000_000_000L).singleGun("up")
+
+    expectEmpty("post-release calibration cannot start", recenter.onTick(nowElapsedNanos = 11_000_000_000L))
+}
+
+private fun releaseAfterTenSecondsDoesNotDuplicateCalibration() {
+    val recenter = ReloadHoldRecenter()
+
+    recenter.onReload(pressed = true, nowElapsedNanos = 1_000_000_000L).singleGun("down")
+    val emitted = recenter.onTick(nowElapsedNanos = 11_000_000_000L)
+    expectEquals("late tick emits recenter and calibration", 2, emitted.size)
+    expectEquals("late first", "recenter", emitted[0].payload.name)
+    expectEquals("late second", "aim_calibration_start", emitted[1].payload.name)
+    recenter.onReload(pressed = false, nowElapsedNanos = 11_100_000_000L).singleGun("up")
+
+    expectEmpty("post-release duplicate calibration", recenter.onTick(nowElapsedNanos = 12_000_000_000L))
 }
 
 private fun secondHoldCanEmitAfterPreviousRelease() {
@@ -62,6 +101,16 @@ private fun secondHoldCanEmitAfterPreviousRelease() {
     expectEquals("second label", "recenter emitted", second.payload.recenterEvent.statusLabel)
 }
 
+private fun duplicateReloadDownDoesNotResetHoldTimers() {
+    val recenter = ReloadHoldRecenter()
+
+    recenter.onReload(pressed = true, nowElapsedNanos = 1_000_000_000L).singleGun("down")
+    recenter.onReload(pressed = true, nowElapsedNanos = 2_000_000_000L).singleGun("duplicate down")
+
+    val emitted = recenter.onTick(nowElapsedNanos = 3_000_000_000L).singleStatus("timer from first down")
+    expectEquals("duplicate did not reset baseline", 3_000_000_000L, emitted.payload.recenterEvent.baselineElapsedNanos)
+}
+
 private fun repeatedTicksAfterRecenterDoNotDuplicate() {
     val recenter = ReloadHoldRecenter()
 
@@ -70,6 +119,8 @@ private fun repeatedTicksAfterRecenterDoNotDuplicate() {
 
     expectEmpty("duplicate same tick", recenter.onTick(nowElapsedNanos = 3_000_000_000L))
     expectEmpty("duplicate later tick", recenter.onTick(nowElapsedNanos = 5_000_000_000L))
+    recenter.onTick(nowElapsedNanos = 11_000_000_000L).singleStatus("calibration threshold")
+    expectEmpty("duplicate calibration later tick", recenter.onTick(nowElapsedNanos = 12_000_000_000L))
 }
 
 private fun eventOrderPreservesReloadSemantics() {

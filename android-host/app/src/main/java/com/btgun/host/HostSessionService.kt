@@ -35,11 +35,19 @@ import com.btgun.host.model.MotionProvider
 import com.btgun.host.model.MotionSample
 import com.btgun.host.model.StatusEvent
 import com.btgun.host.motion.AimBaseline
+import com.btgun.host.motion.AimCalibration
+import com.btgun.host.motion.AimCalibrationCaptureOutcome
+import com.btgun.host.motion.AimCalibrationSession
+import com.btgun.host.motion.AimCalibrationState
+import com.btgun.host.motion.AimCalibrationStore
 import com.btgun.host.motion.DisplayRotationRemap
 import com.btgun.host.motion.MotionAimProvider
 import com.btgun.host.motion.OrientationAngles
 import com.btgun.host.motion.PreviewAim
 import com.btgun.host.motion.PreviewAimMapper
+import com.btgun.host.motion.RawAimPoint
+import com.btgun.host.motion.RawAimTracker
+import com.btgun.host.motion.fallbackAim
 import com.btgun.host.motion.SelectedMotionProvider
 import com.btgun.host.permissions.PermissionGate
 import com.btgun.host.permissions.PermissionGateInput
@@ -57,6 +65,13 @@ class HostSessionService : Service() {
     private var currentAimBaseline: AimBaseline = AimBaseline(0f, 0f, 0f, 0L)
     private var hasLiveAimBaseline: Boolean = false
     private var currentDisplayRotation: Int = Surface.ROTATION_0
+    private val rawAimTracker = RawAimTracker()
+    private var currentRawAim: RawAimPoint? = null
+    private var currentRawOrigin: RawAimPoint? = null
+    private var calibrationBaseRawOrigin: RawAimPoint? = null
+    private val aimCalibrationSession = AimCalibrationSession()
+    private var activeAimCalibration: AimCalibration? = null
+    private val aimCalibrationStore: AimCalibrationStore by lazy { AimCalibrationStore(applicationContext) }
 
     @Volatile
     private var currentState: HostSessionState = HostSessionState()
@@ -65,24 +80,8 @@ class HostSessionService : Service() {
             latestState = value
         }
 
-    private val recenterTick = Runnable {
-        val emitted = recenter.onTick(SystemClock.elapsedRealtimeNanos()).firstOrNull()
-        if (emitted != null) {
-            val lastMotion = currentState.lastMotionSample?.payload
-            if (lastMotion != null) {
-                currentAimBaseline = AimBaseline(
-                    yaw = lastMotion.yaw,
-                    pitch = lastMotion.pitch,
-                    roll = lastMotion.roll,
-                    elapsedNanos = emitted.payload.baselineElapsedNanos ?: emitted.captureElapsedNanos,
-                )
-            }
-            currentState = currentState.copy(
-                reloadHoldState = recenter.state,
-                lastRecenterStatus = emitted,
-                aimBaseline = currentAimBaseline,
-            )
-        }
+    private val reloadHoldTick = Runnable {
+        handleReloadHoldTick()
     }
 
     private val sensorListener = object : SensorEventListener {
@@ -95,21 +94,33 @@ class HostSessionService : Service() {
                 return
             }
             val displayRotation = displayRotation()
+            val displayRotationChanged = displayRotation != currentDisplayRotation
+            if (displayRotationChanged) {
+                rawAimTracker.reset()
+            }
             val envelope = provider.envelopeForSensorEvent(
                 event = event,
                 orientation = orientationFrom(event, selection.provider, displayRotation),
                 selection = selection,
             )
-            if (!hasLiveAimBaseline || displayRotation != currentDisplayRotation) {
+            val rawAbsolute = rawAimTracker.track(envelope.payload)
+            if (!hasLiveAimBaseline || displayRotationChanged) {
                 currentAimBaseline = envelope.payload.toAimBaseline(envelope.captureElapsedNanos)
                 hasLiveAimBaseline = true
                 currentDisplayRotation = displayRotation
+                currentRawOrigin = rawAbsolute
             }
-            val preview = PreviewAimMapper(currentAimBaseline).map(envelope)
+            currentRawAim = rawAbsolute
+            if (currentRawOrigin == null) {
+                currentRawOrigin = rawAbsolute
+            }
+            val enriched = envelope.withAim(rawAbsolute, currentRawOrigin ?: rawAbsolute)
+            val preview = PreviewAimMapper(currentAimBaseline).map(enriched)
             currentState = currentState.copy(
-                lastMotionSample = envelope,
+                lastMotionSample = enriched,
                 lastPreviewAim = preview,
                 aimBaseline = currentAimBaseline,
+                aimCalibrationState = aimCalibrationSession.state,
             )
         }
 
@@ -176,7 +187,8 @@ class HostSessionService : Service() {
     private fun stopSession() {
         currentState = currentState.copy(phase = HostSessionPhase.STOPPING)
         stopMotionCapture()
-        handler.removeCallbacks(recenterTick)
+        handler.removeCallbacks(reloadHoldTick)
+        recenter.onReload(pressed = false, nowElapsedNanos = SystemClock.elapsedRealtimeNanos())
         adapter?.stopSession()
         adapter = null
         currentState = HostSessionState(phase = HostSessionPhase.STOPPED)
@@ -297,10 +309,19 @@ class HostSessionService : Service() {
         val selection = provider.currentSelection()
         motionAimProvider = provider
         selectedMotionProvider = selection
+        activeAimCalibration = aimCalibrationStore.load()
+        aimCalibrationSession.setActiveCalibration(activeAimCalibration)
         currentAimBaseline = AimBaseline(0f, 0f, 0f, SystemClock.elapsedRealtimeNanos())
         hasLiveAimBaseline = false
         currentDisplayRotation = displayRotation()
-        currentState = currentState.copy(aimBaseline = currentAimBaseline)
+        rawAimTracker.reset()
+        currentRawAim = null
+        currentRawOrigin = null
+        calibrationBaseRawOrigin = null
+        currentState = currentState.copy(
+            aimBaseline = currentAimBaseline,
+            aimCalibrationState = aimCalibrationSession.state,
+        )
 
         if (!selection.isAvailable) {
             currentState = currentState.copy(lastMotionSample = provider.unavailableSample())
@@ -317,13 +338,18 @@ class HostSessionService : Service() {
     }
 
     private fun stopMotionCapture() {
-        val sensorManager = getSystemService(Context.SENSOR_SERVICE) as? SensorManager ?: return
-        sensorManager.unregisterListener(sensorListener)
+        val sensorManager = getSystemService(Context.SENSOR_SERVICE) as? SensorManager
+        sensorManager?.unregisterListener(sensorListener)
         activeSensor = null
         motionAimProvider = null
         selectedMotionProvider = null
         hasLiveAimBaseline = false
         currentDisplayRotation = Surface.ROTATION_0
+        rawAimTracker.reset()
+        currentRawAim = null
+        currentRawOrigin = null
+        calibrationBaseRawOrigin = null
+        aimCalibrationSession.cancelInProgress()
     }
 
     private fun sensorForSelection(sensorManager: SensorManager, provider: MotionProvider): Sensor? =
@@ -404,21 +430,162 @@ class HostSessionService : Service() {
         (getSystemService(Context.WINDOW_SERVICE) as? WindowManager)?.defaultDisplay?.rotation
             ?: Surface.ROTATION_0
 
+    private fun LiveEnvelope<MotionSample>.withAim(
+        rawAbsolute: RawAimPoint,
+        rawOrigin: RawAimPoint,
+    ): LiveEnvelope<MotionSample> {
+        val rawRelative = rawAbsolute - rawOrigin
+        val calibration = activeAimCalibration
+        val mapped = calibration?.map(rawRelative) ?: fallbackAim(rawRelative)
+        val latencyMillis = ((SystemClock.elapsedRealtimeNanos() - captureElapsedNanos).coerceAtLeast(0L) / 1_000_000L)
+        return copy(
+            payload = payload.copy(
+                rawAimX = rawRelative.xDegrees,
+                rawAimY = rawRelative.yDegrees,
+                aimX = mapped.x,
+                aimY = mapped.y,
+                aimCalibrated = calibration != null,
+                aimCalibrationProvider = calibration?.providerName,
+                aimLatencyMillis = latencyMillis,
+            ),
+        )
+    }
+
+    private fun handleReloadHoldTick() {
+        recenter.onTick(SystemClock.elapsedRealtimeNanos()).forEach { envelope ->
+            handleReloadHoldStatus(envelope)
+        }
+        scheduleReloadHoldTick()
+    }
+
+    private fun handleReloadHoldStatus(envelope: LiveEnvelope<StatusEvent>) {
+        var nextState = currentState.copy(
+            lastStatusEvent = envelope,
+            reloadHoldState = recenter.state,
+        )
+        when (envelope.payload.name) {
+            ReloadHoldRecenter.RECENTER_EVENT_NAME -> {
+                val lastMotion = currentState.lastMotionSample?.payload
+                if (lastMotion != null) {
+                    currentAimBaseline = AimBaseline(
+                        yaw = lastMotion.yaw,
+                        pitch = lastMotion.pitch,
+                        roll = lastMotion.roll,
+                        elapsedNanos = envelope.payload.baselineElapsedNanos ?: envelope.captureElapsedNanos,
+                    )
+                }
+                currentRawAim?.let { raw -> currentRawOrigin = raw }
+                nextState = nextState.copy(
+                    lastRecenterStatus = envelope,
+                    aimBaseline = currentAimBaseline,
+                )
+            }
+            ReloadHoldRecenter.AIM_CALIBRATION_EVENT_NAME -> {
+                startAimCalibration()
+                nextState = nextState.copy(aimCalibrationState = aimCalibrationSession.state)
+            }
+        }
+        currentState = nextState.copy(aimCalibrationState = aimCalibrationSession.state)
+    }
+
+    private fun scheduleReloadHoldTick() {
+        handler.removeCallbacks(reloadHoldTick)
+        val pressedAt = recenter.state.pressedElapsedNanos
+        if (!recenter.state.isReloadHeld || pressedAt == null || recenter.state.calibrationEmitted) {
+            return
+        }
+        val targetNanos = if (!recenter.state.recenterEmitted) {
+            pressedAt + ReloadHoldRecenter.RELOAD_HOLD_NANOS
+        } else {
+            pressedAt + ReloadHoldRecenter.AIM_CALIBRATION_HOLD_NANOS
+        }
+        val remainingNanos = (targetNanos - SystemClock.elapsedRealtimeNanos()).coerceAtLeast(0L)
+        val delayMillis = (remainingNanos + 999_999L) / 1_000_000L
+        handler.postDelayed(reloadHoldTick, delayMillis)
+    }
+
+    private fun startAimCalibration() {
+        calibrationBaseRawOrigin = currentRawOrigin ?: currentRawAim
+        aimCalibrationSession.start()
+    }
+
+    private fun captureAimCalibrationMark(captureElapsedNanos: Long) {
+        val rawAim = currentRawAim
+        val baseOrigin = calibrationBaseRawOrigin ?: currentRawOrigin ?: rawAim
+        if (rawAim == null || baseOrigin == null) {
+            currentState = currentState.copy(
+                lastError = "Aim calibration needs live motion before capture.",
+                aimCalibrationState = aimCalibrationSession.state,
+            )
+            return
+        }
+        calibrationBaseRawOrigin = baseOrigin
+        val providerName = selectedMotionProvider?.providerName ?: currentState.lastMotionSample?.payload?.providerName ?: "unknown"
+        val outcome = aimCalibrationSession.capture(
+            providerName = providerName,
+            rawPoint = rawAim - baseOrigin,
+            elapsedRealtimeNanos = captureElapsedNanos,
+            createdAtEpochMillis = System.currentTimeMillis(),
+        )
+        when (outcome) {
+            is AimCalibrationCaptureOutcome.Completed -> {
+                activeAimCalibration = outcome.calibration
+                aimCalibrationStore.save(outcome.calibration)
+                currentRawOrigin = baseOrigin + outcome.rawCenter
+                calibrationBaseRawOrigin = null
+                currentState = currentState.copy(
+                    aimCalibrationState = aimCalibrationSession.state,
+                    lastError = null,
+                )
+            }
+            is AimCalibrationCaptureOutcome.Failed -> {
+                currentState = currentState.copy(
+                    aimCalibrationState = aimCalibrationSession.state,
+                    lastError = outcome.reason,
+                )
+            }
+            is AimCalibrationCaptureOutcome.Captured,
+            AimCalibrationCaptureOutcome.Ignored,
+            -> {
+                currentState = currentState.copy(aimCalibrationState = aimCalibrationSession.state)
+            }
+        }
+    }
+
     private fun handleGunEvent(envelope: LiveEnvelope<GunEvent>) {
+        if (envelope.payload.name == "trigger" && envelope.payload.pressed != null && aimCalibrationSession.state.isCaptureActive) {
+            if (envelope.payload.pressed) {
+                captureAimCalibrationMark(envelope.captureElapsedNanos)
+            }
+            val gunInputState = if (envelope.payload.pressed == false) {
+                currentState.gunInputState.apply(envelope.payload)
+            } else {
+                currentState.gunInputState
+            }
+            currentState = currentState.copy(
+                gunInputState = gunInputState,
+                aimCalibrationState = aimCalibrationSession.state,
+            )
+            return
+        }
+
         val gunInputState = currentState.gunInputState.apply(envelope.payload)
         if (envelope.payload.name == "reload" && envelope.payload.pressed != null) {
+            val wasHeld = recenter.state.isReloadHeld
             recenter.onReload(envelope.payload.pressed, envelope.captureElapsedNanos)
             if (envelope.payload.pressed) {
-                handler.removeCallbacks(recenterTick)
-                handler.postDelayed(recenterTick, ReloadHoldRecenter.RELOAD_HOLD_NANOS / 1_000_000L)
+                if (!wasHeld) {
+                    scheduleReloadHoldTick()
+                }
             } else {
-                handler.removeCallbacks(recenterTick)
+                handler.removeCallbacks(reloadHoldTick)
             }
         }
         currentState = currentState.copy(
             lastGunEvent = envelope,
             gunInputState = gunInputState,
             reloadHoldState = recenter.state,
+            aimCalibrationState = aimCalibrationSession.state,
         )
     }
 
@@ -467,6 +634,7 @@ data class HostSessionState(
     val lastRecenterStatus: LiveEnvelope<StatusEvent>? = null,
     val aimBaseline: AimBaseline? = null,
     val lastPreviewAim: PreviewAim? = null,
+    val aimCalibrationState: AimCalibrationState = AimCalibrationState(),
 ) {
     val wireState: String = phase.wireName
     val isActive: Boolean =

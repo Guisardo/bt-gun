@@ -12,6 +12,9 @@ import com.btgun.host.model.MotionSample
 import com.btgun.host.model.Provenance
 import com.btgun.host.model.StatusEvent
 import com.btgun.host.motion.AimBaseline
+import com.btgun.host.motion.AimCalibrationMark
+import com.btgun.host.motion.AimCalibrationMode
+import com.btgun.host.motion.AimCalibrationState
 import com.btgun.host.motion.MotionCapabilityFlags
 import com.btgun.host.motion.PreviewAim
 import com.btgun.host.permissions.PermissionGateState
@@ -44,6 +47,21 @@ data class DashboardPreviewAim(
     val enabled: Boolean,
     val statusLabel: String,
     val baselineElapsedNanos: Long,
+    val rawX: Float,
+    val rawY: Float,
+    val calibrated: Boolean,
+    val latencyMillis: Long?,
+)
+
+data class DashboardAimGraph(
+    val x: Float,
+    val y: Float,
+    val enabled: Boolean,
+    val calibrated: Boolean,
+    val statusLabel: String,
+    val activeMark: AimCalibrationMark?,
+    val capturedMarks: List<AimCalibrationMark>,
+    val latencyMillis: Long?,
 )
 
 data class DashboardPhoneHaptic(
@@ -103,6 +121,8 @@ data class DashboardState(
     val motionProvider: DashboardField,
     val motionCapabilities: DashboardField,
     val previewAim: DashboardPreviewAim,
+    val aimGraph: DashboardAimGraph,
+    val aimCalibration: DashboardField,
     val recenterState: DashboardField,
     val foregroundService: DashboardField,
     val currentError: DashboardField,
@@ -126,6 +146,7 @@ data class DashboardState(
             lastMotionSample: LiveEnvelope<MotionSample>? = hostSessionState.lastMotionSample,
             previewAim: PreviewAim? = null,
             aimBaseline: AimBaseline? = null,
+            aimCalibrationState: AimCalibrationState = hostSessionState.aimCalibrationState,
             reloadHoldState: ReloadHoldState = hostSessionState.reloadHoldState,
             lastRecenterStatus: LiveEnvelope<StatusEvent>? = hostSessionState.lastRecenterStatus,
             phoneHapticStatus: PhoneHapticStatus = PhoneHapticStatus.available(),
@@ -151,6 +172,8 @@ data class DashboardState(
                 motionProvider = DashboardField("Motion provider", lastMotionSample?.payload?.providerName ?: "unavailable"),
                 motionCapabilities = DashboardField("Motion capability flags", formatCapabilities(lastMotionSample?.payload?.capabilities)),
                 previewAim = formatPreview(previewAim, aimBaseline),
+                aimGraph = formatAimGraph(previewAim, aimCalibrationState),
+                aimCalibration = DashboardField("Aim calibration", formatCalibration(aimCalibrationState)),
                 recenterState = DashboardField("Recenter state", formatRecenter(reloadHoldState, lastRecenterStatus, nowElapsedNanos)),
                 foregroundService = DashboardField("Foreground service", if (hostSessionState.foregroundActive) "running" else "stopped"),
                 currentError = DashboardField("Current error", hostSessionState.lastError ?: bleConnectionState.lastError ?: "none"),
@@ -250,7 +273,41 @@ data class DashboardState(
                 enabled = previewAim?.padEnabled ?: false,
                 statusLabel = previewAim?.statusLabel ?: "Motion unavailable",
                 baselineElapsedNanos = previewAim?.baselineElapsedNanos ?: aimBaseline?.elapsedNanos ?: 0L,
+                rawX = previewAim?.rawX ?: 0f,
+                rawY = previewAim?.rawY ?: 0f,
+                calibrated = previewAim?.calibrated ?: false,
+                latencyMillis = previewAim?.latencyMillis,
             )
+
+        private fun formatAimGraph(
+            previewAim: PreviewAim?,
+            calibrationState: AimCalibrationState,
+        ): DashboardAimGraph =
+            DashboardAimGraph(
+                x = previewAim?.x ?: 0f,
+                y = previewAim?.y ?: 0f,
+                enabled = previewAim?.padEnabled ?: false,
+                calibrated = previewAim?.calibrated == true,
+                statusLabel = calibrationState.statusLabel,
+                activeMark = calibrationState.activeMark,
+                capturedMarks = calibrationState.capturedPoints.map { point -> point.mark },
+                latencyMillis = previewAim?.latencyMillis,
+            )
+
+        private fun formatCalibration(state: AimCalibrationState): String {
+            val progress = if (state.capturedPoints.isNotEmpty()) {
+                " | captured=${state.capturedPoints.size}/4"
+            } else {
+                ""
+            }
+            val active = if (state.isCalibrated) " | active" else ""
+            val failure = if (state.mode == AimCalibrationMode.FAILED && state.error != null) {
+                " | error=${state.error}"
+            } else {
+                ""
+            }
+            return state.statusLabel + progress + active + failure
+        }
 
         private fun formatRecenter(
             reloadHoldState: ReloadHoldState,

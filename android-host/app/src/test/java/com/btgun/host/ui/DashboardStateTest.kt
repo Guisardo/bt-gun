@@ -15,8 +15,13 @@ import com.btgun.host.model.SemanticConfidence
 import com.btgun.host.model.StatusEvent
 import com.btgun.host.model.StreamKind
 import com.btgun.host.motion.AimBaseline
+import com.btgun.host.motion.AimCalibrationMark
+import com.btgun.host.motion.AimCalibrationMode
+import com.btgun.host.motion.AimCalibrationState
+import com.btgun.host.motion.CapturedAimPoint
 import com.btgun.host.motion.MotionCapabilityFlags
 import com.btgun.host.motion.PreviewAim
+import com.btgun.host.motion.RawAimPoint
 import com.btgun.host.permissions.BluetoothPermissionModel
 import com.btgun.host.permissions.CapabilityState
 import com.btgun.host.permissions.CapabilityStatus
@@ -28,6 +33,7 @@ fun main() {
     connectedSessionShowsServiceErrorAndLastGunEvent()
     activeControlsShowMultiplePressedButtons()
     motionProviderShowsCapabilitiesPreviewAndBaseline()
+    calibrationGraphShowsMarkProgressAndLatency()
     recenterShowsCountdownEmissionAndReloadVisibility()
     debugDetailsStayCollapsedUntilToggled()
     futureDesktopAndPacketSurfacesStayInactive()
@@ -143,6 +149,10 @@ private fun motionProviderShowsCapabilitiesPreviewAndBaseline() {
             padEnabled = true,
             statusLabel = "Preview calibration",
             baselineElapsedNanos = 4_000L,
+            rawX = 12f,
+            rawY = -24f,
+            calibrated = true,
+            latencyMillis = 8L,
         ),
         aimBaseline = AimBaseline(yaw = 10f, pitch = -5f, roll = 0f, elapsedNanos = 4_000L),
     )
@@ -155,6 +165,49 @@ private fun motionProviderShowsCapabilitiesPreviewAndBaseline() {
     expectEquals("preview x", 0.25f, state.previewAim.x)
     expectEquals("preview y", -0.5f, state.previewAim.y)
     expectEquals("preview baseline", 4_000L, state.previewAim.baselineElapsedNanos)
+    expectEquals("preview raw x", 12f, state.previewAim.rawX)
+    expectEquals("preview raw y", -24f, state.previewAim.rawY)
+    expectTrue("preview calibrated", state.previewAim.calibrated)
+    expectEquals("preview latency", 8L, state.previewAim.latencyMillis)
+}
+
+private fun calibrationGraphShowsMarkProgressAndLatency() {
+    val state = DashboardState.from(
+        permissionGateState = permissionGateState(),
+        hostSessionState = HostSessionState(
+            phase = HostSessionPhase.CONNECTED,
+            foregroundActive = true,
+            aimCalibrationState = AimCalibrationState(
+                mode = AimCalibrationMode.WAITING_FOR_MARK,
+                activeMark = AimCalibrationMark.TOP_RIGHT,
+                capturedPoints = listOf(
+                    CapturedAimPoint(
+                        mark = AimCalibrationMark.TOP_LEFT,
+                        rawPoint = RawAimPoint(-20f, 20f),
+                        elapsedRealtimeNanos = 1L,
+                    ),
+                ),
+                statusLabel = "Aim at top-right, press trigger",
+            ),
+        ),
+        previewAim = PreviewAim(
+            x = 0.2f,
+            y = 0.3f,
+            padEnabled = true,
+            statusLabel = "Uncalibrated preview",
+            baselineElapsedNanos = 4_000L,
+            calibrated = false,
+            latencyMillis = 7L,
+        ),
+    )
+
+    expectEquals("calibration field", "Aim calibration", state.aimCalibration.label)
+    expectContains("calibration progress", state.aimCalibration.value, "captured=1/4")
+    expectEquals("graph x", 0.2f, state.aimGraph.x)
+    expectEquals("graph y", 0.3f, state.aimGraph.y)
+    expectEquals("graph mark", AimCalibrationMark.TOP_RIGHT, state.aimGraph.activeMark)
+    expectEquals("graph captured", listOf(AimCalibrationMark.TOP_LEFT), state.aimGraph.capturedMarks)
+    expectEquals("graph latency", 7L, state.aimGraph.latencyMillis)
 }
 
 private fun recenterShowsCountdownEmissionAndReloadVisibility() {

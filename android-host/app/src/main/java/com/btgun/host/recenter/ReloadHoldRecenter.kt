@@ -15,6 +15,7 @@ data class ReloadHoldState(
     val isReloadHeld: Boolean = false,
     val pressedElapsedNanos: Long? = null,
     val recenterEmitted: Boolean = false,
+    val calibrationEmitted: Boolean = false,
 )
 
 val StatusEvent.recenterEvent: RecenterEvent
@@ -33,11 +34,16 @@ class ReloadHoldRecenter(
 
     fun onReload(pressed: Boolean, nowElapsedNanos: Long): List<LiveEnvelope<GunEvent>> {
         state = if (pressed) {
-            ReloadHoldState(
-                isReloadHeld = true,
-                pressedElapsedNanos = nowElapsedNanos,
-                recenterEmitted = false,
-            )
+            if (state.isReloadHeld) {
+                state
+            } else {
+                ReloadHoldState(
+                    isReloadHeld = true,
+                    pressedElapsedNanos = nowElapsedNanos,
+                    recenterEmitted = false,
+                    calibrationEmitted = false,
+                )
+            }
         } else {
             ReloadHoldState()
         }
@@ -58,35 +64,56 @@ class ReloadHoldRecenter(
 
     fun onTick(nowElapsedNanos: Long): List<LiveEnvelope<StatusEvent>> {
         val pressedAt = state.pressedElapsedNanos
-        if (!state.isReloadHeld || pressedAt == null || state.recenterEmitted) {
+        if (!state.isReloadHeld || pressedAt == null) {
             return emptyList()
         }
 
-        if (nowElapsedNanos - pressedAt < RELOAD_HOLD_NANOS) {
-            return emptyList()
+        val emitted = mutableListOf<LiveEnvelope<StatusEvent>>()
+        val heldNanos = nowElapsedNanos - pressedAt
+        if (!state.recenterEmitted && heldNanos >= RELOAD_HOLD_NANOS) {
+            state = state.copy(recenterEmitted = true)
+            emitted += statusEvent(
+                nowElapsedNanos = nowElapsedNanos,
+                name = RECENTER_EVENT_NAME,
+                label = RECENTER_STATUS_LABEL,
+            )
         }
+        if (!state.calibrationEmitted && heldNanos >= AIM_CALIBRATION_HOLD_NANOS) {
+            state = state.copy(calibrationEmitted = true)
+            emitted += statusEvent(
+                nowElapsedNanos = nowElapsedNanos,
+                name = AIM_CALIBRATION_EVENT_NAME,
+                label = AIM_CALIBRATION_STATUS_LABEL,
+            )
+        }
+        return emitted
+    }
 
-        state = state.copy(recenterEmitted = true)
-        return listOf(
-            LiveEnvelope(
-                stream = StreamKind.STATUS,
-                seq = sequencer.next(StreamKind.STATUS),
-                captureElapsedNanos = nowElapsedNanos,
-                emittedElapsedNanos = nowElapsedNanos,
-                payload = StatusEvent(
-                    name = RECENTER_EVENT_NAME,
-                    message = RECENTER_STATUS_LABEL,
-                    baselineElapsedNanos = nowElapsedNanos,
-                    statusLabel = RECENTER_STATUS_LABEL,
-                ),
+    private fun statusEvent(
+        nowElapsedNanos: Long,
+        name: String,
+        label: String,
+    ): LiveEnvelope<StatusEvent> =
+        LiveEnvelope(
+            stream = StreamKind.STATUS,
+            seq = sequencer.next(StreamKind.STATUS),
+            captureElapsedNanos = nowElapsedNanos,
+            emittedElapsedNanos = nowElapsedNanos,
+            payload = StatusEvent(
+                name = name,
+                message = label,
+                baselineElapsedNanos = nowElapsedNanos.takeIf { name == RECENTER_EVENT_NAME },
+                statusLabel = label,
             ),
         )
-    }
 
     companion object {
         const val RELOAD_HOLD_NANOS: Long = 2_000_000_000L
+        const val AIM_CALIBRATION_HOLD_NANOS: Long = 10_000_000_000L
         const val RECENTER_EVENT_NAME: String = "recenter"
         const val RECENTER_STATUS_LABEL: String = "recenter emitted"
+        const val AIM_CALIBRATION_EVENT_NAME: String = "aim_calibration_start"
+        const val AIM_CALIBRATION_STATUS_LABEL: String = "aim calibration start"
         private const val RELOAD_EVENT_NAME: String = "reload"
     }
 }
