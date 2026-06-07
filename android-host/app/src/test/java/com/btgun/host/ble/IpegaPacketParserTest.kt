@@ -13,9 +13,11 @@ fun main() {
 }
 
 private fun knownFff3FixturesBecomeGunProductEventsWithProvenance() {
+    val parser = IpegaPacketParser()
+
     listOf(
         Case("ARGun KeyPressed", "trigger", true, "ARGUN2021-CONTROL-001", "trigger-001", SemanticConfidence.CANDIDATE),
-        Case(hex = "00000000000000000000000000000000", "trigger", false, "ARGUN2021-CONTROL-001", "trigger-001", SemanticConfidence.CANDIDATE),
+        hexCase("00000000000000000000000000000000", "trigger", false, "ARGUN2021-CONTROL-001", "trigger-001", SemanticConfidence.CANDIDATE),
         Case("B8DOWN", "reload", true, "ARGUN2021-CONTROL-001", "reload-001", SemanticConfidence.CONFIRMED),
         Case("B8UP", "reload", false, "ARGUN2021-CONTROL-001", "reload-001", SemanticConfidence.CONFIRMED),
         Case("B6DOWN", "stick_left", true, "ARCHER-INPUT-001", "joystick-001", SemanticConfidence.CONFIRMED),
@@ -35,7 +37,7 @@ private fun knownFff3FixturesBecomeGunProductEventsWithProvenance() {
         Case("B9DOWN", "button_b", true, "ARCHER-INPUT-001", "button-b-001", SemanticConfidence.CANDIDATE),
         Case("B9UP", "button_b", false, "ARCHER-INPUT-001", "button-b-001", SemanticConfidence.CANDIDATE),
     ).forEachIndexed { index, expected ->
-        val parsed = IpegaPacketParser().parseFff3(
+        val parsed = parser.parseFff3(
             value = expected.bytes(),
             captureElapsedNanos = 1_000L + index,
             emittedElapsedNanos = 2_000L + index,
@@ -82,17 +84,17 @@ private data class Case(
     val confidence: SemanticConfidence,
     val rawHex: String = rawAscii.encodeToByteArray().toHex(),
 ) {
-    constructor(
-        hex: String,
-        eventName: String,
-        pressed: Boolean,
-        clueId: String,
-        captureId: String,
-        confidence: SemanticConfidence,
-    ) : this("", eventName, pressed, clueId, captureId, confidence, hex)
-
     fun bytes(): ByteArray = if (rawAscii.isNotEmpty()) rawAscii.encodeToByteArray() else rawHex.hexToBytes()
 }
+
+private fun hexCase(
+    rawHex: String,
+    eventName: String,
+    pressed: Boolean,
+    clueId: String,
+    captureId: String,
+    confidence: SemanticConfidence,
+): Case = Case("", eventName, pressed, clueId, captureId, confidence, rawHex)
 
 private fun ParsedGunPacket.expectGunEvent(label: String): LiveEnvelope<GunEvent> =
     when (this) {
