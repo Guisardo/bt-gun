@@ -88,14 +88,16 @@ Plans:
   3. Pairing creates an authenticated local session using a short-lived one-time secret with replay protection.
   4. Android and desktop maintain a reliable control channel for pairing state, heartbeat, diagnostics, profile metadata, and haptic commands.
 
-**Plans:** 5 plans
+**Plans:** 7 plans
 Plans:
 
 - [ ] 03-01-PLAN.md — Desktop pairing session, QR/manual fallback, and Wave 0 desktop test harness.
 - [ ] 03-02-PLAN.md — Android QR/manual parser, trusted desktop store, and desktop-link dashboard state.
 - [ ] 03-03-PLAN.md — Authenticated pairing proof, replay/rate-limit defenses, and fail-closed trust anchor.
-- [ ] 03-04-PLAN.md — Reliable WSS control channel, heartbeat/liveness, diagnostics, and reserved haptic envelope type.
-- [ ] 03-05-PLAN.md — Desktop/Android pairing UI integration, lifecycle wiring, protocol finalization, and manual smoke guide.
+- [ ] 03-04-PLAN.md — Reliable WSS control-channel core, envelope allowlist, and proof-gated client/server.
+- [ ] 03-05-PLAN.md — Heartbeat/liveness, diagnostics, minimal profile metadata, and control protocol docs.
+- [ ] 03-06-PLAN.md — Desktop companion launch and pairing/control window lifecycle.
+- [ ] 03-07-PLAN.md — Android QR/manual/trusted-desktop wiring, service ownership, protocol finalization, and manual smoke guide.
 **UI hint**: yes
 
 ### Phase 4: Input Stream and Haptic Transport
@@ -214,7 +216,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 |-------|----------------|--------|-----------|
 | 1. Hardware and Protocol Discovery | 5/5 | Complete | 2026-06-06 |
 | 2. Android Host Live Input | 6/6 | Complete | 2026-06-07 |
-| 3. LAN Pairing and Secure Session | 0/TBD | Not started | - |
+| 3. LAN Pairing and Secure Session | 0/7 | Planned | - |
 | 4. Input Stream and Haptic Transport | 0/TBD | Not started | - |
 | 5. Desktop Backend Contract and Smoke Harness | 0/TBD | Not started | - |
 | 6. Windows Virtual Joystick Path | 0/TBD | Not started | - |
