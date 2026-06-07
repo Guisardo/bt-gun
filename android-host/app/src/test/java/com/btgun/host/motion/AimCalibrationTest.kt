@@ -7,6 +7,7 @@ fun main() {
     skewedCalibrationMapsCornersCenterAndInterior()
     invertedAxesMapToTargetMarks()
     rawAimTrackerUnwrapsAcrossAngleBoundary()
+    fallbackAimInvertsPitchForGraphY()
     degenerateCalibrationRejectsBadPoints()
     centeredCalibrationSurvivesOriginRecenter()
     calibrationCodecRoundTripsAndIgnoresBadPayloads()
@@ -62,6 +63,11 @@ private fun rawAimTrackerUnwrapsAcrossAngleBoundary() {
     expectNear("first yaw", 179f, first.xDegrees)
     expectNear("forward unwrap", 181f, second.xDegrees)
     expectNear("backward unwrap", 178f, third.xDegrees)
+}
+
+private fun fallbackAimInvertsPitchForGraphY() {
+    expectNear("positive pitch moves graph down", -1f, fallbackAim(RawAimPoint(0f, 45f)).y)
+    expectNear("negative pitch moves graph up", 1f, fallbackAim(RawAimPoint(0f, -45f)).y)
 }
 
 private fun degenerateCalibrationRejectsBadPoints() {

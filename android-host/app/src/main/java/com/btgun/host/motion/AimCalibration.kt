@@ -538,7 +538,7 @@ class AimCalibrationStore(context: Context) {
 fun fallbackAim(raw: RawAimPoint): NormalizedAimPoint =
     NormalizedAimPoint(
         x = clampUnit(raw.xDegrees / FALLBACK_DEGREES_TO_EDGE),
-        y = clampUnit(raw.yDegrees / FALLBACK_DEGREES_TO_EDGE),
+        y = clampUnit(-raw.yDegrees / FALLBACK_DEGREES_TO_EDGE),
     )
 
 private fun clampUnit(value: Float): Float =
