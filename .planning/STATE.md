@@ -2,41 +2,41 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
-stopped_at: Completed 02-05-PLAN.md
-last_updated: "2026-06-07T00:49:25Z"
-last_activity: 2026-06-07 -- Plan 02-05 complete
+status: planning
+stopped_at: Phase 3 context gathered
+last_updated: "2026-06-07T16:30:31.999Z"
+last_activity: 2026-06-07 -- Phase 02 approved
 progress:
   total_phases: 10
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 11
-  completed_plans: 9
-  percent: 82
+  completed_plans: 11
+  percent: 20
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-06-06)
+See: .planning/PROJECT.md (updated 2026-06-07)
 
 **Core value:** Make the discontinued iPega AR gun usable as a normal wireless joystick gun on modern macOS and Windows with responsive motion aiming and v1 phone haptic feedback.
-**Current focus:** Phase 02 — android-host-live-input
+**Current focus:** Phase 03 — lan-pairing-and-secure-session
 
 ## Current Position
 
-Phase: 02 (android-host-live-input) — EXECUTING
-Plan: 6 of 6
-Status: Ready to execute
-Last activity: 2026-06-07 -- Plan 02-05 complete
+Phase: 03 (lan-pairing-and-secure-session) — READY TO PLAN
+Plan: TBD
+Status: Phase 02 approved; ready for Phase 03 planning
+Last activity: 2026-06-07 -- Phase 02 approved
 
-Progress: [█████████░] 91% overall; Phase 01 is 100% complete; Phase 02 is 5/6 complete.
+Progress: [██░░░░░░░░] 20% by phase; Phase 01 and Phase 02 are complete.
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 10
+- Total plans completed: 11
 - Average duration: not tracked for hardware-interactive plans
 - Total execution time: not tracked after Plan 02
 
@@ -45,12 +45,12 @@ Progress: [█████████░] 91% overall; Phase 01 is 100% complet
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01 | 5 | not tracked | not tracked |
-| 02 | 5 | 44 min | 8.8 min |
+| 02 | 6 | hardware-interactive | hardware-interactive |
 
 **Recent Trend:**
 
-- Last 5 plans: P01, P02, P04, P03, P05 complete
-- Trend: Phase 02 in progress
+- Last 5 plans: P02, P04, P03, P05, P06 complete
+- Trend: Phase 03 ready to plan
 
 *Updated after each plan completion*
 | Phase 01 P01 | 10 min | 3 tasks | 6 files |
@@ -63,6 +63,7 @@ Progress: [█████████░] 91% overall; Phase 01 is 100% complet
 | Phase 02 P04 | 5 min | 3 tasks | 5 files |
 | Phase 02 P03 | 7 min | 3 tasks | 6 files |
 | Phase 02 P05 | 13 min | 3 tasks | 4 files |
+| Phase 02 P06 | hardware-interactive | dashboard/manual validation | approved |
 
 ## Accumulated Context
 
@@ -85,14 +86,16 @@ Recent decisions affecting current work:
 - [Phase 02]: Motion provider selection is pure and preview aim is Android-local calibration only. — Desktop profile/HID mapping remains deferred to later desktop profile phases.
 - [Phase 02]: Foreground HostSessionService owns the active BLE connection and IpegaBleGunAdapter accepts only ARGunGame/fff0 before parsing fff3 notifications. — Keeps BLE lifecycle visible, bounded, and scoped before LAN/control phases.
 - [Phase 02]: Reload-hold recenter is a pure elapsed-nanos state machine. — Reload down/up remain gun events, while recenter emits a separate status event after a two-second hold.
+- [Phase 02 approved]: Android host live input is approved for physical-device use. — Permission gate, BLE connection, controls, motion/aim graph, recenter/calibration, foreground behavior, and local phone haptic rows passed manual sign-off on 2026-06-07.
+- [Phase 02]: Disabled Bluetooth/location must surface as blocked/unavailable capability state instead of crashing. — Activity, service, and BLE scan startup use guarded capability probes.
 
 ### Pending Todos
 
-- Continue Phase 02: Android Host Live Input; Plan 02-06 remains pending after reload-hold recenter completion.
+- Plan Phase 03: LAN Pairing and Secure Session.
 
 ### Blockers/Concerns
 
-- [Phase 2]: Production Android host must preserve Phase 1 candidate provenance for noisy controls while using the BLE `fff3` input path.
+- [Phase 3]: Pairing must preserve Phase 2 live-session boundaries and keep desktop haptic commands out of pairing scope until Phase 4.
 - [Phase 7]: macOS virtual HID/output path may depend on entitlement and OS support.
 
 ## Deferred Items
@@ -105,6 +108,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-07T00:49:25Z
-Stopped at: Completed 02-05-PLAN.md
-Resume file: .planning/phases/02-android-host-live-input/02-06-PLAN.md
+Last session: 2026-06-07T16:30:31.988Z
+Stopped at: Phase 3 context gathered
+Resume file: .planning/phases/03-lan-pairing-and-secure-session/03-CONTEXT.md
