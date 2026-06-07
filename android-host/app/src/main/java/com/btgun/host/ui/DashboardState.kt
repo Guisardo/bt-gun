@@ -6,6 +6,7 @@ import com.btgun.host.ble.BleGunConnectionPhase
 import com.btgun.host.ble.BleGunConnectionState
 import com.btgun.host.haptics.PhoneHapticStatus
 import com.btgun.host.model.GunEvent
+import com.btgun.host.model.GunInputState
 import com.btgun.host.model.LiveEnvelope
 import com.btgun.host.model.MotionSample
 import com.btgun.host.model.Provenance
@@ -98,6 +99,7 @@ data class DashboardState(
     val eventMode: DashboardEventMode,
     val gunConnection: DashboardField,
     val lastGunEvent: DashboardField,
+    val activeGunControls: DashboardField,
     val motionProvider: DashboardField,
     val motionCapabilities: DashboardField,
     val previewAim: DashboardPreviewAim,
@@ -120,6 +122,7 @@ data class DashboardState(
             hostSessionState: HostSessionState,
             bleConnectionState: BleGunConnectionState = BleGunConnectionState(),
             lastGunEvent: LiveEnvelope<GunEvent>? = hostSessionState.lastGunEvent,
+            gunInputState: GunInputState = hostSessionState.gunInputState,
             lastMotionSample: LiveEnvelope<MotionSample>? = hostSessionState.lastMotionSample,
             previewAim: PreviewAim? = null,
             aimBaseline: AimBaseline? = null,
@@ -144,6 +147,7 @@ data class DashboardState(
                 eventMode = eventMode,
                 gunConnection = DashboardField("Gun connection", gunConnectionValue(hostSessionState, bleConnectionState)),
                 lastGunEvent = DashboardField("Last gun event", formatGunEvent(lastGunEvent)),
+                activeGunControls = DashboardField("Active controls", formatActiveControls(gunInputState)),
                 motionProvider = DashboardField("Motion provider", lastMotionSample?.payload?.providerName ?: "unavailable"),
                 motionCapabilities = DashboardField("Motion capability flags", formatCapabilities(lastMotionSample?.payload?.capabilities)),
                 previewAim = formatPreview(previewAim, aimBaseline),
@@ -219,6 +223,9 @@ data class DashboardState(
                     "elapsed=${event.captureElapsedNanos}ns",
                 ).joinToString(" | ")
             }
+
+        private fun formatActiveControls(state: GunInputState): String =
+            state.activeControls().ifEmpty { listOf("none") }.joinToString(", ")
 
         private fun formatCapabilities(capabilities: MotionCapabilityFlags?): String =
             if (capabilities == null) {

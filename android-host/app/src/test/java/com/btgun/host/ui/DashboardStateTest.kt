@@ -6,6 +6,7 @@ import com.btgun.host.ble.BleGunConnectionPhase
 import com.btgun.host.ble.BleGunConnectionState
 import com.btgun.host.haptics.PhoneHapticStatus
 import com.btgun.host.model.GunEvent
+import com.btgun.host.model.GunInputState
 import com.btgun.host.model.LiveEnvelope
 import com.btgun.host.model.MotionProvider
 import com.btgun.host.model.MotionSample
@@ -25,6 +26,7 @@ import com.btgun.host.recenter.ReloadHoldState
 fun main() {
     initialStateUsesRequiredShellCopyAndCollapsedDebugPanels()
     connectedSessionShowsServiceErrorAndLastGunEvent()
+    activeControlsShowMultiplePressedButtons()
     motionProviderShowsCapabilitiesPreviewAndBaseline()
     recenterShowsCountdownEmissionAndReloadVisibility()
     debugDetailsStayCollapsedUntilToggled()
@@ -84,6 +86,29 @@ private fun connectedSessionShowsServiceErrorAndLastGunEvent() {
     expectEquals("error value", "last gatt status ok", state.currentError.value)
     expectEquals("last event label", "Last gun event", state.lastGunEvent.label)
     expectEquals("last event text", "trigger down | seq=42 | elapsed=1234000000ns", state.lastGunEvent.value)
+    expectEquals("empty active controls", "none", state.activeGunControls.value)
+}
+
+private fun activeControlsShowMultiplePressedButtons() {
+    val state = DashboardState.from(
+        permissionGateState = permissionGateState(),
+        hostSessionState = HostSessionState(
+            phase = HostSessionPhase.CONNECTED,
+            foregroundActive = true,
+            gunInputState = GunInputState(
+                pressedControls = setOf("button_y", "trigger", "button_x"),
+            ),
+        ),
+        lastGunEvent = gunEvent(
+            seq = 43L,
+            captureElapsedNanos = 1_235_000_000L,
+            name = "button_y",
+            pressed = true,
+        ),
+    )
+
+    expectEquals("active controls label", "Active controls", state.activeGunControls.label)
+    expectEquals("active controls order", "trigger, button_x, button_y", state.activeGunControls.value)
 }
 
 private fun motionProviderShowsCapabilitiesPreviewAndBaseline() {

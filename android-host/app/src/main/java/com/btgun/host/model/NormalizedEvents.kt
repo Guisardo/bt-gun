@@ -48,6 +48,38 @@ data class GunEvent(
     val axisY: Float? = null,
 ) : LivePayload
 
+data class GunInputState(
+    val pressedControls: Set<String> = emptySet(),
+) {
+    fun apply(event: GunEvent): GunInputState =
+        when (event.pressed) {
+            true -> copy(pressedControls = pressedControls + event.name)
+            false -> copy(pressedControls = pressedControls - event.name)
+            null -> this
+        }
+
+    fun activeControls(): List<String> {
+        val ordered = CONTROL_DISPLAY_ORDER.filter { control -> control in pressedControls }
+        val extra = (pressedControls - CONTROL_DISPLAY_ORDER.toSet()).sorted()
+        return ordered + extra
+    }
+
+    companion object {
+        private val CONTROL_DISPLAY_ORDER = listOf(
+            "trigger",
+            "reload",
+            "stick_left",
+            "stick_right",
+            "stick_up",
+            "stick_down",
+            "button_x",
+            "button_y",
+            "button_a",
+            "button_b",
+        )
+    }
+}
+
 data class MotionSample(
     val provider: MotionProvider,
     val providerName: String = provider.wireName,
