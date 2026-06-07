@@ -41,6 +41,7 @@ tasks.withType<Test>().configureEach {
         listOf(
             "com.btgun.host.permissions.PermissionGateTest",
             "com.btgun.host.ble.IpegaPacketParserTestKt",
+            "com.btgun.host.ble.IpegaBleGunAdapterTestKt",
             "com.btgun.host.model.NormalizedEventEnvelopeTestKt",
             "com.btgun.host.motion.MotionProviderSelectionTestKt",
         ).forEach { testClass ->
