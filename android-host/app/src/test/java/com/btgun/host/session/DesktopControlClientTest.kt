@@ -10,6 +10,10 @@ fun main() {
     envelopeCodecRejectsVersionUnknownTypeOversizedAndReservedHapticBody()
     clientBuildsPinnedWssRequestAndTrustMismatchResult()
     clientSendRejectsInvalidEnvelopeBeforeSocketWrite()
+    desktopLinkHeartbeatMapsLivenessStates()
+    clientUpdatesLinkStateFromHeartbeatDiagnosticsAndErrors()
+    profileMetadataModelContainsOnlyRequiredFields()
+    controlEnvelopeAllowsHeartbeatDiagnosticsAndProfileTypes()
 }
 
 private fun envelopeCodecMirrorsDesktopAllowlist() {
@@ -93,6 +97,80 @@ private fun clientSendRejectsInvalidEnvelopeBeforeSocketWrite() {
     expectEquals("one socket send", 1, socket.sent.size)
 }
 
+private fun desktopLinkHeartbeatMapsLivenessStates() {
+    val client = clientWithFakeSocket()
+    val connection = client.connect(proofRequest())
+    expectTrue("connected", connection is DesktopControlConnectResult.Connected)
+
+    client.observeHeartbeatPong(nowElapsedNanos = 1_000_000_000L)
+    expectEquals("fresh link", DesktopLinkPhase.CONNECTED, client.currentLinkState().phase)
+
+    client.refreshLiveness(nowElapsedNanos = 2_500_000_001L)
+    expectEquals("stale link", DesktopLinkPhase.DEGRADED, client.currentLinkState().phase)
+
+    client.refreshLiveness(nowElapsedNanos = 4_000_000_001L)
+    expectEquals("missing link", DesktopLinkPhase.DISCONNECTED, client.currentLinkState().phase)
+}
+
+private fun clientUpdatesLinkStateFromHeartbeatDiagnosticsAndErrors() {
+    val client = clientWithFakeSocket()
+    client.connect(proofRequest())
+    client.observeHeartbeatPing(nowElapsedNanos = 1_000_000_000L)
+    client.applyDiagnostics(
+        ControlDiagnostics(
+            sessionState = "connected",
+            desktopIdentitySuffix = "11223344",
+            heartbeatAgeMillis = 250L,
+            lastControlError = "none",
+        ),
+    )
+
+    expectEquals("suffix", "11223344", client.currentLinkState().fingerprintSuffix)
+    expectEquals("heartbeat age", 250L, client.currentLinkState().heartbeatAgeMillis)
+    expectEquals("diagnostic error", "none", client.currentLinkState().lastControlError)
+
+    client.recordControlError("decode_error")
+
+    expectEquals("recorded error", "decode_error", client.currentLinkState().lastControlError)
+    expectEquals(
+        "diagnostic fields",
+        listOf("sessionState", "desktopIdentitySuffix", "heartbeatAgeMillis", "lastControlError"),
+        dataFieldNames(ControlDiagnostics::class.java),
+    )
+}
+
+private fun profileMetadataModelContainsOnlyRequiredFields() {
+    val profile = ProfileMetadata(
+        profileId = "default",
+        displayName = "Default profile",
+        revision = 1L,
+    )
+
+    expectEquals("profile display", "Default profile", profile.displayName)
+    expectEquals(
+        "profile fields",
+        listOf("profileId", "displayName", "revision"),
+        dataFieldNames(ProfileMetadata::class.java),
+    )
+}
+
+private fun controlEnvelopeAllowsHeartbeatDiagnosticsAndProfileTypes() {
+    expectEquals("heartbeat ping wire name", "heartbeat_ping", ControlMessageType.HEARTBEAT_PING.wireName)
+    expectEquals("heartbeat pong wire name", "heartbeat_pong", ControlMessageType.HEARTBEAT_PONG.wireName)
+    expectEquals("diagnostics wire name", "diagnostics", ControlMessageType.DIAGNOSTICS.wireName)
+    expectEquals("profile metadata wire name", "profile_metadata", ControlMessageType.PROFILE_METADATA.wireName)
+
+    listOf(
+        ControlMessageType.HEARTBEAT_PING,
+        ControlMessageType.HEARTBEAT_PONG,
+        ControlMessageType.DIAGNOSTICS,
+        ControlMessageType.PROFILE_METADATA,
+    ).forEach { type ->
+        val decoded = ControlEnvelopeCodec.decode(ControlEnvelopeCodec.encode(envelope(type)))
+        expectTrue("${type.wireName} accepted", decoded is ControlDecodeResult.Accepted)
+    }
+}
+
 private fun envelope(
     type: ControlMessageType,
     body: JsonObject = JsonObject(emptyMap()),
@@ -113,6 +191,16 @@ private fun proofRequest(): ControlProofRequest =
         androidNonce = "aa".repeat(16),
         desktopSpkiSha256 = FINGERPRINT,
         proofHex = "bb".repeat(32),
+    )
+
+private fun clientWithFakeSocket(): DesktopControlClient =
+    DesktopControlClient(
+        config = DesktopControlClientConfig(
+            url = "wss://192.168.50.25:41731/control",
+            expectedDesktopSpkiSha256 = FINGERPRINT,
+            maxMessageBytes = 512,
+        ),
+        socketFactory = { _, _ -> FakeSocket() },
     )
 
 private class FakeSocket : DesktopControlSocket {
@@ -145,6 +233,11 @@ private fun expectTrue(label: String, condition: Boolean) {
         throw AssertionError(label)
     }
 }
+
+private fun dataFieldNames(type: Class<*>): List<String> =
+    type.declaredFields
+        .filterNot { it.isSynthetic }
+        .map { it.name }
 
 private const val FINGERPRINT = "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff"
 private const val OTHER_FINGERPRINT = "ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100"
