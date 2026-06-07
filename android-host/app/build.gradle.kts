@@ -26,7 +26,13 @@ android {
 kotlin {
     compilerOptions {
         jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+        freeCompilerArgs.add("-Xskip-metadata-version-check")
     }
+}
+
+dependencies {
+    implementation("com.squareup.okhttp3:okhttp:5.3.2")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")
 }
 
 tasks.withType<Test>().configureEach {
@@ -48,6 +54,7 @@ tasks.withType<Test>().configureEach {
             "com.btgun.host.recenter.ReloadHoldRecenterTestKt",
             "com.btgun.host.session.PairingPayloadTestKt",
             "com.btgun.host.session.TrustedDesktopStoreTestKt",
+            "com.btgun.host.session.DesktopControlClientTestKt",
             "com.btgun.host.ui.DashboardStateTestKt",
         ).forEach { testClass ->
             providers.exec {
