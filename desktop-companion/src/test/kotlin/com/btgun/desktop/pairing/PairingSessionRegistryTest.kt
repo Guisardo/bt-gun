@@ -2,13 +2,16 @@ package com.btgun.desktop.pairing
 
 import com.btgun.desktop.security.DesktopIdentity
 import com.btgun.desktop.security.DesktopIdentityStore
+import com.btgun.desktop.security.FileDesktopIdentityStore
 import com.btgun.desktop.security.SecretRedactor
+import kotlin.io.path.createTempDirectory
 
 fun main() {
     startPairingCreatesOneShortLivedSession()
     qrPayloadContainsEndpointIdentityNonceAndSecret()
     manualFallbackExposesEndpointCodeAndFingerprintSuffix()
     restartingPairingReplacesOneTimeMaterial()
+    desktopIdentityStorePersistsFingerprint()
     qrRendererProducesMinimumSizedImage()
     redactorHidesPairingSecrets()
 }
@@ -71,6 +74,16 @@ private fun qrRendererProducesMinimumSizedImage() {
 
     expectEquals("qr width", 240, image.width)
     expectEquals("qr height", 240, image.height)
+}
+
+private fun desktopIdentityStorePersistsFingerprint() {
+    val path = createTempDirectory("btgun-desktop-identity-test").resolve("identity.p12")
+    val store = FileDesktopIdentityStore(path)
+    val first = store.loadOrCreateIdentity()
+    val second = FileDesktopIdentityStore(path).loadOrCreateIdentity()
+
+    expectEquals("fingerprint length", 64, first.desktopSpkiSha256.length)
+    expectEquals("persisted fingerprint", first.desktopSpkiSha256, second.desktopSpkiSha256)
 }
 
 private fun redactorHidesPairingSecrets() {
