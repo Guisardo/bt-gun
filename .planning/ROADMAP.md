@@ -88,7 +88,14 @@ Plans:
   3. Pairing creates an authenticated local session using a short-lived one-time secret with replay protection.
   4. Android and desktop maintain a reliable control channel for pairing state, heartbeat, diagnostics, profile metadata, and haptic commands.
 
-**Plans:** TBD
+**Plans:** 5 plans
+Plans:
+
+- [ ] 03-01-PLAN.md — Desktop pairing session, QR/manual fallback, and Wave 0 desktop test harness.
+- [ ] 03-02-PLAN.md — Android QR/manual parser, trusted desktop store, and desktop-link dashboard state.
+- [ ] 03-03-PLAN.md — Authenticated pairing proof, replay/rate-limit defenses, and fail-closed trust anchor.
+- [ ] 03-04-PLAN.md — Reliable WSS control channel, heartbeat/liveness, diagnostics, and reserved haptic envelope type.
+- [ ] 03-05-PLAN.md — Desktop/Android pairing UI integration, lifecycle wiring, protocol finalization, and manual smoke guide.
 **UI hint**: yes
 
 ### Phase 4: Input Stream and Haptic Transport
