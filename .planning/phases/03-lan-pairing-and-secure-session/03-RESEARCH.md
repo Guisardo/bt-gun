@@ -392,22 +392,22 @@ data class HeartbeatPolicy(
 | A4 | OkHttp 5.3.2, Ktor 3.5.0, and kotlinx.serialization 1.11.0 can be introduced without forcing Android Kotlin/AGP upgrade. | Standard Stack | If incompatible, planner must pin older compatible versions or isolate desktop dependencies. |
 | A5 | `SharedPreferences` is sufficient for trusted desktop metadata because no long-term secret is stored on Android. | Standard Stack | If Android later stores private keys/session secrets, planner must move to Android Keystore-backed storage. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Desktop companion Gradle shape**
-   - What we know: No desktop source tree exists. [VERIFIED: rg --files]
-   - What's unclear: Whether to create an independent `desktop-companion` Gradle build or a root multi-project build. [ASSUMED]
-   - Recommendation: Use independent `desktop-companion` Gradle build in Phase 3, then consolidate only if later desktop/backend phases need shared build orchestration. [ASSUMED]
+   - Resolution: Phase 3 uses an independent `desktop-companion` Gradle build with its own `settings.gradle.kts`, JVM 17 target, application entry point, and main-style test registration. [VERIFIED: 03-01-PLAN.md]
+   - Why: No desktop source tree exists, and an isolated build avoids forcing Android Gradle Plugin or Kotlin plugin changes while still producing a runnable macOS/Windows-portable pairing companion. [VERIFIED: rg --files] [VERIFIED: 03-PATTERNS.md]
+   - Planner requirement: Do not convert the repository to a root multi-project build during Phase 3 unless dependency resolution proves the isolated build cannot run; if that happens, keep Android and desktop dependency versions pinned separately and preserve existing plan IDs/waves. [ASSUMED]
 
 2. **First-run desktop certificate generation**
-   - What we know: Ktor can serve SSL using Java KeyStore. [CITED: https://ktor.io/docs/server-ssl.html]
-   - What's unclear: Whether implementation should generate a self-signed certificate in app code or use `keytool` during dev setup. [ASSUMED]
-   - Recommendation: Plan a small security module that loads existing PKCS12 keystore or creates one during first run, then tests stable SPKI fingerprint output. [ASSUMED]
+   - Resolution: Implement `DesktopIdentityStore.loadOrCreateIdentity()` in app code. It loads an existing PKCS12 keystore when present, otherwise creates a self-signed desktop TLS identity on first run, stores it locally, and exposes a stable SPKI SHA-256 fingerprint for QR/manual payloads and Android pinning. [VERIFIED: 03-01-PLAN.md] [VERIFIED: 03-03-PLAN.md]
+   - Why: Ktor supports SSL from Java KeyStore, while requiring `keytool` as a manual dev setup step would make first-run pairing brittle and platform-specific. [CITED: https://ktor.io/docs/server-ssl.html] [CITED: https://docs.oracle.com/javase/8/docs/api/java/security/KeyStore.html]
+   - Planner requirement: Tests must verify stable fingerprint output across reloads and must not log or persist private key material outside the keystore. [VERIFIED: 03-01-PLAN.md] [VERIFIED: 03-VALIDATION.md]
 
-3. **Google Play services availability on test Android device**
-   - What we know: Code Scanner depends on Google Play services. [CITED: https://developers.google.com/ml-kit/vision/barcode-scanning/code-scanner]
-   - What's unclear: Whether the user test phone has compatible Play services. [ASSUMED]
-   - Recommendation: Keep visible manual fallback in same plan and add a device smoke checkpoint for QR scan. [VERIFIED: 03-CONTEXT.md]
+3. **Google Play services availability / QR scanner fallback**
+   - Resolution: Android uses Google Play services Code Scanner for the normal QR path when available, and the visible manual fallback is the required no-Play-services fallback for Phase 3. [VERIFIED: 03-05-PLAN.md] [VERIFIED: 03-UI-SPEC.md]
+   - Why: Code Scanner matches the lightweight Android UI goal and avoids app camera permission handling; Phase 3 already requires visible manual endpoint plus 6-digit code, so a device without compatible Play services can still pair without LAN discovery or manual IP entry as the primary tested QR path. [CITED: https://developers.google.com/ml-kit/vision/barcode-scanning/code-scanner] [VERIFIED: 03-CONTEXT.md]
+   - Planner requirement: `MainActivity` must detect scanner unavailability or scan failure, show clear scanner-unavailable/rescan/manual-entry state, and preserve the manual fallback. Do not add CameraX/ML Kit bundled scanner in Phase 3; add it only through a targeted plan revision if physical-device QR smoke proves Google Code Scanner unavailable and manual fallback is insufficient for acceptance. [VERIFIED: 03-05-PLAN.md] [ASSUMED]
 
 ## Environment Availability
 
