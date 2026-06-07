@@ -32,6 +32,7 @@ fun main() {
     initialStateUsesRequiredShellCopyAndCollapsedDebugPanels()
     connectedSessionShowsServiceErrorAndLastGunEvent()
     activeControlsShowMultiplePressedButtons()
+    activeControlsShowCompositeStickAxis()
     motionProviderShowsCapabilitiesPreviewAndBaseline()
     calibrationGraphShowsMarkProgressAndLatency()
     recenterShowsCountdownEmissionAndReloadVisibility()
@@ -115,6 +116,28 @@ private fun activeControlsShowMultiplePressedButtons() {
 
     expectEquals("active controls label", "Active controls", state.activeGunControls.label)
     expectEquals("active controls order", "trigger, button_x, button_y", state.activeGunControls.value)
+}
+
+private fun activeControlsShowCompositeStickAxis() {
+    val state = DashboardState.from(
+        permissionGateState = permissionGateState(),
+        hostSessionState = HostSessionState(
+            phase = HostSessionPhase.CONNECTED,
+            foregroundActive = true,
+            gunInputState = GunInputState(stickAxisX = 1f, stickAxisY = -1f),
+        ),
+        lastGunEvent = gunEvent(
+            seq = 44L,
+            captureElapsedNanos = 1_236_000_000L,
+            name = "stick",
+            pressed = null,
+            axisX = 1f,
+            axisY = -1f,
+        ),
+    )
+
+    expectEquals("stick active controls", "stick x=1.0 y=-1.0", state.activeGunControls.value)
+    expectEquals("stick last event", "stick x=1.0 y=-1.0 | seq=44 | elapsed=1236000000ns", state.lastGunEvent.value)
 }
 
 private fun motionProviderShowsCapabilitiesPreviewAndBaseline() {
@@ -326,7 +349,9 @@ private fun gunEvent(
     seq: Long,
     captureElapsedNanos: Long,
     name: String,
-    pressed: Boolean,
+    pressed: Boolean?,
+    axisX: Float? = null,
+    axisY: Float? = null,
     provenance: Provenance? = null,
 ): LiveEnvelope<GunEvent> =
     LiveEnvelope(
@@ -334,7 +359,7 @@ private fun gunEvent(
         seq = seq,
         captureElapsedNanos = captureElapsedNanos,
         emittedElapsedNanos = captureElapsedNanos,
-        payload = GunEvent(name = name, pressed = pressed),
+        payload = GunEvent(name = name, pressed = pressed, axisX = axisX, axisY = axisY),
         provenance = provenance,
     )
 

@@ -9,8 +9,8 @@ Required event fields:
 | `schema` | yes | Must be `btgun.ipega.normalized.v1`. |
 | `fixture_id` | yes | Stable fixture sequence id, for example `trigger-001`. |
 | `seq` | yes | Positive integer sequence number inside the fixture. |
-| `control` | yes | Physical or logical control, for example `trigger`, `reload`, `stick_x`, `x`, or `rumble`. |
-| `kind` | yes | Event kind: `button`, `axis`, `connection`, `handshake`, or `rumble_test`. |
+| `control` | yes | Physical or logical control, for example `trigger`, `reload`, `stick_x`, `x`, or `phone_haptic`. |
+| `kind` | yes | Event kind: `button`, `axis`, `connection`, `handshake`, or `haptic_test`. |
 | `phase` | yes | Event phase: `down`, `up`, `move`, `observed`, `command`, `ack`, or `fail`. |
 | `value` | yes | Normalized button value, axis value, object payload, or observed status. |
 | `raw_ref` | yes | `local://.evidence/phase1/raw/...`, `local://.evidence/phase1/hci/...`, or app-log ref. |
@@ -20,7 +20,7 @@ Required event fields:
 Coverage rules:
 
 - Static clues are hypotheses until linked to hardware capture rows and normalized fixtures.
-- Verified status is only valid when static clue, hardware capture, and normalized fixture are all linked.
+- Verified status is only valid when static clue, hardware capture, and normalized fixture are all linked. v1 haptic feedback is verified by phone vibration evidence; physical gun motor rumble is deferred.
 - Large raw blobs, HCI logs, app logs, and decompile output stay in ignored `.evidence/phase1/` paths.
 - Committed JSONL fixtures should be small, replayable, and tied back to `docs/evidence/manifests/phase1-captures.jsonl`.
 

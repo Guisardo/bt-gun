@@ -1,9 +1,9 @@
 ---
 phase: "02"
 slug: android-host-live-input
-status: draft
+status: approved
 nyquist_compliant: true
-wave_0_complete: false
+wave_0_complete: true
 created: 2026-06-06
 ---
 
@@ -38,25 +38,25 @@ created: 2026-06-06
 
 | Req ID | Behavior | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |--------|----------|------------|-----------------|-----------|-------------------|-------------|--------|
-| ANDR-01 | Permission gate computes Bluetooth scan/connect, legacy location, LAN placeholder, vibration, and sensor capability states by SDK. | T-02-01 | Missing permission or capability is surfaced as blocked state; no silent scan/connect failure. | unit + manual | `gradle -p android-host testDebugUnitTest --tests '*PermissionGate*'` | no - Wave 0 | pending |
-| ANDR-02 | BLE adapter scans `ARGunGame`/`fff0`, connects, discovers GATT, enables `fff3` notifications, and reports reconnect/errors. | T-02-02 | Unknown devices are ignored; reconnect is bounded and visible. | unit + manual hardware | `gradle -p android-host testDebugUnitTest --tests '*BleGunAdapter*'` | no - Wave 0 | pending |
-| ANDR-03 | Parser maps Phase 1 fixture payloads to trigger, reload, stick, X/Y/A/B, and connection/status events with optional provenance. | T-02-03 | Unknown `fff3` payloads become debug/status events, not product controls. | unit | `gradle -p android-host testDebugUnitTest --tests '*IpegaPacketParser*'` | no - Wave 0 | pending |
-| ANDR-04 | Motion provider selection chooses game rotation vector, rotation vector, gyro plus gravity/accelerometer, then tilt fallback, with monotonic timestamps. | T-02-04 | Provider capability flags are explicit; unavailable motion does not fake aim. | unit + manual device | `gradle -p android-host testDebugUnitTest --tests '*MotionProviderSelection*'` | no - Wave 0 | pending |
-| ANDR-05 | Gun, motion, and status samples use common envelopes with stream, per-stream seq, capture elapsed nanos, emitted elapsed nanos, provider metadata, and capability metadata. | T-02-05 | Stream ordering uses monotonic time, not wall-clock time. | unit | `gradle -p android-host testDebugUnitTest --tests '*NormalizedEventEnvelope*'` | no - Wave 0 | pending |
-| ANDR-06 | Reload hold emits reload down immediately, recenter after 2 seconds while still held, and reload up on release. | T-02-06 | Recenter does not consume or suppress normal reload semantics. | unit + manual hardware | `gradle -p android-host testDebugUnitTest --tests '*ReloadHoldRecenter*'` | no - Wave 0 | pending |
-| ANDR-08 | Dashboard state exposes gun connection, inactive desktop link, inactive packet stream, motion provider, recenter state, foreground service, error line, and phone haptic local-test status. | T-02-07 | Desktop/LAN/haptic features not built in Phase 2 remain explicit placeholders, not simulated success. | unit + manual UI | `gradle -p android-host testDebugUnitTest --tests '*DashboardState*'` | no - Wave 0 | pending |
+| ANDR-01 | Permission gate computes Bluetooth scan/connect, legacy location, LAN placeholder, vibration, and sensor capability states by SDK. | T-02-01 | Missing permission or capability is surfaced as blocked state; no silent scan/connect failure. | unit + manual | `gradle -p android-host testDebugUnitTest --tests '*PermissionGate*'` | yes | pass |
+| ANDR-02 | BLE adapter scans `ARGunGame`/`fff0`, connects, discovers GATT, enables `fff3` notifications, and reports reconnect/errors. | T-02-02 | Unknown devices are ignored; reconnect is bounded and visible. | unit + manual hardware | `gradle -p android-host testDebugUnitTest --tests '*IpegaBleGunAdapter*'` | yes | pass |
+| ANDR-03 | Parser maps Phase 1 fixture payloads to trigger, reload, stick, X/Y/A/B, and connection/status events with optional provenance. | T-02-03 | Unknown `fff3` payloads become debug/status events, not product controls. | unit | `gradle -p android-host testDebugUnitTest --tests '*IpegaPacketParser*'` | yes | pass |
+| ANDR-04 | Motion provider selection chooses game rotation vector, rotation vector, gyro plus gravity/accelerometer, then tilt fallback, with monotonic timestamps. | T-02-04 | Provider capability flags are explicit; unavailable motion does not fake aim. | unit + manual device | `gradle -p android-host testDebugUnitTest --tests '*MotionProviderSelection*'` | yes | pass |
+| ANDR-05 | Gun, motion, and status samples use common envelopes with stream, per-stream seq, capture elapsed nanos, emitted elapsed nanos, provider metadata, and capability metadata. | T-02-05 | Stream ordering uses monotonic time, not wall-clock time. | unit | `gradle -p android-host testDebugUnitTest --tests '*NormalizedEventEnvelope*'` | yes | pass |
+| ANDR-06 | Reload hold emits reload down immediately, recenter after 2 seconds while still held, and reload up on release. | T-02-06 | Recenter does not consume or suppress normal reload semantics. | unit + manual hardware | `gradle -p android-host testDebugUnitTest --tests '*ReloadHoldRecenter*'` | yes | pass |
+| ANDR-08 | Dashboard state exposes gun connection, inactive desktop link, inactive packet stream, motion provider, recenter state, foreground service, error line, and phone haptic local-test status. | T-02-07 | Desktop/LAN/haptic features not built in Phase 2 remain explicit placeholders, not simulated success. | unit + manual UI | `gradle -p android-host testDebugUnitTest --tests '*DashboardState*'` | yes | pass |
 
 ---
 
 ## Wave 0 Requirements
 
-- [ ] `android-host/settings.gradle.kts` and `android-host/build.gradle.kts` reuse approved Android Gradle Plugin and Kotlin versions from `android-diagnostic/`.
-- [ ] `android-host/app/build.gradle.kts` exposes `testDebugUnitTest` and `lintDebug`.
-- [ ] `android-host/app/src/test/java/com/btgun/host/ble/IpegaPacketParserTest.kt` covers Phase 1 normalized fixtures.
-- [ ] `android-host/app/src/test/java/com/btgun/host/recenter/ReloadHoldRecenterTest.kt` covers hold/release timing.
-- [ ] `android-host/app/src/test/java/com/btgun/host/motion/MotionProviderSelectionTest.kt` covers provider fallback order.
-- [ ] `android-host/app/src/test/java/com/btgun/host/model/NormalizedEventEnvelopeTest.kt` covers per-stream seq and timestamps.
-- [ ] `android-host/app/src/test/java/com/btgun/host/ui/DashboardStateTest.kt` covers Phase 2 dashboard placeholders and visible state.
+- [x] `android-host/settings.gradle.kts` and `android-host/build.gradle.kts` reuse approved Android Gradle Plugin and Kotlin versions from `android-diagnostic/`.
+- [x] `android-host/app/build.gradle.kts` exposes `testDebugUnitTest` and `lintDebug`.
+- [x] `android-host/app/src/test/java/com/btgun/host/ble/IpegaPacketParserTest.kt` covers Phase 1 normalized fixtures.
+- [x] `android-host/app/src/test/java/com/btgun/host/recenter/ReloadHoldRecenterTest.kt` covers hold/release timing.
+- [x] `android-host/app/src/test/java/com/btgun/host/motion/MotionProviderSelectionTest.kt` covers provider fallback order.
+- [x] `android-host/app/src/test/java/com/btgun/host/model/NormalizedEventEnvelopeTest.kt` covers per-stream seq and timestamps.
+- [x] `android-host/app/src/test/java/com/btgun/host/ui/DashboardStateTest.kt` covers Phase 2 dashboard placeholders and visible state.
 
 ---
 
@@ -83,4 +83,4 @@ created: 2026-06-06
 - [x] Feedback latency target is under 90 seconds after Gradle cache warmup.
 - [x] `nyquist_compliant: true` set in frontmatter.
 
-**Approval:** draft 2026-06-06
+**Approval:** Phase 2 approved 2026-06-07

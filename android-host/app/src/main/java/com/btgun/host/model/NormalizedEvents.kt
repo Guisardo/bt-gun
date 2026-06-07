@@ -50,28 +50,34 @@ data class GunEvent(
 
 data class GunInputState(
     val pressedControls: Set<String> = emptySet(),
+    val stickAxisX: Float = 0f,
+    val stickAxisY: Float = 0f,
 ) {
     fun apply(event: GunEvent): GunInputState =
-        when (event.pressed) {
-            true -> copy(pressedControls = pressedControls + event.name)
-            false -> copy(pressedControls = pressedControls - event.name)
-            null -> this
+        if (event.axisX != null || event.axisY != null) {
+            copy(
+                stickAxisX = event.axisX ?: stickAxisX,
+                stickAxisY = event.axisY ?: stickAxisY,
+            )
+        } else {
+            when (event.pressed) {
+                true -> copy(pressedControls = pressedControls + event.name)
+                false -> copy(pressedControls = pressedControls - event.name)
+                null -> this
+            }
         }
 
     fun activeControls(): List<String> {
         val ordered = CONTROL_DISPLAY_ORDER.filter { control -> control in pressedControls }
         val extra = (pressedControls - CONTROL_DISPLAY_ORDER.toSet()).sorted()
-        return ordered + extra
+        val stick = if (stickAxisX != 0f || stickAxisY != 0f) listOf("stick") else emptyList()
+        return ordered + stick + extra
     }
 
     companion object {
         private val CONTROL_DISPLAY_ORDER = listOf(
             "trigger",
             "reload",
-            "stick_left",
-            "stick_right",
-            "stick_up",
-            "stick_down",
             "button_x",
             "button_y",
             "button_a",

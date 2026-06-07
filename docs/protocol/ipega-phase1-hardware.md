@@ -7,7 +7,7 @@ Physical evidence only. Do not mark rows verified until Plan 04 or Plan 05 links
 - Raw logcat, HCI, bugreport, and app-log files stay under ignored `.evidence/phase1/` paths.
 - Committed docs and manifests contain sanitized pointers, clue ids, action context, expected interpretation, and honest status.
 - Missing permissions, unavailable Bluetooth, no observed frame, timeout, and no motor movement are valid captured outcomes.
-- Rumble attempts must be bounded to static clue candidates and must not be treated as `DISC-06` proof without observed physical motor activation.
+- Physical gun motor attempts must be bounded to static clue candidates and kept separate from v1 `DISC-06`; v1 feedback proof is Android phone vibration.
 
 ## Dependency Review
 
@@ -37,7 +37,7 @@ Human checkpoint response:
 - Direct pairing does not complete; the device appears to require a custom handshake.
 - Gradle/plugin dependency build/install was approved later in this checkpoint sequence.
 
-Interpretation: direct Android settings pairing is currently unavailable as an evidence path. This supports keeping the BLE/Classic custom-handshake clues as hypotheses, but it does not prove a transport, input control, or rumble path. No trigger, reload, joystick, X/Y/A/B, or rumble success evidence was captured.
+Interpretation: direct Android settings pairing is currently unavailable as an evidence path. This supports keeping the BLE/Classic custom-handshake clues as hypotheses, but it does not prove a transport, input control, or physical motor path. No trigger, reload, joystick, X/Y/A/B, or motor success evidence was captured.
 
 ## Diagnostic APK Observation: 2026-06-06
 
@@ -70,7 +70,7 @@ Bluetooth manager after diagnostic:
 - `com.btgun.diagnostic` registered as a BLE scan client and accumulated scan results.
 - Bluetooth manager still showed `Connections: 0` and no Low Energy connection attempts for the diagnostic app.
 
-Interpretation: physical hardware now confirms the deprecated-app BLE `fff0` hypothesis at the advertisement level. It does not yet prove `fff1`, `fff3`, `fff5`, control frames, Classic transport, pairing handshake semantics, or rumble. The next diagnostic step needs GATT connect/service discovery and notification/read capture against the `fff0` device; direct OS pairing remains blocked by the custom-handshake path.
+Interpretation: physical hardware now confirms the deprecated-app BLE `fff0` hypothesis at the advertisement level. It does not yet prove `fff1`, `fff3`, `fff5`, control frames, Classic transport, pairing handshake semantics, or physical motor rumble. The next diagnostic step needs GATT connect/service discovery and notification/read capture against the `fff0` device; direct OS pairing remains blocked by the custom-handshake path.
 
 ## Diagnostic GATT Observation: 2026-06-06
 
@@ -137,6 +137,15 @@ Targeted joystick capture:
 
 Interpretation: the stick appears as four digital direction events over BLE `fff3`, not analog axes. Keep axis semantics pending until Plan 04 fixture normalization decides whether to represent these as digital buttons or normalized axis extremes.
 
+Joystick sweep capture:
+
+- Diagnostic `joystick_sweep_marker` captured a full outer-rim clockwise/counterclockwise sweep in `.evidence/phase1/app-logs/joystick-sweep-20260607T154507Z.logcat.txt`.
+- Raw payload set stayed at the same four switch pairs: `B4`, `B5`, `B6`, and `B7` down/up.
+- Reconstructed active switch states produced nine normalized stick points: neutral `(0,0)`, cardinals `(+1,0)`, `(0,+1)`, `(-1,0)`, `(0,-1)`, and diagonals `(+1,+1)`, `(+1,-1)`, `(-1,+1)`, `(-1,-1)`.
+- Axis convention from this capture: `B4=right`, `B6=left`, `B5=up`, `B7=down`; Y up is positive.
+
+Interpretation: the stick is not analog, but it is not just last-direction-only either. Adjacent switch overlap around the rim is meaningful and should be emitted as a composite normalized `stick` axis event.
+
 Targeted X/Y/A/B capture:
 
 - Human was instructed to press X, Y, A, then B in order.
@@ -150,7 +159,15 @@ Targeted X/Y/A/B capture:
 
 Interpretation: X/Y/A/B appear as digital button events over BLE `fff3`. Keep these as candidate mappings because the clean per-button Y and A windows were empty; the mapping depends on the confirmed sequence capture plus the B-only capture.
 
-Interpretation: direct OS pairing is unnecessary for the BLE path. The custom app handshake currently appears to be GATT connect + service discovery + `fff1`/`fff3` notification enable, but this is still partial until targeted per-control captures and normalized fixtures exist. Rumble is still untested; `fff5` is only proven as read|write.
+Phone vibration control check:
+
+- Diagnostic `Phone Vibrate 1s` button called Android `Vibrator` API for `1000` ms.
+- Saved log: `.evidence/phase1/app-logs/phone-vibrate-001.logcat.txt`.
+- Log emitted `phone_vibrate` state `started`; human confirmed the phone vibrated.
+
+Interpretation: Android app-side haptics are available on the phone. This supports treating reference-app `android.permission.VIBRATE` / Unity `Handheld.Vibrate` as phone vibration evidence unless another static or hardware clue ties it to BLE output. It satisfies the v1 feedback decision for `DISC-06`; physical gun motor activation remains deferred because no BLE motor command moved the gun.
+
+Interpretation: direct OS pairing is unnecessary for the BLE path. The custom app handshake currently appears to be GATT connect + service discovery + `fff1`/`fff3` notification enable, but this is still partial until targeted per-control captures and normalized fixtures exist. Physical motor rumble is deferred; `fff5` is only proven as read|write.
 
 ## No-Build ADB Observation: 2026-06-06
 
@@ -177,7 +194,7 @@ Connected Android device:
 - Stack log included `gatt_main.cc -- [ble] no client app, drop the link`.
 - BluetoothDataManager recorded remote name `ARGunGame`.
 
-Interpretation: the phone can see `ARGunGame` and can briefly establish a low-level Bluetooth link, but default Settings pairing drops because no app/client completes the expected protocol path. This strengthens the custom-handshake hypothesis and blocks OS-pairing-only control capture. No trigger, reload, joystick, X/Y/A/B, or rumble command evidence was captured by this no-build path.
+Interpretation: the phone can see `ARGunGame` and can briefly establish a low-level Bluetooth link, but default Settings pairing drops because no app/client completes the expected protocol path. This strengthens the custom-handshake hypothesis and blocks OS-pairing-only control capture. No trigger, reload, joystick, X/Y/A/B, or physical motor command evidence was captured by this no-build path.
 
 ## Capture Checklist
 
@@ -191,10 +208,12 @@ Interpretation: the phone can see `ARGunGame` and can briefly establish a low-le
 | trigger-001 | trigger | ARGUN2021-CONTROL-001 | Press trigger down/up once during capture. | `.evidence/phase1/app-logs/trigger-001-repeat.logcat.txt` | captured_trigger_candidate | `fff3` emitted ASCII `ARGun KeyPressed` followed by zero frame during trigger-only capture; candidate active/idle map pending fixture normalization. |
 | reload-001 | reload | ARGUN2021-CONTROL-001 | Press reload down/up once during capture. | `.evidence/phase1/app-logs/reload-001.logcat.txt` | captured_reload_candidate | `fff3` emitted two `B8DOWN`/`B8UP` pairs during reload-only capture; candidate down/up map pending fixture normalization. |
 | joystick-001 | joystick_axes | ARCHER-INPUT-001 | Move stick X/Y through neutral, min, max, and release. | `.evidence/phase1/app-logs/joystick-001-retry-early.logcat.txt` | captured_joystick_candidate | Confirmed order left/right/up/down maps to `B6`/`B4`/`B5`/`B7` down/up pairs on `fff3`; likely digital directions, not analog axes. |
+| joystick-sweep-001 | joystick_axis_map | ARCHER-INPUT-001 | Sweep joystick around full outer rim clockwise and counterclockwise. | `.evidence/phase1/app-logs/joystick-sweep-20260607T154507Z.logcat.txt` | captured_joystick_axis_map | Same four switch payload pairs combine into eight outer-edge axis points plus neutral; host maps active state to normalized `stick` x/y. |
 | button-x-001 | x_button | ARCHER-INPUT-001 | Press X down/up once during capture. | `.evidence/phase1/app-logs/buttons-xyab-sequence-001.logcat.txt` | captured_button_candidate | Sequence capture maps X to `BADOWN`/`BAUP`; candidate pending fixture normalization. |
 | button-y-001 | y_button | ARCHER-INPUT-001 | Press Y down/up once during capture. | `.evidence/phase1/app-logs/buttons-xyab-sequence-001.logcat.txt` | captured_button_candidate | Sequence capture maps Y to `B3DOWN`/`B3UP`; candidate pending fixture normalization. |
 | button-a-001 | a_button | ARCHER-INPUT-001 | Press A down/up once during capture. | `.evidence/phase1/app-logs/buttons-xyab-sequence-001.logcat.txt` | captured_button_candidate | Sequence capture maps A to `B2DOWN`; matching `B2UP` exists in the noisy X window. |
 | button-b-001 | b_button | ARCHER-INPUT-001 | Press B down/up once during capture. | `.evidence/phase1/app-logs/button-b-001.logcat.txt` | captured_button_candidate | B-only capture maps B to `B9DOWN`/`B9UP`; candidate pending fixture normalization. |
+| phone-vibrate-001 | phone_haptics | ARGUN2021-RUMBLE-001 | Tap diagnostic `Phone Vibrate 1s` button. | `.evidence/phase1/app-logs/phone-vibrate-001.logcat.txt` | captured_phone_vibrate_confirmed | Android `Vibrator` path works on the phone and is the v1 feedback proof; this is not gun motor evidence. |
 | rumble-ble-fff5-001 | rumble_attempt | ARGUN2021-RUMBLE-001 | Attempt bounded BLE `fff5` write only after input characteristic evidence exists. | `.evidence/phase1/app-logs/rumble-ble-fff5-001.logcat.txt` | pending hardware | Record payload ref, ack/fail, and physical motor observation or no-motor failure. |
 | rumble-classic-spp-001 | rumble_attempt | ARCHER-RUMBLE-001 | Attempt bounded Classic SPP write only after Classic input evidence exists. | `.evidence/phase1/app-logs/rumble-classic-spp-001.logcat.txt` | pending hardware | Record payload ref, ack/fail, and physical motor observation or no-motor failure. |
 
@@ -237,12 +256,12 @@ For trigger, reload, joystick axes, X, Y, A, and B:
 - Document whether the action produced Android input events, BLE frames, Classic bytes, or no observable frame.
 - Keep status pending until normalized fixtures are added.
 
-## Rumble Attempts
+## Deferred Motor Attempts
 
-Rumble is output-path evidence, not input proof.
+Physical gun motor rumble is deferred output-path evidence, not input proof.
 
-- Attempt rumble only through `ARGUN2021-RUMBLE-001`, `ARCHER-RUMBLE-001`, or `WORLDAR-RUMBLE-001` candidate paths.
+- Attempt physical motor writes only through `ARGUN2021-RUMBLE-001`, `ARCHER-RUMBLE-001`, or `WORLDAR-RUMBLE-001` candidate paths.
 - Record command target, payload ref or short excerpt, bounded duration/strength if known, and capture pointer.
 - Record `rumble_observed` only when the physical motor moves.
 - Record `rumble_failed` for timeout, write failure, no ack, no motor, permission denied, or unavailable path.
-- Do not mark `DISC-06` satisfied from a failed or unavailable attempt.
+- Do not mark physical gun motor success from a failed or unavailable attempt; v1 `DISC-06` is satisfied only by phone vibration proof plus deferred motor status.

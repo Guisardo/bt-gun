@@ -4,6 +4,7 @@ fun main() {
     streamSequencerUsesIndependentCounters()
     liveEnvelopeUsesElapsedNanosOnlyAndRejectsImpossibleTiming()
     gunInputStateTracksSimultaneousPressedControls()
+    gunInputStateTracksCompositeStickAxis()
 }
 
 private fun streamSequencerUsesIndependentCounters() {
@@ -53,6 +54,20 @@ private fun gunInputStateTracksSimultaneousPressedControls() {
 
     expectEquals("pressed set", setOf("trigger", "button_x"), state.pressedControls)
     expectEquals("display order", listOf("trigger", "button_x"), state.activeControls())
+}
+
+private fun gunInputStateTracksCompositeStickAxis() {
+    val diagonal = GunInputState()
+        .apply(GunEvent(name = "stick", axisX = 1f, axisY = -1f))
+
+    expectEquals("stick x", 1f, diagonal.stickAxisX)
+    expectEquals("stick y", -1f, diagonal.stickAxisY)
+    expectEquals("stick active", listOf("stick"), diagonal.activeControls())
+
+    val neutral = diagonal.apply(GunEvent(name = "stick", axisX = 0f, axisY = 0f))
+    expectEquals("stick neutral x", 0f, neutral.stickAxisX)
+    expectEquals("stick neutral y", 0f, neutral.stickAxisY)
+    expectEquals("stick hidden when neutral", emptyList<String>(), neutral.activeControls())
 }
 
 private fun expectEquals(label: String, expected: Any?, actual: Any?) {

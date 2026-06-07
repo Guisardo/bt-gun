@@ -37,7 +37,7 @@ Unity apps and native libraries can hide protocol logic in assets, C# assemblies
 Pair static analysis with dynamic `adb logcat`, btsnoop/HCI capture, BLE scanner output, and physical command tests.
 
 **Warning signs:**
-Code references `fff0/fff1` or SPP UUIDs but no captured bytes prove which characteristics carry input or rumble.
+Code references `fff0/fff1` or SPP UUIDs but no captured bytes prove which characteristics carry input.
 
 **Phase to address:**
 Phase 1: reverse-engineering and capture fixtures.
@@ -47,13 +47,13 @@ Phase 1: reverse-engineering and capture fixtures.
 ### Pitfall 3: TCP-Only Aiming Stream
 
 **What goes wrong:**
-Aim feels sticky or jumps during packet loss because one lost TCP packet stalls later gyro samples.
+Aim feels sticky or jumps during packet loss because one lost TCP packet stalls later motion samples.
 
 **Why it happens:**
 TCP/WebSocket is simpler, but head-of-line blocking is bad for realtime aim.
 
 **How to avoid:**
-Use UDP for high-rate input/gyro frames and a reliable TCP/WebSocket control channel for pairing, heartbeat, diagnostics, and rumble.
+Use UDP for high-rate input/motion frames and a reliable TCP/WebSocket control channel for pairing, heartbeat, diagnostics, and haptics.
 
 **Warning signs:**
 Visualizer shows latency spikes after Wi-Fi loss even though average latency looks fine.
@@ -72,7 +72,7 @@ Core app works in prototype, but installable Windows/macOS virtual controller pa
 Virtual HID work looks like an integration detail, but OS policy dominates feasibility.
 
 **How to avoid:**
-Spike Windows VHF and macOS CoreHID/DriverKit early with a fake input source and rumble loopback.
+Spike Windows VHF and macOS CoreHID/DriverKit early with a fake input source and haptic/output loopback.
 
 **Warning signs:**
 Visualizer only works with a dev-only driver, unsigned extension, or manual security bypass.
@@ -82,19 +82,19 @@ Phase 3: virtual HID spikes before polished companion app.
 
 ---
 
-### Pitfall 5: Rumble Without TTL/Acknowledgement
+### Pitfall 5: Haptics Without TTL/Acknowledgement
 
 **What goes wrong:**
-The gun vibrates late, not at all, or keeps vibrating after disconnect/reconnect.
+The phone vibrates late, not at all, or keeps vibrating after disconnect/reconnect.
 
 **Why it happens:**
-Rumble is treated as a fire-and-forget output instead of a stateful bidirectional command.
+Haptics are treated as fire-and-forget output instead of stateful bidirectional commands.
 
 **How to avoid:**
 Include command id, duration, strength, TTL/play deadline, ack/fail, and disconnect cleanup in the control protocol.
 
 **Warning signs:**
-Rumble tests pass only when connection is perfect; stale commands play after reconnect.
+Haptic tests pass only when connection is perfect; stale commands play after reconnect.
 
 **Phase to address:**
 Phase 2/3: control channel and virtual HID output reports.
@@ -134,7 +134,7 @@ Phase 4: profile mapper and visualizer.
 |-------------|----------------|------------------|
 | Android Bluetooth permissions | Use only legacy `BLUETOOTH`/`BLUETOOTH_ADMIN` on modern target | Request Android 12+ runtime Bluetooth permissions and keep legacy compatibility rules. |
 | BLE scan/connect | Treat scan result as protocol proof | Verify services, characteristics, notifications, write type, MTU, and captured bytes. |
-| Android sensors | Use wall-clock time and ignore drift | Use sensor timestamps, recenter, and visible calibration state. |
+| Android sensors | Use wall-clock time, assume gyro exists, or ignore drift/fallback mode | Use sensor timestamps, provider/capability flags, recenter, visible calibration state, and accelerometer/gravity tilt fallback when needed. |
 | LAN discovery | Depend only on mDNS | QR/code pairing must include host/port fallback. |
 | Windows virtual HID | Prototype with existing virtual pad then call it done | Validate VHF signed-driver path and output reports. |
 | macOS virtual HID | Assume entitlement availability | Verify CoreHID/DriverKit entitlement and install flow before roadmap commits to one path. |
@@ -155,7 +155,7 @@ Phase 4: profile mapper and visualizer.
 |---------|------|------------|
 | Plaintext LAN input | Other local devices can inject controls | Pairing secret, authenticated encryption, replay window |
 | Permanent pairing code | Unauthorized reuse | One-time code/QR secret, short expiry, paired desktop key |
-| No packet replay protection | Old fire/rumble frames can replay | Sequence numbers and nonce/replay window |
+| No packet replay protection | Old fire/haptic frames can replay | Sequence numbers and nonce/replay window |
 | Verbose APK/protocol logs in release | Leaks device/session details | Redacted logs and explicit debug mode |
 | Accept any desktop on LAN | Wrong computer can pair | User-visible host identity and pairing confirmation |
 
@@ -163,11 +163,11 @@ Phase 4: profile mapper and visualizer.
 
 | Pitfall | User Impact | Better Approach |
 |---------|-------------|-----------------|
-| No visible connection state | User cannot tell if gun, LAN, or driver failed | Separate Gun, Desktop, Driver, Rumble status indicators |
+| No visible connection state | User cannot tell if gun, LAN, or driver failed | Separate Gun, Desktop, Driver, Haptic status indicators |
 | No recenter feedback | Aim feels broken after hold gesture | Show recenter event and active zero point |
 | No latency display | Hard to debug "feels laggy" reports | Visualizer stage timing and packet loss |
 | Pairing only by IP | Error-prone setup | QR/code pairing with manual fallback |
-| Hidden rumble failures | User thinks motor is broken | Rumble test button with ack/fail display |
+| Hidden haptic failures | User thinks feedback is broken | Haptic test button with ack/fail display |
 
 ## "Looks Done But Isn't" Checklist
 
@@ -176,7 +176,7 @@ Phase 4: profile mapper and visualizer.
 - [ ] **LAN stream:** Works on local machine only - verify phone-to-desktop on real Wi-Fi.
 - [ ] **Windows driver:** Works unsigned in dev mode only - verify signing/install path.
 - [ ] **macOS virtual device:** Works in sample app only - verify system-wide visibility to visualizer.
-- [ ] **Rumble:** Desktop receives output report but gun does not vibrate - verify command reaches Android and hardware motor.
+- [ ] **Haptics:** Desktop receives output report but phone does not vibrate - verify command reaches Android and the phone `Vibrator` API.
 - [ ] **Latency:** Average under 50 ms but spikes over 100 ms - verify p95/p99, not just mean.
 
 ## Recovery Strategies
@@ -197,7 +197,7 @@ Phase 4: profile mapper and visualizer.
 | Static-only reverse engineering | Phase 1 | Captured real packet fixtures committed. |
 | TCP-only aiming | Phase 2 | UDP packet stream passes loss/jitter visualizer test. |
 | Late driver packaging | Phase 3 | Fake input source appears as virtual gamepad on Windows and macOS. |
-| Rumble without TTL/ack | Phase 2/3 | Stale rumble command is dropped; ack/fail visible. |
+| Haptics without TTL/ack | Phase 2/3 | Stale haptic command is dropped; ack/fail visible. |
 | Profiles baked into Android | Phase 4 | Android has no desktop/game mapping constants. |
 
 ## Sources

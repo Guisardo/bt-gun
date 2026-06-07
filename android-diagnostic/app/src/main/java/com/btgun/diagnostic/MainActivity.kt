@@ -22,6 +22,8 @@ import android.os.Handler
 import android.os.Looper
 import android.os.ParcelUuid
 import android.os.SystemClock
+import android.os.VibrationEffect
+import android.os.Vibrator
 import android.util.Base64
 import android.view.InputDevice
 import android.view.KeyEvent
@@ -31,6 +33,8 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import java.util.UUID
+import javax.crypto.Cipher
+import javax.crypto.spec.SecretKeySpec
 
 class MainActivity : Activity() {
     private val schema = "btgun.android_diagnostic.v1"
@@ -40,6 +44,10 @@ class MainActivity : Activity() {
     private var gattCandidateDevice: BluetoothDevice? = null
     private var gattOperationInFlight = false
     private var pendingRumbleProbe = false
+    private var gattCandidateScanRecordBytes: ByteArray? = null
+    private var gattCandidateManufacturerData: ByteArray? = null
+    private var latestFff1Payload: ByteArray? = null
+    private var currentFff5HandshakeWrite: Fff5HandshakeWrite? = null
     private var currentRumbleWrite: RumbleWrite? = null
     private val mainHandler = Handler(Looper.getMainLooper())
     private val pendingGattOperations = ArrayDeque<PendingGattOperation>()
@@ -77,7 +85,11 @@ class MainActivity : Activity() {
             if (gattCandidateDevice != null) {
                 return
             }
+            val scanRecordBytes = result.scanRecord?.bytes
+            val manufacturerData = scanRecordBytes?.firstManufacturerDataAdRecord()
             gattCandidateDevice = result.device
+            gattCandidateScanRecordBytes = scanRecordBytes
+            gattCandidateManufacturerData = manufacturerData
             logReport(
                 "ble_gatt_scan",
                 "state" to "candidate_found",
@@ -86,6 +98,8 @@ class MainActivity : Activity() {
                 "device_address" to safeDeviceAddress(result.device),
                 "rssi" to result.rssi,
                 "service_uuids" to serviceUuids,
+                "scan_record_hex" to scanRecordBytes?.toHex().orEmpty(),
+                "manufacturer_data_hex" to manufacturerData?.toHex().orEmpty(),
                 "service_match" to serviceMatch,
                 "name_match" to nameMatch,
                 "clue_id" to "ARGUN2021-BLE-001"
@@ -119,6 +133,9 @@ class MainActivity : Activity() {
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                 pendingGattOperations.clear()
                 gattOperationInFlight = false
+                latestFff1Payload = null
+                currentFff5HandshakeWrite = null
+                currentRumbleWrite = null
             }
         }
 
@@ -176,9 +193,36 @@ class MainActivity : Activity() {
             characteristic: BluetoothGattCharacteristic,
             status: Int
         ) {
+            val handshakeWrite = currentFff5HandshakeWrite
             val rumbleWrite = currentRumbleWrite
             logCharacteristicPayload("ble_gatt_characteristic_write", characteristic, characteristic.value ?: ByteArray(0), status)
-            if (rumbleWrite != null) {
+            if (handshakeWrite != null) {
+                val handshakeState = if (handshakeWrite.step == "step02") {
+                    if (status == BluetoothGatt.GATT_SUCCESS) "step02_ack" else "step02_fail"
+                } else if (status == BluetoothGatt.GATT_SUCCESS) {
+                    "handshake_ack"
+                } else {
+                    "handshake_failed"
+                }
+                logReport(
+                    "ble_fff5_handshake",
+                    "state" to handshakeState,
+                    "transport" to "ble_gatt",
+                    "service_uuid" to BLE_SERVICE_UUID,
+                    "characteristic_uuid" to characteristic.uuid,
+                    "step" to handshakeWrite.step,
+                    "candidate_id" to handshakeWrite.candidateId,
+                    "attempt_index" to handshakeWrite.attemptIndex,
+                    "payload_len" to handshakeWrite.payload.size,
+                    "payload_hex" to handshakeWrite.payload.toHex(),
+                    "status" to status,
+                    "clue_id" to "ARGUN2021-BLE-001"
+                )
+                currentFff5HandshakeWrite = null
+                if (status == BluetoothGatt.GATT_SUCCESS) {
+                    handshakeWrite.afterAck()
+                }
+            } else if (rumbleWrite != null) {
                 logReport(
                     "rumble_attempt",
                     "state" to if (status == BluetoothGatt.GATT_SUCCESS) "write_ack" else "write_failed",
@@ -208,12 +252,14 @@ class MainActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             addView(button("Permission State") { reportPermissionState() })
             addView(button("InputDevice Scan") { scanInputDevices() })
+            addView(button("Joystick Sweep Marker") { recordJoystickSweepMarker() })
             addView(button("BLE Scan Hook") { startBleScan() })
             addView(button("BLE GATT Discovery") { startBleGattDiscovery() })
             addView(button("BLE Characteristic Hook") { recordBleCharacteristicTargets() })
             addView(button("Classic Scan Hook") { scanClassicDevices() })
             addView(button("App Frame Marker") { recordAppObservedFrameMarker() })
             addView(button("Rumble Attempt Hook") { recordRumbleAttempt() })
+            addView(button("Phone Vibrate 1s") { vibratePhoneOneSecond() })
             addView(button("Rumble Observed Marker") { recordRumbleObservedMarker() })
             addView(ScrollView(this@MainActivity).apply { addView(output) })
         }
@@ -336,6 +382,10 @@ class MainActivity : Activity() {
         stopGattScan()
         closeActiveGatt("restart_gatt_discovery")
         gattCandidateDevice = null
+        gattCandidateScanRecordBytes = null
+        gattCandidateManufacturerData = null
+        latestFff1Payload = null
+        currentFff5HandshakeWrite = null
         currentRumbleWrite = null
         pendingGattOperations.clear()
         gattOperationInFlight = false
@@ -591,6 +641,16 @@ class MainActivity : Activity() {
         )
     }
 
+    private fun recordJoystickSweepMarker() {
+        logReport(
+            "joystick_sweep_marker",
+            "state" to "start",
+            "action" to "sweep joystick around outer rim clockwise and counterclockwise, pausing at every detent or edge point",
+            "expected_output" to "fff3 notification payloads captured as payload_ascii and payload_hex",
+            "clue_id" to "ARCHER-INPUT-001"
+        )
+    }
+
     private fun recordRumbleAttempt() {
         logReport(
             "rumble_attempt",
@@ -642,6 +702,17 @@ class MainActivity : Activity() {
             )
             return
         }
+        enqueueFff5HandshakeStep01(gatt, characteristic) {
+            enqueueFff5HandshakeStep02(gatt, characteristic) {
+                runBleFff5RumbleCandidates(gatt, characteristic)
+            }
+        }
+    }
+
+    private fun runBleFff5RumbleCandidates(
+        gatt: BluetoothGatt,
+        characteristic: BluetoothGattCharacteristic
+    ) {
         logReport(
             "rumble_attempt",
             "state" to "sequence_start",
@@ -673,6 +744,246 @@ class MainActivity : Activity() {
                 "clue_id" to "ARGUN2021-RUMBLE-001"
             )
         }, startDelayMs)
+    }
+
+    private fun enqueueFff5HandshakeStep02(
+        gatt: BluetoothGatt,
+        characteristic: BluetoothGattCharacteristic,
+        afterAck: () -> Unit
+    ) {
+        val fff1Payload = latestFff1Payload
+        if (fff1Payload == null || fff1Payload.size < 9) {
+            logReport(
+                "ble_fff5_handshake",
+                "state" to "step02_skipped",
+                "transport" to "ble_gatt",
+                "service_uuid" to BLE_SERVICE_UUID,
+                "characteristic_uuid" to characteristic.uuid,
+                "step" to "step02",
+                "candidate_id" to "ble-fff5-handshake-step02",
+                "reason" to if (fff1Payload == null) "missing_fff1_payload" else "fff1_payload_too_short",
+                "fff1_payload_len" to (fff1Payload?.size ?: 0),
+                "clue_id" to "ARGUN2021-BLE-001"
+            )
+            return
+        }
+
+        val plaintext = buildFff5HandshakeStep02Plaintext(fff1Payload)
+        val payload = try {
+            encryptFff5Handshake(plaintext)
+        } catch (error: Exception) {
+            logReport(
+                "ble_fff5_handshake",
+                "state" to "step02_encrypt_failed",
+                "transport" to "ble_gatt",
+                "service_uuid" to BLE_SERVICE_UUID,
+                "characteristic_uuid" to characteristic.uuid,
+                "step" to "step02",
+                "candidate_id" to "ble-fff5-handshake-step02",
+                "error" to error.javaClass.simpleName,
+                "clue_id" to "ARGUN2021-BLE-001"
+            )
+            return
+        }
+
+        for (attemptIndex in 1..STEP02_HANDSHAKE_ATTEMPTS) {
+            logReport(
+                "ble_fff5_handshake",
+                "state" to "step02_queued",
+                "transport" to "ble_gatt",
+                "service_uuid" to BLE_SERVICE_UUID,
+                "characteristic_uuid" to characteristic.uuid,
+                "step" to "step02",
+                "candidate_id" to "ble-fff5-handshake-step02",
+                "attempt_index" to attemptIndex,
+                "fff1_payload_hex" to fff1Payload.toHex(),
+                "plaintext_len" to plaintext.size,
+                "plaintext_hex" to plaintext.toHex(),
+                "payload_len" to payload.size,
+                "payload_hex" to payload.toHex(),
+                "cipher" to "AES/ECB/NoPadding",
+                "cipher_variant" to HANDSHAKE_CIPHER_VARIANT,
+                "clue_id" to "ARGUN2021-BLE-001"
+            )
+            enqueueFff5HandshakeWrite(
+                gatt = gatt,
+                characteristic = characteristic,
+                step = "step02",
+                candidateId = "ble-fff5-handshake-step02",
+                attemptIndex = attemptIndex,
+                payload = payload,
+                delayMs = if (attemptIndex == 1) 0L else STEP02_HANDSHAKE_GAP_MS,
+                afterAck = if (attemptIndex == STEP02_HANDSHAKE_ATTEMPTS) afterAck else ({})
+            )
+        }
+    }
+
+    private fun enqueueFff5HandshakeWrite(
+        gatt: BluetoothGatt,
+        characteristic: BluetoothGattCharacteristic,
+        step: String,
+        candidateId: String,
+        attemptIndex: Int,
+        payload: ByteArray,
+        delayMs: Long = 0L,
+        afterAck: () -> Unit
+    ) {
+        enqueueGattOperation("handshake:fff5:$step:$attemptIndex") {
+            mainHandler.postDelayed({
+                try {
+                    @Suppress("DEPRECATION")
+                    characteristic.value = payload
+                    characteristic.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+                    currentFff5HandshakeWrite = Fff5HandshakeWrite(
+                        step = step,
+                        candidateId = candidateId,
+                        attemptIndex = attemptIndex,
+                        payload = payload,
+                        afterAck = afterAck
+                    )
+                    @Suppress("DEPRECATION")
+                    val started = gatt.writeCharacteristic(characteristic)
+                    if (!started) {
+                        currentFff5HandshakeWrite = null
+                        logReport(
+                            "ble_fff5_handshake",
+                            "state" to "write_start_failed",
+                            "transport" to "ble_gatt",
+                            "service_uuid" to BLE_SERVICE_UUID,
+                            "characteristic_uuid" to characteristic.uuid,
+                            "step" to step,
+                            "candidate_id" to candidateId,
+                            "attempt_index" to attemptIndex,
+                            "payload_len" to payload.size,
+                            "payload_hex" to payload.toHex(),
+                            "clue_id" to "ARGUN2021-BLE-001"
+                        )
+                        completeGattOperation("characteristic_write_start_failed")
+                    }
+                } catch (error: SecurityException) {
+                    currentFff5HandshakeWrite = null
+                    logReport(
+                        "ble_fff5_handshake",
+                        "state" to "permission_blocked",
+                        "transport" to "ble_gatt",
+                        "service_uuid" to BLE_SERVICE_UUID,
+                        "characteristic_uuid" to characteristic.uuid,
+                        "step" to step,
+                        "candidate_id" to candidateId,
+                        "attempt_index" to attemptIndex,
+                        "error" to error.javaClass.simpleName,
+                        "clue_id" to "ARGUN2021-BLE-001"
+                    )
+                    completeGattOperation("characteristic_write_permission_blocked")
+                }
+            }, delayMs)
+            true
+        }
+    }
+
+    private fun enqueueFff5HandshakeStep01(
+        gatt: BluetoothGatt,
+        characteristic: BluetoothGattCharacteristic,
+        afterAck: () -> Unit
+    ) {
+        val seedBytes = argunHandshakeSeedBytes(gatt.device)
+        if (seedBytes == null) {
+            logReport(
+                "ble_fff5_handshake",
+                "state" to "step01_skipped",
+                "transport" to "ble_gatt",
+                "service_uuid" to BLE_SERVICE_UUID,
+                "characteristic_uuid" to characteristic.uuid,
+                "step" to "step01",
+                "candidate_id" to "ble-fff5-handshake-step01",
+                "reason" to "missing_scan_record_and_invalid_ble_address",
+                "clue_id" to "ARGUN2021-BLE-001"
+            )
+            return
+        }
+
+        val plaintext = buildFff5HandshakeStep01Plaintext(seedBytes.bytes)
+        val payload = try {
+            encryptFff5Handshake(plaintext)
+        } catch (error: Exception) {
+            logReport(
+                "ble_fff5_handshake",
+                "state" to "step01_encrypt_failed",
+                "transport" to "ble_gatt",
+                "service_uuid" to BLE_SERVICE_UUID,
+                "characteristic_uuid" to characteristic.uuid,
+                "step" to "step01",
+                "candidate_id" to "ble-fff5-handshake-step01",
+                "error" to error.javaClass.simpleName,
+                "clue_id" to "ARGUN2021-BLE-001"
+            )
+            return
+        }
+        logReport(
+            "ble_fff5_handshake",
+            "state" to "handshake_queued",
+            "transport" to "ble_gatt",
+            "service_uuid" to BLE_SERVICE_UUID,
+            "characteristic_uuid" to characteristic.uuid,
+            "step" to "step01",
+            "candidate_id" to "ble-fff5-handshake-step01",
+            "seed_source" to seedBytes.source,
+            "seed_byte_indexes" to seedBytes.indexes,
+            "seed_bytes_hex" to seedBytes.bytes.toHex(),
+            "plaintext_len" to plaintext.size,
+            "plaintext_hex" to plaintext.toHex(),
+            "payload_len" to payload.size,
+            "payload_hex" to payload.toHex(),
+            "cipher" to "AES/ECB/NoPadding",
+            "cipher_variant" to HANDSHAKE_CIPHER_VARIANT,
+            "clue_id" to "ARGUN2021-BLE-001"
+        )
+        enqueueGattOperation("handshake:fff5:step01") {
+            try {
+                @Suppress("DEPRECATION")
+                characteristic.value = payload
+                characteristic.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+                currentFff5HandshakeWrite = Fff5HandshakeWrite(
+                    step = "step01",
+                    candidateId = "ble-fff5-handshake-step01",
+                    attemptIndex = 1,
+                    payload = payload,
+                    afterAck = afterAck
+                )
+                @Suppress("DEPRECATION")
+                val started = gatt.writeCharacteristic(characteristic)
+                if (!started) {
+                    currentFff5HandshakeWrite = null
+                    logReport(
+                        "ble_fff5_handshake",
+                        "state" to "write_start_failed",
+                        "transport" to "ble_gatt",
+                        "service_uuid" to BLE_SERVICE_UUID,
+                        "characteristic_uuid" to characteristic.uuid,
+                        "step" to "step01",
+                        "candidate_id" to "ble-fff5-handshake-step01",
+                        "payload_len" to payload.size,
+                        "payload_hex" to payload.toHex(),
+                        "clue_id" to "ARGUN2021-BLE-001"
+                    )
+                }
+                started
+            } catch (error: SecurityException) {
+                currentFff5HandshakeWrite = null
+                logReport(
+                    "ble_fff5_handshake",
+                    "state" to "permission_blocked",
+                    "transport" to "ble_gatt",
+                    "service_uuid" to BLE_SERVICE_UUID,
+                    "characteristic_uuid" to characteristic.uuid,
+                    "step" to "step01",
+                    "candidate_id" to "ble-fff5-handshake-step01",
+                    "error" to error.javaClass.simpleName,
+                    "clue_id" to "ARGUN2021-BLE-001"
+                )
+                false
+            }
+        }
     }
 
     private fun enqueueRumbleWrite(
@@ -743,6 +1054,35 @@ class MainActivity : Activity() {
             "observer_note" to "Use only when physical motor activation is observed in Plan 03",
             "clue_id" to "ARGUN2021-RUMBLE-001"
         )
+    }
+
+    private fun vibratePhoneOneSecond() {
+        val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+        if (vibrator == null) {
+            logReport("phone_vibrate", "state" to "unavailable", "reason" to "missing_vibrator_service")
+            return
+        }
+        val hasVibrator = if (Build.VERSION.SDK_INT >= 11) vibrator.hasVibrator() else true
+        if (!hasVibrator) {
+            logReport("phone_vibrate", "state" to "unavailable", "reason" to "device_reports_no_vibrator")
+            return
+        }
+        try {
+            if (Build.VERSION.SDK_INT >= 26) {
+                vibrator.vibrate(VibrationEffect.createOneShot(PHONE_VIBRATE_DURATION_MS, VibrationEffect.DEFAULT_AMPLITUDE))
+            } else {
+                @Suppress("DEPRECATION")
+                vibrator.vibrate(PHONE_VIBRATE_DURATION_MS)
+            }
+            logReport(
+                "phone_vibrate",
+                "state" to "started",
+                "duration_ms" to PHONE_VIBRATE_DURATION_MS,
+                "source" to "android_vibrator_api"
+            )
+        } catch (error: SecurityException) {
+            logReport("phone_vibrate", "state" to "permission_blocked", "error" to error.javaClass.simpleName)
+        }
     }
 
     private fun logKeyEvent(report: String, event: KeyEvent) {
@@ -926,18 +1266,100 @@ class MainActivity : Activity() {
     private fun clueIdForCharacteristic(uuid: UUID): String? =
         BLE_CHARACTERISTIC_TARGETS.firstOrNull { it.first == uuid }?.second
 
+    private fun argunHandshakeSeedBytes(device: BluetoothDevice): HandshakeSeedBytes? {
+        val manufacturerData = gattCandidateManufacturerData
+        if (manufacturerData != null && manufacturerData.size >= 8) {
+            return HandshakeSeedBytes(
+                source = "manufacturer_data",
+                indexes = "2..7",
+                bytes = manufacturerData.copyOfRange(2, 8)
+            )
+        }
+        val scanBytes = gattCandidateScanRecordBytes
+        if (scanBytes != null && scanBytes.size >= 8) {
+            return HandshakeSeedBytes(
+                source = "scan_record",
+                indexes = "2..7",
+                bytes = scanBytes.copyOfRange(2, 8)
+            )
+        }
+        val parts = safeDeviceAddress(device).split(":")
+        if (parts.size != 6) {
+            return null
+        }
+        return try {
+            HandshakeSeedBytes(
+                source = "device_address_fallback",
+                indexes = "0..5",
+                bytes = ByteArray(6) { index -> parts[index].toInt(16).toByte() }
+            )
+        } catch (_: NumberFormatException) {
+            null
+        }
+    }
+
+    private fun buildFff5HandshakeStep01Plaintext(seedBytes: ByteArray): ByteArray =
+        byteArrayOf(
+            0x32,
+            0x30,
+            0x08,
+            seedBytes[0],
+            seedBytes[1],
+            seedBytes[2],
+            seedBytes[3],
+            seedBytes[4],
+            seedBytes[5],
+            0x01,
+            0x00,
+            0x01,
+            0x02,
+            0x03,
+            0x04,
+            0x01
+        )
+
+    private fun buildFff5HandshakeStep02Plaintext(fff1Payload: ByteArray): ByteArray =
+        byteArrayOf(
+            0x32,
+            0x31,
+            0x06,
+            ((fff1Payload[3].toInt() xor 0x55) and 0xff).toByte(),
+            ((fff1Payload[4].toInt() xor 0x55) and 0xff).toByte(),
+            ((fff1Payload[5].toInt() xor 0x55) and 0xff).toByte(),
+            ((fff1Payload[6].toInt() xor 0x55) and 0xff).toByte(),
+            ((fff1Payload[7].toInt() xor 0x55) and 0xff).toByte(),
+            ((fff1Payload[8].toInt() xor 0x55) and 0xff).toByte(),
+            0x01,
+            0x02,
+            0x03,
+            0x04,
+            0x03,
+            0x04,
+            0x01
+        )
+
+    private fun encryptFff5Handshake(plaintext: ByteArray): ByteArray {
+        val cipher = Cipher.getInstance("AES/ECB/NoPadding")
+        cipher.init(Cipher.ENCRYPT_MODE, SecretKeySpec(HANDSHAKE_ENCRYPT123_KEY, "AES"))
+        return cipher.doFinal(plaintext)
+    }
+
     private fun logCharacteristicPayload(
         report: String,
         characteristic: BluetoothGattCharacteristic,
         value: ByteArray,
         status: Int
     ) {
+        if (characteristic.uuid == FFF1_CHARACTERISTIC_UUID) {
+            latestFff1Payload = value.copyOf()
+        }
         logReport(
             report,
             "status" to status,
             "service_uuid" to characteristic.service?.uuid,
             "characteristic_uuid" to characteristic.uuid,
             "payload_len" to value.size,
+            "payload_ascii" to value.toPrintableAscii(),
             "payload_hex" to value.toHex(),
             "payload_base64" to Base64.encodeToString(value, Base64.NO_WRAP),
             "clue_id" to clueIdForCharacteristic(characteristic.uuid).orEmpty()
@@ -947,7 +1369,43 @@ class MainActivity : Activity() {
     private fun ByteArray.toHex(): String =
         joinToString(separator = "") { byte -> "%02x".format(byte.toInt() and 0xff) }
 
+    private fun ByteArray.toPrintableAscii(): String =
+        if (all { byte -> byte in 0x20..0x7e }) {
+            decodeToString()
+        } else {
+            ""
+        }
+
+    private fun ByteArray.firstManufacturerDataAdRecord(): ByteArray? {
+        var index = 0
+        while (index < size) {
+            val length = this[index].toInt() and 0xff
+            if (length == 0) {
+                return null
+            }
+            val typeIndex = index + 1
+            val dataStart = index + 2
+            val nextIndex = index + 1 + length
+            if (typeIndex >= size || nextIndex > size) {
+                return null
+            }
+            if ((this[typeIndex].toInt() and 0xff) == 0xff) {
+                return copyOfRange(dataStart, nextIndex)
+            }
+            index = nextIndex
+        }
+        return null
+    }
+
     private data class PendingGattOperation(val name: String, val start: () -> Boolean)
+    private data class HandshakeSeedBytes(val source: String, val indexes: String, val bytes: ByteArray)
+    private data class Fff5HandshakeWrite(
+        val step: String,
+        val candidateId: String,
+        val attemptIndex: Int,
+        val payload: ByteArray,
+        val afterAck: () -> Unit
+    )
     private data class RumbleWrite(val candidateId: String, val phase: String, val payload: ByteArray)
     private data class RumbleCandidate(
         val id: String,
@@ -959,26 +1417,83 @@ class MainActivity : Activity() {
     companion object {
         private const val ARGUN_DEVICE_NAME = "ARGunGame"
         private val BLE_SERVICE_UUID: UUID = UUID.fromString("0000fff0-0000-1000-8000-00805f9b34fb")
+        private val FFF1_CHARACTERISTIC_UUID: UUID = UUID.fromString("0000fff1-0000-1000-8000-00805f9b34fb")
         private val RUMBLE_CHARACTERISTIC_UUID: UUID = UUID.fromString("0000fff5-0000-1000-8000-00805f9b34fb")
         private val CCCD_UUID: UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
         private val SPP_UUID: UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
+        private const val HANDSHAKE_CIPHER_VARIANT = "encrypt123_argun_mode0_key_4b06_ecb_nopadding"
+        private val HANDSHAKE_ENCRYPT123_KEY = byteArrayOf(
+            0x4b,
+            0x06,
+            0x4c,
+            0x06,
+            0x4d,
+            0x06,
+            0x4e,
+            0x06,
+            0x4f,
+            0x06,
+            0x50,
+            0x06,
+            0x51,
+            0x06,
+            0x52,
+            0x06
+        )
+        private const val STEP02_HANDSHAKE_ATTEMPTS = 3
+        private const val STEP02_HANDSHAKE_GAP_MS = 100L
+        private const val PHONE_VIBRATE_DURATION_MS = 1000L
         private const val RUMBLE_CANDIDATE_GAP_MS = 900L
         private val RUMBLE_CANDIDATES = arrayOf(
             RumbleCandidate(
-                id = "ble-fff5-01-byte",
-                onPayload = byteArrayOf(0x01),
-                offPayload = byteArrayOf(0x00),
-                durationMs = 350L
-            ),
-            RumbleCandidate(
-                id = "ble-fff5-01-padded16",
+                id = "ble-fff5-01-padded16-after-step02-1000ms",
                 onPayload = ByteArray(16).also { it[0] = 0x01 },
                 offPayload = ByteArray(16),
-                durationMs = 350L
+                durationMs = 1000L
+            ),
+            RumbleCandidate(
+                id = "ble-fff5-01-padded16-encrypted-after-step02-1000ms",
+                onPayload = byteArrayOf(
+                    0xf2.toByte(),
+                    0x49,
+                    0x42,
+                    0xac.toByte(),
+                    0xb8.toByte(),
+                    0x7b,
+                    0x76,
+                    0x55,
+                    0x4d,
+                    0xf1.toByte(),
+                    0x7d,
+                    0x8f.toByte(),
+                    0x47,
+                    0x68,
+                    0xb5.toByte(),
+                    0x90.toByte()
+                ),
+                offPayload = byteArrayOf(
+                    0x36,
+                    0x57,
+                    0x90.toByte(),
+                    0xba.toByte(),
+                    0x10,
+                    0x0e,
+                    0x5a,
+                    0x7c,
+                    0xe5.toByte(),
+                    0x04,
+                    0x4c,
+                    0x9f.toByte(),
+                    0x2f,
+                    0x87.toByte(),
+                    0x12,
+                    0x3c
+                ),
+                durationMs = 1000L
             )
         )
         private val BLE_CHARACTERISTIC_TARGETS = arrayOf(
-            Triple(UUID.fromString("0000fff1-0000-1000-8000-00805f9b34fb"), "ARGUN2021-BLE-001", "read_or_notify_candidate"),
+            Triple(FFF1_CHARACTERISTIC_UUID, "ARGUN2021-BLE-001", "read_or_notify_candidate"),
             Triple(UUID.fromString("0000fff3-0000-1000-8000-00805f9b34fb"), "ARCHER-BLE-001", "notify_candidate"),
             Triple(RUMBLE_CHARACTERISTIC_UUID, "ARGUN2021-RUMBLE-001", "write_candidate")
         )

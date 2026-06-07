@@ -12,7 +12,9 @@ import java.util.Set;
 public final class PermissionGateTest {
     public static void main(String[] args) {
         android12ScanAndConnectRequireNearbyDevicePermissions();
+        android12BluetoothOffBlocksScanAndConnect();
         legacyScanAcceptsFineOrCoarseLocation();
+        legacyLocationServiceOffBlocksScan();
         sensorCapabilityReportsAvailableAndUnavailableWithoutRuntimePermission();
         vibrationCapabilityReportsHardwareState();
         lanCapabilityReportsNetworkState();
@@ -56,6 +58,27 @@ public final class PermissionGateTest {
         expectState("android12 scan granted", CapabilityState.AVAILABLE, granted.getBluetoothScan().getState());
         expectState("android12 connect granted", CapabilityState.AVAILABLE, granted.getBluetoothConnect().getState());
         expectState("android12 location compatibility not required", CapabilityState.AVAILABLE, granted.getLocationScanCompatibility().getState());
+    }
+
+    private static void android12BluetoothOffBlocksScanAndConnect() {
+        PermissionGateState bluetoothOff = PermissionGate.evaluate(new PermissionGateInput(
+                35,
+                Set.of(PermissionGate.BLUETOOTH_SCAN, PermissionGate.BLUETOOTH_CONNECT),
+                false,
+                true,
+                true,
+                false,
+                false,
+                true,
+                true,
+                true,
+                true
+        ));
+
+        expectState("bluetooth off scan", CapabilityState.BLOCKED, bluetoothOff.getBluetoothScan().getState());
+        expectState("bluetooth off connect", CapabilityState.BLOCKED, bluetoothOff.getBluetoothConnect().getState());
+        expectEquals("bluetooth off scan detail", "Bluetooth is off.", bluetoothOff.getBluetoothScan().getDetail());
+        expectEquals("bluetooth off cannot start", false, bluetoothOff.getCanStartSession());
     }
 
     private static void legacyScanAcceptsFineOrCoarseLocation() {
@@ -108,6 +131,27 @@ public final class PermissionGateTest {
         ));
 
         expectState("legacy missing scan location", CapabilityState.BLOCKED, missingLocation.getBluetoothScan().getState());
+    }
+
+    private static void legacyLocationServiceOffBlocksScan() {
+        PermissionGateState locationOff = PermissionGate.evaluate(new PermissionGateInput(
+                30,
+                Set.of(PermissionGate.ACCESS_FINE_LOCATION),
+                true,
+                false,
+                true,
+                false,
+                false,
+                true,
+                true,
+                true,
+                true
+        ));
+
+        expectState("legacy location off compatibility", CapabilityState.BLOCKED, locationOff.getLocationScanCompatibility().getState());
+        expectState("legacy location off scan", CapabilityState.BLOCKED, locationOff.getBluetoothScan().getState());
+        expectEquals("legacy location off scan detail", "Enable location services for legacy BLE scan.", locationOff.getBluetoothScan().getDetail());
+        expectEquals("legacy location off cannot start", false, locationOff.getCanStartSession());
     }
 
     private static void sensorCapabilityReportsAvailableAndUnavailableWithoutRuntimePermission() {

@@ -29,6 +29,45 @@ const REQUIRED_DOCS = {
   clues: "docs/protocol/ipega-phase1-clues.md",
 };
 
+const REQUIRED_FULL_FIXTURES = [
+  "fixtures/ipega/normalized/handshake.jsonl",
+  "fixtures/ipega/normalized/trigger.jsonl",
+  "fixtures/ipega/normalized/reload.jsonl",
+  "fixtures/ipega/normalized/joystick.jsonl",
+  "fixtures/ipega/normalized/buttons-xyab.jsonl",
+  "fixtures/ipega/normalized/haptics.jsonl",
+];
+
+const REQUIRED_FULL_EVENTS = [
+  ["ble_scan", "observed"],
+  ["ble_gatt", "observed"],
+  ["fff1", "observed"],
+  ["fff3", "observed"],
+  ["fff5", "observed"],
+  ["trigger", "down"],
+  ["trigger", "up"],
+  ["reload", "down"],
+  ["reload", "up"],
+  ["stick_left", "down"],
+  ["stick_left", "up"],
+  ["stick_right", "down"],
+  ["stick_right", "up"],
+  ["stick_up", "down"],
+  ["stick_up", "up"],
+  ["stick_down", "down"],
+  ["stick_down", "up"],
+  ["stick", "move"],
+  ["x", "down"],
+  ["x", "up"],
+  ["y", "down"],
+  ["y", "up"],
+  ["a", "down"],
+  ["a", "up"],
+  ["b", "down"],
+  ["b", "up"],
+  ["phone_haptic", "observed"],
+];
+
 function rel(file) {
   return path.join(ROOT, file);
 }
@@ -73,7 +112,11 @@ function parseJsonlFile(file) {
 
 function validateManifestRows(rows) {
   const captureIds = new Set();
+  const clueIds = new Set();
   const normalizedFixtures = new Set();
+  const evidenceNormalizedFixtures = new Set();
+  const rawRefs = new Set();
+  const rowsByCaptureId = new Map();
   for (const { line, row } of rows) {
     const source = `${REQUIRED_DOCS.manifest}:${line}`;
     if (row.schema !== CAPTURE_SCHEMA) fail(`${source}: schema must be ${CAPTURE_SCHEMA}`);
@@ -85,12 +128,29 @@ function validateManifestRows(rows) {
         fail(`${source}: ${field} is required`);
       }
     }
+    clueIds.add(row.clue_id);
     if (!row.raw_path && !row.hci_path && !row.app_log_path) {
       fail(`${source}: one raw_path, hci_path, or app_log_path is required`);
     }
+    const rowRefs = new Set();
+    for (const field of ["raw_path", "hci_path", "app_log_path"]) {
+      if (typeof row[field] === "string" && row[field].length > 0) {
+        rowRefs.add(row[field]);
+        rawRefs.add(row[field]);
+      }
+    }
     normalizedFixtures.add(row.normalized_fixture);
+    if (isFixtureEvidenceRow(row)) evidenceNormalizedFixtures.add(row.normalized_fixture);
+    if (!rowsByCaptureId.has(row.capture_id)) rowsByCaptureId.set(row.capture_id, []);
+    rowsByCaptureId.get(row.capture_id).push({ line, row, refs: rowRefs });
   }
-  return { captureIds, normalizedFixtures };
+  return { captureIds, clueIds, normalizedFixtures, evidenceNormalizedFixtures, rawRefs, rowsByCaptureId };
+}
+
+function isFixtureEvidenceRow(row) {
+  if (row.record_type === "planned_capture_target") return false;
+  if (typeof row.status !== "string") return false;
+  return !row.status.includes("pending") && !row.status.includes("superseded");
 }
 
 function fixtureFiles() {
@@ -107,8 +167,11 @@ function validateFixtureRows(files) {
   const fixtureIds = new Set();
   const clueIds = new Set();
   const captureIds = new Set();
+  const eventKeys = new Set();
+  const rowsByFile = new Map();
   for (const file of files) {
     const rows = parseJsonlFile(file);
+    rowsByFile.set(file, rows);
     for (const { line, row } of rows) {
       const source = `${file}:${line}`;
       if (row.schema !== NORMALIZED_SCHEMA) fail(`${source}: schema must be ${NORMALIZED_SCHEMA}`);
@@ -123,9 +186,66 @@ function validateFixtureRows(files) {
       fixtureIds.add(row.fixture_id);
       clueIds.add(row.clue_id);
       captureIds.add(row.capture_id);
+      eventKeys.add(`${row.control}:${row.phase}`);
     }
   }
-  return { fixtureIds, clueIds, captureIds };
+  return { fixtureIds, clueIds, captureIds, eventKeys, files: new Set(files), rowsByFile };
+}
+
+function validateFixtureEvidenceLinks({ manifest, fixtures }) {
+  for (const captureId of fixtures.captureIds) {
+    if (!manifest.captureIds.has(captureId)) {
+      fail(`fixtures: capture_id ${captureId} has no capture manifest row`);
+    }
+  }
+
+  for (const [file, rows] of fixtures.rowsByFile) {
+    for (const { line, row } of rows) {
+      const manifestRows = manifest.rowsByCaptureId.get(row.capture_id) || [];
+      const hasEvidenceLink = manifestRows.some(
+        ({ row: manifestRow, refs }) =>
+          isFixtureEvidenceRow(manifestRow) &&
+          manifestRow.normalized_fixture === file &&
+          refs.has(row.raw_ref),
+      );
+      if (!hasEvidenceLink) {
+        fail(`${file}:${line}: no captured evidence row links capture_id ${row.capture_id}, raw_ref ${row.raw_ref}, and normalized_fixture ${file}`);
+      }
+    }
+  }
+}
+
+function validateKnownClueIds({ manifest, fixtures, clues }) {
+  if (!clues.present) return;
+  for (const entries of manifest.rowsByCaptureId.values()) {
+    for (const { line, row } of entries) {
+      if (!clues.clueIds.has(row.clue_id)) {
+        fail(`${REQUIRED_DOCS.manifest}:${line}: unknown clue_id ${row.clue_id}`);
+      }
+    }
+  }
+
+  for (const [file, rows] of fixtures.rowsByFile) {
+    for (const { line, row } of rows) {
+      if (!clues.clueIds.has(row.clue_id)) {
+        fail(`${file}:${line}: unknown clue_id ${row.clue_id}`);
+      }
+    }
+  }
+}
+
+function validateFullCoverage({ manifest, fixtures }) {
+  for (const file of REQUIRED_FULL_FIXTURES) {
+    if (!fixtures.files.has(file)) fail(`${file}: missing required full-coverage fixture`);
+    if (!manifest.evidenceNormalizedFixtures.has(file)) {
+      fail(`${REQUIRED_DOCS.manifest}: missing captured normalized_fixture evidence for ${file}`);
+    }
+  }
+
+  for (const [control, phase] of REQUIRED_FULL_EVENTS) {
+    const key = `${control}:${phase}`;
+    if (!fixtures.eventKeys.has(key)) fail(`fixtures: missing required event ${key}`);
+  }
 }
 
 function requireGitignore() {
@@ -214,6 +334,9 @@ function runQuick({ full = false } = {}) {
   const fixtures = validateFixtureRows(fixtureFiles());
   const inventory = validateInventory({ required: full });
   const clues = validateClues({ required: full, manifest, fixtures });
+  validateFixtureEvidenceLinks({ manifest, fixtures });
+  validateKnownClueIds({ manifest, fixtures, clues });
+  if (full) validateFullCoverage({ manifest, fixtures });
   if (!inventory.present) notes.push("inventory missing: allowed before Task 2");
   if (!clues.present) notes.push("clue index missing: allowed before Task 3");
   return notes;
@@ -244,6 +367,7 @@ function runSelfTest() {
     },
   ]);
   validateFixtureRowsFromMemory();
+  validateCrossLinksFromMemory();
 }
 
 function validateFixtureRowsFromMemory() {
@@ -262,6 +386,176 @@ function validateFixtureRowsFromMemory() {
     fs.readFileSync = oldRead;
     fs.existsSync = oldExists;
   }
+}
+
+function validateCrossLinksFromMemory() {
+  const manifest = validateManifestRows([
+    {
+      line: 1,
+      row: {
+        schema: CAPTURE_SCHEMA,
+        record_type: "android_diagnostic_observation",
+        status: "captured_test",
+        capture_id: "good-capture-001",
+        source_ref: "android-device:test",
+        clue_id: "GOOD-CLUE-001",
+        action: "test capture",
+        raw_path: "local://good.logcat.txt",
+        normalized_fixture: "fixtures/ipega/normalized/test.jsonl",
+      },
+    },
+  ]);
+
+  const matchingFixtures = {
+    captureIds: new Set(["good-capture-001"]),
+    rowsByFile: new Map([
+      [
+        "fixtures/ipega/normalized/test.jsonl",
+        [
+          {
+            line: 1,
+            row: {
+              capture_id: "good-capture-001",
+              raw_ref: "local://good.logcat.txt",
+              clue_id: "GOOD-CLUE-001",
+            },
+          },
+        ],
+      ],
+    ]),
+  };
+  const knownClues = { present: true, clueIds: new Set(["GOOD-CLUE-001"]) };
+  validateFixtureEvidenceLinks({ manifest, fixtures: matchingFixtures });
+  validateKnownClueIds({ manifest, fixtures: matchingFixtures, clues: knownClues });
+
+  let mismatchedRawRejected = false;
+  try {
+    validateFixtureEvidenceLinks({
+      manifest,
+      fixtures: {
+        captureIds: new Set(["good-capture-001"]),
+        rowsByFile: new Map([
+          [
+            "fixtures/ipega/normalized/test.jsonl",
+            [
+              {
+                line: 1,
+                row: {
+                  capture_id: "good-capture-001",
+                  raw_ref: "local://wrong.logcat.txt",
+                  clue_id: "GOOD-CLUE-001",
+                },
+              },
+            ],
+          ],
+        ]),
+      },
+    });
+  } catch {
+    mismatchedRawRejected = true;
+  }
+  if (!mismatchedRawRejected) fail("self-test: mismatched raw_ref/capture_id was not rejected");
+
+  let wrongFixtureRejected = false;
+  try {
+    validateFixtureEvidenceLinks({
+      manifest,
+      fixtures: {
+        captureIds: new Set(["good-capture-001"]),
+        rowsByFile: new Map([
+          [
+            "fixtures/ipega/normalized/wrong.jsonl",
+            [
+              {
+                line: 1,
+                row: {
+                  capture_id: "good-capture-001",
+                  raw_ref: "local://good.logcat.txt",
+                  clue_id: "GOOD-CLUE-001",
+                },
+              },
+            ],
+          ],
+        ]),
+      },
+    });
+  } catch {
+    wrongFixtureRejected = true;
+  }
+  if (!wrongFixtureRejected) fail("self-test: mismatched normalized_fixture was not rejected");
+
+  const pendingManifest = validateManifestRows([
+    {
+      line: 1,
+      row: {
+        schema: CAPTURE_SCHEMA,
+        record_type: "planned_capture_target",
+        status: "pending_hardware_capture",
+        capture_id: "pending-capture-001",
+        source_ref: "android-device:test",
+        clue_id: "GOOD-CLUE-001",
+        action: "pending capture",
+        raw_path: "local://pending.logcat.txt",
+        normalized_fixture: "fixtures/ipega/normalized/test.jsonl",
+      },
+    },
+  ]);
+  let pendingLinkRejected = false;
+  try {
+    validateFixtureEvidenceLinks({
+      manifest: pendingManifest,
+      fixtures: {
+        captureIds: new Set(["pending-capture-001"]),
+        rowsByFile: new Map([
+          [
+            "fixtures/ipega/normalized/test.jsonl",
+            [
+              {
+                line: 1,
+                row: {
+                  capture_id: "pending-capture-001",
+                  raw_ref: "local://pending.logcat.txt",
+                  clue_id: "GOOD-CLUE-001",
+                },
+              },
+            ],
+          ],
+        ]),
+      },
+    });
+  } catch {
+    pendingLinkRejected = true;
+  }
+  if (!pendingLinkRejected) fail("self-test: pending manifest row satisfied fixture link");
+
+  let unknownClueRejected = false;
+  try {
+    validateKnownClueIds({
+      manifest,
+      fixtures: {
+        captureIds: new Set(["good-capture-001"]),
+        rowsByFile: new Map([
+          [
+            "fixtures/ipega/normalized/test.jsonl",
+            [
+              {
+                line: 1,
+                row: {
+                  capture_id: "good-capture-001",
+                  raw_ref: "local://good.logcat.txt",
+                  clue_id: "MISSING-CLUE-001",
+                },
+              },
+            ],
+          ],
+        ]),
+      },
+      clues: knownClues,
+    });
+  } catch {
+    unknownClueRejected = true;
+  }
+  if (!unknownClueRejected) fail("self-test: unknown fixture clue_id was not rejected");
 }
 
 function main() {
