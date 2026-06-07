@@ -136,15 +136,18 @@ private fun exhaustedAttemptsLockSession() {
 }
 
 private fun redactorHidesProofMaterialAndPrivateKeyMarkers() {
+    val fingerprintSuffix = "99aabbcc"
     val redacted = SecretRedactor.redact(
         "qr_secret=abcdefghijklmnopqrstuvwxyzABCDEF code=123456 proof=abcdef0123456789 " +
-            "pairing_proof=nonce-abcdef0123456789 private_key=-----BEGIN PRIVATE KEY-----abc",
+            "pairing_proof=nonce-abcdef0123456789 private_key=-----BEGIN PRIVATE KEY-----abc " +
+            "fingerprint_suffix=$fingerprintSuffix",
     )
 
     expectFalse("no qr secret", redacted.contains("abcdefghijklmnopqrstuvwxyzABCDEF"))
     expectFalse("no manual code", redacted.contains("123456"))
     expectFalse("no proof", redacted.contains("abcdef0123456789"))
     expectFalse("no private key marker", redacted.contains("BEGIN PRIVATE KEY"))
+    expectTrue("fingerprint suffix remains", redacted.contains("fingerprint_suffix=$fingerprintSuffix"))
 }
 
 private fun proofFor(session: PairingSession, androidNonce: String, material: String): String =

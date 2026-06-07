@@ -41,6 +41,65 @@ Fields shown:
 
 The manual code has the same expiry as the QR material. Starting a new desktop pairing window replaces previous one-time QR and manual material.
 
+## Proof Transcript
+
+Before any trusted control state is accepted, Android proves possession of the one-time QR secret or manual code. The proof is an HMAC-SHA256 hex string using the one-time material as the HMAC key.
+This proof transcript defines replay, rate limit, and fingerprint mismatch handling for pairing.
+
+Transcript string:
+
+```text
+btgun-pair-v1
+sid={sid}
+desktop_nonce={desktop_nonce}
+android_nonce={android_nonce}
+desktop_spki_sha256={desktop_spki_sha256}
+one_time_material={qr_secret-or-manual-code}
+```
+
+Field order is fixed. Implementations must reject proofs built with any different order, label, nonce, session id, fingerprint, or one-time material.
+
+Rules:
+
+- Pairing material expires with the desktop session TTL. v1 desktop sessions use a short 2-5 minute window.
+- A session is single-use. After one accepted proof, the same `sid`, QR secret, or manual code cannot establish another trusted state.
+- Android sends a fresh `android_nonce` per attempt. Desktop tracks nonces per active `sid` and rejects replay.
+- Wrong QR secret, wrong manual code, malformed proof, and reused nonce fail closed without returning trusted control state.
+- Desktop locks the active session after its configured failed-attempt limit and reports `rate_limited` pairing state.
+- `desktop_spki_sha256` in the proof request must match the active desktop identity fingerprint. Fingerprint mismatch fails before trusted state exists.
+
+## Trust Anchor Behavior
+
+Android durable trust is the desktop SPKI SHA-256 fingerprint. Desktop display name, host, and port are metadata only.
+
+Trust validation states:
+
+| State | Meaning |
+|-------|---------|
+| `first_trust` | No trusted row conflicts with the presented fingerprint, name, or endpoint. UI may ask the user to trust and then save. |
+| `trusted` | Presented fingerprint matches a stored trusted desktop. |
+| `missing` | Presented fingerprint is absent or malformed. |
+| `fingerprint_mismatch` | Name or endpoint matches a stored desktop but the presented fingerprint differs. Do not overwrite the stored fingerprint silently. |
+
+Mismatch handling must preserve the old stored fingerprint until an explicit re-pair/trust confirmation path saves new metadata.
+
+## Redaction Gates
+
+Diagnostics and logs must run through secret redaction before display or persistence.
+
+Redact:
+
+- `qr_secret`
+- six-digit manual `code`
+- `proof` and `pairing_proof` values
+- private key markers or local key material
+
+Allowed:
+
+- session state names such as `pending`, `rate_limited`, and `trusted`
+- endpoint metadata
+- short fingerprint suffix for user confirmation
+
 ## Security Notes
 
 - Desktop private key material stays local to the desktop identity store.
@@ -50,4 +109,4 @@ The manual code has the same expiry as the QR material. Starting a new desktop p
 
 ## Phase Boundary
 
-This document covers only pairing payload fields and desktop manual fallback fields for Phase 3 Plan 01. High-rate input transport, visualizer timing metrics, and phone feedback command bodies are later-phase contracts.
+This document covers only pairing payload fields, proof verification, trust-anchor behavior, and control-foundation security for Phase 3. High-rate transport and phone feedback command bodies are later-phase contracts.
