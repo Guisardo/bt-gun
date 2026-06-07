@@ -38,13 +38,19 @@ tasks.withType<Test>().configureEach {
     }
 
     doLast {
-        providers.exec {
-            commandLine(
-                "java",
-                "-cp",
-                project.files(unitTestTask.testClassesDirs, unitTestTask.classpath).asPath,
-                "com.btgun.host.permissions.PermissionGateTest",
-            )
-        }.result.get().assertNormalExitValue()
+        listOf(
+            "com.btgun.host.permissions.PermissionGateTest",
+            "com.btgun.host.ble.IpegaPacketParserTestKt",
+            "com.btgun.host.model.NormalizedEventEnvelopeTestKt",
+        ).forEach { testClass ->
+            providers.exec {
+                commandLine(
+                    "java",
+                    "-cp",
+                    project.files(unitTestTask.testClassesDirs, unitTestTask.classpath).asPath,
+                    testClass,
+                )
+            }.result.get().assertNormalExitValue()
+        }
     }
 }
