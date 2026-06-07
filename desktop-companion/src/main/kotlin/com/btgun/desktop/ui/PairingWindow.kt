@@ -1,5 +1,6 @@
 package com.btgun.desktop.ui
 
+import com.btgun.desktop.control.ControlServer
 import com.btgun.desktop.pairing.PairingSession
 import com.btgun.desktop.pairing.PairingSessionRegistry
 import com.btgun.desktop.pairing.QrCodeRenderer
@@ -20,6 +21,7 @@ import javax.swing.Timer
 
 class PairingWindow(
     private val registry: PairingSessionRegistry = PairingSessionRegistry(),
+    private val controlServer: ControlServer = ControlServer(registry),
 ) {
     private val frame = JFrame("BT Gun Desktop")
     private val title = JLabel("BT Gun Desktop")
