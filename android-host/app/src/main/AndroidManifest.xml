@@ -23,5 +23,10 @@
         android:allowBackup="false"
         android:label="BT Gun Host"
         android:supportsRtl="true"
-        android:theme="@style/AppTheme" />
+        android:theme="@style/AppTheme">
+        <service
+            android:name=".HostSessionService"
+            android:exported="false"
+            android:foregroundServiceType="connectedDevice" />
+    </application>
 </manifest>
