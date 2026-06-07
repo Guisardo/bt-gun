@@ -37,6 +37,7 @@ tasks.withType<Test>().configureEach {
     doLast {
         listOf(
             "com.btgun.desktop.pairing.PairingSessionRegistryTestKt",
+            "com.btgun.desktop.security.PairingSecurityTestKt",
         ).forEach { testClass ->
             providers.exec {
                 commandLine(
