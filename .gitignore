@@ -11,5 +11,10 @@ android-diagnostic/.kotlin/
 android-diagnostic/build/
 android-diagnostic/app/build/
 
+# Desktop companion build output
+desktop-companion/.gradle/
+desktop-companion/.kotlin/
+desktop-companion/build/
+
 # Local macOS metadata
 .DS_Store
