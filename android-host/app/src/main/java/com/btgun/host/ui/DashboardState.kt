@@ -167,7 +167,7 @@ data class DashboardState(
                 appTitle = "BT Gun Host",
                 permission = permissionState(permissionGateState),
                 primaryActionLabel = if (hostSessionState.isActive) "Stop session" else "Start live session",
-                hapticActionLabel = "Test phone vibration",
+                hapticActionLabel = "Test local haptic",
                 emptyStateHeading = "No live gun input yet",
                 emptyStateBody = "Start a live session, then press a gun control or move the phone to see product events here.",
                 eventMode = eventMode,

@@ -399,8 +399,8 @@ private fun phoneHapticsStayLocalOnly() {
     )
 
     expectEquals("haptic label", "Phone haptic", state.phoneHaptic.label)
-    expectEquals("haptic capability", "Phone vibration available", state.phoneHaptic.capability)
-    expectEquals("haptic status", "started | local phone vibration 1000ms", state.phoneHaptic.lastLocalTest)
+    expectEquals("haptic capability", "Phone haptic available", state.phoneHaptic.capability)
+    expectEquals("haptic status", "started | local haptic 1000ms", state.phoneHaptic.lastLocalTest)
     val text = state.toString().lowercase()
     listOf("ack", "ttl", "transport", "desktop command", "command_id").forEach { forbidden ->
         expectFalse("no desktop haptic token $forbidden", text.contains(forbidden))
