@@ -20,10 +20,24 @@ data class TrustedDesktopMetadata(
     }
 }
 
-enum class TrustedDesktopIdentityResult {
-    TRUSTED,
-    UNKNOWN,
-    FINGERPRINT_MISMATCH,
+sealed interface TrustValidationResult {
+    data class Trusted(val metadata: TrustedDesktopMetadata) : TrustValidationResult
+    data class FirstTrust(
+        val fingerprintSha256: String,
+        val displayName: String,
+        val host: String,
+        val port: Int,
+    ) : TrustValidationResult
+
+    data class Mismatch(
+        val stored: TrustedDesktopMetadata,
+        val presentedFingerprintSha256: String,
+        val displayName: String,
+        val host: String,
+        val port: Int,
+    ) : TrustValidationResult
+
+    data object Missing : TrustValidationResult
 }
 
 interface TrustedDesktopPreferences {
@@ -60,22 +74,33 @@ class TrustedDesktopStore {
         displayName: String,
         host: String,
         port: Int,
-    ): TrustedDesktopIdentityResult {
+    ): TrustValidationResult {
         val normalized = fingerprintSha256.lowercase(Locale.US)
         if (!normalized.matches(FINGERPRINT_REGEX)) {
-            return TrustedDesktopIdentityResult.UNKNOWN
+            return TrustValidationResult.Missing
         }
         val trusted = loadTrustedDesktops()
-        if (trusted.any { it.fingerprintSha256 == normalized }) {
-            return TrustedDesktopIdentityResult.TRUSTED
+        trusted.firstOrNull { it.fingerprintSha256 == normalized }?.let { metadata ->
+            return TrustValidationResult.Trusted(metadata)
         }
-        val sameDisplayOrEndpoint = trusted.any { desktop ->
+        val conflicting = trusted.firstOrNull { desktop ->
             desktop.displayName == displayName || (desktop.lastHost == host && desktop.lastPort == port)
         }
-        return if (sameDisplayOrEndpoint) {
-            TrustedDesktopIdentityResult.FINGERPRINT_MISMATCH
+        return if (conflicting != null) {
+            TrustValidationResult.Mismatch(
+                stored = conflicting,
+                presentedFingerprintSha256 = normalized,
+                displayName = displayName,
+                host = host,
+                port = port,
+            )
         } else {
-            TrustedDesktopIdentityResult.UNKNOWN
+            TrustValidationResult.FirstTrust(
+                fingerprintSha256 = normalized,
+                displayName = displayName,
+                host = host,
+                port = port,
+            )
         }
     }
 
