@@ -3,6 +3,8 @@ package com.btgun.host.session
 fun main() {
     trustedStoreSavesNonSecretDesktopMetadataByFingerprint()
     trustedStoreValidatesIdentityByFingerprintNotNameOrHost()
+    trustedStoreReturnsFirstTrustMissingAndMismatchWithoutOverwrite()
+    pairingProofUsesStableTranscriptAndConstantVerification()
     trustedStoreIgnoresCorruptRows()
 }
 
@@ -43,18 +45,111 @@ private fun trustedStoreValidatesIdentityByFingerprintNotNameOrHost() {
 
     expectEquals(
         "matching fingerprint",
-        TrustedDesktopIdentityResult.TRUSTED,
+        TrustValidationResult.Trusted(
+            TrustedDesktopMetadata(
+                fingerprintSha256 = FINGERPRINT,
+                displayName = "Desk A",
+                lastHost = "192.168.1.44",
+                lastPort = 44383,
+                lastSeenEpochMillis = 1L,
+            ),
+        ),
         store.validateIdentity(fingerprintSha256 = FINGERPRINT, displayName = "Renamed", host = "10.0.0.9", port = 44444),
     )
+
+    val changed = store.validateIdentity(fingerprintSha256 = OTHER_FINGERPRINT, displayName = "Desk A", host = "192.168.1.44", port = 44383)
+    expectTrue("changed fingerprint mismatch", changed is TrustValidationResult.Mismatch)
+    expectEquals("stored fingerprint preserved", FINGERPRINT, (changed as TrustValidationResult.Mismatch).stored.fingerprintSha256)
+
+    expectTrue(
+        "unknown fingerprint first trust",
+        store.validateIdentity(fingerprintSha256 = OTHER_FINGERPRINT, displayName = "Desk B", host = "10.0.0.9", port = 44383)
+            is TrustValidationResult.FirstTrust,
+    )
+}
+
+private fun trustedStoreReturnsFirstTrustMissingAndMismatchWithoutOverwrite() {
+    val store = TrustedDesktopStore(InMemoryTrustedDesktopPreferences())
+
     expectEquals(
-        "changed fingerprint",
-        TrustedDesktopIdentityResult.FINGERPRINT_MISMATCH,
-        store.validateIdentity(fingerprintSha256 = OTHER_FINGERPRINT, displayName = "Desk A", host = "192.168.1.44", port = 44383),
+        "missing fingerprint",
+        TrustValidationResult.Missing,
+        store.validateIdentity(fingerprintSha256 = "not-a-fingerprint", displayName = "Desk A", host = "192.168.1.44", port = 44383),
+    )
+
+    val firstTrust = store.validateIdentity(
+        fingerprintSha256 = FINGERPRINT,
+        displayName = "Desk A",
+        host = "192.168.1.44",
+        port = 44383,
+    )
+    expectTrue("first trust", firstTrust is TrustValidationResult.FirstTrust)
+    expectEquals("first trust does not save", emptyList<TrustedDesktopMetadata>(), store.loadTrustedDesktops())
+
+    store.saveTrustedDesktop(
+        TrustedDesktopMetadata(
+            fingerprintSha256 = FINGERPRINT,
+            displayName = "Desk A",
+            lastHost = "192.168.1.44",
+            lastPort = 44383,
+            lastSeenEpochMillis = 1L,
+        ),
+    )
+    val mismatch = store.validateIdentity(
+        fingerprintSha256 = OTHER_FINGERPRINT,
+        displayName = "Desk A",
+        host = "192.168.1.44",
+        port = 44383,
+    )
+
+    expectTrue("mismatch", mismatch is TrustValidationResult.Mismatch)
+    expectEquals("mismatch presented", OTHER_FINGERPRINT, (mismatch as TrustValidationResult.Mismatch).presentedFingerprintSha256)
+    expectEquals("mismatch does not overwrite", listOf(FINGERPRINT), store.loadTrustedDesktops().map { it.fingerprintSha256 })
+}
+
+private fun pairingProofUsesStableTranscriptAndConstantVerification() {
+    val transcript = PairingProof.transcript(
+        sid = "sid-1",
+        desktopNonce = "00".repeat(16),
+        androidNonce = "11".repeat(16),
+        desktopSpkiSha256 = FINGERPRINT,
+        oneTimeMaterial = "123456",
     )
     expectEquals(
-        "unknown fingerprint",
-        TrustedDesktopIdentityResult.UNKNOWN,
-        store.validateIdentity(fingerprintSha256 = OTHER_FINGERPRINT, displayName = "Desk B", host = "10.0.0.9", port = 44383),
+        "transcript fields",
+        "btgun-pair-v1\nsid=sid-1\ndesktop_nonce=${"00".repeat(16)}\nandroid_nonce=${"11".repeat(16)}\n" +
+            "desktop_spki_sha256=$FINGERPRINT\none_time_material=123456",
+        transcript,
+    )
+    val proof = PairingProof.create(
+        sid = "sid-1",
+        desktopNonce = "00".repeat(16),
+        androidNonce = "11".repeat(16),
+        desktopSpkiSha256 = FINGERPRINT,
+        oneTimeMaterial = "123456",
+    )
+
+    expectTrue(
+        "proof verifies",
+        PairingProof.verify(
+            proofHex = proof,
+            sid = "sid-1",
+            desktopNonce = "00".repeat(16),
+            androidNonce = "11".repeat(16),
+            desktopSpkiSha256 = FINGERPRINT,
+            oneTimeMaterial = "123456",
+        ),
+    )
+    expectFalse(
+        "wrong material fails",
+        PairingProof.verify(
+            proofHex = proof,
+            sid = "sid-1",
+            desktopNonce = "00".repeat(16),
+            androidNonce = "11".repeat(16),
+            desktopSpkiSha256 = FINGERPRINT,
+            oneTimeMaterial = "000000",
+        ),
     )
 }
 
@@ -86,6 +181,12 @@ private fun expectEquals(label: String, expected: Any?, actual: Any?) {
 
 private fun expectFalse(label: String, condition: Boolean) {
     if (condition) {
+        throw AssertionError(label)
+    }
+}
+
+private fun expectTrue(label: String, condition: Boolean) {
+    if (!condition) {
         throw AssertionError(label)
     }
 }
