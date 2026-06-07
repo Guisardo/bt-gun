@@ -9,6 +9,8 @@ fun main() {
     envelopeCodecMirrorsDesktopAllowlist()
     envelopeCodecRejectsVersionUnknownTypeOversizedAndReservedHapticBody()
     clientBuildsPinnedWssRequestAndTrustMismatchResult()
+    qrPayloadBuildsControlRequestAndProofHeaders()
+    trustMismatchMovesToTrustProblemWithoutOpeningSocket()
     clientSendRejectsInvalidEnvelopeBeforeSocketWrite()
     desktopLinkHeartbeatMapsLivenessStates()
     clientUpdatesLinkStateFromHeartbeatDiagnosticsAndErrors()
@@ -69,6 +71,61 @@ private fun clientBuildsPinnedWssRequestAndTrustMismatchResult() {
         DesktopControlConnectResult.TrustMismatch(expected = FINGERPRINT, presented = OTHER_FINGERPRINT),
         client.verifyPresentedFingerprint(OTHER_FINGERPRINT),
     )
+}
+
+private fun qrPayloadBuildsControlRequestAndProofHeaders() {
+    val request = DesktopControlConnectionRequest.fromQrPayload(
+        payload = PairingPayloadV1(
+            sid = "session-001",
+            host = "192.168.1.44",
+            port = 44383,
+            expiresAtEpochMillis = 1_700_000_120_000L,
+            desktopSpkiSha256 = FINGERPRINT,
+            desktopNonce = "00".repeat(16),
+            qrSecret = "abcdefghijklmnopqrstuvwxyzABCDEF",
+        ),
+        androidNonce = "11".repeat(16),
+    )
+    val openedRequests = mutableListOf<Request>()
+    val client = DesktopControlClient(
+        config = request.config,
+        socketFactory = { openedRequest, _: WebSocketListener ->
+            openedRequests += openedRequest
+            FakeSocket()
+        },
+    )
+
+    val result = client.connect(request.proofRequest)
+
+    expectTrue("qr connect", result is DesktopControlConnectResult.Connected)
+    expectEquals("qr url", "https://192.168.1.44:44383/control", openedRequests.single().url.toString())
+    expectEquals("qr session header", "session-001", openedRequests.single().header("X-BT-Gun-Session"))
+    expectEquals("qr nonce header", "11".repeat(16), openedRequests.single().header("X-BT-Gun-Android-Nonce"))
+    expectEquals("qr proof header", request.proofRequest.proofHex, openedRequests.single().header("X-BT-Gun-Pairing-Proof"))
+    expectEquals("trusted host", "192.168.1.44", request.trustedMetadata(1L).lastHost)
+    expectEquals("trusted fingerprint", FINGERPRINT, request.trustedMetadata(1L).fingerprintSha256)
+}
+
+private fun trustMismatchMovesToTrustProblemWithoutOpeningSocket() {
+    var opened = false
+    val client = DesktopControlClient(
+        config = DesktopControlClientConfig(
+            url = "wss://192.168.50.25:41731/control",
+            expectedDesktopSpkiSha256 = FINGERPRINT,
+            maxMessageBytes = 512,
+        ),
+        socketFactory = { _, _ ->
+            opened = true
+            FakeSocket()
+        },
+    )
+
+    val result = client.connect(proofRequest(desktopSpkiSha256 = OTHER_FINGERPRINT))
+
+    expectEquals("mismatch result", DesktopControlConnectResult.TrustMismatch(FINGERPRINT, OTHER_FINGERPRINT), result)
+    expectFalse("no socket opened", opened)
+    expectEquals("trust problem phase", DesktopLinkPhase.TRUST_PROBLEM, client.currentLinkState().phase)
+    expectEquals("trust error", "desktop fingerprint mismatch", client.currentLinkState().lastControlError)
 }
 
 private fun clientSendRejectsInvalidEnvelopeBeforeSocketWrite() {
@@ -185,11 +242,11 @@ private fun envelope(
         body = body,
     )
 
-private fun proofRequest(): ControlProofRequest =
+private fun proofRequest(desktopSpkiSha256: String = FINGERPRINT): ControlProofRequest =
     ControlProofRequest(
         sid = "sid-1",
         androidNonce = "aa".repeat(16),
-        desktopSpkiSha256 = FINGERPRINT,
+        desktopSpkiSha256 = desktopSpkiSha256,
         proofHex = "bb".repeat(32),
     )
 
@@ -232,6 +289,10 @@ private fun expectTrue(label: String, condition: Boolean) {
     if (!condition) {
         throw AssertionError(label)
     }
+}
+
+private fun expectFalse(label: String, condition: Boolean) {
+    expectTrue(label, !condition)
 }
 
 private fun dataFieldNames(type: Class<*>): List<String> =

@@ -11,6 +11,7 @@ import android.os.SystemClock
 import android.view.Gravity
 import android.view.View
 import android.widget.Button
+import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
@@ -22,20 +23,32 @@ import com.btgun.host.permissions.HostCapabilityProbe
 import com.btgun.host.permissions.PermissionGateState
 import com.btgun.host.session.DesktopLinkPhase
 import com.btgun.host.session.DesktopLinkState
+import com.btgun.host.session.TrustedDesktopMetadata
+import com.btgun.host.session.TrustedDesktopStore
 import com.btgun.host.ui.AimGraphView
 import com.btgun.host.ui.DashboardEventMode
 import com.btgun.host.ui.DashboardState
 import com.btgun.host.ui.DebugExpansion
+import java.lang.reflect.Proxy
 
 class MainActivity : Activity() {
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var phoneHaptics: PhoneHaptics
+    private lateinit var trustedDesktopStore: TrustedDesktopStore
     private lateinit var root: LinearLayout
     private lateinit var primaryAction: Button
     private lateinit var hapticAction: Button
     private lateinit var permissionAction: Button
     private lateinit var scanDesktopQrAction: Button
     private lateinit var manualDesktopEntryAction: Button
+    private lateinit var trustedDesktopAction: Button
+    private lateinit var manualPairAction: Button
+    private lateinit var manualHostInput: EditText
+    private lateinit var manualPortInput: EditText
+    private lateinit var manualCodeInput: EditText
+    private lateinit var manualFingerprintSuffixInput: EditText
+    private lateinit var manualSessionIdInput: EditText
+    private lateinit var manualEntryGroup: LinearLayout
     private lateinit var debugModeAction: Button
     private lateinit var bleDebugAction: Button
     private lateinit var permissionDebugAction: Button
@@ -58,6 +71,7 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         phoneHaptics = PhoneHaptics(this)
+        trustedDesktopStore = TrustedDesktopStore(this)
         lastPhoneHapticStatus = phoneHaptics.currentStatus()
         buildLayout()
         renderDashboard()
@@ -126,12 +140,14 @@ class MainActivity : Activity() {
         ).forEach(::addField)
 
         root.addView(row().apply {
-            scanDesktopQrAction = button("Scan desktop QR") { showQrScanState() }
+            scanDesktopQrAction = button("Scan desktop QR") { scanDesktopQr() }
             manualDesktopEntryAction = button("Enter manually") { showManualEntryState() }
+            trustedDesktopAction = button("Use trusted desktop") { useTrustedDesktop() }
             addView(scanDesktopQrAction)
             addView(manualDesktopEntryAction)
+            addView(trustedDesktopAction)
         })
-        addField("manual_pairing_entry")
+        buildManualEntryGroup()
 
         listOf(
             "packet_stream",
@@ -183,7 +199,7 @@ class MainActivity : Activity() {
             hostSessionState = serviceState,
             bleConnectionState = serviceState.lastBleConnectionState,
             phoneHapticStatus = lastPhoneHapticStatus,
-            desktopLinkState = desktopLinkState,
+            desktopLinkState = serviceState.desktopLinkState.takeIf { it.phase != DesktopLinkPhase.IDLE } ?: desktopLinkState,
             eventMode = eventMode,
             debugExpanded = debugExpansion,
             previewAim = serviceState.lastPreviewAim,
@@ -218,6 +234,7 @@ class MainActivity : Activity() {
         setField("recenter_state", "${dashboard.recenterState.label}: ${dashboard.recenterState.value}")
         setField("desktop_link", "${dashboard.placeholders.desktopLink.title}: ${dashboard.placeholders.desktopLink.body}")
         scanDesktopQrAction.text = "Scan desktop QR"
+        trustedDesktopAction.visibility = if (firstTrustedDesktop() != null) View.VISIBLE else View.GONE
         manualDesktopEntryAction.text = dashboard.placeholders.desktopLink.body
             .substringAfter("manual_action=", "Enter manually")
             .substringBefore(" | ")
@@ -265,13 +282,14 @@ class MainActivity : Activity() {
         requestPermissions(HostCapabilityProbe.runtimePermissionsForHost(), REQUEST_PERMISSIONS)
     }
 
-    private fun showQrScanState() {
+    private fun scanDesktopQr() {
         manualEntryVisible = false
         desktopLinkState = DesktopLinkState(
             phase = DesktopLinkPhase.SCANNING_QR,
             diagnosticText = "Scanning desktop QR. Keep the desktop pairing QR visible.",
         )
         renderDashboard()
+        startOptionalCodeScanner()
     }
 
     private fun showManualEntryState() {
@@ -282,6 +300,132 @@ class MainActivity : Activity() {
         )
         renderDashboard()
     }
+
+    private fun connectManualEntry() {
+        manualEntryVisible = true
+        desktopLinkState = DesktopLinkState(
+            phase = DesktopLinkPhase.CONNECTING,
+            diagnosticText = "Connecting with manual host/IP, port, and 6-digit code.",
+        )
+        startServiceAction(
+            Intent(this, HostSessionService::class.java)
+                .setAction(HostSessionService.ACTION_CONNECT_MANUAL_DESKTOP)
+                .putExtra(HostSessionService.EXTRA_MANUAL_HOST, manualHostInput.text.toString())
+                .putExtra(HostSessionService.EXTRA_MANUAL_PORT, manualPortInput.text.toString())
+                .putExtra(HostSessionService.EXTRA_MANUAL_CODE, manualCodeInput.text.toString())
+                .putExtra(
+                    HostSessionService.EXTRA_MANUAL_FINGERPRINT_SUFFIX,
+                    manualFingerprintSuffixInput.text.toString(),
+                )
+                .putExtra(HostSessionService.EXTRA_MANUAL_SESSION_ID, manualSessionIdInput.text.toString()),
+        )
+    }
+
+    private fun useTrustedDesktop() {
+        val trusted = firstTrustedDesktop()
+        if (trusted == null) {
+            desktopLinkState = DesktopLinkState(
+                phase = DesktopLinkPhase.DISCONNECTED,
+                lastControlError = "No trusted desktop stored. Scan desktop QR first.",
+            )
+            renderDashboard()
+            return
+        }
+        manualEntryVisible = false
+        desktopLinkState = DesktopLinkState(
+            phase = DesktopLinkPhase.CONNECTING,
+            desktopDisplayName = trusted.displayName,
+            fingerprintSuffix = trusted.fingerprintSha256.takeLast(8),
+            diagnosticText = "Connecting to trusted desktop from stored fingerprint metadata.",
+        )
+        startServiceAction(
+            Intent(this, HostSessionService::class.java)
+                .setAction(HostSessionService.ACTION_CONNECT_TRUSTED_DESKTOP)
+                .putExtra(HostSessionService.EXTRA_DESKTOP_FINGERPRINT, trusted.fingerprintSha256),
+        )
+    }
+
+    private fun scannerFailed(message: String) {
+        manualEntryVisible = true
+        desktopLinkState = DesktopLinkState(
+            phase = DesktopLinkPhase.DISCONNECTED,
+            lastControlError = message,
+        )
+        renderDashboard()
+    }
+
+    private fun startOptionalCodeScanner() {
+        runCatching {
+            val scannerClass = Class.forName("com.google.mlkit.vision.codescanner.GmsBarcodeScanning")
+            val successClass = Class.forName("com.google.android.gms.tasks.OnSuccessListener")
+            val failureClass = Class.forName("com.google.android.gms.tasks.OnFailureListener")
+            val client = scannerClass.getMethod("getClient", android.content.Context::class.java).invoke(null, this)
+            val task = client.javaClass.getMethod("startScan").invoke(client)
+            val successListener = Proxy.newProxyInstance(
+                successClass.classLoader,
+                arrayOf(successClass),
+            ) { _, _, args ->
+                val barcode = args?.firstOrNull()
+                val rawPayload = barcode?.javaClass?.methods
+                    ?.firstOrNull { method -> method.name == "getRawValue" }
+                    ?.invoke(barcode) as? String
+                handleScannedPayload(rawPayload)
+                null
+            }
+            val failureListener = Proxy.newProxyInstance(
+                failureClass.classLoader,
+                arrayOf(failureClass),
+            ) { _, _, args ->
+                val error = args?.firstOrNull() as? Throwable
+                scannerFailed("Scanner unavailable: ${error?.javaClass?.simpleName ?: "CodeScanner"}. Enter manually.")
+                null
+            }
+            task.javaClass.getMethod("addOnSuccessListener", successClass).invoke(task, successListener)
+            task.javaClass.getMethod("addOnFailureListener", failureClass).invoke(task, failureListener)
+        }.onFailure { error ->
+            scannerFailed("Scanner unavailable: ${error.javaClass.simpleName}. Enter manually.")
+        }
+    }
+
+    private fun handleScannedPayload(rawPayload: String?) {
+        if (rawPayload.isNullOrBlank()) {
+            scannerFailed("Scanner returned an empty QR payload.")
+            return
+        }
+        desktopLinkState = DesktopLinkState(
+            phase = DesktopLinkPhase.CONNECTING,
+            diagnosticText = "Connecting to desktop endpoint from QR payload.",
+        )
+        startServiceAction(
+            Intent(this, HostSessionService::class.java)
+                .setAction(HostSessionService.ACTION_CONNECT_DESKTOP_QR)
+                .putExtra(HostSessionService.EXTRA_QR_PAYLOAD, rawPayload),
+        )
+    }
+
+    private fun startServiceAction(intent: Intent) {
+        try {
+            if (Build.VERSION.SDK_INT >= 26) {
+                startForegroundService(intent)
+            } else {
+                startService(intent)
+            }
+        } catch (error: SecurityException) {
+            desktopLinkState = DesktopLinkState(
+                phase = DesktopLinkPhase.DISCONNECTED,
+                lastControlError = "Desktop session blocked: ${error.javaClass.simpleName}",
+            )
+        } catch (error: IllegalStateException) {
+            desktopLinkState = DesktopLinkState(
+                phase = DesktopLinkPhase.DISCONNECTED,
+                lastControlError = "Desktop session blocked: ${error.javaClass.simpleName}",
+            )
+        }
+        renderDashboard()
+    }
+
+    private fun firstTrustedDesktop(): TrustedDesktopMetadata? =
+        trustedDesktopStore.loadTrustedDesktops().firstOrNull()
 
     override fun onRequestPermissionsResult(
         requestCode: Int,
@@ -317,15 +461,40 @@ class MainActivity : Activity() {
         fields.getValue(key).text = value
     }
 
+    private fun buildManualEntryGroup() {
+        manualEntryGroup = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+        manualEntryGroup.addView(TextView(this).apply {
+            text = "Manual pairing"
+            textSize = 14f
+            setTextColor(Color.rgb(31, 41, 51))
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+        })
+        manualHostInput = editText("Host/IP")
+        manualPortInput = editText("Port")
+        manualCodeInput = editText("6-digit code")
+        manualFingerprintSuffixInput = editText("Fingerprint suffix")
+        manualSessionIdInput = editText("Session id")
+        manualPairAction = button("Connect manually") { connectManualEntry() }
+        listOf(
+            manualHostInput,
+            manualPortInput,
+            manualCodeInput,
+            manualFingerprintSuffixInput,
+            manualSessionIdInput,
+            manualPairAction,
+        ).forEach(manualEntryGroup::addView)
+        root.addView(manualEntryGroup)
+    }
+
     private fun setManualEntryField() {
-        fields.getValue("manual_pairing_entry").visibility = if (manualEntryVisible) View.VISIBLE else View.GONE
-        fields.getValue("manual_pairing_entry").text = listOf(
-            "Manual pairing",
-            "Host/IP:",
-            "Port:",
-            "6-digit code:",
-            "No network connection is started in this phase.",
-        ).joinToString("\n")
+        manualEntryGroup.visibility = if (manualEntryVisible) View.VISIBLE else View.GONE
+        val trusted = firstTrustedDesktop()
+        if (trusted != null && manualFingerprintSuffixInput.text.isBlank()) {
+            manualFingerprintSuffixInput.setText(trusted.fingerprintSha256.takeLast(8))
+        }
+        manualPairAction.text = "Connect manually"
     }
 
     private fun setDebugField(key: String, expanded: Boolean, value: String) {
@@ -338,6 +507,15 @@ class MainActivity : Activity() {
             text = label
             minHeight = dp(48)
             setOnClickListener { action() }
+        }
+
+    private fun editText(hintText: String): EditText =
+        EditText(this).apply {
+            hint = hintText
+            textSize = 14f
+            setSingleLine(true)
+            minHeight = dp(48)
+            setTextColor(Color.rgb(31, 41, 51))
         }
 
     private fun row(): LinearLayout =

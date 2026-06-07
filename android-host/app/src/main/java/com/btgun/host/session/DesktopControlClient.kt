@@ -6,6 +6,7 @@ import okhttp3.Request
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import okio.ByteString.Companion.toByteString
+import java.util.Locale
 
 data class DesktopControlClientConfig(
     val url: String,
@@ -35,6 +36,76 @@ data class ProfileMetadata(
     val revision: Long,
 )
 
+data class DesktopControlConnectionRequest(
+    val config: DesktopControlClientConfig,
+    val proofRequest: ControlProofRequest,
+    val displayName: String,
+    val host: String,
+    val port: Int,
+) {
+    fun trustedMetadata(nowEpochMillis: Long): TrustedDesktopMetadata =
+        TrustedDesktopMetadata(
+            fingerprintSha256 = config.expectedDesktopSpkiSha256.lowercase(Locale.US),
+            displayName = displayName,
+            lastHost = host,
+            lastPort = port,
+            lastSeenEpochMillis = nowEpochMillis,
+        )
+
+    companion object {
+        fun fromQrPayload(
+            payload: PairingPayloadV1,
+            androidNonce: String,
+            displayName: String = DEFAULT_DESKTOP_DISPLAY_NAME,
+        ): DesktopControlConnectionRequest {
+            val fingerprint = payload.desktopSpkiSha256.lowercase(Locale.US)
+            return DesktopControlConnectionRequest(
+                config = DesktopControlClientConfig(
+                    url = "wss://${payload.host}:${payload.port}/control",
+                    expectedDesktopSpkiSha256 = fingerprint,
+                ),
+                proofRequest = ControlProofRequest(
+                    sid = payload.sid,
+                    androidNonce = androidNonce,
+                    desktopSpkiSha256 = fingerprint,
+                    proofHex = PairingProof.create(
+                        sid = payload.sid,
+                        desktopNonce = payload.desktopNonce,
+                        androidNonce = androidNonce,
+                        desktopSpkiSha256 = fingerprint,
+                        oneTimeMaterial = payload.qrSecret,
+                    ),
+                ),
+                displayName = displayName,
+                host = payload.host,
+                port = payload.port,
+            )
+        }
+
+        fun fromTrustedDesktop(
+            metadata: TrustedDesktopMetadata,
+            androidNonce: String,
+        ): DesktopControlConnectionRequest =
+            DesktopControlConnectionRequest(
+                config = DesktopControlClientConfig(
+                    url = "wss://${metadata.lastHost}:${metadata.lastPort}/control",
+                    expectedDesktopSpkiSha256 = metadata.fingerprintSha256.lowercase(Locale.US),
+                ),
+                proofRequest = ControlProofRequest(
+                    sid = "trusted-${metadata.fingerprintSha256.takeLast(8)}",
+                    androidNonce = androidNonce,
+                    desktopSpkiSha256 = metadata.fingerprintSha256.lowercase(Locale.US),
+                    proofHex = "",
+                ),
+                displayName = metadata.displayName,
+                host = metadata.lastHost,
+                port = metadata.lastPort,
+            )
+
+        const val DEFAULT_DESKTOP_DISPLAY_NAME: String = "BT Gun Desktop"
+    }
+}
+
 interface DesktopControlSocket {
     fun send(text: String): Boolean
     fun close()
@@ -61,6 +132,8 @@ class DesktopControlClient(
             .url(config.url)
             .header("X-BT-Gun-Desktop-Fingerprint", config.expectedDesktopSpkiSha256)
             .header("X-BT-Gun-Session", proofRequest.sid)
+            .header("X-BT-Gun-Android-Nonce", proofRequest.androidNonce)
+            .header("X-BT-Gun-Pairing-Proof", proofRequest.proofHex)
             .build()
 
         socket = socketFactory(request, object : WebSocketListener() {})
