@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 2 planned
-last_updated: "2026-06-07T00:07:06Z"
-last_activity: 2026-06-07 -- Plan 02-01 complete
+stopped_at: Completed 02-02-PLAN.md
+last_updated: "2026-06-07T00:23:35Z"
+last_activity: 2026-06-07 -- Plan 02-02 complete
 progress:
   total_phases: 10
   completed_phases: 1
   total_plans: 11
-  completed_plans: 6
-  percent: 12
+  completed_plans: 7
+  percent: 64
 ---
 
 # Project State
@@ -26,17 +26,17 @@ See: .planning/PROJECT.md (updated 2026-06-06)
 ## Current Position
 
 Phase: 02 (android-host-live-input) — EXECUTING
-Plan: 2 of 6
-Status: Executing Phase 02
-Last activity: 2026-06-07 -- Plan 02-01 complete
+Plan: 3 of 6
+Status: Ready to execute
+Last activity: 2026-06-07 -- Plan 02-02 complete
 
-Progress: [█---------] 12% overall; Phase 01 is 100% complete; Phase 02 is 1/6 complete.
+Progress: [██████░░░░] 64% overall; Phase 01 is 100% complete; Phase 02 is 2/6 complete.
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 5
+- Total plans completed: 7
 - Average duration: not tracked for hardware-interactive plans
 - Total execution time: not tracked after Plan 02
 
@@ -45,11 +45,12 @@ Progress: [█---------] 12% overall; Phase 01 is 100% complete; Phase 02 is 1/6
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01 | 5 | not tracked | not tracked |
+| 02 | 2 | 19 min | 9.5 min |
 
 **Recent Trend:**
 
-- Last 5 plans: P01, P02, P03, P04, P05 complete
-- Trend: Phase 01 complete
+- Last 5 plans: P03, P04, P05, P01, P02 complete
+- Trend: Phase 02 in progress
 
 *Updated after each plan completion*
 | Phase 01 P01 | 10 min | 3 tasks | 6 files |
@@ -58,6 +59,7 @@ Progress: [█---------] 12% overall; Phase 01 is 100% complete; Phase 02 is 1/6
 | Phase 01 P04 | not tracked | fixture normalization | normalized JSONL |
 | Phase 01 P05 | not tracked | haptic proof | final evidence gate |
 | Phase 02 P01 | 10 min | 3 tasks | 10 files |
+| Phase 02 P02 | 9 min | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -75,10 +77,12 @@ Recent decisions affecting current work:
 - [Phase 01]: Manual marker reports are hooks for Plan 03 evidence tagging, not proof of app-observed frames or physical motor activation. — Prevents tooling-only rows from satisfying Phase 1 evidence rule.
 - [v1]: Use Android phone vibration for haptic feedback; defer physical gun motor rumble. — No verified physical gun motor command path exists, while `phone-vibrate-001` confirmed Android phone haptics.
 - [Phase 01]: Physical input path is BLE GATT `fff0` with `fff3` notifications. — Normalized fixtures now cover trigger, reload, digital stick directions, X/Y/A/B, handshake, and phone haptics.
+- [Phase 02]: Use a strict `fff3` fixture whitelist; unknown bytes become `UnknownBlePayload` with status/debug envelope only. — Prevents arbitrary BLE bytes from becoming product controls.
+- [Phase 02]: Keep candidate control confidence in parser provenance rather than flattening noisy evidence into product UI fields. — Preserves Phase 1 evidence quality for debug mode.
 
 ### Pending Todos
 
-- Continue Phase 02: Android Host Live Input, starting with Plan 02-02.
+- Continue Phase 02: Android Host Live Input, starting with Plan 02-03.
 
 ### Blockers/Concerns
 
@@ -95,6 +99,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-07T00:07:06Z
-Stopped at: Completed 02-01-PLAN.md
-Resume file: .planning/phases/02-android-host-live-input/02-02-PLAN.md
+Last session: 2026-06-07T00:23:35Z
+Stopped at: Completed 02-02-PLAN.md
+Resume file: .planning/phases/02-android-host-live-input/02-03-PLAN.md
