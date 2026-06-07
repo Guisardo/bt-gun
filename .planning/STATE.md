@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 02-04-PLAN.md
-last_updated: "2026-06-07T00:31:35Z"
-last_activity: 2026-06-07 -- Plan 02-04 complete
+stopped_at: Completed 02-03-PLAN.md
+last_updated: "2026-06-07T00:42:28Z"
+last_activity: 2026-06-07 -- Plan 02-03 complete
 progress:
   total_phases: 10
   completed_phases: 1
   total_plans: 11
-  completed_plans: 8
-  percent: 73
+  completed_plans: 9
+  percent: 82
 ---
 
 # Project State
@@ -26,17 +26,17 @@ See: .planning/PROJECT.md (updated 2026-06-06)
 ## Current Position
 
 Phase: 02 (android-host-live-input) — EXECUTING
-Plan: 3 of 6
+Plan: 5 of 6
 Status: Ready to execute
-Last activity: 2026-06-07 -- Plan 02-04 complete
+Last activity: 2026-06-07 -- Plan 02-03 complete
 
-Progress: [███████░░░] 73% overall; Phase 01 is 100% complete; Phase 02 is 3/6 complete.
+Progress: [████████░░] 82% overall; Phase 01 is 100% complete; Phase 02 is 4/6 complete.
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 8
+- Total plans completed: 9
 - Average duration: not tracked for hardware-interactive plans
 - Total execution time: not tracked after Plan 02
 
@@ -45,11 +45,11 @@ Progress: [███████░░░] 73% overall; Phase 01 is 100% complet
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01 | 5 | not tracked | not tracked |
-| 02 | 2 | 19 min | 9.5 min |
+| 02 | 4 | 31 min | 7.75 min |
 
 **Recent Trend:**
 
-- Last 5 plans: P04, P05, P01, P02, P04 complete
+- Last 5 plans: P05, P01, P02, P04, P03 complete
 - Trend: Phase 02 in progress
 
 *Updated after each plan completion*
@@ -61,6 +61,7 @@ Progress: [███████░░░] 73% overall; Phase 01 is 100% complet
 | Phase 02 P01 | 10 min | 3 tasks | 10 files |
 | Phase 02 P02 | 9 min | 3 tasks | 4 files |
 | Phase 02 P04 | 5 min | 3 tasks | 5 files |
+| Phase 02 P03 | 7 min | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -81,10 +82,11 @@ Recent decisions affecting current work:
 - [Phase 02]: Use a strict `fff3` fixture whitelist; unknown bytes become `UnknownBlePayload` with status/debug envelope only. — Prevents arbitrary BLE bytes from becoming product controls.
 - [Phase 02]: Keep candidate control confidence in parser provenance rather than flattening noisy evidence into product UI fields. — Preserves Phase 1 evidence quality for debug mode.
 - [Phase 02]: Motion provider selection is pure and preview aim is Android-local calibration only. — Desktop profile/HID mapping remains deferred to later desktop profile phases.
+- [Phase 02]: Foreground HostSessionService owns the active BLE connection and IpegaBleGunAdapter accepts only ARGunGame/fff0 before parsing fff3 notifications. — Keeps BLE lifecycle visible, bounded, and scoped before LAN/control phases.
 
 ### Pending Todos
 
-- Continue Phase 02: Android Host Live Input; Plan 02-03 remains pending after explicit out-of-order Plan 02-04 execution.
+- Continue Phase 02: Android Host Live Input; Plan 02-05 and Plan 02-06 remain pending after out-of-order Plan 02-04 and completed Plan 02-03.
 
 ### Blockers/Concerns
 
@@ -101,6 +103,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-07T00:31:35Z
-Stopped at: Completed 02-04-PLAN.md
-Resume file: .planning/phases/02-android-host-live-input/02-03-PLAN.md
+Last session: 2026-06-07T00:42:28Z
+Stopped at: Completed 02-03-PLAN.md
+Resume file: .planning/phases/02-android-host-live-input/02-05-PLAN.md
