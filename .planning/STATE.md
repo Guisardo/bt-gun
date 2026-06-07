@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: planning
-stopped_at: Phase 3 final plan revision
-last_updated: "2026-06-07T18:01:34.000Z"
-last_activity: 2026-06-07 -- Phase 03 final plan revision
+status: executing
+stopped_at: Completed 03-01-PLAN.md
+last_updated: "2026-06-07T18:45:30Z"
+last_activity: 2026-06-07 -- Phase 03 Plan 01 desktop pairing session complete
 progress:
   total_phases: 10
   completed_phases: 2
   total_plans: 19
-  completed_plans: 11
+  completed_plans: 12
   percent: 20
 ---
 
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-06-07)
 
 ## Current Position
 
-Phase: 03 (lan-pairing-and-secure-session) — PLANNED
-Plan: 8 planned, 0 executed
-Status: Phase 03 planned; ready for execution
-Last activity: 2026-06-07 -- Phase 03 final plan revision
+Phase: 03 (lan-pairing-and-secure-session) — EXECUTING
+Plan: 2 of 8
+Status: Executing Phase 03
+Last activity: 2026-06-07 -- Phase 03 Plan 01 desktop pairing session complete
 
 Progress: [██░░░░░░░░] 20% by phase; Phase 01 and Phase 02 are complete; Phase 03 has 8 planned execution prompts.
 
@@ -50,7 +50,7 @@ Progress: [██░░░░░░░░] 20% by phase; Phase 01 and Phase 02 a
 **Recent Trend:**
 
 - Last 5 plans: P02, P04, P03, P05, P06 complete
-- Trend: Phase 03 ready to execute after final scope-sanity revision
+- Trend: Phase 03 Wave 0 desktop harness started; Android pairing parser next
 
 *Updated after each plan completion*
 | Phase 01 P01 | 10 min | 3 tasks | 6 files |
@@ -64,6 +64,7 @@ Progress: [██░░░░░░░░] 20% by phase; Phase 01 and Phase 02 a
 | Phase 02 P03 | 7 min | 3 tasks | 6 files |
 | Phase 02 P05 | 13 min | 3 tasks | 4 files |
 | Phase 02 P06 | hardware-interactive | dashboard/manual validation | approved |
+| Phase 03 P01 | 9 min | 3 tasks | 17 files |
 
 ## Accumulated Context
 
@@ -88,10 +89,13 @@ Recent decisions affecting current work:
 - [Phase 02]: Reload-hold recenter is a pure elapsed-nanos state machine. — Reload down/up remain gun events, while recenter emits a separate status event after a two-second hold.
 - [Phase 02 approved]: Android host live input is approved for physical-device use. — Permission gate, BLE connection, controls, motion/aim graph, recenter/calibration, foreground behavior, and local phone haptic rows passed manual sign-off on 2026-06-07.
 - [Phase 02]: Disabled Bluetooth/location must surface as blocked/unavailable capability state instead of crashing. — Activity, service, and BLE scan startup use guarded capability probes.
+- [Phase 03]: Desktop companion starts as an isolated Kotlin/JVM Swing surface. — Keeps Wave 0 portable across macOS Apple Silicon and Windows 11 x64 before OS driver work.
+- [Phase 03]: Desktop pairing material is one active short-lived session with QR as normal path and visible 6-digit manual fallback. — Matches D-01/D-02 while keeping Android QR/manual parsing for Plan 03-02.
+- [Phase 03]: Desktop identity is anchored by SPKI SHA-256 fingerprint from local Java KeyStore-backed key material. — Pairing payloads expose fingerprint only; one-time secrets and manual codes are not durable metadata.
 
 ### Pending Todos
 
-- Execute Phase 03: LAN Pairing and Secure Session.
+- Continue Phase 03 with Plan 03-02: Android QR/manual parser, trusted desktop store, and desktop-link dashboard state.
 
 ### Blockers/Concerns
 
@@ -108,6 +112,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-07T18:01:34.000Z
-Stopped at: Phase 3 final plan revision
-Resume file: .planning/phases/03-lan-pairing-and-secure-session/03-01-PLAN.md
+Last session: 2026-06-07T18:45:30Z
+Stopped at: Completed 03-01-PLAN.md
+Resume file: .planning/phases/03-lan-pairing-and-secure-session/03-02-PLAN.md
