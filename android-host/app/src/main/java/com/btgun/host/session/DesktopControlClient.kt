@@ -11,6 +11,8 @@ data class DesktopControlClientConfig(
     val url: String,
     val expectedDesktopSpkiSha256: String,
     val maxMessageBytes: Int = 16 * 1024,
+    val connectedTimeoutNanos: Long = 1_000_000_000L,
+    val disconnectedTimeoutNanos: Long = 3_000_000_000L,
 )
 
 data class ControlProofRequest(
@@ -18,6 +20,19 @@ data class ControlProofRequest(
     val androidNonce: String,
     val desktopSpkiSha256: String,
     val proofHex: String,
+)
+
+data class ControlDiagnostics(
+    val sessionState: String,
+    val desktopIdentitySuffix: String,
+    val heartbeatAgeMillis: Long?,
+    val lastControlError: String?,
+)
+
+data class ProfileMetadata(
+    val profileId: String,
+    val displayName: String,
+    val revision: Long,
 )
 
 interface DesktopControlSocket {
@@ -30,10 +45,16 @@ class DesktopControlClient(
     private val socketFactory: (Request, WebSocketListener) -> DesktopControlSocket = ::defaultSocket,
 ) {
     private var socket: DesktopControlSocket? = null
+    private var lastHeartbeatElapsedNanos: Long? = null
+    private var linkState: DesktopLinkState = DesktopLinkState()
 
     fun connect(proofRequest: ControlProofRequest): DesktopControlConnectResult {
         val trust = verifyPresentedFingerprint(proofRequest.desktopSpkiSha256)
         if (trust is DesktopControlConnectResult.TrustMismatch) {
+            linkState = linkState.copy(
+                phase = DesktopLinkPhase.TRUST_PROBLEM,
+                lastControlError = "desktop fingerprint mismatch",
+            )
             return trust
         }
         val request = Request.Builder()
@@ -43,6 +64,10 @@ class DesktopControlClient(
             .build()
 
         socket = socketFactory(request, object : WebSocketListener() {})
+        linkState = linkState.copy(
+            phase = DesktopLinkPhase.CONNECTED,
+            fingerprintSuffix = config.expectedDesktopSpkiSha256.takeLast(FINGERPRINT_SUFFIX_LENGTH),
+        )
         return DesktopControlConnectResult.Connected
     }
 
@@ -67,6 +92,38 @@ class DesktopControlClient(
     fun close() {
         socket?.close()
         socket = null
+        linkState = linkState.copy(phase = DesktopLinkPhase.DISCONNECTED)
+    }
+
+    fun currentLinkState(): DesktopLinkState = linkState
+
+    fun observeHeartbeatPing(nowElapsedNanos: Long) {
+        observeHeartbeat(nowElapsedNanos)
+    }
+
+    fun observeHeartbeatPong(nowElapsedNanos: Long) {
+        observeHeartbeat(nowElapsedNanos)
+    }
+
+    fun refreshLiveness(nowElapsedNanos: Long): DesktopLinkState {
+        linkState = linkState.copy(
+            phase = livenessPhase(nowElapsedNanos),
+            heartbeatAgeMillis = heartbeatAgeMillisAt(nowElapsedNanos),
+        )
+        return linkState
+    }
+
+    fun applyDiagnostics(diagnostics: ControlDiagnostics) {
+        linkState = linkState.copy(
+            phase = diagnostics.sessionState.toDesktopLinkPhase(),
+            fingerprintSuffix = diagnostics.desktopIdentitySuffix,
+            heartbeatAgeMillis = diagnostics.heartbeatAgeMillis,
+            lastControlError = diagnostics.lastControlError,
+        )
+    }
+
+    fun recordControlError(error: String) {
+        linkState = linkState.copy(lastControlError = error)
     }
 
     fun verifyPresentedFingerprint(presented: String): DesktopControlConnectResult =
@@ -82,7 +139,34 @@ class DesktopControlClient(
     fun certificatePin(): String =
         "sha256/${config.expectedDesktopSpkiSha256.hexToBytes().toByteString().base64()}"
 
+    private fun observeHeartbeat(nowElapsedNanos: Long) {
+        require(nowElapsedNanos >= 0L) { "nowElapsedNanos must be non-negative" }
+        lastHeartbeatElapsedNanos = nowElapsedNanos
+        linkState = linkState.copy(
+            phase = DesktopLinkPhase.CONNECTED,
+            heartbeatAgeMillis = heartbeatAgeMillisAt(nowElapsedNanos),
+        )
+    }
+
+    private fun livenessPhase(nowElapsedNanos: Long): DesktopLinkPhase {
+        val age = ageNanosAt(nowElapsedNanos) ?: return DesktopLinkPhase.DISCONNECTED
+        return when {
+            age <= config.connectedTimeoutNanos -> DesktopLinkPhase.CONNECTED
+            age <= config.disconnectedTimeoutNanos -> DesktopLinkPhase.DEGRADED
+            else -> DesktopLinkPhase.DISCONNECTED
+        }
+    }
+
+    private fun heartbeatAgeMillisAt(nowElapsedNanos: Long): Long? =
+        ageNanosAt(nowElapsedNanos)?.div(NANOS_PER_MILLI)
+
+    private fun ageNanosAt(nowElapsedNanos: Long): Long? =
+        lastHeartbeatElapsedNanos?.let { (nowElapsedNanos - it).coerceAtLeast(0L) }
+
     private companion object {
+        private const val FINGERPRINT_SUFFIX_LENGTH = 8
+        private const val NANOS_PER_MILLI = 1_000_000L
+
         fun defaultSocket(request: Request, listener: WebSocketListener): DesktopControlSocket {
             val host = request.url.host
             val pin = request.header("X-BT-Gun-Desktop-Fingerprint")
@@ -98,6 +182,18 @@ class DesktopControlClient(
         }
     }
 }
+
+private fun String.toDesktopLinkPhase(): DesktopLinkPhase =
+    when (this) {
+        DesktopLinkPhase.CONNECTED.wireName -> DesktopLinkPhase.CONNECTED
+        DesktopLinkPhase.DEGRADED.wireName -> DesktopLinkPhase.DEGRADED
+        DesktopLinkPhase.DISCONNECTED.wireName -> DesktopLinkPhase.DISCONNECTED
+        DesktopLinkPhase.TRUST_PROBLEM.wireName -> DesktopLinkPhase.TRUST_PROBLEM
+        DesktopLinkPhase.PAIRING_PROOF.wireName -> DesktopLinkPhase.PAIRING_PROOF
+        DesktopLinkPhase.CONNECTING.wireName -> DesktopLinkPhase.CONNECTING
+        DesktopLinkPhase.SCANNING_QR.wireName -> DesktopLinkPhase.SCANNING_QR
+        else -> DesktopLinkPhase.IDLE
+    }
 
 sealed interface DesktopControlConnectResult {
     data object Connected : DesktopControlConnectResult
