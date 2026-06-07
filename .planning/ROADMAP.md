@@ -14,7 +14,7 @@ v1 moves from real iPega hardware discovery to a simple end-to-end joystick visu
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Hardware and Protocol Discovery** - Prove how the real iPega gun exposes input and verify phone vibration as the v1 feedback path.
-- [ ] **Phase 2: Android Host Live Input** - Android can connect to the gun, read controls and motion sensors, and expose live session status.
+- [x] **Phase 2: Android Host Live Input** - Android can connect to the gun, read controls and motion sensors, and expose live session status.
 - [ ] **Phase 3: LAN Pairing and Secure Session** - Android and desktop can establish an authenticated local session by QR or pairing code.
 - [ ] **Phase 4: Input Stream and Haptic Transport** - Versioned UDP input and reliable control messages carry input, diagnostics, and phone haptic commands safely.
 - [ ] **Phase 5: Desktop Backend Contract and Smoke Harness** - Shared desktop backend contract and fake-input smoke tests work before real OS driver work.
@@ -63,7 +63,7 @@ Plans:
   5. Holding reload for two seconds recenters motion aim while normal reload press and release events still appear.
   6. Android app shows active gun connection, desktop link, packet stream, motion provider, and haptic status.
 
-**Plans:** 5/6 plans executed
+**Plans:** 6/6 plans executed
 Plans:
 
 - [x] 02-01-PLAN.md — Production Android host scaffold, permission gate, and live envelope contracts.
@@ -71,7 +71,7 @@ Plans:
 - [x] 02-03-PLAN.md — BLE adapter and foreground session service.
 - [x] 02-04-PLAN.md — Motion provider selection and preview aim contracts.
 - [x] 02-05-PLAN.md — Reload-hold recenter state machine.
-- [ ] 02-06-PLAN.md — Dashboard shell, inactive placeholders, and manual validation evidence.
+- [x] 02-06-PLAN.md — Dashboard shell, inactive placeholders, and manual validation evidence.
 
 **UI hint**: yes
 
@@ -206,7 +206,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Hardware and Protocol Discovery | 5/5 | Complete | 2026-06-06 |
-| 2. Android Host Live Input | 5/6 | In Progress | - |
+| 2. Android Host Live Input | 6/6 | Complete | 2026-06-07 |
 | 3. LAN Pairing and Secure Session | 0/TBD | Not started | - |
 | 4. Input Stream and Haptic Transport | 0/TBD | Not started | - |
 | 5. Desktop Backend Contract and Smoke Harness | 0/TBD | Not started | - |

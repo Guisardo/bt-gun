@@ -1,49 +1,49 @@
 # Requirements: Bluetooth Gun Driver
 
 **Defined:** 2026-06-06
-**Core Value:** Make the discontinued iPega AR gun usable as a normal wireless joystick gun on modern macOS and Windows with responsive gyro aiming and bidirectional rumble.
+**Core Value:** Make the discontinued iPega AR gun usable as a normal wireless joystick gun on modern macOS and Windows with responsive motion aiming and v1 phone haptic feedback.
 
 ## User Stories
 
 - As a user with the discontinued iPega AR gun, I can connect the gun to an Android phone and use it as a wireless controller for a desktop computer.
 - As a desktop user, I can see the gun as a normal gamepad-style joystick device on Windows 11 x64 and macOS Apple Silicon.
-- As a player, I can aim with the Android phone gyro, press the gun controls, recenter aim, and feel rumble feedback from the desktop.
-- As a developer/debugger, I can inspect connection state, packet timing, mapped axes, button states, and rumble results in a simple joystick visualizer.
+- As a player, I can aim with Android phone motion sensors, press the gun controls, recenter aim, and feel phone haptic feedback from the desktop.
+- As a developer/debugger, I can inspect connection state, packet timing, mapped axes, button states, and haptic results in a simple joystick visualizer.
 
 ## v1 Requirements
 
 ### Discovery
 
 - [x] **DISC-01**: Developer can inventory every local reference APK/XAPK under `docs/refs/` with package name, target SDK, permissions, app type, and validity status.
-- [ ] **DISC-02**: Developer can run an Android diagnostic that reports whether the iPega gun appears as a standard Android input device.
-- [ ] **DISC-03**: Developer can run an Android diagnostic that reports visible Bluetooth Classic and BLE services for the physical iPega gun.
-- [ ] **DISC-04**: Developer can capture and store raw Bluetooth traffic or app-observed frames for trigger, reload, joystick, X/Y/A/B, and rumble tests.
-- [ ] **DISC-05**: Developer can map every physical gun control to a normalized event with down/up or axis semantics.
-- [ ] **DISC-06**: Developer can identify and verify the command path that makes the physical gun vibration motor activate.
-- [ ] **DISC-07**: Developer can save raw and normalized protocol fixtures for regression tests without requiring the physical gun.
+- [x] **DISC-02**: Developer can run an Android diagnostic that reports whether the iPega gun appears as a standard Android input device.
+- [x] **DISC-03**: Developer can run an Android diagnostic that reports visible Bluetooth Classic and BLE services for the physical iPega gun.
+- [x] **DISC-04**: Developer can capture and store raw Bluetooth traffic or app-observed frames for trigger, reload, joystick, X/Y/A/B, and haptic/deferred motor tests.
+- [x] **DISC-05**: Developer can map every physical gun control to a normalized event with down/up or axis semantics.
+- [x] **DISC-06**: Developer can verify Android phone vibration as the v1 feedback path and document physical gun motor rumble as deferred.
+- [x] **DISC-07**: Developer can save raw and normalized protocol fixtures for regression tests without requiring the physical gun.
 
 ### Android Host
 
-- [ ] **ANDR-01**: User can grant required Android Bluetooth, nearby device, sensor, and LAN permissions from the Android host app.
-- [ ] **ANDR-02**: User can connect the Android host app to the physical iPega gun.
+- [x] **ANDR-01**: User can grant required Android Bluetooth, nearby device, sensor, and LAN permissions from the Android host app.
+- [x] **ANDR-02**: User can connect the Android host app to the physical iPega gun.
 - [x] **ANDR-03**: Android host app emits normalized events for trigger, reload, joystick, X/Y/A/B, and connection state.
-- [ ] **ANDR-04**: Android host app samples gyro or rotation-vector data with monotonic capture timestamps.
+- [x] **ANDR-04**: Android host app samples motion aim data with monotonic capture timestamps, using rotation-vector/game-rotation-vector, gyroscope, accelerometer, and gravity providers as available.
 - [x] **ANDR-05**: Android host app merges gun input and motion sensor data into ordered normalized input samples with sensor provider and capability metadata.
-- [ ] **ANDR-06**: Holding reload for two seconds recenters gyro aim without preventing normal reload press/release events.
-- [ ] **ANDR-07**: Android host app can receive a rumble command from desktop and forward it to the physical gun.
-- [ ] **ANDR-08**: Android host app shows active session status for gun connection, desktop link, packet stream, and rumble.
+- [x] **ANDR-06**: Holding reload for two seconds recenters motion aim without preventing normal reload press/release events.
+- [ ] **ANDR-07**: Android host app can receive a haptic command from desktop and vibrate the Android phone.
+- [x] **ANDR-08**: Android host app shows active session status for gun connection, desktop link, packet stream, and haptic feedback.
 
 ### LAN Session
 
 - [ ] **TRAN-01**: Desktop companion can create a local pairing session and display a QR code plus pairing-code fallback.
 - [ ] **TRAN-02**: Android host app can pair to the desktop companion using QR code or pairing code without manual IP entry in the normal path.
 - [ ] **TRAN-03**: Pairing creates an authenticated local session with a short-lived one-time secret and replay protection.
-- [ ] **TRAN-04**: Android host app streams high-rate input and gyro samples to desktop using versioned UDP input frames.
-- [ ] **TRAN-05**: UDP input frames include sequence number, session id, capture timestamp, send timestamp, button bitmask, axes, and gyro payload.
-- [ ] **TRAN-06**: Android and desktop maintain a reliable control channel for pairing state, heartbeat, diagnostics, profile metadata, and rumble commands.
-- [ ] **TRAN-07**: Desktop can send a rumble command with command id, strength, duration, expiry/TTL, and optional pattern.
-- [ ] **TRAN-08**: Android host app returns rumble acknowledgement or failure status to desktop.
-- [ ] **TRAN-09**: Desktop and Android can recover cleanly from LAN disconnect without playing stale rumble commands.
+- [ ] **TRAN-04**: Android host app streams high-rate input and motion samples to desktop using versioned UDP input frames.
+- [ ] **TRAN-05**: UDP input frames include sequence number, session id, capture timestamp, send timestamp, button bitmask, axes, motion payload, and motion provider/capability flags.
+- [ ] **TRAN-06**: Android and desktop maintain a reliable control channel for pairing state, heartbeat, diagnostics, profile metadata, and haptic commands.
+- [ ] **TRAN-07**: Desktop can send a haptic command with command id, strength, duration, expiry/TTL, and optional pattern.
+- [ ] **TRAN-08**: Android host app returns haptic acknowledgement or failure status to desktop.
+- [ ] **TRAN-09**: Desktop and Android can recover cleanly from LAN disconnect without playing stale haptic commands.
 
 ### Desktop Virtual Controller
 
@@ -51,15 +51,15 @@
 - [ ] **DESK-02**: Desktop companion can expose a regular gamepad-style virtual joystick on Windows 11 x64.
 - [ ] **DESK-03**: Desktop companion can expose a regular gamepad-style virtual joystick on macOS Apple Silicon.
 - [ ] **DESK-04**: Virtual joystick descriptor exposes trigger, reload, joystick axes, X/Y/A/B buttons, and aim axes.
-- [ ] **DESK-05**: Windows virtual joystick path can receive desktop rumble/output requests and forward them to the control channel.
-- [ ] **DESK-06**: macOS virtual joystick path can receive desktop rumble/output requests or clearly reports the platform limitation.
-- [ ] **DESK-07**: Desktop companion exposes backend capability flags for buttons, axes, rumble, output reports, and platform limitations.
+- [ ] **DESK-05**: Windows virtual joystick path can receive desktop rumble/output requests and map them to v1 phone haptic commands.
+- [ ] **DESK-06**: macOS virtual joystick path can receive desktop rumble/output requests or clearly report the platform limitation while preserving v1 phone haptic support.
+- [ ] **DESK-07**: Desktop companion exposes backend capability flags for buttons, axes, haptic feedback, output reports, and platform limitations.
 - [ ] **DESK-08**: Developer can run a fake-input virtual controller smoke test on both Windows and macOS before using the real Android stream.
 
 ### Profiles
 
 - [ ] **PROF-01**: Desktop companion stores aim mapping profiles locally on the desktop.
-- [ ] **PROF-02**: User can configure gyro aim mapping to joystick axes per desktop profile.
+- [ ] **PROF-02**: User can configure motion aim mapping to joystick axes per desktop profile, including provider-specific tuning for fused rotation, gyro, and accelerometer/gravity tilt fallback.
 - [ ] **PROF-03**: User can configure sensitivity, inversion, dead zone, and smoothing per aim profile.
 - [ ] **PROF-04**: User can map trigger, reload, joystick, and X/Y/A/B to virtual joystick controls per profile.
 - [ ] **PROF-05**: Desktop companion applies profile changes without requiring Android app rebuilds.
@@ -70,8 +70,8 @@
 - [ ] **VIS-01**: User can open a simple joystick visualizer that connects to the desktop companion pipeline.
 - [ ] **VIS-02**: Visualizer displays trigger, reload, joystick, X/Y/A/B, and aim axes in real time.
 - [ ] **VIS-03**: Visualizer displays recenter events and current aim-zero state.
-- [ ] **VIS-04**: Visualizer displays Android connection, desktop virtual controller, packet stream, and rumble status.
-- [ ] **VIS-05**: Visualizer includes a rumble test control that causes the physical gun motor to vibrate and shows ack/fail result.
+- [ ] **VIS-04**: Visualizer displays Android connection, desktop virtual controller, packet stream, and haptic status.
+- [ ] **VIS-05**: Visualizer includes a haptic test control that vibrates the Android phone and shows ack/fail result.
 - [ ] **VIS-06**: Visualizer displays latency and packet loss metrics for the current session.
 
 ### Performance and Reliability
@@ -93,12 +93,12 @@
 ## Acceptance Criteria
 
 - [ ] A physical iPega gun can connect to the Android host app.
-- [ ] Android host app can show live gun controls and gyro samples.
+- [ ] Android host app can show live gun controls and motion sensor samples, including which motion provider is active.
 - [ ] Desktop companion can pair to Android by QR or pairing code.
 - [ ] Windows 11 x64 sees an OS-visible virtual gamepad-style joystick.
 - [ ] macOS Apple Silicon sees an OS-visible virtual gamepad-style joystick.
 - [ ] Visualizer shows live controls, mapped aim axes, recenter state, packet timing, and packet loss.
-- [ ] Visualizer rumble test vibrates the physical gun and displays ack/fail.
+- [ ] Visualizer haptic test vibrates the Android phone and displays ack/fail.
 - [ ] Normal local Wi-Fi visualizer path targets under 50 ms end-to-end latency.
 - [ ] Reference APK/protocol findings are backed by local evidence or physical-device captures.
 
@@ -123,16 +123,22 @@
 - **MD2-01**: Desktop can pair and distinguish multiple gun devices.
 - **MD2-02**: Visualizer can display multiple simultaneous gun streams.
 
+### Physical Gun Motor Rumble
+
+- **RUMBLE2-01**: Android host can identify and activate the physical iPega gun vibration motor.
+- **RUMBLE2-02**: Desktop rumble commands can target the physical gun motor when the command path is proven.
+
 ## Out of Scope
 
 Explicitly excluded. Documented to prevent scope creep.
 
 | Feature | Reason |
 |---------|--------|
-| Direct desktop-to-gun Bluetooth in v1 | Android host preserves phone gyro role and reduces platform-specific Bluetooth work. |
+| Direct desktop-to-gun Bluetooth in v1 | Android host preserves the phone motion-sensor role and reduces platform-specific Bluetooth work. |
 | Cloud or internet relay | Local LAN keeps latency and security manageable. |
 | Wired Android-to-desktop transport | User requested wireless. |
 | Custom gun-specific HID descriptor | Regular gamepad/joystick HID has better compatibility for v1. |
+| Physical gun motor rumble | Deferred because no verified physical gun motor command path exists; v1 uses confirmed Android phone vibration instead. |
 | First-class game integrations | Visualizer validates the core pipeline first. |
 | Multi-gun support | Single-device identity and timing must work first. |
 | Replacing the original APK apps | Goal is a new host/desktop driver stack, not patching the old apps. |
@@ -144,20 +150,20 @@ Which phases cover which requirements. Updated during roadmap creation.
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | DISC-01 | Phase 1 | Complete |
-| DISC-02 | Phase 1 | Pending |
-| DISC-03 | Phase 1 | Pending |
-| DISC-04 | Phase 1 | Pending |
-| DISC-05 | Phase 1 | Pending |
-| DISC-06 | Phase 1 | Pending |
-| DISC-07 | Phase 1 | Pending |
-| ANDR-01 | Phase 2 | Pending |
-| ANDR-02 | Phase 2 | Pending |
+| DISC-02 | Phase 1 | Complete |
+| DISC-03 | Phase 1 | Complete |
+| DISC-04 | Phase 1 | Complete |
+| DISC-05 | Phase 1 | Complete |
+| DISC-06 | Phase 1 | Complete |
+| DISC-07 | Phase 1 | Complete |
+| ANDR-01 | Phase 2 | Complete |
+| ANDR-02 | Phase 2 | Complete |
 | ANDR-03 | Phase 2 | Complete |
-| ANDR-04 | Phase 2 | Pending |
+| ANDR-04 | Phase 2 | Complete |
 | ANDR-05 | Phase 2 | Complete |
-| ANDR-06 | Phase 2 | Pending |
+| ANDR-06 | Phase 2 | Complete |
 | ANDR-07 | Phase 4 | Pending |
-| ANDR-08 | Phase 2 | Pending |
+| ANDR-08 | Phase 2 | Complete |
 | TRAN-01 | Phase 3 | Pending |
 | TRAN-02 | Phase 3 | Pending |
 | TRAN-03 | Phase 3 | Pending |

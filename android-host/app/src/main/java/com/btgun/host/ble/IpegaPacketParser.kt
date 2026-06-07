@@ -11,6 +11,12 @@ import com.btgun.host.model.StreamSequencer
 class IpegaPacketParser(
     private val sequencer: StreamSequencer = StreamSequencer(),
 ) {
+    private val joystickState = JoystickSwitchState()
+
+    fun reset() {
+        joystickState.clear()
+    }
+
     fun parseFff3(
         value: ByteArray,
         captureElapsedNanos: Long,
@@ -18,6 +24,11 @@ class IpegaPacketParser(
     ): ParsedGunPacket {
         val rawHex = value.toHex()
         val rawAscii = value.toPrintableAscii()
+        val joystickMapping = JOYSTICK_FFF3_PAYLOADS[rawHex]
+        if (joystickMapping != null) {
+            return joystickEvent(joystickMapping, rawHex, captureElapsedNanos, emittedElapsedNanos)
+        }
+
         val mapping = KNOWN_FFF3_PAYLOADS[rawHex]
 
         if (mapping == null) {
@@ -56,6 +67,37 @@ class IpegaPacketParser(
                 ),
             ),
         )
+
+    private fun joystickEvent(
+        mapping: JoystickMapping,
+        rawHex: String,
+        captureElapsedNanos: Long,
+        emittedElapsedNanos: Long,
+    ): ParsedGunPacket.Event {
+        val axis = joystickState.apply(mapping.direction, mapping.pressed)
+        return ParsedGunPacket.Event(
+            envelope = LiveEnvelope(
+                stream = StreamKind.GUN,
+                seq = sequencer.next(StreamKind.GUN),
+                captureElapsedNanos = captureElapsedNanos,
+                emittedElapsedNanos = emittedElapsedNanos,
+                payload = GunEvent(
+                    name = "stick",
+                    axisX = axis.x,
+                    axisY = axis.y,
+                ),
+                provenance = Provenance(
+                    rawAscii = mapping.rawAscii,
+                    rawHex = rawHex,
+                    bleServiceUuid = FFF0_SERVICE_UUID,
+                    bleCharacteristicUuid = FFF3_CHARACTERISTIC_UUID,
+                    clueId = mapping.clueId,
+                    captureId = mapping.captureId,
+                    semanticConfidence = SemanticConfidence.CONFIRMED,
+                ),
+            ),
+        )
+    }
 
     private fun gunEvent(
         mapping: Mapping,
@@ -101,23 +143,74 @@ class IpegaPacketParser(
             }
     }
 
+    private enum class JoystickDirection {
+        LEFT,
+        RIGHT,
+        UP,
+        DOWN,
+    }
+
+    private data class JoystickAxis(val x: Float, val y: Float)
+
+    private data class JoystickMapping(
+        val rawAscii: String,
+        val direction: JoystickDirection,
+        val pressed: Boolean,
+        val clueId: String = "ARCHER-INPUT-001",
+        val captureId: String = "joystick-sweep-001",
+    ) {
+        fun rawHexKey(): String = rawAscii.encodeToByteArray().toHex()
+    }
+
+    private class JoystickSwitchState {
+        private val activeDirections = mutableSetOf<JoystickDirection>()
+
+        fun clear() {
+            activeDirections.clear()
+        }
+
+        fun apply(direction: JoystickDirection, pressed: Boolean): JoystickAxis {
+            if (pressed) {
+                activeDirections.add(direction)
+            } else {
+                activeDirections.remove(direction)
+            }
+            val x = activeDirections.axis(JoystickDirection.RIGHT, JoystickDirection.LEFT)
+            val y = activeDirections.axis(JoystickDirection.UP, JoystickDirection.DOWN)
+            return JoystickAxis(x, y)
+        }
+
+        private fun Set<JoystickDirection>.axis(
+            positive: JoystickDirection,
+            negative: JoystickDirection,
+        ): Float =
+            when {
+                positive in this && negative !in this -> 1f
+                negative in this && positive !in this -> -1f
+                else -> 0f
+            }
+    }
+
     companion object {
         const val FFF0_SERVICE_UUID: String = "0000fff0-0000-1000-8000-00805f9b34fb"
         const val FFF3_CHARACTERISTIC_UUID: String = "0000fff3-0000-1000-8000-00805f9b34fb"
+
+        private val JOYSTICK_FFF3_PAYLOADS: Map<String, JoystickMapping> = listOf(
+            JoystickMapping("B6DOWN", JoystickDirection.LEFT, true),
+            JoystickMapping("B6UP", JoystickDirection.LEFT, false),
+            JoystickMapping("B4DOWN", JoystickDirection.RIGHT, true),
+            JoystickMapping("B4UP", JoystickDirection.RIGHT, false),
+            JoystickMapping("B5DOWN", JoystickDirection.UP, true),
+            JoystickMapping("B5UP", JoystickDirection.UP, false),
+            JoystickMapping("B7DOWN", JoystickDirection.DOWN, true),
+            JoystickMapping("B7UP", JoystickDirection.DOWN, false),
+        ).associateBy(JoystickMapping::rawHexKey)
 
         private val KNOWN_FFF3_PAYLOADS: Map<String, Mapping> = listOf(
             Mapping("ARGun KeyPressed", "trigger", true, "ARGUN2021-CONTROL-001", "trigger-001", SemanticConfidence.CANDIDATE),
             Mapping("", "trigger", false, "ARGUN2021-CONTROL-001", "trigger-001", SemanticConfidence.CANDIDATE),
             Mapping("B8DOWN", "reload", true, "ARGUN2021-CONTROL-001", "reload-001", SemanticConfidence.CONFIRMED),
             Mapping("B8UP", "reload", false, "ARGUN2021-CONTROL-001", "reload-001", SemanticConfidence.CONFIRMED),
-            Mapping("B6DOWN", "stick_left", true, "ARCHER-INPUT-001", "joystick-001", SemanticConfidence.CONFIRMED),
-            Mapping("B6UP", "stick_left", false, "ARCHER-INPUT-001", "joystick-001", SemanticConfidence.CONFIRMED),
-            Mapping("B4DOWN", "stick_right", true, "ARCHER-INPUT-001", "joystick-001", SemanticConfidence.CONFIRMED),
-            Mapping("B4UP", "stick_right", false, "ARCHER-INPUT-001", "joystick-001", SemanticConfidence.CONFIRMED),
-            Mapping("B5DOWN", "stick_up", true, "ARCHER-INPUT-001", "joystick-001", SemanticConfidence.CONFIRMED),
-            Mapping("B5UP", "stick_up", false, "ARCHER-INPUT-001", "joystick-001", SemanticConfidence.CONFIRMED),
-            Mapping("B7DOWN", "stick_down", true, "ARCHER-INPUT-001", "joystick-001", SemanticConfidence.CONFIRMED),
-            Mapping("B7UP", "stick_down", false, "ARCHER-INPUT-001", "joystick-001", SemanticConfidence.CONFIRMED),
             Mapping("BADOWN", "button_x", true, "ARCHER-INPUT-001", "button-x-001", SemanticConfidence.CANDIDATE),
             Mapping("BAUP", "button_x", false, "ARCHER-INPUT-001", "button-x-001", SemanticConfidence.CANDIDATE),
             Mapping("B3DOWN", "button_y", true, "ARCHER-INPUT-001", "button-y-001", SemanticConfidence.CANDIDATE),

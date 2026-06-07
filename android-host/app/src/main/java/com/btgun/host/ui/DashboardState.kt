@@ -240,15 +240,32 @@ data class DashboardState(
                     false -> "up"
                     null -> ""
                 }
+                val axis = if (event.payload.axisX != null || event.payload.axisY != null) {
+                    "x=${formatAxis(event.payload.axisX ?: 0f)} y=${formatAxis(event.payload.axisY ?: 0f)}"
+                } else {
+                    ""
+                }
                 listOf(
-                    listOf(event.payload.name, state).filter { it.isNotEmpty() }.joinToString(" "),
+                    listOf(event.payload.name, state, axis).filter { it.isNotEmpty() }.joinToString(" "),
                     "seq=${event.seq}",
                     "elapsed=${event.captureElapsedNanos}ns",
                 ).joinToString(" | ")
             }
 
         private fun formatActiveControls(state: GunInputState): String =
-            state.activeControls().ifEmpty { listOf("none") }.joinToString(", ")
+            state.activeControls()
+                .map { control ->
+                    if (control == "stick") {
+                        "stick x=${formatAxis(state.stickAxisX)} y=${formatAxis(state.stickAxisY)}"
+                    } else {
+                        control
+                    }
+                }
+                .ifEmpty { listOf("none") }
+                .joinToString(", ")
+
+        private fun formatAxis(value: Float): String =
+            java.lang.String.format(java.util.Locale.US, "%.1f", value)
 
         private fun formatCapabilities(capabilities: MotionCapabilityFlags?): String =
             if (capabilities == null) {

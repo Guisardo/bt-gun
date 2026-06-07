@@ -6,7 +6,7 @@
 <domain>
 ## Phase Boundary
 
-Phase 1 proves how the real iPega gun exposes input and accepts rumble by reverse-engineering the deprecated APK/XAPK apps first, then validating the discovered handshake, control mapping, and vibration command path against physical hardware. The phase delivers evidence, diagnostics, and fixtures for downstream Android host work; it does not build the production Android host, LAN transport, desktop companion, profiles, or visualizer.
+Phase 1 proves how the real iPega gun exposes input by reverse-engineering the deprecated APK/XAPK apps first, then validating the discovered handshake and control mapping against physical hardware. It also records phone vibration as the v1 feedback path and defers physical gun motor rumble. The phase delivers evidence, diagnostics, and fixtures for downstream Android host work; it does not build the production Android host, LAN transport, desktop companion, profiles, or visualizer.
 
 </domain>
 
@@ -17,24 +17,25 @@ Phase 1 proves how the real iPega gun exposes input and accepts rumble by revers
 - **D-01:** Start from reverse engineering, not hardware probing alone. Assume even the Bluetooth handshake may be custom until the deprecated apps prove otherwise.
 - **D-02:** Build the protocol hypothesis from decompiling deprecated APK/XAPK references before writing hardware-facing validation code.
 - **D-03:** Analyze strongest local references first: `docs/refs/ARGun2021.apk`, `docs/refs/AR Cher_20200905_Apkpure.xapk`, and `docs/refs/WorldsAR_14.0_apkcombo.com.xapk`.
-- **D-04:** Broaden to other references only if the strongest refs do not reveal handshake, control, or rumble behavior.
+- **D-04:** Broaden to other references only if the strongest refs do not reveal handshake or control behavior.
 - **D-05:** `docs/refs/ARGunPro_1.0.19_apkcombo.com.xapk` is 0 bytes locally. Reacquire it only if the strongest valid refs block protocol discovery.
 
 ### Evidence Bar
-- **D-06:** A protocol/control/rumble finding is verified only when all three exist: a static decompile clue, a hardware capture, and a normalized fixture.
+- **D-06:** A protocol/control finding is verified only when all three exist: a static decompile clue, a hardware capture, and a normalized fixture. Physical gun motor rumble remains deferred unless a later phase proves it.
+- **D-06A:** v1 feedback uses Android phone vibration. Phone vibration is verified by Android `Vibrator` API log plus human confirmation, not by BLE motor command evidence.
 - **D-07:** Static APK/XAPK findings can guide implementation, but they are not sufficient proof without real-device capture evidence.
 - **D-08:** Hardware captures must be tied back to the decompiled clue that motivated the test, so downstream agents can see why each fixture exists.
 
 ### Diagnostic Artifacts
-- **D-09:** Phase 1 must leave a full evidence bundle: static analysis notes, decompiled clue index, Bluetooth scan output, logcat/HCI capture pointers, raw frame fixtures, normalized event fixtures, and rumble evidence.
+- **D-09:** Phase 1 must leave a full evidence bundle: static analysis notes, decompiled clue index, Bluetooth scan output, logcat/HCI capture pointers, raw frame fixtures, normalized event fixtures, phone vibration evidence, and deferred physical-motor notes.
 - **D-10:** Commit sanitized protocol docs and small fixtures to the repo. Keep large raw captures and decompile output in ignored evidence directories, with committed manifest pointers that identify local file names, origin, test action, and expected interpretation.
-- **D-11:** Build a throwaway diagnostic Android app/module for validation. It should scan and report standard Android input visibility, BLE/Classic services, decoded frames, and rumble test outcomes.
+- **D-11:** Build a throwaway diagnostic Android app/module for validation. It should scan and report standard Android input visibility, BLE/Classic services, decoded frames, phone vibration, and any deferred rumble test outcomes.
 - **D-12:** The diagnostic app/module is validation tooling for Phase 1, not the production Android host app. Useful code can be reused later, but planners should not treat UI or module boundaries as production commitments.
 
 ### Fixture Shape
 - **D-13:** Normalized fixtures should be JSON Lines event sequences for readable downstream tests.
 - **D-14:** Raw protocol evidence should be stored as binary blobs or capture excerpts referenced from JSONL fixtures/manifests, not hand-transcribed byte strings only.
-- **D-15:** Fixtures must cover trigger, reload, joystick axes, X/Y/A/B button down/up semantics, Bluetooth connection/handshake observations, and rumble command/ack/failure evidence where discovered.
+- **D-15:** Fixtures must cover trigger, reload, joystick axes, X/Y/A/B button down/up semantics, Bluetooth connection/handshake observations, and v1 phone haptic evidence. Physical gun motor command/ack/failure evidence is optional/deferred.
 
 ### the agent's Discretion
 - Choose exact decompile tools, parser scripts, ignored evidence directory names, JSONL field names, and diagnostic UI layout during planning.
@@ -58,7 +59,7 @@ Phase 1 proves how the real iPega gun exposes input and accepts rumble by revers
 - `.planning/research/SUMMARY.md` — research summary, local reference app findings, and Phase 1 implications.
 - `.planning/research/STACK.md` — recommended Android/Bluetooth/reverse-engineering tools and stack constraints.
 - `.planning/research/ARCHITECTURE.md` — adapter-to-normalized-event boundary and expected evidence flow.
-- `.planning/research/PITFALLS.md` — critical pitfalls for standard-gamepad assumptions, static-only RE, and rumble proof.
+- `.planning/research/PITFALLS.md` — critical pitfalls for standard-gamepad assumptions, static-only RE, and haptic/deferred motor proof.
 - `.planning/research/FEATURES.md` — feature dependency notes and table-stakes discovery expectations.
 
 ### Local Reference Apps

@@ -9,6 +9,7 @@ private const val FFF3_CHARACTERISTIC_UUID = "0000fff3-0000-1000-8000-00805f9b34
 
 fun main() {
     knownFff3FixturesBecomeGunProductEventsWithProvenance()
+    joystickSweepPayloadsBecomeCompositeAxisEvents()
     unknownFff3PayloadReturnsDebugStatusOnly()
 }
 
@@ -20,14 +21,6 @@ private fun knownFff3FixturesBecomeGunProductEventsWithProvenance() {
         hexCase("00000000000000000000000000000000", "trigger", false, "ARGUN2021-CONTROL-001", "trigger-001", SemanticConfidence.CANDIDATE),
         Case("B8DOWN", "reload", true, "ARGUN2021-CONTROL-001", "reload-001", SemanticConfidence.CONFIRMED),
         Case("B8UP", "reload", false, "ARGUN2021-CONTROL-001", "reload-001", SemanticConfidence.CONFIRMED),
-        Case("B6DOWN", "stick_left", true, "ARCHER-INPUT-001", "joystick-001", SemanticConfidence.CONFIRMED),
-        Case("B6UP", "stick_left", false, "ARCHER-INPUT-001", "joystick-001", SemanticConfidence.CONFIRMED),
-        Case("B4DOWN", "stick_right", true, "ARCHER-INPUT-001", "joystick-001", SemanticConfidence.CONFIRMED),
-        Case("B4UP", "stick_right", false, "ARCHER-INPUT-001", "joystick-001", SemanticConfidence.CONFIRMED),
-        Case("B5DOWN", "stick_up", true, "ARCHER-INPUT-001", "joystick-001", SemanticConfidence.CONFIRMED),
-        Case("B5UP", "stick_up", false, "ARCHER-INPUT-001", "joystick-001", SemanticConfidence.CONFIRMED),
-        Case("B7DOWN", "stick_down", true, "ARCHER-INPUT-001", "joystick-001", SemanticConfidence.CONFIRMED),
-        Case("B7UP", "stick_down", false, "ARCHER-INPUT-001", "joystick-001", SemanticConfidence.CONFIRMED),
         Case("BADOWN", "button_x", true, "ARCHER-INPUT-001", "button-x-001", SemanticConfidence.CANDIDATE),
         Case("BAUP", "button_x", false, "ARCHER-INPUT-001", "button-x-001", SemanticConfidence.CANDIDATE),
         Case("B3DOWN", "button_y", true, "ARCHER-INPUT-001", "button-y-001", SemanticConfidence.CANDIDATE),
@@ -59,6 +52,47 @@ private fun knownFff3FixturesBecomeGunProductEventsWithProvenance() {
     }
 }
 
+private fun joystickSweepPayloadsBecomeCompositeAxisEvents() {
+    val parser = IpegaPacketParser()
+
+    listOf(
+        AxisCase("B4DOWN", 1f, 0f),
+        AxisCase("B7DOWN", 1f, -1f),
+        AxisCase("B4UP", 0f, -1f),
+        AxisCase("B6DOWN", -1f, -1f),
+        AxisCase("B7UP", -1f, 0f),
+        AxisCase("B5DOWN", -1f, 1f),
+        AxisCase("B6UP", 0f, 1f),
+        AxisCase("B4DOWN", 1f, 1f),
+        AxisCase("B5UP", 1f, 0f),
+        AxisCase("B4UP", 0f, 0f),
+    ).forEachIndexed { index, expected ->
+        val event = parser.parseFff3(
+            value = expected.rawAscii.encodeToByteArray(),
+            captureElapsedNanos = 10_000L + index,
+            emittedElapsedNanos = 11_000L + index,
+        ).expectGunEvent("joystick ${expected.rawAscii}")
+
+        expectEquals("stick name", "stick", event.payload.name)
+        expectEquals("stick pressed", null, event.payload.pressed)
+        expectEquals("stick axis x", expected.axisX, event.payload.axisX)
+        expectEquals("stick axis y", expected.axisY, event.payload.axisY)
+        expectEquals("stick raw ascii", expected.rawAscii, event.provenance?.rawAscii)
+        expectEquals("stick clue", "ARCHER-INPUT-001", event.provenance?.clueId)
+        expectEquals("stick capture", "joystick-sweep-001", event.provenance?.captureId)
+        expectEquals("stick confidence", SemanticConfidence.CONFIRMED, event.provenance?.semanticConfidence)
+    }
+
+    parser.reset()
+    val neutral = parser.parseFff3(
+        value = "B4UP".encodeToByteArray(),
+        captureElapsedNanos = 12_000L,
+        emittedElapsedNanos = 13_000L,
+    ).expectGunEvent("joystick reset release")
+    expectEquals("reset keeps neutral x", 0f, neutral.payload.axisX)
+    expectEquals("reset keeps neutral y", 0f, neutral.payload.axisY)
+}
+
 private fun unknownFff3PayloadReturnsDebugStatusOnly() {
     val parsed = IpegaPacketParser().parseFff3(
         value = "NOISE".encodeToByteArray(),
@@ -86,6 +120,12 @@ private data class Case(
 ) {
     fun bytes(): ByteArray = if (rawAscii.isNotEmpty()) rawAscii.encodeToByteArray() else rawHex.hexToBytes()
 }
+
+private data class AxisCase(
+    val rawAscii: String,
+    val axisX: Float,
+    val axisY: Float,
+)
 
 private fun hexCase(
     rawHex: String,

@@ -1,28 +1,21 @@
 package com.btgun.host
 
-import android.Manifest
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
-import android.bluetooth.BluetoothAdapter
-import android.bluetooth.BluetoothManager
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
-import android.location.LocationManager
-import android.net.ConnectivityManager
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.os.SystemClock
-import android.os.Vibrator
 import android.view.Surface
 import android.view.WindowManager
 import com.btgun.host.ble.BleGunConnectionPhase
@@ -49,8 +42,7 @@ import com.btgun.host.motion.RawAimPoint
 import com.btgun.host.motion.RawAimTracker
 import com.btgun.host.motion.fallbackAim
 import com.btgun.host.motion.SelectedMotionProvider
-import com.btgun.host.permissions.PermissionGate
-import com.btgun.host.permissions.PermissionGateInput
+import com.btgun.host.permissions.HostCapabilityProbe
 import com.btgun.host.permissions.PermissionGateState
 import com.btgun.host.recenter.ReloadHoldRecenter
 import com.btgun.host.recenter.ReloadHoldState
@@ -154,7 +146,10 @@ class HostSessionService : Service() {
         }
 
         currentState = HostSessionState(phase = HostSessionPhase.STARTING)
-        startHostForeground()
+        if (!startHostForegroundSafely()) {
+            stopSelf()
+            return
+        }
         startMotionCapture()
 
         val listener = object : IpegaBleGunAdapter.Listener {
@@ -183,6 +178,24 @@ class HostSessionService : Service() {
         adapter = IpegaBleGunAdapter(applicationContext, listener).also { it.startSession() }
         currentState = currentState.copy(phase = HostSessionPhase.SCANNING, foregroundActive = true)
     }
+
+    private fun startHostForegroundSafely(): Boolean =
+        try {
+            startHostForeground()
+            true
+        } catch (error: SecurityException) {
+            currentState = HostSessionState(
+                phase = HostSessionPhase.ERROR,
+                lastError = "Foreground service blocked: ${error.javaClass.simpleName}",
+            )
+            false
+        } catch (error: IllegalStateException) {
+            currentState = HostSessionState(
+                phase = HostSessionPhase.ERROR,
+                lastError = "Foreground service blocked: ${error.javaClass.simpleName}",
+            )
+            false
+        }
 
     private fun stopSession() {
         currentState = currentState.copy(phase = HostSessionPhase.STOPPING)
@@ -250,55 +263,7 @@ class HostSessionService : Service() {
     }
 
     private fun permissionGateState(): PermissionGateState =
-        PermissionGate.evaluate(
-            PermissionGateInput(
-                sdkInt = Build.VERSION.SDK_INT,
-                grantedPermissions = grantedPermissions(),
-                bluetoothEnabled = bluetoothAdapter()?.isEnabled == true,
-                locationServiceAvailable = locationServiceAvailable(),
-                hasGyroscope = hasSensor(Sensor.TYPE_GYROSCOPE),
-                hasRotationVector = hasSensor(Sensor.TYPE_ROTATION_VECTOR),
-                hasGameRotationVector = hasSensor(Sensor.TYPE_GAME_ROTATION_VECTOR),
-                hasAccelerometer = hasSensor(Sensor.TYPE_ACCELEROMETER),
-                hasGravity = hasSensor(Sensor.TYPE_GRAVITY),
-                hasVibrator = hasVibrator(),
-                hasNetwork = hasNetwork(),
-            ),
-        )
-
-    private fun grantedPermissions(): Set<String> =
-        listOf(
-            Manifest.permission.BLUETOOTH_SCAN,
-            Manifest.permission.BLUETOOTH_CONNECT,
-            Manifest.permission.ACCESS_COARSE_LOCATION,
-            Manifest.permission.ACCESS_FINE_LOCATION,
-        ).filter { permission ->
-            checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED
-        }.toSet()
-
-    private fun bluetoothAdapter(): BluetoothAdapter? =
-        (getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager)?.adapter
-            ?: BluetoothAdapter.getDefaultAdapter()
-
-    private fun locationServiceAvailable(): Boolean {
-        val manager = getSystemService(Context.LOCATION_SERVICE) as? LocationManager ?: return false
-        return if (Build.VERSION.SDK_INT >= 28) {
-            manager.isLocationEnabled
-        } else {
-            @Suppress("DEPRECATION")
-            manager.isProviderEnabled(LocationManager.GPS_PROVIDER) ||
-                manager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
-        }
-    }
-
-    private fun hasSensor(sensorType: Int): Boolean =
-        (getSystemService(Context.SENSOR_SERVICE) as? SensorManager)?.getDefaultSensor(sensorType) != null
-
-    private fun hasVibrator(): Boolean =
-        (getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator)?.hasVibrator() == true
-
-    private fun hasNetwork(): Boolean =
-        getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager != null
+        HostCapabilityProbe.evaluate(this)
 
     private fun startMotionCapture() {
         val sensorManager = getSystemService(Context.SENSOR_SERVICE) as? SensorManager ?: return

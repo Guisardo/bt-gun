@@ -23,7 +23,7 @@
 +---------+-------------------------------+-------------------+
 |                        Local LAN Transport                  |
 +-------------------------------------------------------------+
-|  UDP input/gyro frames       TCP/WebSocket control/rumble   |
+|  UDP input/motion frames     TCP/WebSocket control/haptics  |
 +-------------------------------------------------------------+
 |                        Desktop Companion                    |
 +-------------------------------------------------------------+
@@ -43,16 +43,16 @@
 
 | Component | Responsibility | Typical Implementation |
 |-----------|----------------|------------------------|
-| Gun Bluetooth Adapter | Pair/connect to iPega gun, decode input frames, send rumble | Android Bluetooth HID/InputDevice path first; BLE GATT/SPP adapter if proprietary protocol required |
-| Sensor Capture | Sample gyro/rotation data, timestamp samples, handle recenter | Android SensorManager with monotonic timestamps |
-| Normalized Event Pipeline | Merge gun controls and gyro samples into platform-independent events | Kotlin module with explicit event schema and logs |
+| Gun Bluetooth Adapter | Pair/connect to iPega gun and decode input frames | Android Bluetooth HID/InputDevice path first; BLE GATT/SPP adapter if proprietary protocol required |
+| Sensor Capture | Sample motion aim data, choose best available provider, timestamp samples, handle recenter | Android SensorManager with rotation-vector, gyroscope, accelerometer, gravity, and monotonic timestamps |
+| Normalized Event Pipeline | Merge gun controls and motion samples into platform-independent events | Kotlin module with explicit event schema and logs |
 | Pairing/Session UI | Scan QR/code, establish authenticated local session | Android native UI, QR scanner/generator, session key storage |
-| UDP Input Stream | Send high-rate input/gyro samples | Versioned binary packets under 1200 bytes |
-| Control Channel | Pairing, profile metadata, heartbeat, diagnostics, rumble | TCP/WebSocket with authenticated messages |
+| UDP Input Stream | Send high-rate input/motion samples | Versioned binary packets under 1200 bytes |
+| Control Channel | Pairing, profile metadata, heartbeat, diagnostics, haptics | TCP/WebSocket with authenticated messages |
 | Desktop Session Receiver | Accept paired Android client and decrypt/validate packets | Native desktop service/app |
-| Profile Mapper | Map normalized input and gyro to virtual joystick axes/buttons | Desktop-owned profile engine |
+| Profile Mapper | Map normalized input and motion aim to virtual joystick axes/buttons | Desktop-owned profile engine |
 | Virtual HID Backend | Expose regular gamepad/joystick gun to OS | Windows VHF/KMDF; macOS CoreHID or DriverKit |
-| Visualizer | Verify inputs, axes, latency, recenter, rumble | Desktop diagnostic app |
+| Visualizer | Verify inputs, axes, latency, recenter, haptics | Desktop diagnostic app |
 
 ## Recommended Project Structure
 
@@ -60,7 +60,7 @@
 android/
   app/                       # Android host app
   gun-protocol/              # Bluetooth adapter and decoded gun events
-  sensors/                   # Gyro/rotation capture, recenter logic
+  sensors/                   # Motion sensor provider selection, fusion/fallback, recenter logic
   transport/                 # LAN pairing, UDP input, control channel
 
 desktop/
@@ -91,13 +91,13 @@ docs/
 
 ### Pattern 1: Hardware Adapter -> Normalized Events
 
-**What:** Convert iPega-specific frames into stable events like `TriggerDown`, `ReloadUp`, `Stick(x,y)`, `ButtonA`, `RumbleAck`.
+**What:** Convert iPega-specific frames into stable events like `TriggerDown`, `ReloadUp`, `Stick(x,y)`, `ButtonA`, `HapticAck`.
 **When to use:** Always; do not leak BLE/SPP packet shapes into desktop code.
 **Trade-offs:** Requires up-front schema discipline but prevents platform drift.
 
 ### Pattern 2: Split Realtime Input and Reliable Control
 
-**What:** Send high-rate input/gyro over UDP; send pairing, config, heartbeat, diagnostics, and rumble over reliable TCP/WebSocket.
+**What:** Send high-rate input/motion over UDP; send pairing, config, heartbeat, diagnostics, and haptics over reliable TCP/WebSocket.
 **When to use:** v1 LAN transport.
 **Trade-offs:** More protocol code than one WebSocket, but avoids aim stutter from TCP retransmit/head-of-line stalls.
 
@@ -109,7 +109,7 @@ docs/
 
 ### Pattern 4: Virtual HID Backend Boundary
 
-**What:** Keep platform virtual controller code behind a common interface: `connect`, `publishInput`, `setIdentity`, `onRumble`, `disconnect`.
+**What:** Keep platform virtual controller code behind a common interface: `connect`, `publishInput`, `setIdentity`, `onHaptic`, `disconnect`.
 **When to use:** Windows/macOS both v1 targets.
 **Trade-offs:** Some features will not map perfectly across platforms; explicit capability flags are required.
 
@@ -127,7 +127,7 @@ Physical trigger/stick/buttons
                         -> Virtual HID input report
                             -> Joystick visualizer/game
 
-Android gyro/rotation sample
+Android motion sample
     -> Sensor Capture
         -> Recenter/profile-neutral motion sample
             -> UDP InputFrame
@@ -135,17 +135,16 @@ Android gyro/rotation sample
                     -> Aim axes
 ```
 
-### Rumble Flow
+### Haptic Flow
 
 ```text
-Joystick visualizer/game rumble request
+Joystick visualizer/game haptic request
     -> Platform virtual HID output report
-        -> Desktop backend onRumble
-            -> Control channel RumbleCmd
+        -> Desktop backend onHaptic
+            -> Control channel HapticCmd
                 -> Android control receiver
-                    -> Gun Bluetooth adapter
-                        -> Physical motor
-                            -> RumbleAck/RumbleFail
+                    -> Android phone Vibrator
+                        -> HapticAck/HapticFail
 ```
 
 ### Pairing Flow
@@ -163,8 +162,8 @@ Desktop starts session
 ### Key Data Flows
 
 1. **Gun input decode:** Bluetooth frame/event -> normalized event -> packet fixture -> desktop visualizer.
-2. **Aim mapping:** Sensor sample -> recenter transform -> profile mapping -> HID axis report.
-3. **Rumble return:** Virtual HID output report -> desktop control message -> Android gun command.
+2. **Aim mapping:** Sensor sample -> provider-specific normalization -> recenter transform -> profile mapping -> HID axis report.
+3. **Haptic return:** Virtual HID output report -> desktop control message -> Android phone vibration command.
 4. **Latency measurement:** Capture timestamp -> send timestamp -> receive timestamp -> HID publish timestamp -> visualizer metric.
 
 ## Scaling Considerations
@@ -208,9 +207,9 @@ Desktop starts session
 | Service | Integration Pattern | Notes |
 |---------|---------------------|-------|
 | iPega gun Bluetooth | Android Bluetooth HID/InputDevice or BLE/SPP protocol adapter | Confirm with physical hardware and btsnoop/HCI logs. |
-| Android sensors | SensorManager listener | Use monotonic sensor timestamps, not wall clock. |
+| Android sensors | SensorManager listener | Prefer fused rotation/game rotation; support gyro+accelerometer, gyro-only degraded mode, and accelerometer/gravity tilt fallback with monotonic sensor timestamps. |
 | LAN discovery | Android NSD/mDNS plus QR fallback | Some networks block mDNS; QR host/port fallback is required. |
-| Windows virtual HID | VHF/KMDF driver + user-mode service | Requires WDK, signing, installer, and output report handling for rumble. |
+| Windows virtual HID | VHF/KMDF driver + user-mode service | Requires WDK, signing, installer, and output report handling for haptics. |
 | macOS virtual HID | CoreHID or HIDDriverKit | Entitlements and user approval are gating risks. |
 
 ### Internal Boundaries
@@ -219,8 +218,8 @@ Desktop starts session
 |----------|---------------|-------|
 | Gun adapter -> Normalized event pipeline | In-process typed events | Hardware-specific parsing stops here. |
 | Android -> Desktop input | Authenticated UDP packets | Drop stale/out-of-order frames; no retransmit for input. |
-| Android <-> Desktop control | Authenticated reliable channel | Pairing, heartbeat, profile metadata, diagnostics, rumble. |
-| Profile mapper -> Virtual HID backend | Common backend interface | Backends expose capability flags for rumble, axes, buttons. |
+| Android <-> Desktop control | Authenticated reliable channel | Pairing, heartbeat, profile metadata, diagnostics, haptics. |
+| Profile mapper -> Virtual HID backend | Common backend interface | Backends expose capability flags for haptics, axes, buttons. |
 
 ## Sources
 

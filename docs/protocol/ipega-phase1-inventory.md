@@ -40,6 +40,6 @@ Generated decode/extract output stays under ignored `.evidence/phase1/decompile/
 ## Immediate Static Observations
 
 - The three strongest refs are Unity AR apps and request legacy Bluetooth permissions; two declare BLE feature required and one declares BLE optional.
-- `ARGun2021.apk` also requests `VIBRATE`, which makes it the first rumble-path candidate.
+- `ARGun2021.apk` also requests `VIBRATE`; current hardware check maps that to the v1 phone-haptic path, while physical gun motor rumble is deferred.
 - `ARGun Library_1.0.1_apkcombo.com.apk` has no Bluetooth permission in its manifest, so it is secondary for protocol discovery.
 - No entry here is a verified protocol finding. Verification needs static clue, hardware capture, and normalized fixture linkage.

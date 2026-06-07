@@ -100,6 +100,7 @@ class IpegaBleGunAdapter(
                 }
 
                 BluetoothProfile.STATE_DISCONNECTED -> {
+                    parser.reset()
                     operationQueue.clear()
                     closeGatt(gatt)
                     if (active) {
@@ -178,6 +179,7 @@ class IpegaBleGunAdapter(
         active = true
         reconnectAttempts = 0
         candidateDevice = null
+        parser.reset()
         startScan()
     }
 
@@ -197,6 +199,7 @@ class IpegaBleGunAdapter(
         }
         activeGatt = null
         candidateDevice = null
+        parser.reset()
         emitConnection(BleGunConnectionPhase.STOPPED, "session_stopped")
     }
 
@@ -204,7 +207,15 @@ class IpegaBleGunAdapter(
         if (!active) {
             return
         }
-        val scanner = bluetoothAdapter?.bluetoothLeScanner
+        val scanner = try {
+            bluetoothAdapter?.bluetoothLeScanner
+        } catch (error: SecurityException) {
+            handleError("ble scanner permission blocked:${error.javaClass.simpleName}")
+            return
+        } catch (error: IllegalStateException) {
+            handleError("ble scanner unavailable:${error.javaClass.simpleName}")
+            return
+        }
         if (scanner == null) {
             handleError("ble scanner unavailable")
             return

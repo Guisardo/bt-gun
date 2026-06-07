@@ -6,4 +6,10 @@
 .evidence/phase2/host-live-input/
 
 # Throwaway Android diagnostic build output
+android-diagnostic/.gradle/
+android-diagnostic/.kotlin/
 android-diagnostic/build/
+android-diagnostic/app/build/
+
+# Local macOS metadata
+.DS_Store

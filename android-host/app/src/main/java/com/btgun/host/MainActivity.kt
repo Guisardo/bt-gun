@@ -1,23 +1,13 @@
 package com.btgun.host
 
-import android.Manifest
 import android.app.Activity
-import android.bluetooth.BluetoothAdapter
-import android.bluetooth.BluetoothManager
-import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.graphics.Color
-import android.hardware.Sensor
-import android.hardware.SensorManager
-import android.location.LocationManager
-import android.net.ConnectivityManager
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
-import android.os.Vibrator
 import android.view.Gravity
 import android.view.View
 import android.widget.Button
@@ -27,8 +17,8 @@ import android.widget.TextView
 import com.btgun.host.haptics.PhoneHapticStatus
 import com.btgun.host.haptics.PhoneHaptics
 import com.btgun.host.motion.AimBaseline
-import com.btgun.host.permissions.PermissionGate
-import com.btgun.host.permissions.PermissionGateInput
+import com.btgun.host.permissions.CapabilityState
+import com.btgun.host.permissions.HostCapabilityProbe
 import com.btgun.host.permissions.PermissionGateState
 import com.btgun.host.ui.AimGraphView
 import com.btgun.host.ui.DashboardEventMode
@@ -49,6 +39,7 @@ class MainActivity : Activity() {
     private lateinit var aimGraph: AimGraphView
     private val fields = mutableMapOf<String, TextView>()
     private var lastPhoneHapticStatus: PhoneHapticStatus = PhoneHapticStatus.available()
+    private var localStartError: String? = null
     private var eventMode: DashboardEventMode = DashboardEventMode.PRODUCT_EVENTS
     private var debugExpansion = DebugExpansion()
     private val refreshRunnable = object : Runnable {
@@ -164,7 +155,12 @@ class MainActivity : Activity() {
 
     private fun renderDashboard() {
         val permissionGate = permissionGateState()
-        val serviceState = HostSessionService.latestState
+        val latestServiceState = HostSessionService.latestState
+        val serviceState = if (localStartError != null && !latestServiceState.isActive) {
+            latestServiceState.copy(phase = HostSessionPhase.ERROR, lastError = localStartError)
+        } else {
+            latestServiceState
+        }
         val dashboard = DashboardState.from(
             permissionGateState = permissionGate,
             hostSessionState = serviceState,
@@ -217,29 +213,32 @@ class MainActivity : Activity() {
         } else {
             HostSessionService.ACTION_START_SESSION
         }
+        if (action == HostSessionService.ACTION_START_SESSION) {
+            val gate = permissionGateState()
+            if (!gate.canStartSession) {
+                localStartError = blockedStartMessage(gate)
+                renderDashboard()
+                return
+            }
+        }
+        localStartError = null
         val intent = Intent(this, HostSessionService::class.java).setAction(action)
-        if (action == HostSessionService.ACTION_START_SESSION && Build.VERSION.SDK_INT >= 26) {
-            startForegroundService(intent)
-        } else {
-            startService(intent)
+        try {
+            if (action == HostSessionService.ACTION_START_SESSION && Build.VERSION.SDK_INT >= 26) {
+                startForegroundService(intent)
+            } else {
+                startService(intent)
+            }
+        } catch (error: SecurityException) {
+            localStartError = "Session start blocked: ${error.javaClass.simpleName}"
+        } catch (error: IllegalStateException) {
+            localStartError = "Session start blocked: ${error.javaClass.simpleName}"
         }
         renderDashboard()
     }
 
     private fun requestHostPermissions() {
-        val permissions = if (Build.VERSION.SDK_INT >= 31) {
-            arrayOf(
-                Manifest.permission.BLUETOOTH_SCAN,
-                Manifest.permission.BLUETOOTH_CONNECT,
-                Manifest.permission.ACCESS_FINE_LOCATION,
-            )
-        } else {
-            arrayOf(
-                Manifest.permission.ACCESS_FINE_LOCATION,
-                Manifest.permission.ACCESS_COARSE_LOCATION,
-            )
-        }
-        requestPermissions(permissions, REQUEST_PERMISSIONS)
+        requestPermissions(HostCapabilityProbe.runtimePermissionsForHost(), REQUEST_PERMISSIONS)
     }
 
     override fun onRequestPermissionsResult(
@@ -254,49 +253,13 @@ class MainActivity : Activity() {
     }
 
     private fun permissionGateState(): PermissionGateState =
-        PermissionGate.evaluate(
-            PermissionGateInput(
-                sdkInt = Build.VERSION.SDK_INT,
-                grantedPermissions = grantedPermissions(),
-                bluetoothEnabled = bluetoothAdapter()?.isEnabled == true,
-                locationServiceAvailable = locationServiceAvailable(),
-                hasGyroscope = hasSensor(Sensor.TYPE_GYROSCOPE),
-                hasRotationVector = hasSensor(Sensor.TYPE_ROTATION_VECTOR),
-                hasGameRotationVector = hasSensor(Sensor.TYPE_GAME_ROTATION_VECTOR),
-                hasAccelerometer = hasSensor(Sensor.TYPE_ACCELEROMETER),
-                hasGravity = hasSensor(Sensor.TYPE_GRAVITY),
-                hasVibrator = (getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator)?.hasVibrator() == true,
-                hasNetwork = getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager != null,
-            ),
-        )
+        HostCapabilityProbe.evaluate(this)
 
-    private fun grantedPermissions(): Set<String> =
-        listOf(
-            Manifest.permission.BLUETOOTH_SCAN,
-            Manifest.permission.BLUETOOTH_CONNECT,
-            Manifest.permission.ACCESS_COARSE_LOCATION,
-            Manifest.permission.ACCESS_FINE_LOCATION,
-        ).filter { permission ->
-            checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED
-        }.toSet()
-
-    private fun bluetoothAdapter(): BluetoothAdapter? =
-        (getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager)?.adapter
-            ?: BluetoothAdapter.getDefaultAdapter()
-
-    private fun locationServiceAvailable(): Boolean {
-        val manager = getSystemService(Context.LOCATION_SERVICE) as? LocationManager ?: return false
-        return if (Build.VERSION.SDK_INT >= 28) {
-            manager.isLocationEnabled
-        } else {
-            @Suppress("DEPRECATION")
-            manager.isProviderEnabled(LocationManager.GPS_PROVIDER) ||
-                manager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
-        }
-    }
-
-    private fun hasSensor(sensorType: Int): Boolean =
-        (getSystemService(Context.SENSOR_SERVICE) as? SensorManager)?.getDefaultSensor(sensorType) != null
+    private fun blockedStartMessage(state: PermissionGateState): String =
+        listOf(state.bluetoothScan, state.bluetoothConnect, state.motionSensors)
+            .firstOrNull { status -> status.state != CapabilityState.AVAILABLE }
+            ?.detail
+            ?: "Session permission gate blocked."
 
     private fun addField(key: String) {
         fields[key] = TextView(this).apply {
