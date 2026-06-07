@@ -17,9 +17,12 @@ class ControlServer(
     private val registry: PairingSessionRegistry,
     private val maxMessageBytes: Int = DEFAULT_MAX_MESSAGE_BYTES,
 ) {
+    var onSessionStateChanged: (ControlServerSessionState) -> Unit = {}
+
     private var stopServer: (() -> Unit)? = null
 
     fun start(port: Int, host: String = "0.0.0.0"): ControlServer {
+        stop()
         val server = embeddedServer(Netty, host = host, port = port) {
             install(WebSockets) {
                 maxFrameSize = maxMessageBytes.toLong()
@@ -27,13 +30,18 @@ class ControlServer(
             }
             routing {
                 webSocket("/control") {
-                    for (frame in incoming) {
-                        if (frame is Frame.Text) {
-                            val decoded = ControlEnvelopeCodec.decode(frame.readText(), maxBytes = maxMessageBytes)
-                            if (decoded is ControlDecodeResult.Rejected) {
-                                break
+                    onSessionStateChanged(ControlServerSessionState.ANDROID_CONNECTED)
+                    try {
+                        for (frame in incoming) {
+                            if (frame is Frame.Text) {
+                                val decoded = ControlEnvelopeCodec.decode(frame.readText(), maxBytes = maxMessageBytes)
+                                if (decoded is ControlDecodeResult.Rejected) {
+                                    break
+                                }
                             }
                         }
+                    } finally {
+                        onSessionStateChanged(ControlServerSessionState.DISCONNECTED)
                     }
                 }
             }
@@ -41,12 +49,14 @@ class ControlServer(
         stopServer = {
             server.stop(gracePeriodMillis = 250, timeoutMillis = 1_000)
         }
+        onSessionStateChanged(ControlServerSessionState.STARTED)
         return this
     }
 
     fun stop() {
         stopServer?.invoke()
         stopServer = null
+        onSessionStateChanged(ControlServerSessionState.STOPPED)
     }
 
     fun handleAuthenticatedSocket(
@@ -59,8 +69,12 @@ class ControlServer(
         }
         val proof = registry.verifyProof(proofRequest, nowEpochMillis)
         if (proof !is PairingAttemptResult.Accepted) {
+            if (proof is PairingAttemptResult.RejectedRateLimited) {
+                onSessionStateChanged(ControlServerSessionState.RATE_LIMITED)
+            }
             return ControlServerResult.RejectedProof(proof)
         }
+        onSessionStateChanged(ControlServerSessionState.AUTHENTICATED)
         return handleTrustedEnvelope(proof.trustedSession, text)
     }
 
@@ -79,6 +93,16 @@ class ControlServer(
     companion object {
         const val DEFAULT_MAX_MESSAGE_BYTES = 16 * 1024
     }
+}
+
+enum class ControlServerSessionState {
+    STARTED,
+    STOPPED,
+    ANDROID_CONNECTED,
+    AUTHENTICATED,
+    DEGRADED,
+    DISCONNECTED,
+    RATE_LIMITED,
 }
 
 sealed interface ControlServerResult {

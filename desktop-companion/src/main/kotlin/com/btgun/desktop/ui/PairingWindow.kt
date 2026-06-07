@@ -1,13 +1,20 @@
 package com.btgun.desktop.ui
 
 import com.btgun.desktop.control.ControlServer
+import com.btgun.desktop.control.ControlServerSessionState
+import com.btgun.desktop.pairing.LocalEndpoint
+import com.btgun.desktop.pairing.ManualPairingPayload
+import com.btgun.desktop.pairing.PairingSecurityState
 import com.btgun.desktop.pairing.PairingSession
 import com.btgun.desktop.pairing.PairingSessionRegistry
 import com.btgun.desktop.pairing.QrCodeRenderer
+import com.btgun.desktop.security.SecretRedactor
 import java.awt.BorderLayout
 import java.awt.Dimension
 import java.awt.Font
 import java.awt.GridLayout
+import java.awt.event.WindowAdapter
+import java.awt.event.WindowEvent
 import javax.swing.BorderFactory
 import javax.swing.Box
 import javax.swing.BoxLayout
@@ -17,6 +24,7 @@ import javax.swing.JFrame
 import javax.swing.JLabel
 import javax.swing.JPanel
 import javax.swing.SwingConstants
+import javax.swing.SwingUtilities
 import javax.swing.Timer
 
 class PairingWindow(
@@ -25,19 +33,31 @@ class PairingWindow(
 ) {
     private val frame = JFrame("BT Gun Desktop")
     private val title = JLabel("BT Gun Desktop")
-    private val state = JLabel("idle")
+    private val state = JLabel(stateText(DesktopSessionUiState.IDLE))
     private val endpoint = JLabel("Endpoint: not selected")
     private val qr = JLabel("Start pairing", SwingConstants.CENTER)
     private val countdown = JLabel("Countdown: inactive")
     private val manual = JLabel("Manual fallback: inactive")
+    private val diagnostics = JLabel(diagnosticsHtml(DesktopSessionUiState.IDLE, null))
     private val action = JButton("Start pairing")
     private var session: PairingSession? = null
+    private var displayState = DesktopSessionUiState.IDLE
+    private var lastControlError: String? = null
 
     init {
         title.font = title.font.deriveFont(Font.BOLD, 22f)
-        qr.preferredSize = Dimension(260, 260)
+        qr.preferredSize = Dimension(QR_SIZE, QR_SIZE)
+        qr.minimumSize = Dimension(QR_SIZE, QR_SIZE)
         manual.verticalAlignment = SwingConstants.TOP
         manual.border = BorderFactory.createTitledBorder("Manual fallback")
+        diagnostics.verticalAlignment = SwingConstants.TOP
+        diagnostics.border = BorderFactory.createTitledBorder("Control state")
+
+        controlServer.onSessionStateChanged = { serverState ->
+            SwingUtilities.invokeLater {
+                applyServerState(serverState)
+            }
+        }
 
         action.addActionListener {
             startPairing()
@@ -45,11 +65,18 @@ class PairingWindow(
 
         frame.defaultCloseOperation = JFrame.EXIT_ON_CLOSE
         frame.contentPane.add(content(), BorderLayout.CENTER)
+        frame.addWindowListener(
+            object : WindowAdapter() {
+                override fun windowClosing(event: WindowEvent) {
+                    controlServer.stop()
+                }
+            },
+        )
         frame.pack()
         frame.setLocationRelativeTo(null)
 
         Timer(1_000) {
-            refreshCountdown()
+            refreshSession()
         }.start()
     }
 
@@ -76,6 +103,8 @@ class PairingWindow(
         side.layout = BoxLayout(side, BoxLayout.Y_AXIS)
         side.add(manual)
         side.add(Box.createVerticalStrut(16))
+        side.add(diagnostics)
+        side.add(Box.createVerticalStrut(16))
         side.add(action)
 
         root.add(header, BorderLayout.NORTH)
@@ -87,38 +116,147 @@ class PairingWindow(
     private fun startPairing() {
         session = registry.startPairing()
         val current = session ?: return
-        state.text = "pairing ready"
-        endpoint.text = "Endpoint: ${current.endpoint.host}:${current.endpoint.port}"
-        qr.icon = ImageIcon(QrCodeRenderer.render(current.qrPayload.toPairingUri(), size = 260))
+        displayState = DesktopSessionUiState.PAIRING_READY
+        lastControlError = null
+        startControlServer(current)
+        state.text = stateText(displayState)
+        endpoint.text = endpointText(current.endpoint)
+        qr.icon = ImageIcon(QrCodeRenderer.render(current.qrPayload.toPairingUri(), size = QR_SIZE))
         qr.text = null
         action.text = "Restart pairing"
-        manual.text = """
-            <html>
-            <body>
-            <p>Use this endpoint and 6-digit code only if QR scan is unavailable.</p>
-            <p><b>Host:</b> ${current.manualPayload.host}</p>
-            <p><b>Port:</b> ${current.manualPayload.port}</p>
-            <p><b>Code:</b> ${current.manualPayload.code}</p>
-            <p><b>Fingerprint suffix:</b> ${current.manualPayload.desktopSpkiSha256Suffix}</p>
-            </body>
-            </html>
-        """.trimIndent()
-        refreshCountdown()
+        manual.text = manualFallbackHtml(current.manualPayload)
+        refreshSession()
         frame.pack()
     }
 
-    private fun refreshCountdown() {
+    private fun startControlServer(current: PairingSession) {
+        runCatching {
+            controlServer.start(port = current.endpoint.port)
+        }.onFailure { error ->
+            displayState = DesktopSessionUiState.DISCONNECTED
+            lastControlError = SecretRedactor.redact("Control server start failed: ${error.javaClass.simpleName}")
+        }
+    }
+
+    private fun refreshSession() {
         val current = session
         if (current == null) {
             countdown.text = "Countdown: inactive"
+            state.text = stateText(DesktopSessionUiState.IDLE)
+            diagnostics.text = diagnosticsHtml(DesktopSessionUiState.IDLE, lastControlError)
             return
         }
 
-        val remaining = ((current.expiresAtEpochMillis - System.currentTimeMillis()).coerceAtLeast(0L) + 999L) / 1_000L
-        countdown.text = "Expires in: ${remaining}s"
-        if (remaining == 0L) {
-            state.text = "expired"
-            registry.expire()
+        val now = System.currentTimeMillis()
+        displayState = stateFromSecurity(current, now)
+        countdown.text = countdownText(current.expiresAtEpochMillis, now)
+        state.text = stateText(displayState)
+        diagnostics.text = diagnosticsHtml(displayState, lastControlError)
+        if (displayState == DesktopSessionUiState.EXPIRED) {
+            registry.expire(now)
+            controlServer.stop()
         }
     }
+
+    private fun applyServerState(serverState: ControlServerSessionState) {
+        displayState = when (serverState) {
+            ControlServerSessionState.STARTED -> DesktopSessionUiState.PAIRING_READY
+            ControlServerSessionState.STOPPED -> displayState
+            ControlServerSessionState.ANDROID_CONNECTED -> DesktopSessionUiState.ANDROID_CONNECTED
+            ControlServerSessionState.AUTHENTICATED -> DesktopSessionUiState.AUTHENTICATED
+            ControlServerSessionState.DEGRADED -> DesktopSessionUiState.DEGRADED
+            ControlServerSessionState.DISCONNECTED -> DesktopSessionUiState.DISCONNECTED
+            ControlServerSessionState.RATE_LIMITED -> DesktopSessionUiState.RATE_LIMITED
+        }
+        state.text = stateText(displayState)
+        diagnostics.text = diagnosticsHtml(displayState, lastControlError)
+    }
+
+    private fun stateFromSecurity(current: PairingSession, nowEpochMillis: Long): DesktopSessionUiState =
+        when (registry.securityState(current.sid, nowEpochMillis)) {
+            PairingSecurityState.PENDING -> when (displayState) {
+                DesktopSessionUiState.ANDROID_CONNECTED,
+                DesktopSessionUiState.DEGRADED,
+                DesktopSessionUiState.DISCONNECTED,
+                -> displayState
+                else -> DesktopSessionUiState.PAIRING_READY
+            }
+            PairingSecurityState.RATE_LIMITED -> DesktopSessionUiState.RATE_LIMITED
+            PairingSecurityState.ACCEPTED -> when (displayState) {
+                DesktopSessionUiState.DEGRADED,
+                DesktopSessionUiState.DISCONNECTED,
+                -> displayState
+                else -> DesktopSessionUiState.AUTHENTICATED
+            }
+            PairingSecurityState.EXPIRED -> DesktopSessionUiState.EXPIRED
+            PairingSecurityState.MISSING -> when (displayState) {
+                DesktopSessionUiState.AUTHENTICATED,
+                DesktopSessionUiState.DEGRADED,
+                -> displayState
+                else -> DesktopSessionUiState.DISCONNECTED
+            }
+        }
+
+    companion object {
+        internal const val QR_SIZE = 260
+
+        internal fun requiredStateLabels(): List<String> =
+            DesktopSessionUiState.entries.map { it.label }
+
+        internal fun endpointText(endpoint: LocalEndpoint): String =
+            "Endpoint: ${endpoint.host}:${endpoint.port}"
+
+        internal fun countdownText(expiresAtEpochMillis: Long, nowEpochMillis: Long): String {
+            val remaining = ((expiresAtEpochMillis - nowEpochMillis).coerceAtLeast(0L) + 999L) / 1_000L
+            return "Expires in: ${remaining}s"
+        }
+
+        internal fun manualFallbackHtml(payload: ManualPairingPayload): String =
+            """
+                <html>
+                <body>
+                <p>Use this endpoint and 6-digit code only if QR scan is unavailable.</p>
+                <p><b>Endpoint:</b> ${escapeHtml(payload.host)}:${payload.port}</p>
+                <p><b>Port:</b> ${payload.port}</p>
+                <p><b>6-digit code:</b> ${payload.code}</p>
+                <p><b>Fingerprint suffix:</b> ${escapeHtml(payload.desktopSpkiSha256Suffix)}</p>
+                </body>
+                </html>
+            """.trimIndent()
+
+        private fun stateText(state: DesktopSessionUiState): String =
+            "State: ${state.label}"
+
+        private fun diagnosticsHtml(state: DesktopSessionUiState, lastControlError: String?): String {
+            val safeError = SecretRedactor.redact(lastControlError ?: "none")
+            return """
+                <html>
+                <body>
+                <p><b>Session:</b> ${state.label}</p>
+                <p><b>Last control error:</b> ${escapeHtml(safeError)}</p>
+                <p>Haptic commands reserved for Phase 4.</p>
+                </body>
+                </html>
+            """.trimIndent()
+        }
+
+        private fun escapeHtml(value: String): String =
+            value
+                .replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;")
+                .replace("'", "&#39;")
+    }
+}
+
+internal enum class DesktopSessionUiState(val label: String) {
+    IDLE("idle"),
+    PAIRING_READY("pairing ready"),
+    ANDROID_CONNECTED("android connected"),
+    AUTHENTICATED("authenticated"),
+    DEGRADED("degraded"),
+    DISCONNECTED("disconnected"),
+    EXPIRED("expired"),
+    RATE_LIMITED("rate limited"),
 }

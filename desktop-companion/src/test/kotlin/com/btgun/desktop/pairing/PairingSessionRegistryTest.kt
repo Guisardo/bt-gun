@@ -4,6 +4,7 @@ import com.btgun.desktop.security.DesktopIdentity
 import com.btgun.desktop.security.DesktopIdentityStore
 import com.btgun.desktop.security.FileDesktopIdentityStore
 import com.btgun.desktop.security.SecretRedactor
+import com.btgun.desktop.ui.PairingWindow
 import kotlin.io.path.createTempDirectory
 
 fun main() {
@@ -14,6 +15,7 @@ fun main() {
     desktopIdentityStorePersistsFingerprint()
     qrRendererProducesMinimumSizedImage()
     redactorHidesPairingSecrets()
+    pairingWindowCopyCoversRequiredStatesAndVisibleFallbackOnly()
 }
 
 private fun startPairingCreatesOneShortLivedSession() {
@@ -97,6 +99,23 @@ private fun redactorHidesPairingSecrets() {
     expectFalse("no proof", redacted.contains("abcdef0123456789"))
 }
 
+private fun pairingWindowCopyCoversRequiredStatesAndVisibleFallbackOnly() {
+    val session = testRegistry().startPairing(nowEpochMillis = 60_000L)
+    val manualHtml = PairingWindow.manualFallbackHtml(session.manualPayload)
+
+    expectEquals("required states", REQUIRED_STATE_LABELS, PairingWindow.requiredStateLabels())
+    expectEquals("qr size", 260, PairingWindow.QR_SIZE)
+    expectEquals("endpoint text", "Endpoint: 192.168.50.25:41731", PairingWindow.endpointText(session.endpoint))
+    expectEquals("countdown ceil seconds", "Expires in: 5s", PairingWindow.countdownText(65_000L, 60_001L))
+    expectContains("manual endpoint", manualHtml, "192.168.50.25:41731")
+    expectContains("manual port", manualHtml, "41731")
+    expectContains("manual code", manualHtml, session.manualPayload.code)
+    expectContains("fingerprint suffix", manualHtml, "99aabbcc")
+    expectFalse("no qr secret in manual copy", manualHtml.contains(session.qrPayload.qrSecret))
+    expectFalse("no desktop nonce in manual copy", manualHtml.contains(session.qrPayload.desktopNonce))
+    expectFalse("no full fingerprint in manual copy", manualHtml.contains(session.qrPayload.desktopSpkiSha256))
+}
+
 private fun testRegistry(): PairingSessionRegistry =
     PairingSessionRegistry(
         endpointSelector = LocalEndpointSelector.fixed(
@@ -140,3 +159,14 @@ private fun expectContains(name: String, value: String, needle: String) {
         throw AssertionError("$name expected <$value> to contain <$needle>")
     }
 }
+
+private val REQUIRED_STATE_LABELS = listOf(
+    "idle",
+    "pairing ready",
+    "android connected",
+    "authenticated",
+    "degraded",
+    "disconnected",
+    "expired",
+    "rate limited",
+)
