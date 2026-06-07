@@ -21,32 +21,49 @@ class IpegaPacketParser(
         val mapping = KNOWN_FFF3_PAYLOADS[rawHex]
 
         if (mapping == null) {
-            return UnknownBlePayload(
-                rawAscii = rawAscii,
-                rawHex = rawHex,
-                bleServiceUuid = FFF0_SERVICE_UUID,
-                bleCharacteristicUuid = FFF3_CHARACTERISTIC_UUID,
-                envelope = LiveEnvelope(
-                    stream = StreamKind.STATUS,
-                    seq = sequencer.next(StreamKind.STATUS),
-                    captureElapsedNanos = captureElapsedNanos,
-                    emittedElapsedNanos = emittedElapsedNanos,
-                    payload = StatusEvent(
-                        name = "unknown_fff3_payload",
-                        message = rawAscii.ifEmpty { rawHex },
-                    ),
-                    provenance = Provenance(
-                        rawAscii = rawAscii,
-                        rawHex = rawHex,
-                        bleServiceUuid = FFF0_SERVICE_UUID,
-                        bleCharacteristicUuid = FFF3_CHARACTERISTIC_UUID,
-                        semanticConfidence = SemanticConfidence.UNKNOWN,
-                    ),
-                ),
-            )
+            return unknownPayload(rawAscii, rawHex, captureElapsedNanos, emittedElapsedNanos)
         }
 
-        return ParsedGunPacket.Event(
+        return gunEvent(mapping, rawHex, captureElapsedNanos, emittedElapsedNanos)
+    }
+
+    private fun unknownPayload(
+        rawAscii: String,
+        rawHex: String,
+        captureElapsedNanos: Long,
+        emittedElapsedNanos: Long,
+    ): UnknownBlePayload =
+        UnknownBlePayload(
+            rawAscii = rawAscii,
+            rawHex = rawHex,
+            bleServiceUuid = FFF0_SERVICE_UUID,
+            bleCharacteristicUuid = FFF3_CHARACTERISTIC_UUID,
+            envelope = LiveEnvelope(
+                stream = StreamKind.STATUS,
+                seq = sequencer.next(StreamKind.STATUS),
+                captureElapsedNanos = captureElapsedNanos,
+                emittedElapsedNanos = emittedElapsedNanos,
+                payload = StatusEvent(
+                    name = "unknown_fff3_payload",
+                    message = rawAscii.ifEmpty { rawHex },
+                ),
+                provenance = Provenance(
+                    rawAscii = rawAscii,
+                    rawHex = rawHex,
+                    bleServiceUuid = FFF0_SERVICE_UUID,
+                    bleCharacteristicUuid = FFF3_CHARACTERISTIC_UUID,
+                    semanticConfidence = SemanticConfidence.UNKNOWN,
+                ),
+            ),
+        )
+
+    private fun gunEvent(
+        mapping: Mapping,
+        rawHex: String,
+        captureElapsedNanos: Long,
+        emittedElapsedNanos: Long,
+    ): ParsedGunPacket.Event =
+        ParsedGunPacket.Event(
             envelope = LiveEnvelope(
                 stream = StreamKind.GUN,
                 seq = sequencer.next(StreamKind.GUN),
@@ -67,7 +84,6 @@ class IpegaPacketParser(
                 ),
             ),
         )
-    }
 
     private data class Mapping(
         val rawAscii: String,
@@ -76,7 +92,14 @@ class IpegaPacketParser(
         val clueId: String,
         val captureId: String,
         val confidence: SemanticConfidence,
-    )
+    ) {
+        fun rawHexKey(): String =
+            if (rawAscii.isEmpty()) {
+                "00000000000000000000000000000000"
+            } else {
+                rawAscii.encodeToByteArray().toHex()
+            }
+    }
 
     companion object {
         const val FFF0_SERVICE_UUID: String = "0000fff0-0000-1000-8000-00805f9b34fb"
@@ -103,13 +126,7 @@ class IpegaPacketParser(
             Mapping("B2UP", "button_a", false, "ARCHER-INPUT-001", "button-a-up-noisy-001", SemanticConfidence.CANDIDATE),
             Mapping("B9DOWN", "button_b", true, "ARCHER-INPUT-001", "button-b-001", SemanticConfidence.CANDIDATE),
             Mapping("B9UP", "button_b", false, "ARCHER-INPUT-001", "button-b-001", SemanticConfidence.CANDIDATE),
-        ).associateBy { mapping ->
-            if (mapping.rawAscii.isEmpty()) {
-                "00000000000000000000000000000000"
-            } else {
-                mapping.rawAscii.encodeToByteArray().toHex()
-            }
-        }
+        ).associateBy(Mapping::rawHexKey)
     }
 }
 
