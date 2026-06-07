@@ -63,15 +63,16 @@ Plans:
   5. Holding reload for two seconds recenters motion aim while normal reload press and release events still appear.
   6. Android app shows active gun connection, desktop link, packet stream, motion provider, and haptic status.
 
-**Plans:** 1/6 plans executed
+**Plans:** 2/6 plans executed
 Plans:
 
 - [x] 02-01-PLAN.md — Production Android host scaffold, permission gate, and live envelope contracts.
-- [ ] 02-02-PLAN.md — Fixture-backed packet parser and normalized gun events.
+- [x] 02-02-PLAN.md — Fixture-backed packet parser and normalized gun events.
 - [ ] 02-03-PLAN.md — BLE adapter and foreground session service.
 - [ ] 02-04-PLAN.md — Motion provider selection and preview aim contracts.
 - [ ] 02-05-PLAN.md — Reload-hold recenter state machine.
 - [ ] 02-06-PLAN.md — Dashboard shell, inactive placeholders, and manual validation evidence.
+
 **UI hint**: yes
 
 ### Phase 3: LAN Pairing and Secure Session
@@ -205,7 +206,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Hardware and Protocol Discovery | 5/5 | Complete | 2026-06-06 |
-| 2. Android Host Live Input | 1/6 | In Progress | - |
+| 2. Android Host Live Input | 2/6 | In Progress | - |
 | 3. LAN Pairing and Secure Session | 0/TBD | Not started | - |
 | 4. Input Stream and Haptic Transport | 0/TBD | Not started | - |
 | 5. Desktop Backend Contract and Smoke Harness | 0/TBD | Not started | - |

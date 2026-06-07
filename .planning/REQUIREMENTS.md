@@ -26,9 +26,9 @@
 
 - [ ] **ANDR-01**: User can grant required Android Bluetooth, nearby device, sensor, and LAN permissions from the Android host app.
 - [ ] **ANDR-02**: User can connect the Android host app to the physical iPega gun.
-- [ ] **ANDR-03**: Android host app emits normalized events for trigger, reload, joystick, X/Y/A/B, and connection state.
+- [x] **ANDR-03**: Android host app emits normalized events for trigger, reload, joystick, X/Y/A/B, and connection state.
 - [ ] **ANDR-04**: Android host app samples gyro or rotation-vector data with monotonic capture timestamps.
-- [ ] **ANDR-05**: Android host app merges gun input and gyro data into ordered normalized input samples.
+- [x] **ANDR-05**: Android host app merges gun input and motion sensor data into ordered normalized input samples with sensor provider and capability metadata.
 - [ ] **ANDR-06**: Holding reload for two seconds recenters gyro aim without preventing normal reload press/release events.
 - [ ] **ANDR-07**: Android host app can receive a rumble command from desktop and forward it to the physical gun.
 - [ ] **ANDR-08**: Android host app shows active session status for gun connection, desktop link, packet stream, and rumble.
@@ -152,9 +152,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DISC-07 | Phase 1 | Pending |
 | ANDR-01 | Phase 2 | Pending |
 | ANDR-02 | Phase 2 | Pending |
-| ANDR-03 | Phase 2 | Pending |
+| ANDR-03 | Phase 2 | Complete |
 | ANDR-04 | Phase 2 | Pending |
-| ANDR-05 | Phase 2 | Pending |
+| ANDR-05 | Phase 2 | Complete |
 | ANDR-06 | Phase 2 | Pending |
 | ANDR-07 | Phase 4 | Pending |
 | ANDR-08 | Phase 2 | Pending |
