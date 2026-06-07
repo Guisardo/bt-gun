@@ -1,5 +1,7 @@
 package com.btgun.host.model
 
+import com.btgun.host.motion.MotionCapabilityFlags
+
 data class LiveEnvelope<T>(
     val stream: StreamKind,
     val seq: Long,
@@ -48,6 +50,9 @@ data class GunEvent(
 
 data class MotionSample(
     val provider: MotionProvider,
+    val providerName: String = provider.wireName,
+    val capabilities: MotionCapabilityFlags = MotionCapabilityFlags(),
+    val sourceSensorElapsedNanos: Long,
     val yaw: Float,
     val pitch: Float,
     val roll: Float,
@@ -63,5 +68,14 @@ enum class MotionProvider {
     ROTATION_VECTOR,
     GYRO_GRAVITY,
     TILT_FALLBACK,
-    UNAVAILABLE,
+    UNAVAILABLE;
+
+    val wireName: String
+        get() = when (this) {
+            GAME_ROTATION_VECTOR -> "game_rotation_vector"
+            ROTATION_VECTOR -> "rotation_vector"
+            GYRO_GRAVITY -> "gyro_gravity"
+            TILT_FALLBACK -> "tilt_fallback"
+            UNAVAILABLE -> "unavailable"
+        }
 }

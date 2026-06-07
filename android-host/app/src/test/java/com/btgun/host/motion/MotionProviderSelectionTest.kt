@@ -12,6 +12,7 @@ fun main() {
     providerSelectionUsesTiltFallbackWithoutGyroscope()
     providerSelectionReportsUnavailableWithoutFakeAim()
     providerSelectionReportsCapabilityFlagsAndTimestampSource()
+    motionSampleEnvelopeCarriesProviderAndCapabilityMetadata()
     previewMapperCentersBaselineAndBoundsDeltas()
     previewMapperDisablesPadWhenMotionUnavailable()
     previewMapperDoesNotExposeDesktopProfileMapping()
@@ -115,6 +116,40 @@ private fun providerSelectionReportsCapabilityFlagsAndTimestampSource() {
     expectEquals("timestamp source", "sensor_event_elapsed_nanos", selection.capabilities.timestampSource)
 }
 
+private fun motionSampleEnvelopeCarriesProviderAndCapabilityMetadata() {
+    val selection = MotionProviderSelection.choose(
+        MotionCapabilityFlags(
+            gameRotationVector = true,
+            rotationVector = true,
+            gyroscope = true,
+            accelerometer = true,
+            gravity = true,
+        ),
+    )
+    val envelope = LiveEnvelope(
+        stream = StreamKind.MOTION,
+        seq = 1L,
+        captureElapsedNanos = 500L,
+        emittedElapsedNanos = 700L,
+        payload = MotionSample(
+            provider = selection.provider,
+            providerName = selection.providerName,
+            capabilities = selection.capabilities,
+            sourceSensorElapsedNanos = 500L,
+            yaw = 1f,
+            pitch = 2f,
+            roll = 3f,
+        ),
+    )
+
+    expectEquals("motion stream", StreamKind.MOTION, envelope.stream)
+    expectEquals("motion capture elapsed", 500L, envelope.captureElapsedNanos)
+    expectEquals("motion emitted elapsed", 700L, envelope.emittedElapsedNanos)
+    expectEquals("motion provider name", "game_rotation_vector", envelope.payload.providerName)
+    expectTrue("motion capability metadata", envelope.payload.capabilities.gameRotationVector)
+    expectEquals("motion source sensor elapsed", 500L, envelope.payload.sourceSensorElapsedNanos)
+}
+
 private fun previewMapperCentersBaselineAndBoundsDeltas() {
     val mapper = PreviewAimMapper(AimBaseline(yaw = 10f, pitch = -5f, roll = 2f, elapsedNanos = 100L))
     val centered = mapper.map(
@@ -186,6 +221,7 @@ private fun sample(
         emittedElapsedNanos = 120L,
         payload = MotionSample(
             provider = provider,
+            sourceSensorElapsedNanos = 100L,
             yaw = yaw,
             pitch = pitch,
             roll = roll,
