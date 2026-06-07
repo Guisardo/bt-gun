@@ -391,7 +391,12 @@ class HostSessionService : Service() {
     private fun stopDesktopControl() {
         desktopControlClient?.close()
         desktopControlClient = null
-        currentState = currentState.copy(desktopLinkState = DesktopLinkState(phase = DesktopLinkPhase.DISCONNECTED))
+        currentState = currentState.copy(
+            desktopLinkState = DesktopLinkState(
+                phase = DesktopLinkPhase.DISCONNECTED,
+                lastControlError = "Desktop control stopped with foreground session.",
+            ),
+        )
     }
 
     private fun ensureForegroundForDesktopControl(): Boolean {
