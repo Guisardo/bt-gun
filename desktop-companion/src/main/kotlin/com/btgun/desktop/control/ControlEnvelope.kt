@@ -23,6 +23,10 @@ data class ControlEnvelope(
 enum class ControlMessageType(val wireName: String) {
     PAIRING_STATE("pairing_state"),
     SESSION_READY("session_ready"),
+    HEARTBEAT_PING("heartbeat_ping"),
+    HEARTBEAT_PONG("heartbeat_pong"),
+    DIAGNOSTICS("diagnostics"),
+    PROFILE_METADATA("profile_metadata"),
     RESERVED_HAPTIC_COMMAND("reserved_haptic_command");
 
     companion object {
