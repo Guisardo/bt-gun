@@ -143,11 +143,11 @@ Body fields:
 | `udpPort` | integer | Desktop UDP receiver port. |
 | `hmacSha256KeyBase64Url` | base64url string | Random 32-byte stream authentication secret delivered only over trusted control. |
 | `snapshotHz` | integer | Snapshot target rate. Default: `60`. |
-| `frameAgeLimitMs` | integer | Maximum input frame age before desktop receiver drops it. Default: `150`. |
+| `frameAgeLimitMs` | integer | Reserved frame-age budget. Desktop must not compare Android `sendElapsedNanos` to desktop receive time unless a trusted control-channel clock offset exists. Default: `150`. |
 | `streamTimeoutMs` | integer | Receiver timeout before active buttons/pressed controls clear. Default: `250`. |
 | `controlDisconnectGraceMs` | integer | Short UDP grace after reliable control disconnect. Default: `1500`. |
 
-Receivers reject missing, malformed, empty, out-of-range, or wrong-session configs. The stream id and auth secret are scoped to one trusted control session and must be replaced after reconnect or session change.
+Receivers reject missing, malformed, empty, out-of-range, or wrong-session configs. The stream id and auth secret are scoped to one trusted control session and must be replaced after reconnect or session change. Replay protection uses monotonically increasing sequence numbers. Stale input protection uses `streamTimeoutMs` and `controlDisconnectGraceMs` until an explicit sender-to-receiver clock offset is negotiated.
 
 ## Phone Haptic Command and Result
 
