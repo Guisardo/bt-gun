@@ -9,6 +9,9 @@ import com.btgun.desktop.pairing.PairingSessionRegistry
 import com.btgun.desktop.security.DesktopIdentity
 import com.btgun.desktop.security.DesktopIdentityStore
 import com.btgun.desktop.security.PairingProof
+import com.btgun.desktop.haptics.HapticCommand
+import com.btgun.desktop.haptics.HapticResult
+import com.btgun.desktop.haptics.HapticResultStatus
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.JsonObject
@@ -20,7 +23,7 @@ fun main() {
     envelopeCodecAcceptsOnlyVersionOneAndKnownTypes()
     envelopeCodecRejectsUnsupportedVersionUnknownTypeAndOversizedText()
     envelopeCodecRejectsOverflowedVersion()
-    reservedHapticCommandAllowsEmptyBodyOnly()
+    reservedHapticCommandAllowsPhaseFourCommandBody()
     controlServerRejectsControlEnvelopeBeforeProof()
     controlServerAcceptsKnownEnvelopeAfterProof()
     controlServerAuthenticatesManualCodeWithoutSidOrNonce()
@@ -31,7 +34,8 @@ fun main() {
     diagnosticsPayloadContainsOnlyControlFields()
     profileMetadataContainsOnlyRequiredFields()
     controlEnvelopeAllowsHeartbeatDiagnosticsAndProfileTypes()
-    reservedHapticRejectsExecutionResultBody()
+    controlEnvelopeAllowsHapticResultBody()
+    controlServerAcceptsHapticResultAfterProof()
     controlServerSendsFreshInputStreamConfigAfterTrustedSession()
 }
 
@@ -46,6 +50,7 @@ private fun envelopeCodecAcceptsOnlyVersionOneAndKnownTypes() {
     expectEquals("pairing wire name", "pairing_state", ControlMessageType.PAIRING_STATE.wireName)
     expectEquals("ready wire name", "session_ready", ControlMessageType.SESSION_READY.wireName)
     expectEquals("reserved haptic name", "reserved_haptic_command", ControlMessageType.RESERVED_HAPTIC_COMMAND.wireName)
+    expectEquals("haptic result name", "haptic_result", ControlMessageType.HAPTIC_RESULT.wireName)
     expectEquals("stream config wire name", "input_stream_config", ControlMessageType.INPUT_STREAM_CONFIG.wireName)
 }
 
@@ -64,24 +69,22 @@ private fun envelopeCodecRejectsOverflowedVersion() {
     expectRejected("overflow version", ControlEnvelopeError.INVALID_FIELD, ControlEnvelopeCodec.decode(overflowVersion))
 }
 
-private fun reservedHapticCommandAllowsEmptyBodyOnly() {
-    val reservedOnly = ControlEnvelopeCodec.decode(ControlEnvelopeCodec.encode(envelope(ControlMessageType.RESERVED_HAPTIC_COMMAND)))
+private fun reservedHapticCommandAllowsPhaseFourCommandBody() {
     val withExecutionShape = ControlEnvelopeCodec.decode(
         ControlEnvelopeCodec.encode(
             envelope(
                 ControlMessageType.RESERVED_HAPTIC_COMMAND,
-                body = JsonObject(
-                    mapOf(
-                        "command" to JsonPrimitive("pulse"),
-                        "ttl_ms" to JsonPrimitive(500),
-                    ),
-                ),
+                body = HapticCommand(
+                    commandId = "cmd-001",
+                    strength = 0.5,
+                    durationMs = 80L,
+                    ttlMs = 500L,
+                ).toJsonBody(),
             ),
         ),
     )
 
-    expectTrue("reserved type accepted with empty body", reservedOnly is ControlDecodeResult.Accepted)
-    expectRejected("reserved haptic body", ControlEnvelopeError.RESERVED_HAPTIC_BODY, withExecutionShape)
+    expectTrue("reserved haptic command body accepted", withExecutionShape is ControlDecodeResult.Accepted)
 }
 
 private fun controlServerRejectsControlEnvelopeBeforeProof() {
@@ -248,23 +251,50 @@ private fun controlEnvelopeAllowsHeartbeatDiagnosticsAndProfileTypes() {
         ControlMessageType.DIAGNOSTICS,
         ControlMessageType.PROFILE_METADATA,
         ControlMessageType.INPUT_STREAM_CONFIG,
+        ControlMessageType.HAPTIC_RESULT,
     ).forEach { type ->
         val decoded = ControlEnvelopeCodec.decode(ControlEnvelopeCodec.encode(envelope(type)))
         expectTrue("${type.wireName} accepted", decoded is ControlDecodeResult.Accepted)
     }
 }
 
-private fun reservedHapticRejectsExecutionResultBody() {
+private fun controlEnvelopeAllowsHapticResultBody() {
     val decoded = ControlEnvelopeCodec.decode(
         ControlEnvelopeCodec.encode(
             envelope(
-                ControlMessageType.RESERVED_HAPTIC_COMMAND,
-                body = JsonObject(mapOf("result" to JsonPrimitive("done"))),
+                ControlMessageType.HAPTIC_RESULT,
+                body = HapticResult(
+                    commandId = "cmd-001",
+                    status = HapticResultStatus.STARTED,
+                    detail = "phone pulse started",
+                    observedElapsedNanos = 1_050_000_000L,
+                ).toJsonBody(),
             ),
         ),
     )
 
-    expectRejected("reserved haptic result body", ControlEnvelopeError.RESERVED_HAPTIC_BODY, decoded)
+    expectTrue("haptic result body accepted", decoded is ControlDecodeResult.Accepted)
+}
+
+private fun controlServerAcceptsHapticResultAfterProof() = runBlocking {
+    val server = ControlServer(registry = testRegistry(), maxMessageBytes = 1024)
+    val accepted = mutableListOf<ControlEnvelope>()
+    server.onControlEnvelopeAccepted = accepted::add
+
+    server.handleAcceptedEnvelope(
+        envelope = envelope(
+            ControlMessageType.HAPTIC_RESULT,
+            body = HapticResult(
+                commandId = "cmd-001",
+                status = HapticResultStatus.STARTED,
+                detail = "phone pulse started",
+                observedElapsedNanos = 1_050_000_000L,
+            ).toJsonBody(),
+        ),
+        heartbeat = HeartbeatMonitor(),
+    )
+
+    expectEquals("haptic callback", ControlMessageType.HAPTIC_RESULT, accepted.single().type)
 }
 
 private fun controlServerSendsFreshInputStreamConfigAfterTrustedSession() {

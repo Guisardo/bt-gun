@@ -1,0 +1,165 @@
+package com.btgun.host.haptics
+
+fun main() {
+    resultStatusesCoverAllPhaseFourOutcomes()
+    expiredCommandDoesNotStartPhoneVibration()
+    unsupportedPatternDoesNotStartPhoneVibration()
+    validPulseStartsImmediately()
+    secondValidCommandCancelsActivePulseBeforeStarting()
+    permissionAndRuntimeFailuresMapToExplicitStatuses()
+    invalidCommandReturnsFailedWithoutVibration()
+}
+
+private fun resultStatusesCoverAllPhaseFourOutcomes() {
+    expectEquals(
+        "status wires",
+        listOf("started", "expired", "unsupported", "permission_blocked", "failed", "cancelled"),
+        HapticResultStatus.entries.map { it.wireName },
+    )
+}
+
+private fun expiredCommandDoesNotStartPhoneVibration() {
+    val phone = RecordingPhoneHapticActuator()
+    val executor = DesktopHapticCommandExecutor(phone = phone, elapsedRealtimeNanos = { 1_000_000_000L })
+
+    val result = executor.handle(
+        command = DesktopHapticCommand(
+            commandId = "cmd-expired",
+            strength = 0.5,
+            durationMs = 80L,
+            ttlMs = 10L,
+        ),
+        receivedElapsedNanos = 900_000_000L,
+    )
+
+    expectEquals("expired status", HapticResultStatus.EXPIRED, result.status)
+    expectEquals("expired no pulse", emptyList<PhoneCall>(), phone.calls)
+}
+
+private fun unsupportedPatternDoesNotStartPhoneVibration() {
+    val phone = RecordingPhoneHapticActuator()
+    val executor = DesktopHapticCommandExecutor(phone = phone, elapsedRealtimeNanos = { 1_000_000_000L })
+
+    val result = executor.handle(
+        command = DesktopHapticCommand(
+            commandId = "cmd-pattern",
+            strength = 0.5,
+            durationMs = 80L,
+            ttlMs = 500L,
+            pattern = "double",
+        ),
+        receivedElapsedNanos = 999_900_000L,
+    )
+
+    expectEquals("pattern status", HapticResultStatus.UNSUPPORTED, result.status)
+    expectEquals("pattern no pulse", emptyList<PhoneCall>(), phone.calls)
+}
+
+private fun validPulseStartsImmediately() {
+    val phone = RecordingPhoneHapticActuator()
+    val executor = DesktopHapticCommandExecutor(phone = phone, elapsedRealtimeNanos = { 1_000_000_000L })
+
+    val result = executor.handle(
+        command = DesktopHapticCommand(
+            commandId = "cmd-start",
+            strength = 0.75,
+            durationMs = 120L,
+            ttlMs = 500L,
+        ),
+        receivedElapsedNanos = 999_900_000L,
+    )
+
+    expectEquals("started status", HapticResultStatus.STARTED, result.status)
+    expectEquals("observed time", 1_000_000_000L, result.observedElapsedNanos)
+    expectEquals("phone calls", listOf(PhoneCall.Pulse(120L, 0.75)), phone.calls)
+}
+
+private fun secondValidCommandCancelsActivePulseBeforeStarting() {
+    val phone = RecordingPhoneHapticActuator()
+    val executor = DesktopHapticCommandExecutor(phone = phone, elapsedRealtimeNanos = { 1_000_000_000L })
+
+    executor.handle(
+        command = DesktopHapticCommand("cmd-first", strength = 0.25, durationMs = 300L, ttlMs = 500L),
+        receivedElapsedNanos = 999_900_000L,
+    )
+    val second = executor.handle(
+        command = DesktopHapticCommand("cmd-second", strength = 1.0, durationMs = 90L, ttlMs = 500L),
+        receivedElapsedNanos = 999_950_000L,
+    )
+
+    expectEquals("second status", HapticResultStatus.STARTED, second.status)
+    expectEquals(
+        "cancel before new pulse",
+        listOf(
+            PhoneCall.Pulse(300L, 0.25),
+            PhoneCall.Cancel,
+            PhoneCall.Pulse(90L, 1.0),
+        ),
+        phone.calls,
+    )
+}
+
+private fun permissionAndRuntimeFailuresMapToExplicitStatuses() {
+    val permission = DesktopHapticCommandExecutor(
+        phone = RecordingPhoneHapticActuator(startResult = PhoneHapticStartResult.PermissionBlocked),
+        elapsedRealtimeNanos = { 1_000_000_000L },
+    ).handle(
+        command = DesktopHapticCommand("cmd-perm", strength = 0.5, durationMs = 80L, ttlMs = 500L),
+        receivedElapsedNanos = 999_900_000L,
+    )
+    val failed = DesktopHapticCommandExecutor(
+        phone = RecordingPhoneHapticActuator(startResult = PhoneHapticStartResult.Failed("RuntimeException")),
+        elapsedRealtimeNanos = { 1_000_000_000L },
+    ).handle(
+        command = DesktopHapticCommand("cmd-fail", strength = 0.5, durationMs = 80L, ttlMs = 500L),
+        receivedElapsedNanos = 999_900_000L,
+    )
+
+    expectEquals("permission status", HapticResultStatus.PERMISSION_BLOCKED, permission.status)
+    expectEquals("failed status", HapticResultStatus.FAILED, failed.status)
+}
+
+private fun invalidCommandReturnsFailedWithoutVibration() {
+    val phone = RecordingPhoneHapticActuator()
+    val executor = DesktopHapticCommandExecutor(phone = phone, elapsedRealtimeNanos = { 1_000_000_000L })
+
+    val result = executor.handle(
+        command = DesktopHapticCommand(
+            commandId = "",
+            strength = 0.5,
+            durationMs = 80L,
+            ttlMs = 500L,
+        ),
+        receivedElapsedNanos = 999_900_000L,
+    )
+
+    expectEquals("invalid status", HapticResultStatus.FAILED, result.status)
+    expectEquals("invalid no pulse", emptyList<PhoneCall>(), phone.calls)
+}
+
+private class RecordingPhoneHapticActuator(
+    private val startResult: PhoneHapticStartResult = PhoneHapticStartResult.Started,
+) : PhoneHapticActuator {
+    val calls = mutableListOf<PhoneCall>()
+
+    override fun pulse(durationMs: Long, strength: Double): PhoneHapticStartResult {
+        calls += PhoneCall.Pulse(durationMs, strength)
+        return startResult
+    }
+
+    override fun cancel(): HapticResultStatus {
+        calls += PhoneCall.Cancel
+        return HapticResultStatus.CANCELLED
+    }
+}
+
+private sealed interface PhoneCall {
+    data class Pulse(val durationMs: Long, val strength: Double) : PhoneCall
+    data object Cancel : PhoneCall
+}
+
+private fun expectEquals(label: String, expected: Any?, actual: Any?) {
+    if (expected != actual) {
+        throw AssertionError("$label expected <$expected> but was <$actual>")
+    }
+}
