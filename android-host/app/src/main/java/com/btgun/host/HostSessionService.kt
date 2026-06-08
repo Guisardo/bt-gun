@@ -57,6 +57,8 @@ import com.btgun.host.session.PairingPayload
 import com.btgun.host.session.TrustValidationResult
 import com.btgun.host.session.TrustedDesktopMetadata
 import com.btgun.host.session.TrustedDesktopStore
+import com.btgun.host.transport.AndroidUdpInputSender
+import com.btgun.host.transport.InputStreamConfig
 import java.security.SecureRandom
 
 class HostSessionService : Service() {
@@ -78,6 +80,8 @@ class HostSessionService : Service() {
     private val aimCalibrationStore: AimCalibrationStore by lazy { AimCalibrationStore(applicationContext) }
     private val trustedDesktopStore: TrustedDesktopStore by lazy { TrustedDesktopStore(applicationContext) }
     private var desktopControlClient: DesktopControlClient? = null
+    private var udpInputSender: AndroidUdpInputSender? = null
+    private var udpInputConfig: InputStreamConfig? = null
     private val desktopLivenessCoordinator = DesktopLivenessCoordinator()
     private val nonceRandom = SecureRandom()
 
@@ -94,6 +98,17 @@ class HostSessionService : Service() {
 
     private val desktopLivenessTick = Runnable {
         refreshDesktopLiveness()
+    }
+
+    private val udpSnapshotTick = object : Runnable {
+        override fun run() {
+            sendUdpSnapshot()
+            scheduleUdpSnapshotTick()
+        }
+    }
+
+    private val udpDisconnectGraceStop = Runnable {
+        stopUdpInput()
     }
 
     private val sensorListener = object : SensorEventListener {
@@ -224,6 +239,7 @@ class HostSessionService : Service() {
     private fun stopSession() {
         currentState = currentState.copy(phase = HostSessionPhase.STOPPING)
         stopDesktopControl()
+        stopUdpInput()
         stopMotionCapture()
         handler.removeCallbacks(reloadHoldTick)
         recenter.onReload(pressed = false, nowElapsedNanos = SystemClock.elapsedRealtimeNanos())
@@ -373,6 +389,7 @@ class HostSessionService : Service() {
         desktopLivenessCoordinator.stop()
         desktopControlClient?.close()
         desktopControlClient = null
+        stopUdpInput()
         currentState = currentState.copy(
             desktopLinkState = DesktopLinkState(
                 phase = DesktopLinkPhase.PAIRING_PROOF,
@@ -406,6 +423,7 @@ class HostSessionService : Service() {
                         cancelDesktopLivenessTick()
                         desktopLivenessCoordinator.stop(client)
                         desktopControlClient = null
+                        scheduleUdpDisconnectGraceStop()
                         currentState = currentState.copy(
                             desktopLinkState = desktopLinkStateForRequest(
                                 client.currentLinkState().copy(
@@ -429,6 +447,7 @@ class HostSessionService : Service() {
                             cancelDesktopLivenessTick()
                             desktopLivenessCoordinator.stop(client)
                             desktopControlClient = null
+                            scheduleUdpDisconnectGraceStop()
                         }
                     }
                 },
@@ -446,6 +465,14 @@ class HostSessionService : Service() {
                                 profileRevision = profile.revision,
                             ),
                         )
+                    }
+                },
+                onInputStreamConfigReceived = { streamConfig ->
+                    handler.post {
+                        if (desktopControlClient !== client) {
+                            return@post
+                        }
+                        startUdpInput(streamConfig)
                     }
                 },
             )
@@ -540,6 +567,7 @@ class HostSessionService : Service() {
         desktopLivenessCoordinator.stop()
         desktopControlClient?.close()
         desktopControlClient = null
+        stopUdpInput()
         currentState = currentState.copy(
             desktopLinkState = DesktopLinkState(
                 phase = DesktopLinkPhase.DISCONNECTED,
@@ -547,6 +575,69 @@ class HostSessionService : Service() {
             ),
         )
     }
+
+    private fun startUdpInput(config: InputStreamConfig) {
+        if (!currentState.foregroundActive || !currentState.isActive) {
+            currentState = currentState.copy(lastError = "Input stream config ignored outside active foreground session.")
+            return
+        }
+        stopUdpInput()
+        udpInputConfig = config
+        udpInputSender = AndroidUdpInputSender(
+            elapsedRealtimeNanos = { SystemClock.elapsedRealtimeNanos() },
+        ).also { sender ->
+            sender.start(config)
+        }
+        scheduleUdpSnapshotTick()
+        sendUdpSnapshot()
+    }
+
+    private fun stopUdpInput() {
+        handler.removeCallbacks(udpSnapshotTick)
+        handler.removeCallbacks(udpDisconnectGraceStop)
+        udpInputSender?.stop("stream stopped")
+        udpInputSender = null
+        udpInputConfig = null
+    }
+
+    private fun scheduleUdpDisconnectGraceStop() {
+        handler.removeCallbacks(udpDisconnectGraceStop)
+        val graceMillis = udpInputConfig?.controlDisconnectGraceMs ?: 0L
+        if (graceMillis <= 0L) {
+            stopUdpInput()
+        } else {
+            handler.postDelayed(udpDisconnectGraceStop, graceMillis)
+        }
+    }
+
+    private fun scheduleUdpSnapshotTick() {
+        val config = udpInputConfig ?: return
+        if (udpInputSender == null || !currentState.foregroundActive || !currentState.isActive) {
+            return
+        }
+        handler.removeCallbacks(udpSnapshotTick)
+        handler.postDelayed(udpSnapshotTick, snapshotIntervalMillis(config))
+    }
+
+    private fun sendUdpSnapshot() {
+        val sender = udpInputSender ?: return
+        sender.sendSnapshot(
+            state = currentState.gunInputState,
+            motion = currentState.lastMotionSample,
+        )
+    }
+
+    private fun sendUdpEdge(envelope: LiveEnvelope<GunEvent>, state: GunInputState) {
+        val sender = udpInputSender ?: return
+        sender.sendEdge(
+            event = envelope,
+            state = state,
+            motion = currentState.lastMotionSample,
+        )
+    }
+
+    private fun snapshotIntervalMillis(config: InputStreamConfig): Long =
+        ((1_000L + config.snapshotHz.toLong() - 1L) / config.snapshotHz.toLong()).coerceAtLeast(1L)
 
     private fun ensureForegroundForDesktopControl(): Boolean {
         if (currentState.foregroundActive) {
@@ -897,6 +988,7 @@ class HostSessionService : Service() {
                 gunInputState = gunInputState,
                 aimCalibrationState = aimCalibrationSession.state,
             )
+            sendUdpEdge(envelope, gunInputState)
             return
         }
 
@@ -918,6 +1010,7 @@ class HostSessionService : Service() {
             reloadHoldState = recenter.state,
             aimCalibrationState = aimCalibrationSession.state,
         )
+        sendUdpEdge(envelope, gunInputState)
     }
 
     private fun MotionSample.toAimBaseline(elapsedNanos: Long): AimBaseline =
