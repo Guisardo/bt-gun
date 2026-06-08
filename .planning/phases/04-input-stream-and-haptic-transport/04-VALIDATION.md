@@ -21,6 +21,26 @@ Per-phase validation contract for feedback sampling during execution.
 | Full suite command | `gradle test` from `android-host/` and `gradle test` from `desktop-companion/` after local Gradle startup is repaired. |
 | Estimated runtime | Unknown until Gradle startup issue is repaired. |
 
+## Local Gradle Startup Status
+
+Checked: 2026-06-08T18:13:24Z
+
+Plain `gradle --version` is blocked locally:
+
+```text
+Gradle could not start your build.
+> Could not initialize native services.
+   > Failed to load native library 'libnative-platform.dylib' for Mac OS X aarch64.
+```
+
+Execution-time workaround verified:
+
+```bash
+JAVA_HOME=/opt/homebrew/Cellar/openjdk@17/17.0.19/libexec/openjdk.jdk/Contents/Home GRADLE_USER_HOME=/private/tmp/bt-gun-gradle-home gradle --version
+```
+
+Result: Gradle 9.5.1 starts with Homebrew OpenJDK 17.0.19 and `GRADLE_USER_HOME=/private/tmp/bt-gun-gradle-home`. Phase 04 automated test commands are trusted only when run with this workaround environment.
+
 ## Sampling Rate
 
 - After every task commit: run the smallest changed-module test command once Gradle starts.

@@ -56,6 +56,7 @@ tasks.withType<Test>().configureEach {
             "com.btgun.host.session.PairingPayloadTestKt",
             "com.btgun.host.session.TrustedDesktopStoreTestKt",
             "com.btgun.host.session.DesktopControlClientTestKt",
+            "com.btgun.host.transport.UdpInputFrameCodecTestKt",
             "com.btgun.host.ui.DashboardStateTestKt",
         ).forEach { testClass ->
             providers.exec {
