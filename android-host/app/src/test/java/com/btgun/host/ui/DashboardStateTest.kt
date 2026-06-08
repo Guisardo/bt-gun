@@ -29,6 +29,7 @@ import com.btgun.host.permissions.PermissionGateState
 import com.btgun.host.recenter.ReloadHoldState
 import com.btgun.host.session.DesktopLinkPhase
 import com.btgun.host.session.DesktopLinkState
+import com.btgun.host.transport.InputStreamLifecycleState
 
 fun main() {
     initialStateUsesRequiredShellCopyAndCollapsedDebugPanels()
@@ -43,6 +44,7 @@ fun main() {
     desktopLinkStateShowsExpiryReachabilityAndTrustProblemCopy()
     desktopLinkCopyRecomputesDiagnosticsAndSurfacesControlError()
     trustedDesktopDisplayDoesNotActivatePacketStream()
+    packetStreamShowsConciseLifecycleStates()
     phoneHapticsStayLocalOnly()
 }
 
@@ -420,6 +422,33 @@ private fun trustedDesktopDisplayDoesNotActivatePacketStream() {
     }
     expectEquals("packet body", "Not built yet. Pending Phase 4.", state.placeholders.packetStream.body)
     expectFalse("packet inactive", state.placeholders.packetStream.active)
+}
+
+private fun packetStreamShowsConciseLifecycleStates() {
+    val states = listOf(
+        InputStreamLifecycleState.ACTIVE to "active",
+        InputStreamLifecycleState.GRACE to "grace",
+        InputStreamLifecycleState.STALE to "stale",
+        InputStreamLifecycleState.STOPPED to "stopped",
+    )
+
+    states.forEach { (streamState, label) ->
+        val state = DashboardState.from(
+            permissionGateState = permissionGateState(),
+            hostSessionState = HostSessionState(
+                phase = HostSessionPhase.CONNECTED,
+                foregroundActive = true,
+                packetStreamState = streamState,
+            ),
+        )
+
+        expectEquals("packet title $label", "Packet stream", state.placeholders.packetStream.title)
+        expectEquals("packet body $label", label, state.placeholders.packetStream.body)
+        expectEquals("packet active $label", streamState == InputStreamLifecycleState.ACTIVE || streamState == InputStreamLifecycleState.GRACE, state.placeholders.packetStream.active)
+        listOf("latency", "packet loss", "virtual joystick", "profile mapping").forEach { forbidden ->
+            expectFalse("packet stream excludes $forbidden", state.placeholders.packetStream.body.contains(forbidden, ignoreCase = true))
+        }
+    }
 }
 
 private fun phoneHapticsStayLocalOnly() {
