@@ -3,10 +3,17 @@ package com.btgun.host.session
 import okhttp3.CertificatePinner
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import okio.ByteString.Companion.toByteString
 import java.util.Locale
+import java.security.MessageDigest
+import java.security.cert.CertificateException
+import java.security.cert.X509Certificate
+import javax.net.ssl.SSLContext
+import javax.net.ssl.TrustManager
+import javax.net.ssl.X509TrustManager
 
 data class DesktopControlClientConfig(
     val url: String,
@@ -82,32 +89,32 @@ data class DesktopControlConnectionRequest(
             )
         }
 
-        fun fromTrustedDesktop(
-            metadata: TrustedDesktopMetadata,
+        fun fromManualPayload(
+            payload: ManualPairingPayload,
+            trustedDesktop: TrustedDesktopMetadata,
             androidNonce: String,
         ): DesktopControlConnectionRequest {
-            val fingerprint = metadata.fingerprintSha256.lowercase(Locale.US)
-            val sid = "trusted-${fingerprint.takeLast(8)}"
+            val fingerprint = trustedDesktop.fingerprintSha256.lowercase(Locale.US)
             return DesktopControlConnectionRequest(
                 config = DesktopControlClientConfig(
-                    url = "wss://${metadata.lastHost}:${metadata.lastPort}/control",
+                    url = "wss://${payload.host}:${payload.port}/control",
                     expectedDesktopSpkiSha256 = fingerprint,
                 ),
                 proofRequest = ControlProofRequest(
-                    sid = sid,
+                    sid = payload.sid,
                     androidNonce = androidNonce,
                     desktopSpkiSha256 = fingerprint,
                     proofHex = PairingProof.create(
-                        sid = sid,
-                        desktopNonce = fingerprint.take(32),
+                        sid = payload.sid,
+                        desktopNonce = payload.desktopNonce,
                         androidNonce = androidNonce,
                         desktopSpkiSha256 = fingerprint,
-                        oneTimeMaterial = fingerprint,
+                        oneTimeMaterial = payload.code,
                     ),
                 ),
-                displayName = metadata.displayName,
-                host = metadata.lastHost,
-                port = metadata.lastPort,
+                displayName = trustedDesktop.displayName,
+                host = payload.host,
+                port = payload.port,
             )
         }
 
@@ -127,8 +134,13 @@ class DesktopControlClient(
     private var socket: DesktopControlSocket? = null
     private var lastHeartbeatElapsedNanos: Long? = null
     private var linkState: DesktopLinkState = DesktopLinkState()
+    private var authenticated: Boolean = false
 
-    fun connect(proofRequest: ControlProofRequest): DesktopControlConnectResult {
+    fun connect(
+        proofRequest: ControlProofRequest,
+        onAuthenticated: () -> Unit = {},
+        onConnectionFailure: (String) -> Unit = {},
+    ): DesktopControlConnectResult {
         val trust = verifyPresentedFingerprint(proofRequest.desktopSpkiSha256)
         if (trust is DesktopControlConnectResult.TrustMismatch) {
             linkState = linkState.copy(
@@ -137,6 +149,7 @@ class DesktopControlClient(
             )
             return trust
         }
+        authenticated = false
         val request = Request.Builder()
             .url(config.url)
             .header("X-BT-Gun-Desktop-Fingerprint", config.expectedDesktopSpkiSha256)
@@ -145,12 +158,48 @@ class DesktopControlClient(
             .header("X-BT-Gun-Pairing-Proof", proofRequest.proofHex)
             .build()
 
-        socket = socketFactory(request, object : WebSocketListener() {})
+        socket = socketFactory(
+            request,
+            object : WebSocketListener() {
+                override fun onOpen(webSocket: WebSocket, response: Response) {
+                    linkState = linkState.copy(phase = DesktopLinkPhase.PAIRING_PROOF)
+                }
+
+                override fun onMessage(webSocket: WebSocket, text: String) {
+                    if (handleServerEnvelope(text, proofRequest.sid)) {
+                        if (!authenticated) {
+                            authenticated = true
+                            onAuthenticated()
+                        }
+                    }
+                }
+
+                override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                    socket = null
+                    authenticated = false
+                    val reason = t.javaClass.simpleName.ifBlank { "control channel failed" }
+                    linkState = linkState.copy(
+                        phase = DesktopLinkPhase.DISCONNECTED,
+                        lastControlError = reason,
+                    )
+                    onConnectionFailure(reason)
+                }
+
+                override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                    socket = null
+                    authenticated = false
+                    linkState = linkState.copy(
+                        phase = DesktopLinkPhase.DISCONNECTED,
+                        lastControlError = reason.ifBlank { null },
+                    )
+                }
+            },
+        )
         linkState = linkState.copy(
-            phase = DesktopLinkPhase.CONNECTED,
+            phase = DesktopLinkPhase.CONNECTING,
             fingerprintSuffix = config.expectedDesktopSpkiSha256.takeLast(FINGERPRINT_SUFFIX_LENGTH),
         )
-        return DesktopControlConnectResult.Connected
+        return DesktopControlConnectResult.Connecting
     }
 
     fun send(envelope: ControlEnvelope): DesktopControlSendResult {
@@ -160,6 +209,9 @@ class DesktopControlClient(
             is ControlDecodeResult.Accepted -> {
                 if (encoded.toByteArray(Charsets.UTF_8).size > config.maxMessageBytes) {
                     return DesktopControlSendResult.Rejected(ControlEnvelopeError.OVERSIZED)
+                }
+                if (!authenticated) {
+                    return DesktopControlSendResult.NotConnected
                 }
                 val activeSocket = socket ?: return DesktopControlSendResult.NotConnected
                 if (activeSocket.send(encoded)) {
@@ -174,6 +226,7 @@ class DesktopControlClient(
     fun close() {
         socket?.close()
         socket = null
+        authenticated = false
         linkState = linkState.copy(phase = DesktopLinkPhase.DISCONNECTED)
     }
 
@@ -221,6 +274,34 @@ class DesktopControlClient(
     fun certificatePin(): String =
         "sha256/${config.expectedDesktopSpkiSha256.hexToBytes().toByteString().base64()}"
 
+    private fun handleServerEnvelope(text: String, expectedSessionId: String): Boolean =
+        when (val decoded = ControlEnvelopeCodec.decode(text, maxBytes = config.maxMessageBytes)) {
+            is ControlDecodeResult.Rejected -> {
+                recordControlError(decoded.error.name.lowercase(Locale.US))
+                false
+            }
+            is ControlDecodeResult.Accepted -> {
+                if (decoded.envelope.sessionId != expectedSessionId) {
+                    recordControlError("session mismatch")
+                    false
+                } else {
+                    when (decoded.envelope.type) {
+                        ControlMessageType.SESSION_READY -> {
+                            linkState = linkState.copy(phase = DesktopLinkPhase.CONNECTED)
+                            true
+                        }
+                        ControlMessageType.HEARTBEAT_PING,
+                        ControlMessageType.HEARTBEAT_PONG,
+                        -> {
+                            observeHeartbeat(System.nanoTime())
+                            false
+                        }
+                        else -> false
+                    }
+                }
+            }
+        }
+
     private fun observeHeartbeat(nowElapsedNanos: Long) {
         require(nowElapsedNanos >= 0L) { "nowElapsedNanos must be non-negative" }
         lastHeartbeatElapsedNanos = nowElapsedNanos
@@ -253,7 +334,12 @@ class DesktopControlClient(
             val host = request.url.host
             val pin = request.header("X-BT-Gun-Desktop-Fingerprint")
                 ?: throw IllegalArgumentException("missing expected desktop fingerprint")
+            val trustManager = PinnedSpkiTrustManager(pin)
+            val sslContext = SSLContext.getInstance("TLS").apply {
+                init(null, arrayOf<TrustManager>(trustManager), null)
+            }
             val client = OkHttpClient.Builder()
+                .sslSocketFactory(sslContext.socketFactory, trustManager)
                 .certificatePinner(
                     CertificatePinner.Builder()
                         .add(host, "sha256/${pin.hexToBytes().toByteString().base64()}")
@@ -279,6 +365,7 @@ private fun String.toDesktopLinkPhase(): DesktopLinkPhase =
 
 sealed interface DesktopControlConnectResult {
     data object Connected : DesktopControlConnectResult
+    data object Connecting : DesktopControlConnectResult
     data class TrustMismatch(val expected: String, val presented: String) : DesktopControlConnectResult
 }
 
@@ -297,6 +384,28 @@ private class OkHttpDesktopControlSocket(
     override fun close() {
         webSocket.close(1000, "client closed")
     }
+}
+
+private class PinnedSpkiTrustManager(
+    expectedDesktopSpkiSha256: String,
+) : X509TrustManager {
+    private val expected = expectedDesktopSpkiSha256.lowercase(Locale.US)
+
+    override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) {
+        throw CertificateException("client certificates are not accepted")
+    }
+
+    override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) {
+        val leaf = chain?.firstOrNull() ?: throw CertificateException("missing desktop certificate")
+        val presented = MessageDigest.getInstance("SHA-256")
+            .digest(leaf.publicKey.encoded)
+            .joinToString(separator = "") { byte -> "%02x".format(byte) }
+        if (presented != expected) {
+            throw CertificateException("desktop SPKI fingerprint mismatch")
+        }
+    }
+
+    override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
 }
 
 private fun String.hexToBytes(): ByteArray {

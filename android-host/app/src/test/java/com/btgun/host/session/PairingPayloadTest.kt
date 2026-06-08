@@ -45,6 +45,7 @@ private fun manualParserRequiresEndpointSixDigitCodeAndFingerprintSuffix() {
         host = "192.168.1.44",
         port = "44383",
         code = "123456",
+        desktopNonce = NONCE,
         desktopSpkiSha256Suffix = "11223344",
         sid = "session-001",
     )
@@ -53,6 +54,7 @@ private fun manualParserRequiresEndpointSixDigitCodeAndFingerprintSuffix() {
     expectEquals("manual host", "192.168.1.44", valid.value.host)
     expectEquals("manual port", 44383, valid.value.port)
     expectEquals("manual code", "123456", valid.value.code)
+    expectEquals("manual nonce", NONCE, valid.value.desktopNonce)
     expectEquals("manual suffix", "11223344", valid.value.desktopSpkiSha256Suffix)
     expectEquals("manual sid", "session-001", valid.value.sid)
 
@@ -60,6 +62,7 @@ private fun manualParserRequiresEndpointSixDigitCodeAndFingerprintSuffix() {
         host = "192.168.1.44",
         port = "44383",
         code = "12ab56",
+        desktopNonce = NONCE,
         desktopSpkiSha256Suffix = "11223344",
         sid = "session-001",
     )
@@ -72,6 +75,7 @@ private fun manualParserRequiresEndpointSixDigitCodeAndFingerprintSuffix() {
         host = "",
         port = "44383",
         code = "123456",
+        desktopNonce = NONCE,
         desktopSpkiSha256Suffix = "11223344",
         sid = "session-001",
     )

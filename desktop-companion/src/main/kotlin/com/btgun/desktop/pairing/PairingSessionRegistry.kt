@@ -90,6 +90,7 @@ class PairingSessionRegistry(
             host = endpoint.host,
             port = endpoint.port,
             code = manualCode,
+            desktopNonce = nonce,
             desktopSpkiSha256Suffix = identity.desktopSpkiSha256.takeLast(8),
             sid = sid,
         )
@@ -145,6 +146,8 @@ class PairingSessionRegistry(
 
         return consumeSession(session, nowEpochMillis)
     }
+
+    fun desktopIdentity() = identityStore.loadOrCreateIdentity()
 
     fun consumeSession(session: PairingSession, nowEpochMillis: Long): PairingAttemptResult.Accepted {
         consumedSids += session.sid

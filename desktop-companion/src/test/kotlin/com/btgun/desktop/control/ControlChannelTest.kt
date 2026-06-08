@@ -14,9 +14,11 @@ import kotlinx.serialization.json.JsonPrimitive
 fun main() {
     envelopeCodecAcceptsOnlyVersionOneAndKnownTypes()
     envelopeCodecRejectsUnsupportedVersionUnknownTypeAndOversizedText()
+    envelopeCodecRejectsOverflowedVersion()
     reservedHapticCommandAllowsEmptyBodyOnly()
     controlServerRejectsControlEnvelopeBeforeProof()
     controlServerAcceptsKnownEnvelopeAfterProof()
+    controlServerRetainsTrustedSessionForMultipleEnvelopes()
     heartbeatMonitorTransitionsConnectedDegradedDisconnected()
     heartbeatPingAndPongRefreshLiveness()
     diagnosticsPayloadContainsOnlyControlFields()
@@ -45,6 +47,12 @@ private fun envelopeCodecRejectsUnsupportedVersionUnknownTypeAndOversizedText() 
     expectRejected("unsupported version", ControlEnvelopeError.UNSUPPORTED_VERSION, ControlEnvelopeCodec.decode(unsupportedVersion))
     expectRejected("unknown type", ControlEnvelopeError.UNKNOWN_TYPE, ControlEnvelopeCodec.decode(unknownType))
     expectRejected("oversized", ControlEnvelopeError.OVERSIZED, ControlEnvelopeCodec.decode(unknownType, maxBytes = 12))
+}
+
+private fun envelopeCodecRejectsOverflowedVersion() {
+    val overflowVersion = """{"v":4294967297,"type":"session_ready","msgId":"m-1","sessionId":"sid-1","seq":1,"sentElapsedNanos":10,"body":{}}"""
+
+    expectRejected("overflow version", ControlEnvelopeError.INVALID_FIELD, ControlEnvelopeCodec.decode(overflowVersion))
 }
 
 private fun reservedHapticCommandAllowsEmptyBodyOnly() {
@@ -92,6 +100,27 @@ private fun controlServerAcceptsKnownEnvelopeAfterProof() {
     expectTrue("accepted", result is ControlServerResult.Accepted)
     expectEquals("accepted type", ControlMessageType.SESSION_READY, (result as ControlServerResult.Accepted).envelope.type)
     expectEquals("trusted sid", session.sid, result.trustedSession.sid)
+}
+
+private fun controlServerRetainsTrustedSessionForMultipleEnvelopes() {
+    val registry = testRegistry()
+    val session = registry.startPairing(nowEpochMillis = 1_000L)
+    val server = ControlServer(registry = registry, maxMessageBytes = 512)
+    val trusted = server.authenticate(proofRequestFor(session, "bb".repeat(16)), nowEpochMillis = 2_000L)
+    expectTrue("authenticated", trusted is ControlAuthenticationResult.Accepted)
+    val trustedSession = (trusted as ControlAuthenticationResult.Accepted).trustedSession
+
+    val first = server.handleTrustedEnvelope(
+        trustedSession,
+        ControlEnvelopeCodec.encode(envelope(ControlMessageType.HEARTBEAT_PING, sessionId = session.sid)),
+    )
+    val second = server.handleTrustedEnvelope(
+        trustedSession,
+        ControlEnvelopeCodec.encode(envelope(ControlMessageType.DIAGNOSTICS, sessionId = session.sid)),
+    )
+
+    expectTrue("first accepted", first is ControlServerResult.Accepted)
+    expectTrue("second accepted", second is ControlServerResult.Accepted)
 }
 
 private fun heartbeatMonitorTransitionsConnectedDegradedDisconnected() {

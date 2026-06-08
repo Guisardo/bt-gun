@@ -31,6 +31,7 @@ data class ManualPairingPayload(
     val host: String,
     val port: Int,
     val code: String,
+    val desktopNonce: String,
     val desktopSpkiSha256Suffix: String,
     val sid: String,
 ) {
@@ -38,6 +39,7 @@ data class ManualPairingPayload(
         require(host.isNotBlank()) { "host must not be blank" }
         require(port in PORT_RANGE) { "port must be between 1 and 65535" }
         require(code.matches(MANUAL_CODE_REGEX)) { "code must be six digits" }
+        require(desktopNonce.matches(HEX_ENTROPY_REGEX)) { "desktopNonce must include enough entropy" }
         require(desktopSpkiSha256Suffix.matches(FINGERPRINT_SUFFIX_REGEX)) { "desktopSpkiSha256Suffix must be visible" }
         require(sid.isNotBlank()) { "sid must not be blank" }
     }
@@ -149,11 +151,13 @@ object PairingPayload {
         host: String,
         port: String,
         code: String,
+        desktopNonce: String,
         desktopSpkiSha256Suffix: String,
         sid: String,
     ): PairingParseResult<ManualPairingPayload> {
         val normalizedHost = host.trim()
         val normalizedCode = code.trim()
+        val normalizedNonce = desktopNonce.trim().lowercase(Locale.US)
         val normalizedSuffix = desktopSpkiSha256Suffix.trim().lowercase(Locale.US)
         val normalizedSid = sid.trim()
         val parsedPort = requiredInt("port", port.trim())
@@ -161,6 +165,7 @@ object PairingPayload {
         if (normalizedHost.isBlank()) return missing("host", qr = false)
         if (parsedPort == null) return malformed("port", qr = false)
         if (!normalizedCode.matches(MANUAL_CODE_REGEX)) return malformed("code", qr = false)
+        if (!normalizedNonce.matches(HEX_ENTROPY_REGEX)) return malformed("desktop_nonce", qr = false)
         if (!normalizedSuffix.matches(FINGERPRINT_SUFFIX_REGEX)) return malformed("desktop_spki_sha256_suffix", qr = false)
         if (normalizedSid.isBlank()) return missing("sid", qr = false)
 
@@ -169,6 +174,7 @@ object PairingPayload {
                 host = normalizedHost,
                 port = parsedPort,
                 code = normalizedCode,
+                desktopNonce = normalizedNonce,
                 desktopSpkiSha256Suffix = normalizedSuffix,
                 sid = normalizedSid,
             ),

@@ -38,12 +38,13 @@ Fields shown:
 | Host | string | Same selected endpoint host as the QR payload. |
 | Port | integer | Same endpoint port as the QR payload. |
 | Code | six decimal digits | One-time code bound to the active `sid`. |
+| Challenge | lowercase hex string | Same `desktop_nonce` used by the proof transcript. |
 | Fingerprint suffix | lowercase hex string | Last eight characters of `desktop_spki_sha256` for visual confirmation. |
 | Session id | string | Same `sid`, used internally for binding. |
 
 The manual code has the same expiry as the QR material. Starting a new desktop pairing window replaces previous one-time QR and manual material.
 
-Android manual entry validates nonblank host, port `1..65535`, a six-digit code, a lowercase fingerprint suffix, and a nonblank session id before any connection attempt. In the current Android wiring, manual connect uses saved trusted desktop fingerprint metadata because the manual UI only has a suffix; QR is the first-trust path that can save full fingerprint metadata.
+Android manual entry validates nonblank host, port `1..65535`, a six-digit code, a lowercase desktop challenge, a lowercase fingerprint suffix, and a nonblank session id before any connection attempt. Manual connect uses the saved trusted desktop fingerprint metadata to recover the full SPKI hash, then proves the active `sid` with the displayed code and challenge. QR is still the first-trust path that can save full fingerprint metadata.
 
 ## Proof Transcript
 
@@ -89,7 +90,7 @@ Mismatch handling must preserve the old stored fingerprint until an explicit re-
 
 ## Reliable Control Channel
 
-The reliable control channel is WebSocket-style over TLS using the pinned desktop SPKI fingerprint. Desktop accepts trusted control messages only after pairing proof succeeds. Android sends the proof and fingerprint metadata in connection request headers, then uses the pinned endpoint from QR or stored trusted metadata.
+The reliable control channel is WebSocket-style over TLS using the pinned desktop SPKI fingerprint. Desktop accepts trusted control messages only after pairing proof succeeds. Android sends the proof and fingerprint metadata in connection request headers, then waits for a `session_ready` envelope before saving first trust or sending trusted control messages.
 
 Control envelopes are JSON objects with these fields:
 
