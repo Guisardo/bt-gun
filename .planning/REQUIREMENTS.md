@@ -39,7 +39,7 @@
 - [x] **TRAN-02**: Android host app can pair to the desktop companion using QR code or pairing code without manual IP entry in the normal path.
 - [x] **TRAN-03**: Pairing creates an authenticated local session with a short-lived one-time secret and replay protection.
 - [ ] **TRAN-04**: Android host app streams high-rate input and motion samples to desktop using versioned UDP input frames.
-- [ ] **TRAN-05**: UDP input frames include sequence number, session id, capture timestamp, send timestamp, button bitmask, axes, motion payload, and motion provider/capability flags.
+- [x] **TRAN-05**: UDP input frames include sequence number, session id, capture timestamp, send timestamp, button bitmask, axes, motion payload, and motion provider/capability flags.
 - [x] **TRAN-06**: Android and desktop maintain a reliable control channel for pairing state, heartbeat, diagnostics, profile metadata, and haptic commands.
 - [ ] **TRAN-07**: Desktop can send a haptic command with command id, strength, duration, expiry/TTL, and optional pattern.
 - [ ] **TRAN-08**: Android host app returns haptic acknowledgement or failure status to desktop.
@@ -47,7 +47,7 @@
 
 ### Desktop Virtual Controller
 
-- [ ] **DESK-01**: Desktop companion can receive, validate, decrypt/authenticate, and parse normalized Android input frames.
+- [x] **DESK-01**: Desktop companion can receive, validate, decrypt/authenticate, and parse normalized Android input frames.
 - [ ] **DESK-02**: Desktop companion can expose a regular gamepad-style virtual joystick on Windows 11 x64.
 - [ ] **DESK-03**: Desktop companion can expose a regular gamepad-style virtual joystick on macOS Apple Silicon.
 - [ ] **DESK-04**: Virtual joystick descriptor exposes trigger, reload, joystick axes, X/Y/A/B buttons, and aim axes.
@@ -78,7 +78,7 @@
 
 - [ ] **PERF-01**: End-to-end input path can be measured from Android capture timestamp to desktop visualizer update.
 - [ ] **PERF-02**: v1 visualizer path targets under 50 ms end-to-end latency during normal local Wi-Fi testing.
-- [ ] **PERF-03**: Desktop drops stale or replayed UDP input frames instead of applying old aim/control data.
+- [x] **PERF-03**: Desktop drops stale or replayed UDP input frames instead of applying old aim/control data.
 - [ ] **PERF-04**: Packet logs can be replayed in tests to verify parser, profile mapping, and visualizer output.
 - [ ] **PERF-05**: Android and desktop expose enough diagnostic logs to distinguish gun, sensor, LAN, profile, and virtual-driver failures.
 
@@ -168,12 +168,12 @@ Which phases cover which requirements. Updated during roadmap creation.
 | TRAN-02 | Phase 3 | Complete |
 | TRAN-03 | Phase 3 | Complete |
 | TRAN-04 | Phase 4 | Pending |
-| TRAN-05 | Phase 4 | Pending |
+| TRAN-05 | Phase 4 | Complete |
 | TRAN-06 | Phase 3 | Complete |
 | TRAN-07 | Phase 4 | Pending |
 | TRAN-08 | Phase 4 | Pending |
 | TRAN-09 | Phase 4 | Pending |
-| DESK-01 | Phase 4 | Pending |
+| DESK-01 | Phase 4 | Complete |
 | DESK-02 | Phase 6 | Pending |
 | DESK-03 | Phase 7 | Pending |
 | DESK-04 | Phase 5 | Pending |
@@ -195,7 +195,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | VIS-06 | Phase 9 | Pending |
 | PERF-01 | Phase 9 | Pending |
 | PERF-02 | Phase 9 | Pending |
-| PERF-03 | Phase 4 | Pending |
+| PERF-03 | Phase 4 | Complete |
 | PERF-04 | Phase 10 | Pending |
 | PERF-05 | Phase 10 | Pending |
 | PACK-01 | Phase 10 | Pending |
