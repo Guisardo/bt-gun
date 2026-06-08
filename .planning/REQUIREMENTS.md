@@ -38,7 +38,7 @@
 - [x] **TRAN-01**: Desktop companion can create a local pairing session and display a QR code plus pairing-code fallback.
 - [x] **TRAN-02**: Android host app can pair to the desktop companion using QR code or pairing code without manual IP entry in the normal path.
 - [x] **TRAN-03**: Pairing creates an authenticated local session with a short-lived one-time secret and replay protection.
-- [ ] **TRAN-04**: Android host app streams high-rate input and motion samples to desktop using versioned UDP input frames.
+- [x] **TRAN-04**: Android host app streams high-rate input and motion samples to desktop using versioned UDP input frames.
 - [x] **TRAN-05**: UDP input frames include sequence number, session id, capture timestamp, send timestamp, button bitmask, axes, motion payload, and motion provider/capability flags.
 - [x] **TRAN-06**: Android and desktop maintain a reliable control channel for pairing state, heartbeat, diagnostics, profile metadata, and haptic commands.
 - [ ] **TRAN-07**: Desktop can send a haptic command with command id, strength, duration, expiry/TTL, and optional pattern.
@@ -167,7 +167,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | TRAN-01 | Phase 3 | Complete |
 | TRAN-02 | Phase 3 | Complete |
 | TRAN-03 | Phase 3 | Complete |
-| TRAN-04 | Phase 4 | Pending |
+| TRAN-04 | Phase 4 | Complete |
 | TRAN-05 | Phase 4 | Complete |
 | TRAN-06 | Phase 3 | Complete |
 | TRAN-07 | Phase 4 | Pending |
