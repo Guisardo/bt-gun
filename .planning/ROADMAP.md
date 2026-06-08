@@ -15,7 +15,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Hardware and Protocol Discovery** - Prove how the real iPega gun exposes input and verify phone vibration as the v1 feedback path.
 - [x] **Phase 2: Android Host Live Input** - Android can connect to the gun, read controls and motion sensors, and expose live session status.
-- [ ] **Phase 3: LAN Pairing and Secure Session** - Android and desktop can establish an authenticated local session by QR or pairing code.
+- [x] **Phase 3: LAN Pairing and Secure Session** - Android and desktop can establish an authenticated local session by QR or pairing code. (completed 2026-06-08)
 - [ ] **Phase 4: Input Stream and Haptic Transport** - Versioned UDP input and reliable control messages carry input, diagnostics, and phone haptic commands safely.
 - [ ] **Phase 5: Desktop Backend Contract and Smoke Harness** - Shared desktop backend contract and fake-input smoke tests work before real OS driver work.
 - [ ] **Phase 6: Windows Virtual Joystick Path** - Windows 11 x64 exposes the gun stream as a regular gamepad-style joystick with output-to-phone-haptic forwarding.
@@ -88,7 +88,7 @@ Plans:
   3. Pairing creates an authenticated local session using a short-lived one-time secret with replay protection.
   4. Android and desktop maintain a reliable control channel for pairing state, heartbeat, diagnostics, profile metadata, and haptic commands.
 
-**Plans:** 7/8 plans executed
+**Plans:** 8/8 plans complete
 Plans:
 
 **Wave 0**
@@ -121,7 +121,7 @@ Plans:
 
 **Wave 7** *(blocked on Wave 6 completion)*
 
-- [ ] 03-08-PLAN.md — Protocol finalization, manual smoke guide, and Phase 4 boundary gates.
+- [x] 03-08-PLAN.md — Protocol finalization, manual smoke guide, and Phase 4 boundary gates.
 
 **UI hint**: yes
 
@@ -241,7 +241,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 |-------|----------------|--------|-----------|
 | 1. Hardware and Protocol Discovery | 5/5 | Complete | 2026-06-06 |
 | 2. Android Host Live Input | 6/6 | Complete | 2026-06-07 |
-| 3. LAN Pairing and Secure Session | 7/8 | In Progress|  |
+| 3. LAN Pairing and Secure Session | 8/8 | Complete   | 2026-06-08 |
 | 4. Input Stream and Haptic Transport | 0/TBD | Not started | - |
 | 5. Desktop Backend Contract and Smoke Harness | 0/TBD | Not started | - |
 | 6. Windows Virtual Joystick Path | 0/TBD | Not started | - |

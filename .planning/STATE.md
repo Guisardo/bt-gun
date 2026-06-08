@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
-stopped_at: Completed 03-07-PLAN.md
-last_updated: "2026-06-07T23:37:09.042Z"
-last_activity: 2026-06-07 -- Phase 03 Plan 07 Android QR/manual/trusted pairing wiring complete
+status: verifying
+stopped_at: Completed 03-08-PLAN.md
+last_updated: "2026-06-08T00:38:17.281Z"
+last_activity: 2026-06-08 -- Phase 03 Plan 08 protocol finalization and manual smoke guide complete
 progress:
   total_phases: 10
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 19
-  completed_plans: 18
-  percent: 95
+  completed_plans: 19
+  percent: 100
 ---
 
 # Project State
@@ -25,18 +25,18 @@ See: .planning/PROJECT.md (updated 2026-06-07)
 
 ## Current Position
 
-Phase: 03 (lan-pairing-and-secure-session) — EXECUTING
+Phase: 03 (lan-pairing-and-secure-session) — VERIFYING
 Plan: 8 of 8
-Status: Ready to execute
-Last activity: 2026-06-07 -- Phase 03 Plan 07 Android QR/manual/trusted pairing wiring complete
+Status: Phase complete — ready for verification
+Last activity: 2026-06-08 -- Phase 03 Plan 08 protocol finalization and manual smoke guide complete
 
-Progress: [██████████] 95% by plan; Phase 01 and Phase 02 are complete; Phase 03 has 8 planned execution prompts, 7 complete.
+Progress: [██████████] 100% by plan; Phase 01, Phase 02, and Phase 03 are complete. Phase 03 is ready for verification/manual smoke.
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 18
+- Total plans completed: 19
 - Average duration: not tracked for hardware-interactive plans
 - Total execution time: not tracked after Plan 02
 
@@ -49,8 +49,8 @@ Progress: [██████████] 95% by plan; Phase 01 and Phase 02 ar
 
 **Recent Trend:**
 
-- Last 5 plans: 03-P03, 03-P04, 03-P05, 03-P06, 03-P07 complete
-- Trend: Android QR/manual/trusted desktop wiring complete; protocol finalization and manual smoke next
+- Last 5 plans: 03-P04, 03-P05, 03-P06, 03-P07, 03-P08 complete
+- Trend: Phase 03 secure LAN pairing/control foundation complete; manual smoke and Phase 4 input/haptic transport are next.
 
 *Updated after each plan completion*
 | Phase 01 P01 | 10 min | 3 tasks | 6 files |
@@ -71,6 +71,7 @@ Progress: [██████████] 95% by plan; Phase 01 and Phase 02 ar
 | Phase 03 P05 | 18 min | 2 tasks | 8 files |
 | Phase 03 P06 | 5 min | 2 tasks | 4 files |
 | Phase 03 P07 | 8min | 2 tasks | 4 files |
+| Phase 03 P08 | 4 min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -107,14 +108,17 @@ Recent decisions affecting current work:
 - [Phase 03]: Desktop launch constructs identity/registry/server dependencies once and injects them into the Swing pairing window. — Keeps launch thin and protocol logic inside pairing/control classes.
 - [Phase 03]: HostSessionService owns Android desktop control client creation, trusted metadata persistence, and socket shutdown. — Keeps QR/manual/trusted reconnect inside the foreground service boundary.
 - [Phase 03]: Trusted desktop reconnect requires an explicit Android tap and stored fingerprint metadata. — No silent primary auto-reconnect is introduced.
+- [Phase 03]: Protocol docs define `reserved_haptic_command` as an empty-body Phase 3 type only. — Phase 4 owns haptic command body shape and execution behavior.
+- [Phase 03]: Manual smoke guide is the physical-device validation bridge for QR/manual pairing, trust mismatch, heartbeat degradation, trusted reconnect, and inactive packet stream.
 
 ### Pending Todos
 
-- Continue Phase 03 with Plan 03-08: protocol finalization, manual smoke guide, and Phase 4 boundary gates.
+- Run Phase 03 manual smoke on a physical Android device and desktop companion when ready.
+- Continue to Phase 4 planning for input stream and haptic transport.
 
 ### Blockers/Concerns
 
-- [Phase 3]: Pairing must preserve Phase 2 live-session boundaries and keep desktop haptic commands out of pairing scope until Phase 4.
+- [Phase 4]: Preserve Phase 3 secure-session boundaries while adding fast input transport and haptic command execution.
 - [Phase 7]: macOS virtual HID/output path may depend on entitlement and OS support.
 
 ## Deferred Items
@@ -127,6 +131,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-07T23:37:09.037Z
-Stopped at: Completed 03-07-PLAN.md
+Last session: 2026-06-08T00:38:17.273Z
+Stopped at: Completed 03-08-PLAN.md
 Resume file: None
