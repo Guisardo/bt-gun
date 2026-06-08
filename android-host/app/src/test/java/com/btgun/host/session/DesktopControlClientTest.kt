@@ -1,5 +1,6 @@
 package com.btgun.host.session
 
+import com.btgun.host.transport.InputStreamConfig
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import okio.ByteString
@@ -28,6 +29,10 @@ fun main() {
     clientUpdatesLinkStateFromHeartbeatDiagnosticsAndErrors()
     profileMetadataModelContainsOnlyRequiredFields()
     controlEnvelopeAllowsHeartbeatDiagnosticsAndProfileTypes()
+    controlEnvelopeAllowsInputStreamConfigType()
+    clientRejectsInputStreamConfigBeforeSessionReady()
+    clientRejectsInputStreamConfigForMismatchedSession()
+    clientPublishesTrustedInputStreamConfigAfterSessionReady()
 }
 
 private fun envelopeCodecMirrorsDesktopAllowlist() {
@@ -587,6 +592,102 @@ private fun controlEnvelopeAllowsHeartbeatDiagnosticsAndProfileTypes() {
     }
 }
 
+private fun controlEnvelopeAllowsInputStreamConfigType() {
+    expectEquals("input config wire name", "input_stream_config", ControlMessageType.INPUT_STREAM_CONFIG.wireName)
+
+    val decoded = ControlEnvelopeCodec.decode(
+        ControlEnvelopeCodec.encode(envelope(ControlMessageType.INPUT_STREAM_CONFIG, body = inputStreamConfigBody())),
+    )
+
+    expectTrue("input stream config accepted", decoded is ControlDecodeResult.Accepted)
+}
+
+private fun clientRejectsInputStreamConfigBeforeSessionReady() {
+    var listener: WebSocketListener? = null
+    val configs = mutableListOf<InputStreamConfig>()
+    val client = DesktopControlClient(
+        config = DesktopControlClientConfig(
+            url = "wss://192.168.50.25:41731/control",
+            expectedDesktopSpkiSha256 = FINGERPRINT,
+            maxMessageBytes = 1024,
+        ),
+        socketFactory = { _, socketListener ->
+            listener = socketListener
+            FakeSocket()
+        },
+        elapsedRealtimeNanos = { 1_000_000_000L },
+    )
+
+    client.connect(
+        authRequest = ManualCodeAuthRequest(
+            androidNonce = "11".repeat(16),
+            desktopSpkiSha256 = FINGERPRINT,
+            code = "123456",
+        ),
+        onInputStreamConfigReceived = configs::add,
+    )
+    listener?.onMessage(
+        NOOP_WEB_SOCKET,
+        envelopeText(ControlMessageType.INPUT_STREAM_CONFIG, sessionId = "manual-sid-001", body = inputStreamConfigBody()),
+    )
+
+    expectEquals("pre-ready config ignored", emptyList<InputStreamConfig>(), configs)
+    expectEquals("pre-ready error", "session not ready", client.currentLinkState().lastControlError)
+}
+
+private fun clientRejectsInputStreamConfigForMismatchedSession() {
+    var listener: WebSocketListener? = null
+    val configs = mutableListOf<InputStreamConfig>()
+    val client = DesktopControlClient(
+        config = DesktopControlClientConfig(
+            url = "wss://192.168.50.25:41731/control",
+            expectedDesktopSpkiSha256 = FINGERPRINT,
+            maxMessageBytes = 1024,
+        ),
+        socketFactory = { _, socketListener ->
+            listener = socketListener
+            FakeSocket()
+        },
+        elapsedRealtimeNanos = { 1_000_000_000L },
+    )
+
+    client.connect(authRequest = proofRequest(), onInputStreamConfigReceived = configs::add)
+    listener?.onMessage(NOOP_WEB_SOCKET, readyEnvelope(sessionId = "sid-1"))
+    listener?.onMessage(
+        NOOP_WEB_SOCKET,
+        envelopeText(ControlMessageType.INPUT_STREAM_CONFIG, sessionId = "sid-2", body = inputStreamConfigBody()),
+    )
+
+    expectEquals("mismatch config ignored", emptyList<InputStreamConfig>(), configs)
+    expectEquals("mismatch error", "session mismatch", client.currentLinkState().lastControlError)
+}
+
+private fun clientPublishesTrustedInputStreamConfigAfterSessionReady() {
+    var listener: WebSocketListener? = null
+    val configs = mutableListOf<InputStreamConfig>()
+    val client = DesktopControlClient(
+        config = DesktopControlClientConfig(
+            url = "wss://192.168.50.25:41731/control",
+            expectedDesktopSpkiSha256 = FINGERPRINT,
+            maxMessageBytes = 1024,
+        ),
+        socketFactory = { _, socketListener ->
+            listener = socketListener
+            FakeSocket()
+        },
+        elapsedRealtimeNanos = { 1_000_000_000L },
+    )
+
+    client.connect(authRequest = proofRequest(), onInputStreamConfigReceived = configs::add)
+    listener?.onMessage(NOOP_WEB_SOCKET, readyEnvelope(sessionId = "sid-1"))
+    listener?.onMessage(
+        NOOP_WEB_SOCKET,
+        envelopeText(ControlMessageType.INPUT_STREAM_CONFIG, sessionId = "sid-1", body = inputStreamConfigBody()),
+    )
+
+    expectEquals("trusted config callback", listOf(fixtureConfig()), configs)
+}
+
 private fun envelope(
     type: ControlMessageType,
     sessionId: String = "sid-1",
@@ -618,6 +719,32 @@ private fun proofRequest(desktopSpkiSha256: String = FINGERPRINT): ControlProofR
         androidNonce = "aa".repeat(16),
         desktopSpkiSha256 = desktopSpkiSha256,
         proofHex = "bb".repeat(32),
+    )
+
+private fun inputStreamConfigBody(): JsonObject =
+    JsonObject(
+        mapOf(
+            "streamSessionIdHex" to JsonPrimitive(STREAM_SESSION_ID_HEX),
+            "udpHost" to JsonPrimitive("192.168.1.44"),
+            "udpPort" to JsonPrimitive(41731),
+            "hmacSha256KeyBase64Url" to JsonPrimitive(HMAC_KEY_BASE64URL),
+            "snapshotHz" to JsonPrimitive(60),
+            "frameAgeLimitMs" to JsonPrimitive(150L),
+            "streamTimeoutMs" to JsonPrimitive(250L),
+            "controlDisconnectGraceMs" to JsonPrimitive(1500L),
+        ),
+    )
+
+private fun fixtureConfig(): InputStreamConfig =
+    InputStreamConfig(
+        streamSessionIdHex = STREAM_SESSION_ID_HEX,
+        udpHost = "192.168.1.44",
+        udpPort = 41731,
+        hmacSha256KeyBase64Url = HMAC_KEY_BASE64URL,
+        snapshotHz = 60,
+        frameAgeLimitMs = 150,
+        streamTimeoutMs = 250,
+        controlDisconnectGraceMs = 1500,
     )
 
 private fun clientWithFakeSocket(): DesktopControlClient {
@@ -708,3 +835,5 @@ private fun dataFieldNames(type: Class<*>): List<String> =
 
 private const val FINGERPRINT = "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff"
 private const val OTHER_FINGERPRINT = "ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100"
+private const val STREAM_SESSION_ID_HEX = "00112233445566778899aabbccddeeff"
+private const val HMAC_KEY_BASE64URL = "ASNFZ4mrze_-3LqYdlQyEAEjRWeJq83v_ty6mHZUMhA"
