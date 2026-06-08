@@ -82,6 +82,17 @@ internal fun hostDesktopLivenessActionFor(update: DesktopLivenessUpdate): HostDe
         shouldContinuePolling = update.shouldContinuePolling,
     )
 
+internal fun hostPacketStreamStateAfterControlDisconnect(
+    hasSender: Boolean,
+    hasConfig: Boolean,
+    controlDisconnectGraceMs: Long?,
+): InputStreamLifecycleState =
+    when {
+        !hasSender || !hasConfig || controlDisconnectGraceMs == null -> InputStreamLifecycleState.STOPPED
+        controlDisconnectGraceMs <= 0L -> InputStreamLifecycleState.STALE
+        else -> InputStreamLifecycleState.GRACE
+    }
+
 class HostSessionService : Service() {
     private var adapter: IpegaBleGunAdapter? = null
     private val handler = Handler(Looper.getMainLooper())
@@ -650,13 +661,29 @@ class HostSessionService : Service() {
 
     private fun scheduleUdpDisconnectGraceStop() {
         handler.removeCallbacks(udpDisconnectGraceStop)
-        val graceMillis = udpInputConfig?.controlDisconnectGraceMs ?: 0L
-        if (graceMillis <= 0L) {
-            markUdpInputStale()
-        } else {
-            udpInputSender?.onControlDisconnected(SystemClock.elapsedRealtimeNanos())
-            currentState = currentState.copy(packetStreamState = InputStreamLifecycleState.GRACE)
-            handler.postDelayed(udpDisconnectGraceStop, graceMillis)
+        val sender = udpInputSender
+        val config = udpInputConfig
+        when (
+            hostPacketStreamStateAfterControlDisconnect(
+                hasSender = sender != null,
+                hasConfig = config != null,
+                controlDisconnectGraceMs = config?.controlDisconnectGraceMs,
+            )
+        ) {
+            InputStreamLifecycleState.STOPPED -> {
+                handler.removeCallbacks(udpSnapshotTick)
+                sender?.stop("control disconnected before stream config")
+                udpInputSender = null
+                udpInputConfig = null
+                currentState = currentState.copy(packetStreamState = InputStreamLifecycleState.STOPPED)
+            }
+            InputStreamLifecycleState.STALE -> markUdpInputStale()
+            InputStreamLifecycleState.GRACE -> {
+                sender?.onControlDisconnected(SystemClock.elapsedRealtimeNanos())
+                currentState = currentState.copy(packetStreamState = InputStreamLifecycleState.GRACE)
+                handler.postDelayed(udpDisconnectGraceStop, config!!.controlDisconnectGraceMs)
+            }
+            InputStreamLifecycleState.ACTIVE -> Unit
         }
     }
 

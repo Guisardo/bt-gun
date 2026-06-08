@@ -8,7 +8,6 @@ enum class InputReplayRejectReason {
     CONTROL_GRACE_EXPIRED,
     BAD_HMAC,
     MALFORMED,
-    AGE_EXPIRED,
 }
 
 sealed interface InputReplayDecision {
