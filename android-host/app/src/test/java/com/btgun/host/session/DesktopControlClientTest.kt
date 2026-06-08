@@ -1,8 +1,11 @@
 package com.btgun.host.session
 
 import com.btgun.host.transport.InputStreamConfig
+import com.btgun.host.haptics.DesktopHapticCommand
+import com.btgun.host.haptics.HapticResultStatus
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.jsonPrimitive
 import okio.ByteString
 import okhttp3.Request
 import okhttp3.WebSocket
@@ -33,6 +36,10 @@ fun main() {
     clientRejectsInputStreamConfigBeforeSessionReady()
     clientRejectsInputStreamConfigForMismatchedSession()
     clientPublishesTrustedInputStreamConfigAfterSessionReady()
+    controlEnvelopeAllowsHapticCommandAndResultTypes()
+    clientRejectsHapticCommandBeforeSessionReady()
+    clientRejectsHapticCommandForMismatchedSession()
+    clientHandlesTrustedHapticCommandAndSendsResult()
 }
 
 private fun envelopeCodecMirrorsDesktopAllowlist() {
@@ -45,22 +52,16 @@ private fun envelopeCodecMirrorsDesktopAllowlist() {
     expectEquals("pairing wire name", "pairing_state", ControlMessageType.PAIRING_STATE.wireName)
     expectEquals("ready wire name", "session_ready", ControlMessageType.SESSION_READY.wireName)
     expectEquals("reserved haptic name", "reserved_haptic_command", ControlMessageType.RESERVED_HAPTIC_COMMAND.wireName)
+    expectEquals("haptic result name", "haptic_result", ControlMessageType.HAPTIC_RESULT.wireName)
 }
 
 private fun envelopeCodecRejectsVersionUnknownTypeOversizedAndReservedHapticBody() {
     val unsupportedVersion = """{"v":2,"type":"session_ready","msgId":"m-1","sessionId":"sid-1","seq":1,"sentElapsedNanos":10,"body":{}}"""
     val unknownType = """{"v":1,"type":"profile_update","msgId":"m-1","sessionId":"sid-1","seq":1,"sentElapsedNanos":10,"body":{}}"""
-    val reservedBody = ControlEnvelopeCodec.encode(
-        envelope(
-            ControlMessageType.RESERVED_HAPTIC_COMMAND,
-            body = JsonObject(mapOf("command" to JsonPrimitive("pulse"))),
-        ),
-    )
 
     expectRejected("version", ControlEnvelopeError.UNSUPPORTED_VERSION, ControlEnvelopeCodec.decode(unsupportedVersion))
     expectRejected("type", ControlEnvelopeError.UNKNOWN_TYPE, ControlEnvelopeCodec.decode(unknownType))
     expectRejected("size", ControlEnvelopeError.OVERSIZED, ControlEnvelopeCodec.decode(unknownType, maxBytes = 8))
-    expectRejected("reserved haptic", ControlEnvelopeError.RESERVED_HAPTIC_BODY, ControlEnvelopeCodec.decode(reservedBody))
 }
 
 private fun envelopeCodecRejectsOverflowedVersion() {
@@ -688,6 +689,144 @@ private fun clientPublishesTrustedInputStreamConfigAfterSessionReady() {
     expectEquals("trusted config callback", listOf(fixtureConfig()), configs)
 }
 
+private fun controlEnvelopeAllowsHapticCommandAndResultTypes() {
+    expectEquals("haptic command wire name", "reserved_haptic_command", ControlMessageType.RESERVED_HAPTIC_COMMAND.wireName)
+    expectEquals("haptic result wire name", "haptic_result", ControlMessageType.HAPTIC_RESULT.wireName)
+
+    val commandDecoded = ControlEnvelopeCodec.decode(
+        ControlEnvelopeCodec.encode(
+            envelope(
+                ControlMessageType.RESERVED_HAPTIC_COMMAND,
+                body = hapticCommandBody(),
+            ),
+        ),
+    )
+    val resultDecoded = ControlEnvelopeCodec.decode(
+        ControlEnvelopeCodec.encode(
+            envelope(
+                ControlMessageType.HAPTIC_RESULT,
+                body = JsonObject(
+                    mapOf(
+                        "commandId" to JsonPrimitive("cmd-001"),
+                        "status" to JsonPrimitive(HapticResultStatus.STARTED.wireName),
+                        "detail" to JsonPrimitive("phone pulse started"),
+                        "observedElapsedNanos" to JsonPrimitive(1_050_000_000L),
+                    ),
+                ),
+            ),
+        ),
+    )
+
+    expectTrue("haptic command accepted", commandDecoded is ControlDecodeResult.Accepted)
+    expectTrue("haptic result accepted", resultDecoded is ControlDecodeResult.Accepted)
+}
+
+private fun clientRejectsHapticCommandBeforeSessionReady() {
+    var listener: WebSocketListener? = null
+    val handled = mutableListOf<DesktopHapticCommand>()
+    val client = DesktopControlClient(
+        config = DesktopControlClientConfig(
+            url = "wss://192.168.50.25:41731/control",
+            expectedDesktopSpkiSha256 = FINGERPRINT,
+            maxMessageBytes = 1024,
+        ),
+        socketFactory = { _, socketListener ->
+            listener = socketListener
+            FakeSocket()
+        },
+        elapsedRealtimeNanos = { 1_000_000_000L },
+    )
+
+    client.connect(
+        authRequest = ManualCodeAuthRequest(
+            androidNonce = "11".repeat(16),
+            desktopSpkiSha256 = FINGERPRINT,
+            code = "123456",
+        ),
+        onHapticCommandReceived = { command, _ ->
+            handled += command
+            HapticResultStatus.STARTED
+        },
+    )
+    listener?.onMessage(
+        NOOP_WEB_SOCKET,
+        envelopeText(ControlMessageType.RESERVED_HAPTIC_COMMAND, sessionId = "manual-sid-001", body = hapticCommandBody()),
+    )
+
+    expectEquals("pre-ready haptic ignored", emptyList<DesktopHapticCommand>(), handled)
+    expectEquals("pre-ready haptic error", "session not ready", client.currentLinkState().lastControlError)
+}
+
+private fun clientRejectsHapticCommandForMismatchedSession() {
+    var listener: WebSocketListener? = null
+    val handled = mutableListOf<DesktopHapticCommand>()
+    val client = DesktopControlClient(
+        config = DesktopControlClientConfig(
+            url = "wss://192.168.50.25:41731/control",
+            expectedDesktopSpkiSha256 = FINGERPRINT,
+            maxMessageBytes = 1024,
+        ),
+        socketFactory = { _, socketListener ->
+            listener = socketListener
+            FakeSocket()
+        },
+        elapsedRealtimeNanos = { 1_000_000_000L },
+    )
+
+    client.connect(
+        authRequest = proofRequest(),
+        onHapticCommandReceived = { command, _ ->
+            handled += command
+            HapticResultStatus.STARTED
+        },
+    )
+    listener?.onMessage(NOOP_WEB_SOCKET, readyEnvelope(sessionId = "sid-1"))
+    listener?.onMessage(
+        NOOP_WEB_SOCKET,
+        envelopeText(ControlMessageType.RESERVED_HAPTIC_COMMAND, sessionId = "sid-2", body = hapticCommandBody()),
+    )
+
+    expectEquals("mismatch haptic ignored", emptyList<DesktopHapticCommand>(), handled)
+    expectEquals("mismatch haptic error", "session mismatch", client.currentLinkState().lastControlError)
+}
+
+private fun clientHandlesTrustedHapticCommandAndSendsResult() {
+    val socket = FakeSocket()
+    var listener: WebSocketListener? = null
+    val handled = mutableListOf<DesktopHapticCommand>()
+    val client = DesktopControlClient(
+        config = DesktopControlClientConfig(
+            url = "wss://192.168.50.25:41731/control",
+            expectedDesktopSpkiSha256 = FINGERPRINT,
+            maxMessageBytes = 2048,
+        ),
+        socketFactory = { _, socketListener ->
+            listener = socketListener
+            socket
+        },
+        elapsedRealtimeNanos = { 1_050_000_000L },
+    )
+
+    client.connect(
+        authRequest = proofRequest(),
+        onHapticCommandReceived = { command, receivedElapsedNanos ->
+            handled += command
+            expectEquals("received time", 1_050_000_000L, receivedElapsedNanos)
+            HapticResultStatus.STARTED
+        },
+    )
+    listener?.onMessage(NOOP_WEB_SOCKET, readyEnvelope(sessionId = "sid-1"))
+    listener?.onMessage(
+        NOOP_WEB_SOCKET,
+        envelopeText(ControlMessageType.RESERVED_HAPTIC_COMMAND, sessionId = "sid-1", body = hapticCommandBody()),
+    )
+
+    expectEquals("haptic handled", listOf(fixtureHapticCommand()), handled)
+    val result = ControlEnvelopeCodec.decode(socket.sent.single()) as ControlDecodeResult.Accepted
+    expectEquals("result type", ControlMessageType.HAPTIC_RESULT, result.envelope.type)
+    expectEquals("result status", HapticResultStatus.STARTED.wireName, result.envelope.body["status"]?.jsonPrimitive?.content)
+}
+
 private fun envelope(
     type: ControlMessageType,
     sessionId: String = "sid-1",
@@ -733,6 +872,22 @@ private fun inputStreamConfigBody(): JsonObject =
             "streamTimeoutMs" to JsonPrimitive(250L),
             "controlDisconnectGraceMs" to JsonPrimitive(1500L),
         ),
+    )
+
+private fun hapticCommandBody(): JsonObject =
+    DesktopHapticCommand(
+        commandId = "cmd-001",
+        strength = 0.75,
+        durationMs = 120L,
+        ttlMs = 500L,
+    ).toJsonBody()
+
+private fun fixtureHapticCommand(): DesktopHapticCommand =
+    DesktopHapticCommand(
+        commandId = "cmd-001",
+        strength = 0.75,
+        durationMs = 120L,
+        ttlMs = 500L,
     )
 
 private fun fixtureConfig(): InputStreamConfig =
