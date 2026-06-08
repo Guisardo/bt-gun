@@ -2,7 +2,7 @@ package com.btgun.desktop.transport
 
 fun main() {
     replayGuardAcceptsFirstValidFrameAndRejectsReplayCases()
-    replayGuardRejectsWrongSessionMalformedBadMacAndExpiredDatagrams()
+    replayGuardRejectsWrongSessionMalformedBadMacAndAcceptsClockSkewedDatagrams()
     timeoutClearsControlsButPreservesRawMotion()
 }
 
@@ -37,7 +37,7 @@ private fun replayGuardAcceptsFirstValidFrameAndRejectsReplayCases() {
     expectEquals("snapshot raw aim y remains current", -0.75f, guard.current?.motion?.rawAimY)
 }
 
-private fun replayGuardRejectsWrongSessionMalformedBadMacAndExpiredDatagrams() {
+private fun replayGuardRejectsWrongSessionMalformedBadMacAndAcceptsClockSkewedDatagrams() {
     val guard = InputReplayGuard(
         trustedControlSessionId = CONTROL_SESSION_ID,
         config = fixtureConfig(),
@@ -47,7 +47,7 @@ private fun replayGuardRejectsWrongSessionMalformedBadMacAndExpiredDatagrams() {
     val wrongStream = UdpInputFrameCodec.encode(frame(sequence = 21L, streamSessionId = OTHER_STREAM_SESSION_ID_HEX), otherStreamConfig())
     val badMac = validBytes.copyOf().also { it[it.lastIndex] = (it[it.lastIndex].toInt() xor 0x01).toByte() }
     val malformed = validBytes.copyOfRange(0, validBytes.lastIndex)
-    val expired = UdpInputFrameCodec.encode(
+    val skewedUptime = UdpInputFrameCodec.encode(
         frame(sequence = 22L, captureElapsedNanos = 1_000_000_000L, sendElapsedNanos = 1_000_000_000L),
         fixtureConfig(),
     )
@@ -72,10 +72,11 @@ private fun replayGuardRejectsWrongSessionMalformedBadMacAndExpiredDatagrams() {
         InputReplayRejectReason.MALFORMED,
         guard.acceptDatagram(malformed, receivedElapsedNanos = 1_111_111_300L, controlSessionId = CONTROL_SESSION_ID),
     )
-    expectRejected(
-        "age expired rejected",
-        InputReplayRejectReason.AGE_EXPIRED,
-        guard.acceptDatagram(expired, receivedElapsedNanos = 1_500_000_001L, controlSessionId = CONTROL_SESSION_ID),
+    expectAccepted(
+        "clock-skewed uptime accepted",
+        guard.acceptDatagram(skewedUptime, receivedElapsedNanos = 900_000_000_000_000L, controlSessionId = CONTROL_SESSION_ID),
+        sequence = 22L,
+        buttonBitmask = 0x23,
     )
 }
 

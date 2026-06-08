@@ -4,7 +4,7 @@ import java.lang.reflect.Modifier
 
 fun main() {
     receiverParsesValidDatagramIntoRawInputOnly()
-    receiverRejectsUntrustedReplayAndExpiredDatagramsBeforeApply()
+    receiverRejectsUntrustedReplayAndAcceptsClockSkewedDatagrams()
     receiverSnapshotRepairsDroppedEdgeState()
     receiverTimeoutClearsActiveControlsOnly()
     receiverBoundaryDoesNotExposeMappedDesktopOutput()
@@ -35,14 +35,14 @@ private fun receiverParsesValidDatagramIntoRawInputOnly() {
     expectTrue("fresh input", !input.stale)
 }
 
-private fun receiverRejectsUntrustedReplayAndExpiredDatagramsBeforeApply() {
+private fun receiverRejectsUntrustedReplayAndAcceptsClockSkewedDatagrams() {
     val received = mutableListOf<UdpReceivedInput>()
     val receiver = UdpInputReceiver(onInput = received::add)
         .start(trustedSession = CONTROL_SESSION_ID, config = fixtureConfig())
     val valid = UdpInputFrameCodec.encode(frame(sequence = 50L), fixtureConfig())
     val wrongStream = UdpInputFrameCodec.encode(frame(sequence = 51L, streamSessionId = OTHER_STREAM_SESSION_ID_HEX), otherStreamConfig())
     val badMac = valid.copyOf().also { it[it.lastIndex] = (it[it.lastIndex].toInt() xor 0x01).toByte() }
-    val expired = UdpInputFrameCodec.encode(
+    val skewedUptime = UdpInputFrameCodec.encode(
         frame(sequence = 52L, captureElapsedNanos = 1_000_000_000L, sendElapsedNanos = 1_000_000_000L),
         fixtureConfig(),
     )
@@ -52,8 +52,8 @@ private fun receiverRejectsUntrustedReplayAndExpiredDatagramsBeforeApply() {
     expectRejected("old", InputReplayRejectReason.OLD_SEQUENCE, receiver.handleDatagram(UdpInputFrameCodec.encode(frame(sequence = 49L), fixtureConfig()), 1_111_111_302L))
     expectRejected("wrong stream", InputReplayRejectReason.WRONG_STREAM_SESSION, receiver.handleDatagram(wrongStream, 1_111_111_303L))
     expectRejected("bad mac", InputReplayRejectReason.BAD_HMAC, receiver.handleDatagram(badMac, 1_111_111_304L))
-    expectRejected("expired", InputReplayRejectReason.AGE_EXPIRED, receiver.handleDatagram(expired, 1_500_000_001L))
-    expectEquals("only valid applied", 1, received.size)
+    expectAccepted("clock-skewed uptime", receiver.handleDatagram(skewedUptime, 900_000_000_000_000L), sequence = 52L)
+    expectEquals("valid and skewed applied", 2, received.size)
 }
 
 private fun receiverSnapshotRepairsDroppedEdgeState() {
