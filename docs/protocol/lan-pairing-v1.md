@@ -2,7 +2,7 @@
 
 Phase 3 pairing is desktop initiated. Desktop opens one short-lived local session, shows a QR code as the normal path, and keeps a visible manual fallback for scan failures.
 
-This contract covers local pairing, authenticated reliable control, liveness, diagnostics, minimal profile metadata, and the Phase 4 input-stream wire foundation. Later phases own desktop virtual joystick behavior, profile mapping, visualizer metrics, and full phone haptic execution behavior.
+This contract covers local pairing, authenticated reliable control, liveness, diagnostics, minimal profile metadata, Phase 4 input stream negotiation, and Phase 4 phone haptic command/result transport. Later phases own desktop virtual joystick behavior, profile mapping, visualizer metrics, and full pattern haptic behavior.
 
 ## QR URI
 
@@ -114,7 +114,7 @@ Control envelopes are JSON objects with these fields:
 | `sentElapsedNanos` | integer | Sender monotonic elapsed timestamp. |
 | `body` | object | Type-specific JSON object. Empty object is valid where no fields are defined. |
 
-Receivers reject malformed JSON, oversized messages, unsupported versions, unknown types, missing required fields, invalid `sessionId`, and reserved haptic bodies. The default envelope size limit is 16 KiB.
+Receivers reject malformed JSON, oversized messages, unsupported versions, unknown types, missing required fields, invalid `sessionId`, and malformed type-specific bodies. The default envelope size limit is 16 KiB.
 
 Allowed `type` wire names:
 
@@ -127,7 +127,8 @@ Allowed `type` wire names:
 | `diagnostics` | Minimal diagnostics described below. |
 | `profile_metadata` | Minimal profile metadata described below. |
 | `input_stream_config` | Trusted UDP input stream parameters described below. |
-| `reserved_haptic_command` | Empty body only in Phase 3. Payload shape and execution belong to Phase 4. |
+| `reserved_haptic_command` | Phase 4 phone haptic command body described below. Wire name preserved from Phase 3. |
+| `haptic_result` | Android phone haptic result body described below. |
 
 ## Input Stream Config
 
@@ -147,6 +148,33 @@ Body fields:
 | `controlDisconnectGraceMs` | integer | Short UDP grace after reliable control disconnect. Default: `1500`. |
 
 Receivers reject missing, malformed, empty, out-of-range, or wrong-session configs. The stream id and auth secret are scoped to one trusted control session and must be replaced after reconnect or session change.
+
+## Phone Haptic Command and Result
+
+Desktop sends phone haptic commands over the authenticated reliable control channel. Haptics do not use UDP, direct desktop-to-gun Bluetooth, BLE `fff5`, or physical gun motor output reports in v1.
+
+`reserved_haptic_command` body fields:
+
+| Field | Type | Meaning |
+|-------|------|---------|
+| `commandId` | nonblank string | Desktop command id for result correlation. |
+| `strength` | number `0.0..1.0` | Normalized phone pulse strength. |
+| `durationMs` | integer `1..1000` | Pulse duration. |
+| `ttlMs` | integer `1..2000` | Relative TTL from Android receive time to start attempt. |
+| `pattern` | string or null | Reserved. Non-null values return `unsupported` in Phase 4. |
+
+Android accepts haptic commands only after trusted `session_ready` and only for the active session id. It validates every field before vibrating. Expired or unsupported commands must not vibrate the phone. A valid new pulse cancels any active phone vibration before starting. Android returns a result after command validation and the vibration start attempt, not after waiting for the pulse duration.
+
+`haptic_result` body fields:
+
+| Field | Type | Meaning |
+|-------|------|---------|
+| `commandId` | string | Command id being reported. |
+| `status` | string | One of `started`, `expired`, `unsupported`, `permission_blocked`, `failed`, or `cancelled`. |
+| `detail` | string | Short non-secret diagnostic detail. |
+| `observedElapsedNanos` | integer | Android monotonic elapsed timestamp when result was observed. |
+
+Result details must not include QR secrets, manual codes, proof values, stream keys, HMAC keys, private key material, or raw secret-bearing control payloads.
 
 ## UDP Input Frames
 
@@ -241,14 +269,14 @@ Allowed:
 
 ## Phase Boundary
 
-Phase 3 defines pairing payload fields, proof verification, trust-anchor behavior, reliable control envelope validation, heartbeat/liveness, limited diagnostics, minimal profile metadata, and the `reserved_haptic_command` type name.
+Phase 3 defines pairing payload fields, proof verification, trust-anchor behavior, reliable control envelope validation, heartbeat/liveness, limited diagnostics, minimal profile metadata, and the `reserved_haptic_command` type name. Phase 4 defines the `reserved_haptic_command` body and `haptic_result` body.
 
 Later phases own:
 
 - high-rate Android-to-desktop transport schemas and parsing
 - desktop virtual-controller input handling
-- phone haptic command body shape and execution outcomes
+- full haptic pattern playback and physical gun motor rumble
 - profile mapping behavior and editing
 - visualizer transport metrics
 
-Phase 3 implementations must not vibrate the phone from desktop-origin commands, must not define reserved haptic body fields, and must reject non-empty `reserved_haptic_command` bodies.
+Phase 3 implementations must not vibrate the phone from desktop-origin commands. Phase 4 implementations may accept non-empty `reserved_haptic_command` bodies only with the validated phone-haptic shape above.

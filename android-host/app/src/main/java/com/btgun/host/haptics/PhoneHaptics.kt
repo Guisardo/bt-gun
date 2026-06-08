@@ -50,7 +50,7 @@ data class PhoneHapticStatus(
 
 class PhoneHaptics(
     context: Context,
-) {
+) : PhoneHapticActuator {
     private val vibrator: Vibrator? =
         context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
 
@@ -86,7 +86,47 @@ class PhoneHaptics(
         }
     }
 
+    override fun pulse(durationMs: Long, strength: Double): PhoneHapticStartResult {
+        val localVibrator = vibrator ?: return PhoneHapticStartResult.Unsupported
+        if (!localVibrator.hasVibrator()) {
+            return PhoneHapticStartResult.Unsupported
+        }
+
+        return try {
+            if (Build.VERSION.SDK_INT >= 26) {
+                localVibrator.vibrate(
+                    VibrationEffect.createOneShot(durationMs, strength.toAmplitude()),
+                )
+            } else {
+                @Suppress("DEPRECATION")
+                localVibrator.vibrate(durationMs)
+            }
+            PhoneHapticStartResult.Started
+        } catch (_: SecurityException) {
+            PhoneHapticStartResult.PermissionBlocked
+        } catch (error: RuntimeException) {
+            PhoneHapticStartResult.Failed(error.javaClass.simpleName)
+        }
+    }
+
+    override fun cancel(): HapticResultStatus {
+        val localVibrator = vibrator ?: return HapticResultStatus.UNSUPPORTED
+        return try {
+            localVibrator.cancel()
+            HapticResultStatus.CANCELLED
+        } catch (_: SecurityException) {
+            HapticResultStatus.PERMISSION_BLOCKED
+        } catch (_: RuntimeException) {
+            HapticResultStatus.FAILED
+        }
+    }
+
     companion object {
         const val LOCAL_TEST_DURATION_MS: Long = 1_000L
     }
 }
+
+private fun Double.toAmplitude(): Int =
+    (this.coerceIn(0.0, 1.0) * 255.0)
+        .toInt()
+        .coerceIn(1, 255)
