@@ -1,5 +1,10 @@
 package com.btgun.host.session
 
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.longOrNull
 import okhttp3.CertificatePinner
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -141,6 +146,7 @@ class DesktopControlClient(
         onAuthenticated: () -> Unit = {},
         onConnectionFailure: (String) -> Unit = {},
         onLinkStateChanged: (DesktopLinkState) -> Unit = {},
+        onProfileMetadataReceived: (ProfileMetadata) -> Unit = {},
     ): DesktopControlConnectResult {
         val trust = verifyPresentedFingerprint(proofRequest.desktopSpkiSha256)
         if (trust is DesktopControlConnectResult.TrustMismatch) {
@@ -168,7 +174,15 @@ class DesktopControlClient(
                 }
 
                 override fun onMessage(webSocket: WebSocket, text: String) {
-                    if (handleServerEnvelope(text, proofRequest.sid)) {
+                    if (
+                        handleServerEnvelope(
+                            text = text,
+                            expectedSessionId = proofRequest.sid,
+                            sendEnvelope = { envelope -> socket?.send(ControlEnvelopeCodec.encode(envelope)) == true },
+                            onLinkStateChanged = onLinkStateChanged,
+                            onProfileMetadataReceived = onProfileMetadataReceived,
+                        )
+                    ) {
                         if (!authenticated) {
                             authenticated = true
                             onAuthenticated()
@@ -283,7 +297,13 @@ class DesktopControlClient(
     fun certificatePin(): String =
         "sha256/${config.expectedDesktopSpkiSha256.hexToBytes().toByteString().base64()}"
 
-    private fun handleServerEnvelope(text: String, expectedSessionId: String): Boolean =
+    private fun handleServerEnvelope(
+        text: String,
+        expectedSessionId: String,
+        sendEnvelope: (ControlEnvelope) -> Boolean,
+        onLinkStateChanged: (DesktopLinkState) -> Unit,
+        onProfileMetadataReceived: (ProfileMetadata) -> Unit,
+    ): Boolean =
         when (val decoded = ControlEnvelopeCodec.decode(text, maxBytes = config.maxMessageBytes)) {
             is ControlDecodeResult.Rejected -> {
                 recordControlError(decoded.error.name.lowercase(Locale.US))
@@ -299,10 +319,26 @@ class DesktopControlClient(
                             linkState = linkState.copy(phase = DesktopLinkPhase.CONNECTED)
                             true
                         }
-                        ControlMessageType.HEARTBEAT_PING,
-                        ControlMessageType.HEARTBEAT_PONG,
-                        -> {
+                        ControlMessageType.HEARTBEAT_PING -> {
                             observeHeartbeat(System.nanoTime())
+                            sendEnvelope(heartbeatEnvelope(ControlMessageType.HEARTBEAT_PONG, expectedSessionId))
+                            onLinkStateChanged(linkState)
+                            false
+                        }
+                        ControlMessageType.HEARTBEAT_PONG -> {
+                            observeHeartbeat(System.nanoTime())
+                            onLinkStateChanged(linkState)
+                            false
+                        }
+                        ControlMessageType.DIAGNOSTICS -> {
+                            decoded.envelope.body.toDiagnostics()?.let { diagnostics ->
+                                applyDiagnostics(diagnostics)
+                                onLinkStateChanged(linkState)
+                            }
+                            false
+                        }
+                        ControlMessageType.PROFILE_METADATA -> {
+                            decoded.envelope.body.toProfileMetadata()?.let(onProfileMetadataReceived)
                             false
                         }
                         else -> false
@@ -310,6 +346,47 @@ class DesktopControlClient(
                 }
             }
         }
+
+    private fun heartbeatEnvelope(type: ControlMessageType, sessionId: String): ControlEnvelope =
+        ControlEnvelope(
+            v = 1,
+            type = type,
+            msgId = "android-${type.wireName}",
+            sessionId = sessionId,
+            seq = 0L,
+            sentElapsedNanos = System.nanoTime(),
+        )
+
+    private fun JsonObject.toDiagnostics(): ControlDiagnostics? {
+        val sessionState = stringField("sessionState") ?: return null
+        val desktopIdentitySuffix = stringField("desktopIdentitySuffix") ?: return null
+        return ControlDiagnostics(
+            sessionState = sessionState,
+            desktopIdentitySuffix = desktopIdentitySuffix,
+            heartbeatAgeMillis = nullableLongField("heartbeatAgeMillis"),
+            lastControlError = stringField("lastControlError"),
+        )
+    }
+
+    private fun JsonObject.toProfileMetadata(): ProfileMetadata? {
+        val profileId = stringField("profileId") ?: return null
+        val displayName = stringField("displayName") ?: return null
+        val revision = longField("revision") ?: return null
+        return ProfileMetadata(
+            profileId = profileId,
+            displayName = displayName,
+            revision = revision,
+        )
+    }
+
+    private fun JsonObject.stringField(name: String): String? =
+        (get(name) as? JsonPrimitive)?.takeIf { it.isString }?.contentOrNull
+
+    private fun JsonObject.longField(name: String): Long? =
+        (get(name) as? JsonPrimitive)?.jsonPrimitive?.longOrNull
+
+    private fun JsonObject.nullableLongField(name: String): Long? =
+        if (containsKey(name)) longField(name) else null
 
     private fun observeHeartbeat(nowElapsedNanos: Long) {
         require(nowElapsedNanos >= 0L) { "nowElapsedNanos must be non-negative" }

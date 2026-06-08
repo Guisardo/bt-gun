@@ -66,10 +66,13 @@ class ControlServer(
                         onSessionStateChanged(ControlServerSessionState.AUTHENTICATED)
                         sendSessionReady(trusted)
                         val heartbeat = HeartbeatMonitor()
+                        heartbeat.observePong(System.nanoTime())
                         val livenessJob = launch {
                             while (isActive) {
                                 delay(LIVENESS_POLL_MILLIS)
-                                updateSessionState(heartbeat.stateAt(System.nanoTime()))
+                                val now = System.nanoTime()
+                                sendEnvelope(heartbeatEnvelope(ControlMessageType.HEARTBEAT_PING, trusted.sid))
+                                updateSessionState(heartbeat.stateAt(now))
                             }
                         }
                         try {

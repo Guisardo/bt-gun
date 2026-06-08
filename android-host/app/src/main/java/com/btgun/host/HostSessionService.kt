@@ -315,7 +315,7 @@ class HostSessionService : Service() {
         val code = intent?.getStringExtra(EXTRA_MANUAL_CODE).orEmpty()
         val desktopNonce = intent?.getStringExtra(EXTRA_MANUAL_DESKTOP_NONCE).orEmpty()
         val suffix = intent?.getStringExtra(EXTRA_MANUAL_FINGERPRINT_SUFFIX).orEmpty()
-        val sid = intent?.getStringExtra(EXTRA_MANUAL_SESSION_ID).orEmpty().ifBlank { "manual" }
+        val sid = intent?.getStringExtra(EXTRA_MANUAL_SESSION_ID).orEmpty()
         when (val parsed = PairingPayload.parseManual(host, port, code, desktopNonce, suffix, sid)) {
             is PairingParseResult.Invalid -> {
                 currentState = currentState.copy(

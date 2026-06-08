@@ -82,6 +82,18 @@ private fun manualParserRequiresEndpointSixDigitCodeAndFingerprintSuffix() {
     val invalidHost = expectInvalid("manual host", missingHost)
     expectEquals("host error", PairingPayloadError.MISSING_FIELD, invalidHost.error)
     expectEquals("host field", "host", invalidHost.field)
+
+    val missingSid = PairingPayload.parseManual(
+        host = "192.168.1.44",
+        port = "44383",
+        code = "123456",
+        desktopNonce = NONCE,
+        desktopSpkiSha256Suffix = "11223344",
+        sid = "",
+    )
+    val invalidSid = expectInvalid("manual sid", missingSid)
+    expectEquals("sid error", PairingPayloadError.MISSING_FIELD, invalidSid.error)
+    expectEquals("sid field", "sid", invalidSid.field)
 }
 
 private fun validQrUri(): String =

@@ -14,6 +14,7 @@ fun main() {
     manualFallbackExposesEndpointCodeAndFingerprintSuffix()
     restartingPairingReplacesOneTimeMaterial()
     desktopIdentityStorePersistsFingerprint()
+    desktopIdentityStoreRotatesLegacyPasswordStore()
     qrRendererProducesMinimumSizedImage()
     redactorHidesPairingSecrets()
     pairingWindowCopyCoversRequiredStatesAndVisibleFallbackOnly()
@@ -89,6 +90,15 @@ private fun desktopIdentityStorePersistsFingerprint() {
     expectEquals("fingerprint length", 64, first.desktopSpkiSha256.length)
     expectEquals("persisted fingerprint", first.desktopSpkiSha256, second.desktopSpkiSha256)
     expectTrue("sidecar password exists", Files.exists(path.resolveSibling("${path.fileName}.key")))
+}
+
+private fun desktopIdentityStoreRotatesLegacyPasswordStore() {
+    val path = createTempDirectory("btgun-desktop-legacy-identity-test").resolve("identity.p12")
+    val legacy = FileDesktopIdentityStore(path, "bt-gun-desktop-local-identity".toCharArray()).loadOrCreateIdentity()
+    val rotated = FileDesktopIdentityStore(path).loadOrCreateIdentity()
+
+    expectNotEquals("rotated fingerprint", legacy.desktopSpkiSha256, rotated.desktopSpkiSha256)
+    expectTrue("legacy quarantined", Files.exists(path.resolveSibling("${path.fileName}.legacy-insecure")))
 }
 
 private fun redactorHidesPairingSecrets() {
