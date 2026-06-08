@@ -47,6 +47,8 @@ tasks.withType<Test>().configureEach {
             "com.btgun.desktop.security.PairingSecurityTestKt",
             "com.btgun.desktop.control.ControlChannelTestKt",
             "com.btgun.desktop.transport.UdpInputFrameCodecTestKt",
+            "com.btgun.desktop.transport.InputReplayGuardTestKt",
+            "com.btgun.desktop.transport.UdpInputReceiverTestKt",
         ).forEach { testClass ->
             providers.exec {
                 commandLine(

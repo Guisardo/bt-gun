@@ -10,8 +10,11 @@ import com.btgun.desktop.security.DesktopIdentity
 import com.btgun.desktop.security.DesktopIdentityStore
 import com.btgun.desktop.security.PairingProof
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
 fun main() {
     envelopeCodecAcceptsOnlyVersionOneAndKnownTypes()
@@ -29,6 +32,7 @@ fun main() {
     profileMetadataContainsOnlyRequiredFields()
     controlEnvelopeAllowsHeartbeatDiagnosticsAndProfileTypes()
     reservedHapticRejectsExecutionResultBody()
+    controlServerSendsFreshInputStreamConfigAfterTrustedSession()
 }
 
 private fun envelopeCodecAcceptsOnlyVersionOneAndKnownTypes() {
@@ -42,6 +46,7 @@ private fun envelopeCodecAcceptsOnlyVersionOneAndKnownTypes() {
     expectEquals("pairing wire name", "pairing_state", ControlMessageType.PAIRING_STATE.wireName)
     expectEquals("ready wire name", "session_ready", ControlMessageType.SESSION_READY.wireName)
     expectEquals("reserved haptic name", "reserved_haptic_command", ControlMessageType.RESERVED_HAPTIC_COMMAND.wireName)
+    expectEquals("stream config wire name", "input_stream_config", ControlMessageType.INPUT_STREAM_CONFIG.wireName)
 }
 
 private fun envelopeCodecRejectsUnsupportedVersionUnknownTypeAndOversizedText() {
@@ -242,6 +247,7 @@ private fun controlEnvelopeAllowsHeartbeatDiagnosticsAndProfileTypes() {
         ControlMessageType.HEARTBEAT_PONG,
         ControlMessageType.DIAGNOSTICS,
         ControlMessageType.PROFILE_METADATA,
+        ControlMessageType.INPUT_STREAM_CONFIG,
     ).forEach { type ->
         val decoded = ControlEnvelopeCodec.decode(ControlEnvelopeCodec.encode(envelope(type)))
         expectTrue("${type.wireName} accepted", decoded is ControlDecodeResult.Accepted)
@@ -259,6 +265,40 @@ private fun reservedHapticRejectsExecutionResultBody() {
     )
 
     expectRejected("reserved haptic result body", ControlEnvelopeError.RESERVED_HAPTIC_BODY, decoded)
+}
+
+private fun controlServerSendsFreshInputStreamConfigAfterTrustedSession() {
+    val registry = testRegistry()
+    val session = registry.startPairing(nowEpochMillis = 1_000L)
+    val server = ControlServer(
+        registry = registry,
+        maxMessageBytes = 2048,
+        udpHost = "192.168.50.25",
+        udpPort = 41731,
+        streamSecretFactory = incrementalSecretFactory(),
+    )
+    val trusted = server.authenticate(proofRequestFor(session, "cc".repeat(16)), nowEpochMillis = 2_000L)
+    expectTrue("authenticated", trusted is ControlAuthenticationResult.Accepted)
+    val trustedSession = (trusted as ControlAuthenticationResult.Accepted).trustedSession
+
+    val first = server.inputStreamConfigEnvelopeFor(trustedSession, nowElapsedNanos = 3_000_000_000L)
+    val second = server.inputStreamConfigEnvelopeFor(trustedSession, nowElapsedNanos = 3_000_000_100L)
+
+    expectEquals("config type", ControlMessageType.INPUT_STREAM_CONFIG, first.type)
+    expectEquals("trusted sid", session.sid, first.sessionId)
+    expectEquals("host", "192.168.50.25", first.body.stringField("udpHost"))
+    expectEquals("port", 41731L, first.body.longField("udpPort"))
+    expectEquals("snapshot hz", 60L, first.body.longField("snapshotHz"))
+    expectEquals("age limit", 150L, first.body.longField("frameAgeLimitMs"))
+    expectEquals("timeout", 250L, first.body.longField("streamTimeoutMs"))
+    expectEquals("control grace", 1500L, first.body.longField("controlDisconnectGraceMs"))
+    expectEquals("stream id hex length", 32, requireNotNull(first.body.stringField("streamSessionIdHex")).length)
+    expectTrue("stream id fresh", first.body.stringField("streamSessionIdHex") != second.body.stringField("streamSessionIdHex"))
+    expectTrue("stream key fresh", first.body.stringField("hmacSha256KeyBase64Url") != second.body.stringField("hmacSha256KeyBase64Url"))
+    expectTrue("config encodes", ControlEnvelopeCodec.decode(ControlEnvelopeCodec.encode(first)) is ControlDecodeResult.Accepted)
+    listOf("qrSecret", "qr_secret", "manualCode", "manual code", "pairingProof", "proof").forEach { secret ->
+        expectTrue("config body excludes $secret", first.body.toString().contains(secret, ignoreCase = true).not())
+    }
 }
 
 private fun envelope(
@@ -320,5 +360,18 @@ private fun dataFieldNames(type: Class<*>): List<String> =
     type.declaredFields
         .filterNot { it.isSynthetic }
         .map { it.name }
+
+private fun JsonObject.stringField(name: String): String? =
+    get(name)?.jsonPrimitive?.contentOrNull
+
+private fun JsonObject.longField(name: String): Long? =
+    get(name)?.jsonPrimitive?.contentOrNull?.toLongOrNull()
+
+private fun incrementalSecretFactory(): () -> ByteArray {
+    var next = 1
+    return {
+        ByteArray(32) { (next + it).toByte() }.also { next += 32 }
+    }
+}
 
 private const val FINGERPRINT = "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff"
