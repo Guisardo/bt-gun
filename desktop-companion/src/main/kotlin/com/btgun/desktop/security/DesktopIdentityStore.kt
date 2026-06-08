@@ -11,6 +11,7 @@ import java.security.MessageDigest
 import java.security.PrivateKey
 import java.security.PublicKey
 import java.security.SecureRandom
+import java.security.Signature
 import java.security.spec.PKCS8EncodedKeySpec
 import java.security.spec.X509EncodedKeySpec
 import java.util.Base64
@@ -75,7 +76,7 @@ class FileDesktopIdentityStore(
             val privateKey = loadSecretKey(keyStore, PRIVATE_ALIAS, password)
                 ?.encoded
                 ?.let { bytes -> KeyFactory.getInstance(KEY_ALGORITHM).generatePrivate(PKCS8EncodedKeySpec(bytes)) }
-            if (publicKey != null && privateKey != null) {
+            if (publicKey != null && privateKey != null && keysMatch(publicKey, privateKey)) {
                 DesktopIdentity(
                     desktopSpkiSha256 = spkiSha256(publicKey),
                     publicKey = publicKey,
@@ -107,8 +108,24 @@ class FileDesktopIdentityStore(
     private fun loadSecretKey(keyStore: KeyStore, alias: String, password: CharArray): SecretKey? =
         (keyStore.getEntry(alias, KeyStore.PasswordProtection(password)) as? KeyStore.SecretKeyEntry)?.secretKey
 
+    private fun keysMatch(publicKey: PublicKey, privateKey: PrivateKey): Boolean =
+        runCatching {
+            val challenge = ByteArray(32).also { SecureRandom().nextBytes(it) }
+            val signature = Signature.getInstance(SIGNATURE_ALGORITHM).run {
+                initSign(privateKey)
+                update(challenge)
+                sign()
+            }
+            Signature.getInstance(SIGNATURE_ALGORITHM).run {
+                initVerify(publicKey)
+                update(challenge)
+                verify(signature)
+            }
+        }.getOrDefault(false)
+
     companion object {
         private const val KEY_ALGORITHM = "RSA"
+        private const val SIGNATURE_ALGORITHM = "SHA256withRSA"
         private const val SECRET_KEY_ALGORITHM = "RAW"
         private const val PUBLIC_ALIAS = "btgun-desktop-public"
         private const val PRIVATE_ALIAS = "btgun-desktop-private"

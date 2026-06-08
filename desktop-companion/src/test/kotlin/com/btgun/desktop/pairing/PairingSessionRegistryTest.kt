@@ -2,20 +2,30 @@ package com.btgun.desktop.pairing
 
 import com.btgun.desktop.security.DesktopIdentity
 import com.btgun.desktop.security.DesktopIdentityStore
+import com.btgun.desktop.security.DesktopTlsIdentity
 import com.btgun.desktop.security.FileDesktopIdentityStore
 import com.btgun.desktop.security.SecretRedactor
 import com.btgun.desktop.ui.PairingWindow
+import java.net.Inet4Address
+import java.net.InetAddress
 import java.nio.file.Files
+import java.nio.file.Path
+import java.security.KeyPairGenerator
+import java.security.KeyStore
 import kotlin.io.path.createTempDirectory
+import javax.crypto.spec.SecretKeySpec
 
 fun main() {
     startPairingCreatesOneShortLivedSession()
     qrPayloadContainsEndpointIdentityNonceAndSecret()
     manualFallbackExposesEndpointCodeAndFingerprintSuffix()
+    manualCodeAuthenticatesActiveSessionWithoutSidOrNonce()
     restartingPairingReplacesOneTimeMaterial()
     desktopIdentityStorePersistsFingerprint()
     desktopIdentityStoreRotatesLegacyPasswordStore()
+    desktopIdentityStoreRotatesMismatchedKeyPair()
     qrRendererProducesMinimumSizedImage()
+    localEndpointSelectorPrefersWifiLanOverVirtualAdapters()
     redactorHidesPairingSecrets()
     pairingWindowCopyCoversRequiredStatesAndVisibleFallbackOnly()
 }
@@ -57,9 +67,24 @@ private fun manualFallbackExposesEndpointCodeAndFingerprintSuffix() {
     expectEquals("manual port", 41731, session.manualPayload.port)
     expectEquals("manual code length", 6, session.manualPayload.code.length)
     expectTrue("manual code digits", session.manualPayload.code.all { it.isDigit() })
-    expectEquals("manual nonce binding", session.qrPayload.desktopNonce, session.manualPayload.desktopNonce)
-    expectEquals("manual sid binding", session.sid, session.manualPayload.sid)
     expectEquals("fingerprint suffix", "99aabbcc", session.manualPayload.desktopSpkiSha256Suffix)
+}
+
+private fun manualCodeAuthenticatesActiveSessionWithoutSidOrNonce() {
+    val registry = testRegistry()
+    val session = registry.startPairing(nowEpochMillis = 25_000L)
+
+    val result = registry.verifyManualCode(
+        ManualPairingAttemptRequest(
+            androidNonce = "aa".repeat(16),
+            desktopSpkiSha256 = session.qrPayload.desktopSpkiSha256,
+            code = session.manualPayload.code,
+        ),
+        nowEpochMillis = 26_000L,
+    )
+
+    expectTrue("manual accepted", result is PairingAttemptResult.Accepted)
+    expectEquals("manual trusted sid", session.sid, (result as PairingAttemptResult.Accepted).trustedSession.sid)
 }
 
 private fun restartingPairingReplacesOneTimeMaterial() {
@@ -79,6 +104,37 @@ private fun qrRendererProducesMinimumSizedImage() {
 
     expectEquals("qr width", 240, image.width)
     expectEquals("qr height", 240, image.height)
+}
+
+private fun localEndpointSelectorPrefersWifiLanOverVirtualAdapters() {
+    val wifiPriority = LocalEndpointSelector.candidatePriority(
+        name = "en0",
+        displayName = "Wi-Fi",
+        virtual = false,
+        pointToPoint = false,
+        multicast = true,
+        address = ipv4("192.168.1.29"),
+    )
+    val virtualPriority = LocalEndpointSelector.candidatePriority(
+        name = "feth3790",
+        displayName = "virtual bridge",
+        virtual = false,
+        pointToPoint = false,
+        multicast = true,
+        address = ipv4("172.28.0.101"),
+    )
+    val loopbackPriority = LocalEndpointSelector.candidatePriority(
+        name = "lo0",
+        displayName = "loopback",
+        virtual = false,
+        pointToPoint = false,
+        multicast = false,
+        address = ipv4("127.0.0.1"),
+    )
+
+    expectTrue("wifi priority", wifiPriority != null && wifiPriority > 0)
+    expectEquals("virtual rejected", null, virtualPriority)
+    expectEquals("loopback rejected", null, loopbackPriority)
 }
 
 private fun desktopIdentityStorePersistsFingerprint() {
@@ -101,6 +157,21 @@ private fun desktopIdentityStoreRotatesLegacyPasswordStore() {
     expectTrue("legacy quarantined", Files.exists(path.resolveSibling("${path.fileName}.legacy-insecure")))
 }
 
+private fun desktopIdentityStoreRotatesMismatchedKeyPair() {
+    val path = createTempDirectory("btgun-desktop-mismatched-identity-test").resolve("identity.p12")
+    val password = "bt-gun-desktop-mismatched".toCharArray()
+    val first = KeyPairGenerator.getInstance("RSA").apply { initialize(2048) }.generateKeyPair()
+    val second = KeyPairGenerator.getInstance("RSA").apply { initialize(2048) }.generateKeyPair()
+    val badFingerprint = FileDesktopIdentityStore.spkiSha256(first.public)
+    writeIdentity(path, password, publicKeyBytes = first.public.encoded, privateKeyBytes = second.private.encoded)
+
+    val rotated = FileDesktopIdentityStore(path, password).loadOrCreateIdentity()
+
+    expectNotEquals("rotated mismatch fingerprint", badFingerprint, rotated.desktopSpkiSha256)
+    expectTrue("mismatch quarantined", Files.exists(path.resolveSibling("${path.fileName}.legacy-insecure")))
+    DesktopTlsIdentity.keyStoreFor(rotated, "192.168.50.25")
+}
+
 private fun redactorHidesPairingSecrets() {
     val session = testRegistry().startPairing(nowEpochMillis = 50_000L)
     val redacted = SecretRedactor.redact(
@@ -117,14 +188,15 @@ private fun pairingWindowCopyCoversRequiredStatesAndVisibleFallbackOnly() {
     val manualHtml = PairingWindow.manualFallbackHtml(session.manualPayload)
 
     expectEquals("required states", REQUIRED_STATE_LABELS, PairingWindow.requiredStateLabels())
-    expectEquals("qr size", 260, PairingWindow.QR_SIZE)
+    expectEquals("qr size", 420, PairingWindow.QR_SIZE)
     expectEquals("endpoint text", "Endpoint: 192.168.50.25:41731", PairingWindow.endpointText(session.endpoint))
     expectEquals("countdown ceil seconds", "Expires in: 5s", PairingWindow.countdownText(65_000L, 60_001L))
     expectContains("manual endpoint", manualHtml, "192.168.50.25:41731")
     expectContains("manual port", manualHtml, "41731")
     expectContains("manual code", manualHtml, session.manualPayload.code)
-    expectContains("manual challenge", manualHtml, session.manualPayload.desktopNonce)
     expectContains("fingerprint suffix", manualHtml, "99aabbcc")
+    expectFalse("no challenge in manual copy", manualHtml.contains("Challenge", ignoreCase = true))
+    expectFalse("no session id in manual copy", manualHtml.contains("Session id", ignoreCase = true))
     expectFalse("no qr secret in manual copy", manualHtml.contains(session.qrPayload.qrSecret))
     expectFalse("no full fingerprint in manual copy", manualHtml.contains(session.qrPayload.desktopSpkiSha256))
 }
@@ -142,6 +214,24 @@ private fun testRegistry(): PairingSessionRegistry =
                 )
         },
     )
+
+private fun writeIdentity(path: Path, password: CharArray, publicKeyBytes: ByteArray, privateKeyBytes: ByteArray) {
+    val keyStore = KeyStore.getInstance("JCEKS").apply {
+        load(null, password)
+    }
+    keyStore.setEntry(
+        "btgun-desktop-public",
+        KeyStore.SecretKeyEntry(SecretKeySpec(publicKeyBytes, "RAW")),
+        KeyStore.PasswordProtection(password),
+    )
+    keyStore.setEntry(
+        "btgun-desktop-private",
+        KeyStore.SecretKeyEntry(SecretKeySpec(privateKeyBytes, "RAW")),
+        KeyStore.PasswordProtection(password),
+    )
+    Files.createDirectories(path.parent)
+    Files.newOutputStream(path).use { output -> keyStore.store(output, password) }
+}
 
 private fun expectEquals(name: String, expected: Any?, actual: Any?) {
     if (expected != actual) {
@@ -172,6 +262,9 @@ private fun expectContains(name: String, value: String, needle: String) {
         throw AssertionError("$name expected <$value> to contain <$needle>")
     }
 }
+
+private fun ipv4(value: String): Inet4Address =
+    InetAddress.getByName(value) as Inet4Address
 
 private val REQUIRED_STATE_LABELS = listOf(
     "idle",

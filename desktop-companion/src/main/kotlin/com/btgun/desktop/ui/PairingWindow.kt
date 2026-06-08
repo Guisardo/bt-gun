@@ -116,6 +116,10 @@ class PairingWindow(
     private fun startPairing() {
         session = registry.startPairing()
         val current = session ?: return
+        renderSession(current)
+    }
+
+    private fun renderSession(current: PairingSession) {
         displayState = DesktopSessionUiState.PAIRING_READY
         lastControlError = null
         startControlServer(current)
@@ -131,10 +135,10 @@ class PairingWindow(
 
     private fun startControlServer(current: PairingSession) {
         runCatching {
-            controlServer.start(port = current.endpoint.port)
+            controlServer.start(port = current.endpoint.port, host = current.endpoint.host)
         }.onFailure { error ->
             displayState = DesktopSessionUiState.DISCONNECTED
-            lastControlError = SecretRedactor.redact("Control server start failed: ${error.javaClass.simpleName}")
+            lastControlError = SecretRedactor.redact("Control server start failed: ${errorSummary(error)}")
         }
     }
 
@@ -154,7 +158,7 @@ class PairingWindow(
         diagnostics.text = diagnosticsHtml(displayState, lastControlError)
         if (displayState == DesktopSessionUiState.EXPIRED) {
             registry.expire(now)
-            controlServer.stop()
+            startPairing()
         }
     }
 
@@ -198,7 +202,7 @@ class PairingWindow(
         }
 
     companion object {
-        internal const val QR_SIZE = 260
+        internal const val QR_SIZE = 420
 
         internal fun requiredStateLabels(): List<String> =
             DesktopSessionUiState.entries.map { it.label }
@@ -219,9 +223,7 @@ class PairingWindow(
                 <p><b>Endpoint:</b> ${escapeHtml(payload.host)}:${payload.port}</p>
                 <p><b>Port:</b> ${payload.port}</p>
                 <p><b>6-digit code:</b> ${payload.code}</p>
-                <p><b>Challenge:</b> ${escapeHtml(payload.desktopNonce)}</p>
                 <p><b>Fingerprint suffix:</b> ${escapeHtml(payload.desktopSpkiSha256Suffix)}</p>
-                <p><b>Session id:</b> ${escapeHtml(payload.sid)}</p>
                 </body>
                 </html>
             """.trimIndent()
@@ -249,6 +251,14 @@ class PairingWindow(
                 .replace(">", "&gt;")
                 .replace("\"", "&quot;")
                 .replace("'", "&#39;")
+
+        private fun errorSummary(error: Throwable): String =
+            listOfNotNull(
+                error.javaClass.simpleName.ifBlank { "error" } + error.message?.let { ": $it" }.orEmpty(),
+                error.cause?.let { cause ->
+                    "cause=${cause.javaClass.simpleName.ifBlank { "error" }}${cause.message?.let { ": $it" }.orEmpty()}"
+                },
+            ).joinToString(" ")
     }
 }
 

@@ -26,7 +26,7 @@ object DesktopTlsIdentity {
             privateKey = privateKey,
             host = certificateHost,
         )
-        val keyStore = KeyStore.getInstance("PKCS12").apply {
+        val keyStore = KeyStore.getInstance("JKS").apply {
             load(null, TLS_PASSWORD)
             setKeyEntry(TLS_ALIAS, privateKey, TLS_PASSWORD, arrayOf(certificate))
         }

@@ -51,6 +51,7 @@ import com.btgun.host.session.DesktopControlConnectResult
 import com.btgun.host.session.DesktopControlConnectionRequest
 import com.btgun.host.session.DesktopLinkPhase
 import com.btgun.host.session.DesktopLinkState
+import com.btgun.host.session.DesktopLivenessCoordinator
 import com.btgun.host.session.PairingParseResult
 import com.btgun.host.session.PairingPayload
 import com.btgun.host.session.TrustValidationResult
@@ -77,6 +78,7 @@ class HostSessionService : Service() {
     private val aimCalibrationStore: AimCalibrationStore by lazy { AimCalibrationStore(applicationContext) }
     private val trustedDesktopStore: TrustedDesktopStore by lazy { TrustedDesktopStore(applicationContext) }
     private var desktopControlClient: DesktopControlClient? = null
+    private val desktopLivenessCoordinator = DesktopLivenessCoordinator()
     private val nonceRandom = SecureRandom()
 
     @Volatile
@@ -88,6 +90,10 @@ class HostSessionService : Service() {
 
     private val reloadHoldTick = Runnable {
         handleReloadHoldTick()
+    }
+
+    private val desktopLivenessTick = Runnable {
+        refreshDesktopLiveness()
     }
 
     private val sensorListener = object : SensorEventListener {
@@ -313,10 +319,8 @@ class HostSessionService : Service() {
         val host = intent?.getStringExtra(EXTRA_MANUAL_HOST).orEmpty()
         val port = intent?.getStringExtra(EXTRA_MANUAL_PORT).orEmpty()
         val code = intent?.getStringExtra(EXTRA_MANUAL_CODE).orEmpty()
-        val desktopNonce = intent?.getStringExtra(EXTRA_MANUAL_DESKTOP_NONCE).orEmpty()
         val suffix = intent?.getStringExtra(EXTRA_MANUAL_FINGERPRINT_SUFFIX).orEmpty()
-        val sid = intent?.getStringExtra(EXTRA_MANUAL_SESSION_ID).orEmpty()
-        when (val parsed = PairingPayload.parseManual(host, port, code, desktopNonce, suffix, sid)) {
+        when (val parsed = PairingPayload.parseManual(host, port, code, suffix)) {
             is PairingParseResult.Invalid -> {
                 currentState = currentState.copy(
                     desktopLinkState = DesktopLinkState(
@@ -326,18 +330,28 @@ class HostSessionService : Service() {
                 )
             }
             is PairingParseResult.Valid -> {
-                val trusted = trustedDesktopStore.loadTrustedDesktops()
-                    .firstOrNull { desktop ->
-                        desktop.fingerprintSha256.endsWith(parsed.value.desktopSpkiSha256Suffix)
+                val matches = trustedDesktopStore.loadTrustedDesktops()
+                    .filter { desktop -> desktop.fingerprintSha256.endsWith(parsed.value.desktopSpkiSha256Suffix) }
+                val trusted = when (matches.size) {
+                    1 -> matches.single()
+                    0 -> {
+                        currentState = currentState.copy(
+                            desktopLinkState = DesktopLinkState(
+                                phase = DesktopLinkPhase.TRUST_PROBLEM,
+                                lastControlError = "Manual pairing needs a saved trusted desktop fingerprint. Scan desktop QR first.",
+                            ),
+                        )
+                        return
                     }
-                if (trusted == null) {
-                    currentState = currentState.copy(
-                        desktopLinkState = DesktopLinkState(
-                            phase = DesktopLinkPhase.TRUST_PROBLEM,
-                            lastControlError = "Manual pairing needs a saved trusted desktop fingerprint. Scan desktop QR first.",
-                        ),
-                    )
-                    return
+                    else -> {
+                        currentState = currentState.copy(
+                            desktopLinkState = DesktopLinkState(
+                                phase = DesktopLinkPhase.TRUST_PROBLEM,
+                                lastControlError = "Fingerprint suffix matches multiple trusted desktops. Enter more fingerprint characters.",
+                            ),
+                        )
+                        return
+                    }
                 }
                 connectDesktopControl(
                     request = DesktopControlConnectionRequest.fromManualPayload(
@@ -355,6 +369,10 @@ class HostSessionService : Service() {
         request: DesktopControlConnectionRequest,
         saveOnSuccess: Boolean,
     ) {
+        cancelDesktopLivenessTick()
+        desktopLivenessCoordinator.stop()
+        desktopControlClient?.close()
+        desktopControlClient = null
         currentState = currentState.copy(
             desktopLinkState = DesktopLinkState(
                 phase = DesktopLinkPhase.PAIRING_PROOF,
@@ -362,53 +380,63 @@ class HostSessionService : Service() {
                 fingerprintSuffix = request.config.expectedDesktopSpkiSha256.takeLast(FINGERPRINT_SUFFIX_LENGTH),
             ),
         )
-        desktopControlClient?.close()
-        desktopControlClient = null
         val client = DesktopControlClient(request.config)
         when (
             val result = client.connect(
-                proofRequest = request.proofRequest,
+                authRequest = request.authRequest,
                 onAuthenticated = {
                     handler.post {
-                        desktopControlClient = client
+                        if (desktopControlClient !== client) {
+                            return@post
+                        }
                         if (saveOnSuccess) {
                             trustedDesktopStore.saveTrustedDesktop(request.trustedMetadata(System.currentTimeMillis()))
                         }
                         currentState = currentState.copy(
-                            desktopLinkState = client.currentLinkState().copy(
-                                desktopDisplayName = request.displayName,
-                                fingerprintSuffix = request.config.expectedDesktopSpkiSha256.takeLast(FINGERPRINT_SUFFIX_LENGTH),
-                            ),
+                            desktopLinkState = desktopLinkStateForRequest(client.currentLinkState(), request),
                         )
+                        startDesktopLiveness(client)
                     }
                 },
                 onConnectionFailure = { reason ->
                     handler.post {
-                        if (desktopControlClient === client) {
-                            desktopControlClient = null
+                        if (desktopControlClient !== client) {
+                            return@post
                         }
+                        cancelDesktopLivenessTick()
+                        desktopLivenessCoordinator.stop(client)
+                        desktopControlClient = null
                         currentState = currentState.copy(
-                            desktopLinkState = client.currentLinkState().copy(
-                                phase = DesktopLinkPhase.DISCONNECTED,
-                                desktopDisplayName = request.displayName,
-                                fingerprintSuffix = request.config.expectedDesktopSpkiSha256.takeLast(FINGERPRINT_SUFFIX_LENGTH),
-                                lastControlError = reason,
+                            desktopLinkState = desktopLinkStateForRequest(
+                                client.currentLinkState().copy(
+                                    phase = DesktopLinkPhase.DISCONNECTED,
+                                    lastControlError = reason,
+                                ),
+                                request,
                             ),
                         )
                     }
                 },
                 onLinkStateChanged = { linkState ->
                     handler.post {
+                        if (desktopControlClient !== client) {
+                            return@post
+                        }
                         currentState = currentState.copy(
-                            desktopLinkState = linkState.copy(
-                                desktopDisplayName = request.displayName,
-                                fingerprintSuffix = request.config.expectedDesktopSpkiSha256.takeLast(FINGERPRINT_SUFFIX_LENGTH),
-                            ),
+                            desktopLinkState = desktopLinkStateForRequest(linkState, request),
                         )
+                        if (linkState.phase == DesktopLinkPhase.DISCONNECTED) {
+                            cancelDesktopLivenessTick()
+                            desktopLivenessCoordinator.stop(client)
+                            desktopControlClient = null
+                        }
                     }
                 },
                 onProfileMetadataReceived = { profile ->
                     handler.post {
+                        if (desktopControlClient !== client) {
+                            return@post
+                        }
                         val linkState = currentState.desktopLinkState
                         currentState = currentState.copy(
                             desktopLinkState = linkState.copy(
@@ -448,7 +476,68 @@ class HostSessionService : Service() {
         }
     }
 
+    private fun desktopLinkStateForRequest(
+        linkState: DesktopLinkState,
+        request: DesktopControlConnectionRequest,
+    ): DesktopLinkState {
+        val currentDesktop = currentState.desktopLinkState
+        return linkState.copy(
+            desktopDisplayName = request.displayName,
+            fingerprintSuffix = linkState.fingerprintSuffix
+                ?: request.config.expectedDesktopSpkiSha256.takeLast(FINGERPRINT_SUFFIX_LENGTH),
+            profileDisplayName = linkState.profileDisplayName ?: currentDesktop.profileDisplayName,
+            profileRevision = linkState.profileRevision ?: currentDesktop.profileRevision,
+        )
+    }
+
+    private fun startDesktopLiveness(client: DesktopControlClient) {
+        desktopLivenessCoordinator.start(client)
+        scheduleDesktopLivenessTick(client)
+    }
+
+    private fun cancelDesktopLivenessTick() {
+        handler.removeCallbacks(desktopLivenessTick)
+    }
+
+    private fun scheduleDesktopLivenessTick(client: DesktopControlClient) {
+        if (desktopControlClient !== client || !desktopLivenessCoordinator.isActiveClient(client)) {
+            return
+        }
+        cancelDesktopLivenessTick()
+        handler.postDelayed(desktopLivenessTick, DESKTOP_LIVENESS_POLL_MILLIS)
+    }
+
+    private fun refreshDesktopLiveness() {
+        val client = desktopControlClient ?: run {
+            desktopLivenessCoordinator.stop()
+            cancelDesktopLivenessTick()
+            return
+        }
+        val update = desktopLivenessCoordinator.refresh(
+            client = client,
+            currentState = currentState.desktopLinkState,
+            nowElapsedNanos = SystemClock.elapsedRealtimeNanos(),
+        )
+        if (desktopControlClient !== client) {
+            return
+        }
+        currentState = currentState.copy(desktopLinkState = update.linkState)
+        if (update.shouldClearClient) {
+            desktopControlClient = null
+            cancelDesktopLivenessTick()
+            if (update.shouldCloseClient) {
+                client.close()
+            }
+        } else if (update.shouldContinuePolling) {
+            scheduleDesktopLivenessTick(client)
+        } else {
+            cancelDesktopLivenessTick()
+        }
+    }
+
     private fun stopDesktopControl() {
+        cancelDesktopLivenessTick()
+        desktopLivenessCoordinator.stop()
         desktopControlClient?.close()
         desktopControlClient = null
         currentState = currentState.copy(
@@ -851,14 +940,13 @@ class HostSessionService : Service() {
         const val EXTRA_MANUAL_HOST: String = "com.btgun.host.extra.MANUAL_HOST"
         const val EXTRA_MANUAL_PORT: String = "com.btgun.host.extra.MANUAL_PORT"
         const val EXTRA_MANUAL_CODE: String = "com.btgun.host.extra.MANUAL_CODE"
-        const val EXTRA_MANUAL_DESKTOP_NONCE: String = "com.btgun.host.extra.MANUAL_DESKTOP_NONCE"
         const val EXTRA_MANUAL_FINGERPRINT_SUFFIX: String = "com.btgun.host.extra.MANUAL_FINGERPRINT_SUFFIX"
-        const val EXTRA_MANUAL_SESSION_ID: String = "com.btgun.host.extra.MANUAL_SESSION_ID"
         const val NOTIFICATION_CHANNEL_ID: String = "bt_gun_host_session"
         const val NOTIFICATION_TITLE: String = "BT Gun Host"
         const val NOTIFICATION_TEXT: String = "BT Gun Host running - live input active"
         private const val NOTIFICATION_ID: Int = 1001
         private const val FINGERPRINT_SUFFIX_LENGTH: Int = 8
+        private const val DESKTOP_LIVENESS_POLL_MILLIS: Long = 500L
 
         @Volatile
         var latestState: HostSessionState = HostSessionState()

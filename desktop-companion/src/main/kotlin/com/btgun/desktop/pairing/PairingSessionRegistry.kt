@@ -4,6 +4,7 @@ import com.btgun.desktop.security.DesktopIdentityStore
 import com.btgun.desktop.security.PairingProof
 import java.security.SecureRandom
 import java.util.Base64
+import java.util.Locale
 import java.util.UUID
 
 data class PairingSession(
@@ -22,6 +23,12 @@ data class PairingProofRequest(
     val androidNonce: String,
     val desktopSpkiSha256: String,
     val proofHex: String,
+)
+
+data class ManualPairingAttemptRequest(
+    val androidNonce: String,
+    val desktopSpkiSha256: String,
+    val code: String,
 )
 
 data class TrustedPairingSession(
@@ -90,9 +97,7 @@ class PairingSessionRegistry(
             host = endpoint.host,
             port = endpoint.port,
             code = manualCode,
-            desktopNonce = nonce,
             desktopSpkiSha256Suffix = identity.desktopSpkiSha256.takeLast(8),
-            sid = sid,
         )
 
         return PairingSession(
@@ -129,18 +134,43 @@ class PairingSessionRegistry(
             return PairingAttemptResult.RejectedReplay
         }
 
-        val proofMatches = listOf(session.qrPayload.qrSecret, session.manualPayload.code).any { material ->
-            PairingProof.verify(
-                proofHex = request.proofHex,
-                sid = session.sid,
-                desktopNonce = session.qrPayload.desktopNonce,
-                androidNonce = request.androidNonce,
-                desktopSpkiSha256 = session.qrPayload.desktopSpkiSha256,
-                oneTimeMaterial = material,
-            )
-        }
+        val proofMatches = PairingProof.verify(
+            proofHex = request.proofHex,
+            sid = session.sid,
+            desktopNonce = session.qrPayload.desktopNonce,
+            androidNonce = request.androidNonce,
+            desktopSpkiSha256 = session.qrPayload.desktopSpkiSha256,
+            oneTimeMaterial = session.qrPayload.qrSecret,
+        )
 
         if (!proofMatches) {
+            return recordFailedAttempt(session.sid)
+        }
+
+        return consumeSession(session, nowEpochMillis)
+    }
+
+    fun verifyManualCode(
+        request: ManualPairingAttemptRequest,
+        nowEpochMillis: Long = System.currentTimeMillis(),
+    ): PairingAttemptResult {
+        val session = activeSession ?: return PairingAttemptResult.RejectedExpired
+        if (consumedSids.contains(session.sid)) {
+            return PairingAttemptResult.RejectedReplay
+        }
+        if (session.isExpired(nowEpochMillis)) {
+            return PairingAttemptResult.RejectedExpired
+        }
+        if (rateLimitedSids.contains(session.sid)) {
+            return PairingAttemptResult.RejectedRateLimited
+        }
+        if (request.desktopSpkiSha256.lowercase(Locale.US) != session.qrPayload.desktopSpkiSha256) {
+            return PairingAttemptResult.RejectedFingerprintMismatch
+        }
+        if (usedAndroidNoncesBySid.getOrPut(session.sid) { mutableSetOf() }.add(request.androidNonce).not()) {
+            return PairingAttemptResult.RejectedReplay
+        }
+        if (request.code != session.manualPayload.code) {
             return recordFailedAttempt(session.sid)
         }
 

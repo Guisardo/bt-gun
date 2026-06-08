@@ -46,9 +46,7 @@ class MainActivity : Activity() {
     private lateinit var manualHostInput: EditText
     private lateinit var manualPortInput: EditText
     private lateinit var manualCodeInput: EditText
-    private lateinit var manualDesktopNonceInput: EditText
     private lateinit var manualFingerprintSuffixInput: EditText
-    private lateinit var manualSessionIdInput: EditText
     private lateinit var manualEntryGroup: LinearLayout
     private lateinit var debugModeAction: Button
     private lateinit var bleDebugAction: Button
@@ -287,7 +285,7 @@ class MainActivity : Activity() {
         manualEntryVisible = false
         desktopLinkState = DesktopLinkState(
             phase = DesktopLinkPhase.SCANNING_QR,
-            diagnosticText = "Scanning desktop QR. Keep the desktop pairing QR visible.",
+            diagnosticTextOverride = "Scanning desktop QR. Keep the desktop pairing QR visible.",
         )
         renderDashboard()
         startOptionalCodeScanner()
@@ -297,7 +295,7 @@ class MainActivity : Activity() {
         manualEntryVisible = true
         desktopLinkState = DesktopLinkState(
             phase = DesktopLinkPhase.CONNECTING,
-            diagnosticText = "Manual entry ready. Enter host/IP, port, code, challenge, fingerprint suffix, and session id.",
+            diagnosticTextOverride = "Manual entry ready. Enter host/IP, port, 6-digit code, and trusted desktop fingerprint suffix.",
         )
         renderDashboard()
     }
@@ -306,7 +304,7 @@ class MainActivity : Activity() {
         manualEntryVisible = true
         desktopLinkState = DesktopLinkState(
             phase = DesktopLinkPhase.CONNECTING,
-            diagnosticText = "Connecting with manual host/IP, port, code, and desktop challenge.",
+            diagnosticTextOverride = "Connecting with manual host/IP, port, code, and trusted desktop fingerprint suffix.",
         )
         startServiceAction(
             Intent(this, HostSessionService::class.java)
@@ -314,12 +312,10 @@ class MainActivity : Activity() {
                 .putExtra(HostSessionService.EXTRA_MANUAL_HOST, manualHostInput.text.toString())
                 .putExtra(HostSessionService.EXTRA_MANUAL_PORT, manualPortInput.text.toString())
                 .putExtra(HostSessionService.EXTRA_MANUAL_CODE, manualCodeInput.text.toString())
-                .putExtra(HostSessionService.EXTRA_MANUAL_DESKTOP_NONCE, manualDesktopNonceInput.text.toString())
                 .putExtra(
                     HostSessionService.EXTRA_MANUAL_FINGERPRINT_SUFFIX,
                     manualFingerprintSuffixInput.text.toString(),
-                )
-                .putExtra(HostSessionService.EXTRA_MANUAL_SESSION_ID, manualSessionIdInput.text.toString()),
+                ),
         )
     }
 
@@ -338,7 +334,7 @@ class MainActivity : Activity() {
             phase = DesktopLinkPhase.CONNECTING,
             desktopDisplayName = trusted.displayName,
             fingerprintSuffix = trusted.fingerprintSha256.takeLast(8),
-            diagnosticText = "Trusted desktop selected. Start pairing on desktop, then scan QR or enter manual code.",
+            diagnosticTextOverride = "Trusted desktop selected. Start pairing on desktop, then scan QR or enter manual code.",
         )
         startServiceAction(
             Intent(this, HostSessionService::class.java)
@@ -396,7 +392,7 @@ class MainActivity : Activity() {
         }
         desktopLinkState = DesktopLinkState(
             phase = DesktopLinkPhase.CONNECTING,
-            diagnosticText = "Connecting to desktop endpoint from QR payload.",
+            diagnosticTextOverride = "Connecting to desktop endpoint from QR payload.",
         )
         startServiceAction(
             Intent(this, HostSessionService::class.java)
@@ -476,17 +472,13 @@ class MainActivity : Activity() {
         manualHostInput = editText("Host/IP")
         manualPortInput = editText("Port")
         manualCodeInput = editText("6-digit code")
-        manualDesktopNonceInput = editText("Desktop challenge")
-        manualFingerprintSuffixInput = editText("Fingerprint suffix")
-        manualSessionIdInput = editText("Session id")
+        manualFingerprintSuffixInput = editText("Trusted desktop fingerprint suffix")
         manualPairAction = button("Connect manually") { connectManualEntry() }
         listOf(
             manualHostInput,
             manualPortInput,
             manualCodeInput,
-            manualDesktopNonceInput,
             manualFingerprintSuffixInput,
-            manualSessionIdInput,
             manualPairAction,
         ).forEach(manualEntryGroup::addView)
         root.addView(manualEntryGroup)

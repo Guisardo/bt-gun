@@ -1,6 +1,7 @@
 package com.btgun.desktop.control
 
 import com.btgun.desktop.pairing.LocalEndpointSelector
+import com.btgun.desktop.pairing.ManualPairingAttemptRequest
 import com.btgun.desktop.pairing.PairingProofRequest
 import com.btgun.desktop.pairing.PairingSecurityState
 import com.btgun.desktop.pairing.PairingSession
@@ -19,6 +20,7 @@ fun main() {
     reservedHapticCommandAllowsEmptyBodyOnly()
     controlServerRejectsControlEnvelopeBeforeProof()
     controlServerAcceptsKnownEnvelopeAfterProof()
+    controlServerAuthenticatesManualCodeWithoutSidOrNonce()
     controlServerRetainsTrustedSessionForMultipleEnvelopes()
     controlServerRespondsToHeartbeatAndSurfacesTrustedMetadata()
     heartbeatMonitorTransitionsConnectedDegradedDisconnected()
@@ -102,6 +104,24 @@ private fun controlServerAcceptsKnownEnvelopeAfterProof() {
     expectTrue("accepted", result is ControlServerResult.Accepted)
     expectEquals("accepted type", ControlMessageType.SESSION_READY, (result as ControlServerResult.Accepted).envelope.type)
     expectEquals("trusted sid", session.sid, result.trustedSession.sid)
+}
+
+private fun controlServerAuthenticatesManualCodeWithoutSidOrNonce() {
+    val registry = testRegistry()
+    val session = registry.startPairing(nowEpochMillis = 1_000L)
+    val server = ControlServer(registry = registry, maxMessageBytes = 512)
+
+    val trusted = server.authenticate(
+        ManualPairingAttemptRequest(
+            androidNonce = "aa".repeat(16),
+            desktopSpkiSha256 = session.qrPayload.desktopSpkiSha256,
+            code = session.manualPayload.code,
+        ),
+        nowEpochMillis = 2_000L,
+    )
+
+    expectTrue("manual authenticated", trusted is ControlAuthenticationResult.Accepted)
+    expectEquals("manual trusted sid", session.sid, (trusted as ControlAuthenticationResult.Accepted).trustedSession.sid)
 }
 
 private fun controlServerRetainsTrustedSessionForMultipleEnvelopes() {
