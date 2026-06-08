@@ -397,6 +397,16 @@ class HostSessionService : Service() {
                         )
                     }
                 },
+                onLinkStateChanged = { linkState ->
+                    handler.post {
+                        currentState = currentState.copy(
+                            desktopLinkState = linkState.copy(
+                                desktopDisplayName = request.displayName,
+                                fingerprintSuffix = request.config.expectedDesktopSpkiSha256.takeLast(FINGERPRINT_SUFFIX_LENGTH),
+                            ),
+                        )
+                    }
+                },
             )
         ) {
             DesktopControlConnectResult.Connecting,
