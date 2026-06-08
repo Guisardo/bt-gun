@@ -61,6 +61,7 @@ import com.btgun.host.session.TrustedDesktopMetadata
 import com.btgun.host.session.TrustedDesktopStore
 import com.btgun.host.transport.AndroidUdpInputSender
 import com.btgun.host.transport.InputStreamConfig
+import com.btgun.host.transport.InputStreamLifecycleState
 import java.security.SecureRandom
 
 class HostSessionService : Service() {
@@ -116,7 +117,7 @@ class HostSessionService : Service() {
     }
 
     private val udpDisconnectGraceStop = Runnable {
-        stopUdpInput()
+        markUdpInputStale()
     }
 
     private val sensorListener = object : SensorEventListener {
@@ -397,6 +398,7 @@ class HostSessionService : Service() {
         desktopLivenessCoordinator.stop()
         desktopControlClient?.close()
         desktopControlClient = null
+        desktopHapticExecutor.onSessionChanged(request.authRequest.expectedSessionId ?: request.config.url)
         stopUdpInput()
         currentState = currentState.copy(
             desktopLinkState = DesktopLinkState(
@@ -599,6 +601,7 @@ class HostSessionService : Service() {
         ).also { sender ->
             sender.start(config)
         }
+        currentState = currentState.copy(packetStreamState = InputStreamLifecycleState.ACTIVE)
         scheduleUdpSnapshotTick()
         sendUdpSnapshot()
     }
@@ -609,14 +612,26 @@ class HostSessionService : Service() {
         udpInputSender?.stop("stream stopped")
         udpInputSender = null
         udpInputConfig = null
+        currentState = currentState.copy(packetStreamState = InputStreamLifecycleState.STOPPED)
+    }
+
+    private fun markUdpInputStale() {
+        handler.removeCallbacks(udpSnapshotTick)
+        handler.removeCallbacks(udpDisconnectGraceStop)
+        udpInputSender?.stop("control disconnect grace expired")
+        udpInputSender = null
+        udpInputConfig = null
+        currentState = currentState.copy(packetStreamState = InputStreamLifecycleState.STALE)
     }
 
     private fun scheduleUdpDisconnectGraceStop() {
         handler.removeCallbacks(udpDisconnectGraceStop)
         val graceMillis = udpInputConfig?.controlDisconnectGraceMs ?: 0L
         if (graceMillis <= 0L) {
-            stopUdpInput()
+            markUdpInputStale()
         } else {
+            udpInputSender?.onControlDisconnected(SystemClock.elapsedRealtimeNanos())
+            currentState = currentState.copy(packetStreamState = InputStreamLifecycleState.GRACE)
             handler.postDelayed(udpDisconnectGraceStop, graceMillis)
         }
     }
@@ -1083,6 +1098,7 @@ data class HostSessionState(
     val lastPreviewAim: PreviewAim? = null,
     val aimCalibrationState: AimCalibrationState = AimCalibrationState(),
     val desktopLinkState: DesktopLinkState = DesktopLinkState(),
+    val packetStreamState: InputStreamLifecycleState = InputStreamLifecycleState.STOPPED,
 ) {
     val wireState: String = phase.wireName
     val isActive: Boolean =

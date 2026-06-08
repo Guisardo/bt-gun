@@ -128,6 +128,19 @@ class DesktopHapticCommandExecutor(
         }
     }
 
+    fun onControlDisconnected(nowElapsedNanos: Long) {
+        require(nowElapsedNanos >= 0L) { "nowElapsedNanos must be non-negative" }
+    }
+
+    fun onSessionChanged(newSessionId: String): HapticResultStatus {
+        require(newSessionId.isNotBlank()) { "newSessionId must not be blank" }
+        if (activeCommandId == null) {
+            return HapticResultStatus.CANCELLED
+        }
+        activeCommandId = null
+        return phone.cancel()
+    }
+
     private fun result(
         commandId: String,
         status: HapticResultStatus,

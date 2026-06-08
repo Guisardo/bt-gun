@@ -23,6 +23,7 @@ import com.btgun.host.recenter.ReloadHoldState
 import com.btgun.host.recenter.recenterEvent
 import com.btgun.host.session.DesktopLinkPhase
 import com.btgun.host.session.DesktopLinkState
+import com.btgun.host.transport.InputStreamLifecycleState
 
 enum class DashboardEventMode {
     PRODUCT_EVENTS,
@@ -162,6 +163,7 @@ data class DashboardState(
         ): DashboardState {
             val placeholders = DashboardPlaceholders(
                 desktopLink = formatDesktopLink(desktopLinkState),
+                packetStream = formatPacketStream(hostSessionState.packetStreamState),
             )
             val desktopControlError = desktopLinkState.lastControlError
                 ?.takeUnless { it.equals("none", ignoreCase = true) }
@@ -397,6 +399,13 @@ data class DashboardState(
                     },
                 ).filterNotNull().joinToString(" | "),
                 active = true,
+            )
+
+        private fun formatPacketStream(state: InputStreamLifecycleState): PlaceholderSurface =
+            PlaceholderSurface(
+                title = "Packet stream",
+                body = state.label,
+                active = state == InputStreamLifecycleState.ACTIVE || state == InputStreamLifecycleState.GRACE,
             )
     }
 }

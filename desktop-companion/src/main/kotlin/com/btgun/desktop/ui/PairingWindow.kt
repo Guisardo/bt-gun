@@ -9,6 +9,7 @@ import com.btgun.desktop.pairing.PairingSession
 import com.btgun.desktop.pairing.PairingSessionRegistry
 import com.btgun.desktop.pairing.QrCodeRenderer
 import com.btgun.desktop.security.SecretRedactor
+import com.btgun.desktop.transport.InputStreamLifecycleState
 import java.awt.BorderLayout
 import java.awt.Dimension
 import java.awt.Font
@@ -207,6 +208,18 @@ class PairingWindow(
         internal fun requiredStateLabels(): List<String> =
             DesktopSessionUiState.entries.map { it.label }
 
+        internal fun requiredTransportStateLabels(): List<String> =
+            InputStreamLifecycleState.entries.map { it.label }
+
+        internal fun transportDiagnosticsHtml(state: InputStreamLifecycleState): String =
+            """
+                <html>
+                <body>
+                <p>Packet stream: ${state.label}</p>
+                </body>
+                </html>
+            """.trimIndent()
+
         internal fun endpointText(endpoint: LocalEndpoint): String =
             "Endpoint: ${endpoint.host}:${endpoint.port}"
 
@@ -237,8 +250,9 @@ class PairingWindow(
                 <html>
                 <body>
                 <p><b>Session:</b> ${state.label}</p>
+                <p>Packet stream: ${InputStreamLifecycleState.STOPPED.label}</p>
                 <p><b>Last control error:</b> ${escapeHtml(safeError)}</p>
-                <p>Haptic commands reserved for Phase 4.</p>
+                <p>Phone haptics use trusted control.</p>
                 </body>
                 </html>
             """.trimIndent()

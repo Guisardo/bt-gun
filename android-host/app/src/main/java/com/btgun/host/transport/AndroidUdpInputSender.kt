@@ -43,14 +43,41 @@ class AndroidUdpInputSender(
     private val sequencer: InputStreamSequencer = InputStreamSequencer(),
 ) {
     private var activeConfig: InputStreamConfig? = null
+    private var controlDisconnectedAtNanos: Long? = null
+    var lifecycleState: InputStreamLifecycleState = InputStreamLifecycleState.STOPPED
+        private set
 
     fun start(config: InputStreamConfig) {
         activeConfig = config
+        controlDisconnectedAtNanos = null
+        lifecycleState = InputStreamLifecycleState.ACTIVE
         sequencer.resetFor(config.streamSessionIdHex)
     }
 
     fun stop(reason: String) {
+        require(reason.isNotBlank()) { "reason must not be blank" }
         activeConfig = null
+        controlDisconnectedAtNanos = null
+        lifecycleState = InputStreamLifecycleState.STOPPED
+    }
+
+    fun onControlDisconnected(nowElapsedNanos: Long) {
+        require(nowElapsedNanos >= 0L) { "nowElapsedNanos must be non-negative" }
+        if (activeConfig == null) {
+            lifecycleState = InputStreamLifecycleState.STOPPED
+            return
+        }
+        controlDisconnectedAtNanos = nowElapsedNanos
+        lifecycleState = InputStreamLifecycleState.GRACE
+    }
+
+    fun onControlReconnected(config: InputStreamConfig) {
+        start(config)
+    }
+
+    fun onSessionChanged(newSessionId: String) {
+        require(newSessionId.isNotBlank()) { "newSessionId must not be blank" }
+        stop("control session changed")
     }
 
     fun sendSnapshot(
@@ -86,8 +113,11 @@ class AndroidUdpInputSender(
         edgeBitmask: Int,
     ): AndroidUdpInputSendResult {
         val config = activeConfig ?: return AndroidUdpInputSendResult.INACTIVE
-        val payload = motion?.payload
         val sendElapsedNanos = elapsedRealtimeNanos()
+        if (!canSendAt(config, sendElapsedNanos)) {
+            return AndroidUdpInputSendResult.INACTIVE
+        }
+        val payload = motion?.payload
         val frame = UdpInputFrame(
             type = type,
             streamSessionId = config.streamSessionIdHex,
@@ -111,6 +141,20 @@ class AndroidUdpInputSender(
             AndroidUdpInputSendResult.SENT
         } else {
             AndroidUdpInputSendResult.FAILED
+        }
+    }
+
+    private fun canSendAt(config: InputStreamConfig, nowElapsedNanos: Long): Boolean {
+        val disconnectedAt = controlDisconnectedAtNanos ?: return lifecycleState == InputStreamLifecycleState.ACTIVE
+        val graceNanos = config.controlDisconnectGraceMs * NANOS_PER_MILLI
+        return if (nowElapsedNanos - disconnectedAt <= graceNanos) {
+            lifecycleState = InputStreamLifecycleState.GRACE
+            true
+        } else {
+            activeConfig = null
+            controlDisconnectedAtNanos = null
+            lifecycleState = InputStreamLifecycleState.STALE
+            false
         }
     }
 
@@ -178,5 +222,6 @@ class AndroidUdpInputSender(
         private const val CAP_ACCELEROMETER: Int = 1 shl 3
         private const val CAP_GRAVITY: Int = 1 shl 4
         private const val CAP_TILT_FALLBACK: Int = 1 shl 5
+        private const val NANOS_PER_MILLI: Long = 1_000_000L
     }
 }
