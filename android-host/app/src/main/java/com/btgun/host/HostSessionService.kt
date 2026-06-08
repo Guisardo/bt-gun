@@ -54,6 +54,7 @@ import com.btgun.host.session.DesktopControlConnectionRequest
 import com.btgun.host.session.DesktopLinkPhase
 import com.btgun.host.session.DesktopLinkState
 import com.btgun.host.session.DesktopLivenessCoordinator
+import com.btgun.host.session.DesktopLivenessUpdate
 import com.btgun.host.session.PairingParseResult
 import com.btgun.host.session.PairingPayload
 import com.btgun.host.session.TrustValidationResult
@@ -63,6 +64,23 @@ import com.btgun.host.transport.AndroidUdpInputSender
 import com.btgun.host.transport.InputStreamConfig
 import com.btgun.host.transport.InputStreamLifecycleState
 import java.security.SecureRandom
+
+internal data class HostDesktopLivenessAction(
+    val shouldScheduleUdpDisconnectGrace: Boolean,
+    val shouldClearClient: Boolean,
+    val shouldCancelLivenessTick: Boolean,
+    val shouldCloseClient: Boolean,
+    val shouldContinuePolling: Boolean,
+)
+
+internal fun hostDesktopLivenessActionFor(update: DesktopLivenessUpdate): HostDesktopLivenessAction =
+    HostDesktopLivenessAction(
+        shouldScheduleUdpDisconnectGrace = update.shouldClearClient,
+        shouldClearClient = update.shouldClearClient,
+        shouldCancelLivenessTick = update.shouldClearClient || !update.shouldContinuePolling,
+        shouldCloseClient = update.shouldCloseClient,
+        shouldContinuePolling = update.shouldContinuePolling,
+    )
 
 class HostSessionService : Service() {
     private var adapter: IpegaBleGunAdapter? = null
@@ -562,13 +580,19 @@ class HostSessionService : Service() {
             return
         }
         currentState = currentState.copy(desktopLinkState = update.linkState)
-        if (update.shouldClearClient) {
+        val action = hostDesktopLivenessActionFor(update)
+        if (action.shouldClearClient) {
+            if (action.shouldScheduleUdpDisconnectGrace) {
+                scheduleUdpDisconnectGraceStop()
+            }
             desktopControlClient = null
-            cancelDesktopLivenessTick()
-            if (update.shouldCloseClient) {
+            if (action.shouldCancelLivenessTick) {
+                cancelDesktopLivenessTick()
+            }
+            if (action.shouldCloseClient) {
                 client.close()
             }
-        } else if (update.shouldContinuePolling) {
+        } else if (action.shouldContinuePolling) {
             scheduleDesktopLivenessTick(client)
         } else {
             cancelDesktopLivenessTick()
