@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 04-02-PLAN.md
-last_updated: "2026-06-08T18:37:43.995Z"
+stopped_at: Completed 04-03-PLAN.md
+last_updated: "2026-06-08T19:30:05.309Z"
 last_activity: 2026-06-08 -- Phase 04 execution started
 progress:
   total_phases: 10
   completed_phases: 3
   total_plans: 24
-  completed_plans: 21
+  completed_plans: 22
   percent: 30
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-06-07)
 ## Current Position
 
 Phase: 04 (input-stream-and-haptic-transport) — EXECUTING
-Plan: 3 of 5
+Plan: 4 of 5
 Status: Ready to execute
 Last activity: 2026-06-08 -- Phase 04 execution started
 
@@ -74,6 +74,7 @@ Progress: [██████████] 100% by plan for Phases 01-03. Phase 
 | Phase 03 P08 | 4 min | 2 tasks | 2 files |
 | Phase 04 P01 | 7 min | 2 tasks | 11 files |
 | Phase 04 P02 | 7 min | 2 tasks | 8 files |
+| Phase 04 P03 | 44 min | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -118,6 +119,9 @@ Recent decisions affecting current work:
 - [Phase 04]: Start Android UDP only from trusted WSS input_stream_config, never from QR/manual material. — QR/manual material pairs the session; authenticated WSS delivers fresh stream key material.
 - [Phase 04]: Use one monotonic sequence across Android snapshot and edge UDP frames per stream session. — Receiver replay handling can use a single increasing sequence across mixed frame types.
 - [Phase 04]: Keep Android UDP payload raw-motion-only while local preview aim remains dashboard state. — Desktop profiles own product aim mapping; UDP carries provider/capability/yaw/pitch/roll/raw aim only.
+- [Phase 04]: Desktop stream trust starts only after authenticated control-session acceptance. — QR/manual pairing material remains separate from fresh UDP stream key material.
+- [Phase 04]: InputReplayGuard tracks one highest accepted sequence per stream session and rejects late edge frames after newer snapshots. — Android sender uses one monotonic sequence across snapshot and edge frames.
+- [Phase 04]: UdpReceivedInput exposes raw motion/provider/axis fields only; desktop profile and virtual joystick mapping remain deferred. — Phase 04 receiver boundary must not add profile mapping, HID, visualizer, or product aim behavior.
 
 ### Pending Todos
 
@@ -139,6 +143,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-08T18:37:43.986Z
-Stopped at: Completed 04-02-PLAN.md
+Last session: 2026-06-08T19:30:05.298Z
+Stopped at: Completed 04-03-PLAN.md
 Resume file: None
