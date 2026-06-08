@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 4 planned
-last_updated: "2026-06-08T18:08:31.018Z"
-last_activity: 2026-06-08 -- Phase 04 planned with 5 verified plans
+stopped_at: Completed 04-01-PLAN.md
+last_updated: "2026-06-08T18:25:06.467Z"
+last_activity: 2026-06-08 -- Phase 04 execution started
 progress:
   total_phases: 10
   completed_phases: 3
   total_plans: 24
-  completed_plans: 19
+  completed_plans: 20
   percent: 30
 ---
 
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-06-07)
 
 ## Current Position
 
-Phase: 04 (input-stream-and-haptic-transport) — PLANNED
-Plan: 0 of 5
+Phase: 04 (input-stream-and-haptic-transport) — EXECUTING
+Plan: 2 of 5
 Status: Ready to execute
-Last activity: 2026-06-08 -- Phase 04 planned with 5 verified plans
+Last activity: 2026-06-08 -- Phase 04 execution started
 
 Progress: [██████████] 100% by plan for Phases 01-03. Phase 04 has 5 verified plans ready for execution.
 
@@ -72,6 +72,7 @@ Progress: [██████████] 100% by plan for Phases 01-03. Phase 
 | Phase 03 P06 | 5 min | 2 tasks | 4 files |
 | Phase 03 P07 | 8min | 2 tasks | 4 files |
 | Phase 03 P08 | 4 min | 2 tasks | 2 files |
+| Phase 04 P01 | 7 min | 2 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -110,6 +111,9 @@ Recent decisions affecting current work:
 - [Phase 03]: Trusted desktop reconnect requires an explicit Android tap and stored fingerprint metadata. — No silent primary auto-reconnect is introduced.
 - [Phase 03]: Protocol docs define `reserved_haptic_command` as an empty-body Phase 3 type only. — Phase 4 owns haptic command body shape and execution behavior.
 - [Phase 03]: Manual smoke guide is the physical-device validation bridge for QR/manual pairing, trust mismatch, heartbeat degradation, trusted reconnect, and inactive packet stream.
+- [Phase 04]: Use mirrored Android and desktop codecs with golden fixtures rather than a shared module for Plan 04-01. — Matches existing mirrored protocol modules and keeps wire compatibility enforced by tests.
+- [Phase 04]: Use fixed 120-byte big-endian UDP frames authenticated with full HMAC-SHA256 tags. — Keeps parser deterministic, portable, and fixture-friendly without adding dependencies.
+- [Phase 04]: Plain Gradle startup remains blocked locally; Phase 04 validation uses Homebrew JDK 17 plus GRADLE_USER_HOME under /private/tmp. — This avoids native-platform startup failure and supports trusted automated test results.
 
 ### Pending Todos
 
@@ -131,6 +135,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-08T17:41:28.199Z
-Stopped at: Phase 4 context gathered
-Resume file: .planning/phases/04-input-stream-and-haptic-transport/04-CONTEXT.md
+Last session: 2026-06-08T18:23:51.843Z
+Stopped at: Completed 04-01-PLAN.md
+Resume file: None
