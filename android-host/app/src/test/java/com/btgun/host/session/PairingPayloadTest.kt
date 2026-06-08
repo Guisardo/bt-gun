@@ -3,6 +3,7 @@ package com.btgun.host.session
 fun main() {
     qrParserAcceptsDesktopPairingUri()
     qrParserRejectsMissingAndExpiredPayloadsWithTypedErrors()
+    qrParserRejectsMalformedUriWithTypedRecovery()
     manualParserRequiresEndpointSixDigitCodeAndFingerprintSuffix()
 }
 
@@ -38,6 +39,14 @@ private fun qrParserRejectsMissingAndExpiredPayloadsWithTypedErrors() {
     listOf("LAN " + "discovery", "service " + "discovery").forEach { forbidden ->
         expectFalse("expired does not start $forbidden", invalid.message.contains(forbidden, ignoreCase = true))
     }
+}
+
+private fun qrParserRejectsMalformedUriWithTypedRecovery() {
+    val malformed = PairingPayload.parseQrUri("btgun://pair?bad=%GG", nowEpochMillis = 1L)
+    val invalid = expectInvalid("bad escape", malformed)
+
+    expectEquals("bad uri error", PairingPayloadError.UNSUPPORTED_URI, invalid.error)
+    expectEquals("bad uri recovery", PairingRecoveryAction.RESCAN_QR, invalid.recoveryAction)
 }
 
 private fun manualParserRequiresEndpointSixDigitCodeAndFingerprintSuffix() {
