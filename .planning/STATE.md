@@ -3,19 +3,17 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 04-03-PLAN.md
-last_updated: "2026-06-08T19:30:05.309Z"
+stopped_at: Completed 04-04-PLAN.md
+last_updated: "2026-06-08T20:04:10.720Z"
 last_activity: 2026-06-08 -- Phase 04 execution started
 progress:
   total_phases: 10
   completed_phases: 3
   total_plans: 24
-  completed_plans: 22
+  completed_plans: 23
   percent: 30
 ---
-
 # Project State
-
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-06-07)
@@ -24,9 +22,8 @@ See: .planning/PROJECT.md (updated 2026-06-07)
 **Current focus:** Phase 04 — input-stream-and-haptic-transport
 
 ## Current Position
-
 Phase: 04 (input-stream-and-haptic-transport) — EXECUTING
-Plan: 4 of 5
+Plan: 5 of 5
 Status: Ready to execute
 Last activity: 2026-06-08 -- Phase 04 execution started
 
@@ -75,6 +72,7 @@ Progress: [██████████] 100% by plan for Phases 01-03. Phase 
 | Phase 04 P01 | 7 min | 2 tasks | 11 files |
 | Phase 04 P02 | 7 min | 2 tasks | 8 files |
 | Phase 04 P03 | 44 min | 2 tasks | 8 files |
+| Phase 04 P04 | 23 min | 2 tasks | 15 files |
 
 ## Accumulated Context
 
@@ -122,11 +120,14 @@ Recent decisions affecting current work:
 - [Phase 04]: Desktop stream trust starts only after authenticated control-session acceptance. — QR/manual pairing material remains separate from fresh UDP stream key material.
 - [Phase 04]: InputReplayGuard tracks one highest accepted sequence per stream session and rejects late edge frames after newer snapshots. — Android sender uses one monotonic sequence across snapshot and edge frames.
 - [Phase 04]: UdpReceivedInput exposes raw motion/provider/axis fields only; desktop profile and virtual joystick mapping remain deferred. — Phase 04 receiver boundary must not add profile mapping, HID, visualizer, or product aim behavior.
+- [Phase 04]: Haptic commands stay on authenticated WSS control using reserved_haptic_command, with haptic_result responses. — No UDP haptic protocol was added.
+- [Phase 04]: Android haptic results return immediately after validation and phone vibration start attempt. — Results do not wait for pulse duration.
+- [Phase 04]: Non-null haptic patterns return unsupported and physical gun motor rumble remains deferred. — Phase 4 implements phone pulse only.
 
 ### Pending Todos
 
 - Run Phase 03 manual smoke on a physical Android device and desktop companion when ready.
-- Execute Phase 4 input stream and haptic transport plans.
+- Execute Phase 4 Plan 05.
 
 ### Blockers/Concerns
 
@@ -143,6 +144,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-08T19:30:05.298Z
-Stopped at: Completed 04-03-PLAN.md
+Last session: 2026-06-08T20:04:10.507Z
+Stopped at: Completed 04-04-PLAN.md
 Resume file: None

@@ -30,7 +30,7 @@
 - [x] **ANDR-04**: Android host app samples motion aim data with monotonic capture timestamps, using rotation-vector/game-rotation-vector, gyroscope, accelerometer, and gravity providers as available.
 - [x] **ANDR-05**: Android host app merges gun input and motion sensor data into ordered normalized input samples with sensor provider and capability metadata.
 - [x] **ANDR-06**: Holding reload for two seconds recenters motion aim without preventing normal reload press/release events.
-- [ ] **ANDR-07**: Android host app can receive a haptic command from desktop and vibrate the Android phone.
+- [x] **ANDR-07**: Android host app can receive a haptic command from desktop and vibrate the Android phone.
 - [x] **ANDR-08**: Android host app shows active session status for gun connection, desktop link, packet stream, and haptic feedback.
 
 ### LAN Session
@@ -41,8 +41,8 @@
 - [x] **TRAN-04**: Android host app streams high-rate input and motion samples to desktop using versioned UDP input frames.
 - [x] **TRAN-05**: UDP input frames include sequence number, session id, capture timestamp, send timestamp, button bitmask, axes, motion payload, and motion provider/capability flags.
 - [x] **TRAN-06**: Android and desktop maintain a reliable control channel for pairing state, heartbeat, diagnostics, profile metadata, and haptic commands.
-- [ ] **TRAN-07**: Desktop can send a haptic command with command id, strength, duration, expiry/TTL, and optional pattern.
-- [ ] **TRAN-08**: Android host app returns haptic acknowledgement or failure status to desktop.
+- [x] **TRAN-07**: Desktop can send a haptic command with command id, strength, duration, expiry/TTL, and optional pattern.
+- [x] **TRAN-08**: Android host app returns haptic acknowledgement or failure status to desktop.
 - [ ] **TRAN-09**: Desktop and Android can recover cleanly from LAN disconnect without playing stale haptic commands.
 
 ### Desktop Virtual Controller
@@ -162,7 +162,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ANDR-04 | Phase 2 | Complete |
 | ANDR-05 | Phase 2 | Complete |
 | ANDR-06 | Phase 2 | Complete |
-| ANDR-07 | Phase 4 | Pending |
+| ANDR-07 | Phase 4 | Complete |
 | ANDR-08 | Phase 2 | Complete |
 | TRAN-01 | Phase 3 | Complete |
 | TRAN-02 | Phase 3 | Complete |
@@ -170,8 +170,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | TRAN-04 | Phase 4 | Complete |
 | TRAN-05 | Phase 4 | Complete |
 | TRAN-06 | Phase 3 | Complete |
-| TRAN-07 | Phase 4 | Pending |
-| TRAN-08 | Phase 4 | Pending |
+| TRAN-07 | Phase 4 | Complete |
+| TRAN-08 | Phase 4 | Complete |
 | TRAN-09 | Phase 4 | Pending |
 | DESK-01 | Phase 4 | Complete |
 | DESK-02 | Phase 6 | Pending |
