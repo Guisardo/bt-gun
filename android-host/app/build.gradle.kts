@@ -59,6 +59,7 @@ tasks.withType<Test>().configureEach {
             "com.btgun.host.haptics.DesktopHapticCommandTestKt",
             "com.btgun.host.transport.UdpInputFrameCodecTestKt",
             "com.btgun.host.transport.AndroidUdpInputSenderTestKt",
+            "com.btgun.host.transport.InputStreamLifecycleTestKt",
             "com.btgun.host.ui.DashboardStateTestKt",
         ).forEach { testClass ->
             providers.exec {
