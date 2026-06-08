@@ -16,7 +16,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Hardware and Protocol Discovery** - Prove how the real iPega gun exposes input and verify phone vibration as the v1 feedback path.
 - [x] **Phase 2: Android Host Live Input** - Android can connect to the gun, read controls and motion sensors, and expose live session status.
 - [x] **Phase 3: LAN Pairing and Secure Session** - Android and desktop can establish an authenticated local session by QR or pairing code. (completed 2026-06-08)
-- [ ] **Phase 4: Input Stream and Haptic Transport** - Versioned UDP input and reliable control messages carry input, diagnostics, and phone haptic commands safely.
+- [x] **Phase 4: Input Stream and Haptic Transport** - Versioned UDP input and reliable control messages carry input, diagnostics, and phone haptic commands safely. (completed 2026-06-08)
 - [ ] **Phase 5: Desktop Backend Contract and Smoke Harness** - Shared desktop backend contract and fake-input smoke tests work before real OS driver work.
 - [ ] **Phase 6: Windows Virtual Joystick Path** - Windows 11 x64 exposes the gun stream as a regular gamepad-style joystick with output-to-phone-haptic forwarding.
 - [ ] **Phase 7: macOS Virtual Joystick Path** - macOS Apple Silicon exposes the gun stream as a regular gamepad-style joystick and reports output limits clearly.
@@ -139,7 +139,7 @@ Plans:
   4. Android vibrates the phone for desktop haptic commands and returns ack or failure status.
   5. Android and desktop recover from LAN disconnect without applying old input or playing stale haptics.
 
-**Plans:** 4/5 plans executed
+**Plans:** 5/5 plans complete
 
 ### Phase 5: Desktop Backend Contract and Smoke Harness
 
@@ -242,7 +242,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 | 1. Hardware and Protocol Discovery | 5/5 | Complete | 2026-06-06 |
 | 2. Android Host Live Input | 6/6 | Complete | 2026-06-07 |
 | 3. LAN Pairing and Secure Session | 8/8 | Complete   | 2026-06-08 |
-| 4. Input Stream and Haptic Transport | 4/5 | In Progress|  |
+| 4. Input Stream and Haptic Transport | 5/5 | Complete   | 2026-06-08 |
 | 5. Desktop Backend Contract and Smoke Harness | 0/TBD | Not started | - |
 | 6. Windows Virtual Joystick Path | 0/TBD | Not started | - |
 | 7. macOS Virtual Joystick Path | 0/TBD | Not started | - |

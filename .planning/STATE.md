@@ -2,32 +2,35 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
-stopped_at: Completed 04-04-PLAN.md
-last_updated: "2026-06-08T20:04:10.720Z"
-last_activity: 2026-06-08 -- Phase 04 execution started
+status: verifying
+stopped_at: Completed 04-05-PLAN.md
+last_updated: "2026-06-08T20:27:54.959Z"
+last_activity: 2026-06-08 -- Phase 04 Plan 05 completed; phase ready for verification
 progress:
   total_phases: 10
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 24
-  completed_plans: 23
-  percent: 30
+  completed_plans: 24
+  percent: 40
 ---
+
 # Project State
+
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-06-07)
 
 **Core value:** Make the discontinued iPega AR gun usable as a normal wireless joystick gun on modern macOS and Windows with responsive motion aiming and v1 phone haptic feedback.
-**Current focus:** Phase 04 — input-stream-and-haptic-transport
+**Current focus:** Phase 04 — input-stream-and-haptic-transport verification
 
 ## Current Position
-Phase: 04 (input-stream-and-haptic-transport) — EXECUTING
-Plan: 5 of 5
-Status: Ready to execute
-Last activity: 2026-06-08 -- Phase 04 execution started
 
-Progress: [██████████] 100% by plan for Phases 01-03. Phase 04 has 5 verified plans ready for execution.
+Phase: 04 (input-stream-and-haptic-transport) — READY FOR VERIFICATION
+Plan: 5 of 5
+Status: Phase complete — ready for verification
+Last activity: 2026-06-08 -- Phase 04 Plan 05 completed; phase ready for verification
+
+Progress: [██████████] 100% by plan for Phases 01-04. Phase 04 has 5/5 plans executed and is ready for verification.
 
 ## Performance Metrics
 
@@ -73,6 +76,7 @@ Progress: [██████████] 100% by plan for Phases 01-03. Phase 
 | Phase 04 P02 | 7 min | 2 tasks | 8 files |
 | Phase 04 P03 | 44 min | 2 tasks | 8 files |
 | Phase 04 P04 | 23 min | 2 tasks | 15 files |
+| Phase 04 P05 | 15m 32s | 2 tasks | 17 files |
 
 ## Accumulated Context
 
@@ -123,6 +127,9 @@ Recent decisions affecting current work:
 - [Phase 04]: Haptic commands stay on authenticated WSS control using reserved_haptic_command, with haptic_result responses. — No UDP haptic protocol was added.
 - [Phase 04]: Android haptic results return immediately after validation and phone vibration start attempt. — Results do not wait for pulse duration.
 - [Phase 04]: Non-null haptic patterns return unsupported and physical gun motor rumble remains deferred. — Phase 4 implements phone pulse only.
+- [Phase 04]: Use active/grace/stale/stopped as the shared packet stream lifecycle labels. — Plan 04-05 needs concise endpoint-local state for Android dashboard and desktop diagnostics without adding later visualizer metrics.
+- [Phase 04]: Allow unchanged-session UDP only during controlDisconnectGraceMs; require fresh stream config after reconnect or session change. — This fails closed across LAN disconnects and prevents old frames from applying after trust changes.
+- [Phase 04]: Cancel phone haptic on trusted session change, not on short reliable-control disconnect. — Session change invalidates command ownership; short disconnect alone should not interrupt an already valid pulse.
 
 ### Pending Todos
 
@@ -144,6 +151,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-08T20:04:10.507Z
-Stopped at: Completed 04-04-PLAN.md
+Last session: 2026-06-08T20:27:54.951Z
+Stopped at: Completed 04-05-PLAN.md
 Resume file: None
