@@ -2,7 +2,7 @@
 
 Phase 3 pairing is desktop initiated. Desktop opens one short-lived local session, shows a QR code as the normal path, and keeps a visible manual fallback for scan failures.
 
-This contract covers local pairing, authenticated reliable control, liveness, diagnostics, minimal profile metadata, and reserved future haptic type space. Later phases own fast input transport, desktop parsing of fast input payloads, phone haptic execution details, virtual joystick behavior, and profile mapping.
+This contract covers local pairing, authenticated reliable control, liveness, diagnostics, minimal profile metadata, and the Phase 4 input-stream wire foundation. Later phases own desktop virtual joystick behavior, profile mapping, visualizer metrics, and full phone haptic execution behavior.
 
 ## QR URI
 
@@ -126,7 +126,61 @@ Allowed `type` wire names:
 | `heartbeat_pong` | Empty body. Freshness signal. |
 | `diagnostics` | Minimal diagnostics described below. |
 | `profile_metadata` | Minimal profile metadata described below. |
+| `input_stream_config` | Trusted UDP input stream parameters described below. |
 | `reserved_haptic_command` | Empty body only in Phase 3. Payload shape and execution belong to Phase 4. |
+
+## Input Stream Config
+
+Desktop sends `input_stream_config` only after trusted control authentication. Android must not start UDP from QR/manual material alone.
+
+Body fields:
+
+| Field | Type | Meaning |
+|-------|------|---------|
+| `streamSessionIdHex` | 16-byte lowercase hex string | Random per-session UDP stream id. |
+| `udpHost` | string | Desktop UDP receiver host selected for the trusted session. |
+| `udpPort` | integer | Desktop UDP receiver port. |
+| `hmacSha256KeyBase64Url` | base64url string | Random 32-byte stream authentication secret delivered only over trusted control. |
+| `snapshotHz` | integer | Snapshot target rate. Default: `60`. |
+| `frameAgeLimitMs` | integer | Maximum input frame age before desktop receiver drops it. Default: `150`. |
+| `streamTimeoutMs` | integer | Receiver timeout before active buttons/pressed controls clear. Default: `250`. |
+| `controlDisconnectGraceMs` | integer | Short UDP grace after reliable control disconnect. Default: `1500`. |
+
+Receivers reject missing, malformed, empty, out-of-range, or wrong-session configs. The stream id and auth secret are scoped to one trusted control session and must be replaced after reconnect or session change.
+
+## UDP Input Frames
+
+Android sends fixed-size binary UDP frames authenticated with HMAC-SHA256 over bytes `0..87`; bytes `88..119` carry the full 32-byte tag. Multi-byte fields are big-endian. The frame size is always 120 bytes.
+
+| Offset | Size | Field | Notes |
+|--------|------|-------|-------|
+| 0 | 4 | magic `BTGI` | Reject wrong datagrams. |
+| 4 | 1 | version `1` | Reject unsupported schema versions. |
+| 5 | 1 | frame type | `1=snapshot`, `2=edge`. |
+| 6 | 2 | flags | Reserved, zero in v1. |
+| 8 | 16 | stream session id | Must match trusted `input_stream_config`. |
+| 24 | 8 | sequence | Monotonic per stream session across snapshot and edge frames. |
+| 32 | 8 | capture elapsed nanos | Source capture timestamp. |
+| 40 | 8 | send elapsed nanos | Android send timestamp. |
+| 48 | 4 | button bitmask | Trigger, reload, X/Y/A/B, and edge flags. |
+| 52 | 2 | stick X int16 | Normalized stick X in signed int16 range. |
+| 54 | 2 | stick Y int16 | Normalized stick Y in signed int16 range. |
+| 56 | 1 | motion provider | Compact provider id. |
+| 57 | 1 | motion capability flags | Compact capability bits. |
+| 58 | 2 | reserved | Zero in v1. |
+| 60 | 4 | yaw float32 | Raw normalized motion field. |
+| 64 | 4 | pitch float32 | Raw normalized motion field. |
+| 68 | 4 | roll float32 | Raw normalized motion field. |
+| 72 | 4 | raw aim X float32 or NaN | Raw motion-derived field only. |
+| 76 | 4 | raw aim Y float32 or NaN | Raw motion-derived field only. |
+| 80 | 8 | source sensor elapsed nanos | Sensor timestamp provenance. |
+| 88 | 32 | HMAC-SHA256 tag | Full tag over bytes `0..87`. |
+
+Desktop must reject malformed length, wrong magic, unsupported version, unknown type, wrong stream id, wrong trusted session, bad tag, duplicate or old sequence, and age-expired frames before applying input.
+
+Snapshot frames are authoritative current state and repair dropped edges. Edge frames are opportunistic low-latency control changes. A late edge older than the newest accepted sequence must be dropped. Stream timeout clears active buttons/pressed controls; aim remains last-known and marked stale for downstream status.
+
+Motion payload is raw provider/capability/yaw/pitch/roll/raw-aim data only. Android-local preview aim is not product mapping, and desktop profile mapping remains a later desktop responsibility.
 
 ## Heartbeat and Liveness
 
