@@ -1,10 +1,16 @@
 package com.btgun.desktop.transport
 
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import java.lang.reflect.Modifier
+import java.util.Base64
+import javax.crypto.Mac
+import javax.crypto.spec.SecretKeySpec
 
 fun main() {
     receiverParsesValidDatagramIntoRawInputOnly()
     receiverRejectsUntrustedReplayAndAcceptsClockSkewedDatagrams()
+    receiverRejectsAuthenticatedMalformedFieldsBeforeApply()
     receiverSnapshotRepairsDroppedEdgeState()
     receiverTimeoutClearsActiveControlsOnly()
     receiverBoundaryDoesNotExposeMappedDesktopOutput()
@@ -54,6 +60,36 @@ private fun receiverRejectsUntrustedReplayAndAcceptsClockSkewedDatagrams() {
     expectRejected("bad mac", InputReplayRejectReason.BAD_HMAC, receiver.handleDatagram(badMac, 1_111_111_304L))
     expectAccepted("clock-skewed uptime", receiver.handleDatagram(skewedUptime, 900_000_000_000_000L), sequence = 52L)
     expectEquals("valid and skewed applied", 2, received.size)
+}
+
+private fun receiverRejectsAuthenticatedMalformedFieldsBeforeApply() {
+    val received = mutableListOf<UdpReceivedInput>()
+    val receiver = UdpInputReceiver(onInput = received::add)
+        .start(trustedSession = CONTROL_SESSION_ID, config = fixtureConfig())
+
+    expectRejected(
+        "zero sequence malformed",
+        InputReplayRejectReason.MALFORMED,
+        receiver.handleDatagram(authenticatedLongMutation(UdpInputFrameCodec.OFFSET_SEQUENCE, 0L), 1_111_111_300L),
+    )
+    expectRejected(
+        "negative capture malformed",
+        InputReplayRejectReason.MALFORMED,
+        receiver.handleDatagram(authenticatedLongMutation(UdpInputFrameCodec.OFFSET_CAPTURE_ELAPSED_NANOS, -1L), 1_111_111_301L),
+    )
+    expectRejected(
+        "send before capture malformed",
+        InputReplayRejectReason.MALFORMED,
+        receiver.handleDatagram(
+            authenticatedMutation { bytes ->
+                val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.BIG_ENDIAN)
+                buffer.putLong(UdpInputFrameCodec.OFFSET_CAPTURE_ELAPSED_NANOS, 500L)
+                buffer.putLong(UdpInputFrameCodec.OFFSET_SEND_ELAPSED_NANOS, 499L)
+            },
+            1_111_111_302L,
+        ),
+    )
+    expectEquals("malformed fields not applied", emptyList<UdpReceivedInput>(), received)
 }
 
 private fun receiverSnapshotRepairsDroppedEdgeState() {
@@ -170,6 +206,24 @@ private fun fixtureConfig(): InputStreamConfig =
 
 private fun otherStreamConfig(): InputStreamConfig =
     fixtureConfig().copy(streamSessionIdHex = OTHER_STREAM_SESSION_ID_HEX)
+
+private fun authenticatedLongMutation(offset: Int, value: Long): ByteArray =
+    authenticatedMutation { bytes ->
+        ByteBuffer.wrap(bytes).order(ByteOrder.BIG_ENDIAN).putLong(offset, value)
+    }
+
+private fun authenticatedMutation(mutator: (ByteArray) -> Unit): ByteArray =
+    UdpInputFrameCodec.encode(frame(sequence = 90L), fixtureConfig()).also { bytes ->
+        mutator(bytes)
+        hmac(bytes.copyOfRange(0, UdpInputFrameCodec.OFFSET_HMAC_TAG))
+            .copyInto(bytes, UdpInputFrameCodec.OFFSET_HMAC_TAG)
+    }
+
+private fun hmac(input: ByteArray): ByteArray {
+    val mac = Mac.getInstance("HmacSHA256")
+    mac.init(SecretKeySpec(Base64.getUrlDecoder().decode(HMAC_KEY_BASE64URL), "HmacSHA256"))
+    return mac.doFinal(input)
+}
 
 private fun dataFieldNames(type: Class<*>): List<String> =
     type.declaredFields

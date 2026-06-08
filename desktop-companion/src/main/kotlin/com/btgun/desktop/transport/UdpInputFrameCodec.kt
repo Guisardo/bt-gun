@@ -61,6 +61,7 @@ enum class UdpInputFrameRejectReason {
     UNKNOWN_TYPE,
     WRONG_STREAM_SESSION,
     BAD_HMAC,
+    MALFORMED_FIELD,
 }
 
 data class UdpInputFrameDebugSummary(
@@ -153,7 +154,7 @@ object UdpInputFrameCodec {
             return UdpInputFrameDecodeResult.Rejected(UdpInputFrameRejectReason.BAD_HMAC)
         }
         val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.BIG_ENDIAN)
-        return UdpInputFrameDecodeResult.Accepted(
+        val frame = runCatching {
             UdpInputFrame(
                 type = type,
                 streamSessionId = streamSessionId,
@@ -171,8 +172,11 @@ object UdpInputFrameCodec {
                 rawAimX = buffer.getFloat(OFFSET_RAW_AIM_X),
                 rawAimY = buffer.getFloat(OFFSET_RAW_AIM_Y),
                 sourceSensorElapsedNanos = buffer.getLong(OFFSET_SOURCE_SENSOR_ELAPSED_NANOS),
-            ),
-        )
+            )
+        }.getOrElse { error ->
+            return UdpInputFrameDecodeResult.Rejected(UdpInputFrameRejectReason.MALFORMED_FIELD, error.message)
+        }
+        return UdpInputFrameDecodeResult.Accepted(frame)
     }
 
     fun debugDecode(bytes: ByteArray, config: InputStreamConfig): UdpInputFrameDebugSummary =

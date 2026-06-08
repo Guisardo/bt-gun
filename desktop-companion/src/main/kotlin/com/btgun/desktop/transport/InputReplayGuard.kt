@@ -86,6 +86,7 @@ private fun UdpInputFrameRejectReason.toReplayRejectReason(): InputReplayRejectR
         UdpInputFrameRejectReason.BAD_MAGIC,
         UdpInputFrameRejectReason.UNSUPPORTED_VERSION,
         UdpInputFrameRejectReason.UNKNOWN_TYPE,
+        UdpInputFrameRejectReason.MALFORMED_FIELD,
         -> InputReplayRejectReason.MALFORMED
         UdpInputFrameRejectReason.WRONG_STREAM_SESSION -> InputReplayRejectReason.WRONG_STREAM_SESSION
         UdpInputFrameRejectReason.BAD_HMAC -> InputReplayRejectReason.BAD_HMAC
