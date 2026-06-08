@@ -8,6 +8,7 @@ import com.btgun.desktop.pairing.PairingSessionRegistry
 import com.btgun.desktop.security.DesktopIdentity
 import com.btgun.desktop.security.DesktopIdentityStore
 import com.btgun.desktop.security.PairingProof
+import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 
@@ -19,6 +20,7 @@ fun main() {
     controlServerRejectsControlEnvelopeBeforeProof()
     controlServerAcceptsKnownEnvelopeAfterProof()
     controlServerRetainsTrustedSessionForMultipleEnvelopes()
+    controlServerRespondsToHeartbeatAndSurfacesTrustedMetadata()
     heartbeatMonitorTransitionsConnectedDegradedDisconnected()
     heartbeatPingAndPongRefreshLiveness()
     diagnosticsPayloadContainsOnlyControlFields()
@@ -121,6 +123,33 @@ private fun controlServerRetainsTrustedSessionForMultipleEnvelopes() {
 
     expectTrue("first accepted", first is ControlServerResult.Accepted)
     expectTrue("second accepted", second is ControlServerResult.Accepted)
+}
+
+private fun controlServerRespondsToHeartbeatAndSurfacesTrustedMetadata() = runBlocking {
+    val server = ControlServer(registry = testRegistry(), maxMessageBytes = 512)
+    val states = mutableListOf<ControlServerSessionState>()
+    val accepted = mutableListOf<ControlEnvelope>()
+    val sent = mutableListOf<ControlEnvelope>()
+    val heartbeat = HeartbeatMonitor()
+    server.onSessionStateChanged = states::add
+    server.onControlEnvelopeAccepted = accepted::add
+
+    server.handleAcceptedEnvelope(
+        envelope = envelope(ControlMessageType.HEARTBEAT_PING, sessionId = "sid-1"),
+        heartbeat = heartbeat,
+        nowElapsedNanos = 1_000_000_000L,
+        sendEnvelope = sent::add,
+    )
+    server.handleAcceptedEnvelope(
+        envelope = envelope(ControlMessageType.DIAGNOSTICS, sessionId = "sid-1"),
+        heartbeat = heartbeat,
+        nowElapsedNanos = 1_100_000_000L,
+        sendEnvelope = sent::add,
+    )
+
+    expectEquals("pong emitted", ControlMessageType.HEARTBEAT_PONG, sent.single().type)
+    expectEquals("liveness state", ControlServerSessionState.AUTHENTICATED, states.single())
+    expectEquals("metadata callback", ControlMessageType.DIAGNOSTICS, accepted.single().type)
 }
 
 private fun heartbeatMonitorTransitionsConnectedDegradedDisconnected() {

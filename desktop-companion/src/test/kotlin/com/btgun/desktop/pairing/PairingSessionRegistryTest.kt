@@ -5,6 +5,7 @@ import com.btgun.desktop.security.DesktopIdentityStore
 import com.btgun.desktop.security.FileDesktopIdentityStore
 import com.btgun.desktop.security.SecretRedactor
 import com.btgun.desktop.ui.PairingWindow
+import java.nio.file.Files
 import kotlin.io.path.createTempDirectory
 
 fun main() {
@@ -87,6 +88,7 @@ private fun desktopIdentityStorePersistsFingerprint() {
 
     expectEquals("fingerprint length", 64, first.desktopSpkiSha256.length)
     expectEquals("persisted fingerprint", first.desktopSpkiSha256, second.desktopSpkiSha256)
+    expectTrue("sidecar password exists", Files.exists(path.resolveSibling("${path.fileName}.key")))
 }
 
 private fun redactorHidesPairingSecrets() {

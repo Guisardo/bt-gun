@@ -18,12 +18,17 @@ import io.ktor.websocket.Frame
 import io.ktor.websocket.close
 import io.ktor.websocket.readText
 import io.ktor.websocket.send
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 
 class ControlServer(
     private val registry: PairingSessionRegistry,
     private val maxMessageBytes: Int = DEFAULT_MAX_MESSAGE_BYTES,
 ) {
     var onSessionStateChanged: (ControlServerSessionState) -> Unit = {}
+    var onControlEnvelopeAccepted: (ControlEnvelope) -> Unit = {}
 
     private var stopServer: (() -> Unit)? = null
 
@@ -60,16 +65,32 @@ class ControlServer(
                         }
                         onSessionStateChanged(ControlServerSessionState.AUTHENTICATED)
                         sendSessionReady(trusted)
+                        val heartbeat = HeartbeatMonitor()
+                        val livenessJob = launch {
+                            while (isActive) {
+                                delay(LIVENESS_POLL_MILLIS)
+                                updateSessionState(heartbeat.stateAt(System.nanoTime()))
+                            }
+                        }
                         try {
                             for (frame in incoming) {
                                 if (frame is Frame.Text) {
-                                    val result = handleTrustedEnvelope(trusted, frame.readText())
-                                    if (result is ControlServerResult.RejectedEnvelope) {
-                                        break
+                                    when (val result = handleTrustedEnvelope(trusted, frame.readText())) {
+                                        is ControlServerResult.Accepted -> handleAcceptedEnvelope(
+                                            envelope = result.envelope,
+                                            heartbeat = heartbeat,
+                                            sendEnvelope = { envelope -> sendEnvelope(envelope) },
+                                        )
+                                        is ControlServerResult.RejectedEnvelope -> {
+                                            close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, result.error.name))
+                                            break
+                                        }
+                                        else -> Unit
                                     }
                                 }
                             }
                         } finally {
+                            livenessJob.cancel()
                             onSessionStateChanged(ControlServerSessionState.DISCONNECTED)
                         }
                     }
@@ -132,6 +153,31 @@ class ControlServer(
             }
         }
 
+    suspend fun handleAcceptedEnvelope(
+        envelope: ControlEnvelope,
+        heartbeat: HeartbeatMonitor,
+        nowElapsedNanos: Long = System.nanoTime(),
+        sendEnvelope: suspend (ControlEnvelope) -> Unit = {},
+    ) {
+        when (envelope.type) {
+            ControlMessageType.HEARTBEAT_PING -> {
+                heartbeat.observePing(nowElapsedNanos)
+                updateSessionState(heartbeat.stateAt(nowElapsedNanos))
+                sendEnvelope(heartbeatEnvelope(ControlMessageType.HEARTBEAT_PONG, envelope.sessionId))
+            }
+            ControlMessageType.HEARTBEAT_PONG -> {
+                heartbeat.observePong(nowElapsedNanos)
+                updateSessionState(heartbeat.stateAt(nowElapsedNanos))
+            }
+            ControlMessageType.DIAGNOSTICS,
+            ControlMessageType.PROFILE_METADATA,
+            ControlMessageType.PAIRING_STATE,
+            ControlMessageType.SESSION_READY,
+            -> onControlEnvelopeAccepted(envelope)
+            ControlMessageType.RESERVED_HAPTIC_COMMAND -> Unit
+        }
+    }
+
     private fun authenticate(headers: io.ktor.http.Headers, nowEpochMillis: Long): TrustedPairingSession? {
         val request = PairingProofRequest(
             sid = headers[HEADER_SESSION] ?: return null,
@@ -144,25 +190,44 @@ class ControlServer(
 
     private suspend fun io.ktor.server.websocket.DefaultWebSocketServerSession.sendSessionReady(
         trustedSession: TrustedPairingSession,
-    ) {
-        send(
-            Frame.Text(
-                ControlEnvelopeCodec.encode(
-                    ControlEnvelope(
-                        v = 1,
-                        type = ControlMessageType.SESSION_READY,
-                        msgId = "desktop-session-ready",
-                        sessionId = trustedSession.sid,
-                        seq = 0L,
-                        sentElapsedNanos = System.nanoTime(),
-                    ),
-                ),
-            ),
+    ) = sendEnvelope(
+        ControlEnvelope(
+            v = 1,
+            type = ControlMessageType.SESSION_READY,
+            msgId = "desktop-session-ready",
+            sessionId = trustedSession.sid,
+            seq = 0L,
+            sentElapsedNanos = System.nanoTime(),
+        )
+    )
+
+    private suspend fun io.ktor.server.websocket.DefaultWebSocketServerSession.sendEnvelope(envelope: ControlEnvelope) {
+        send(Frame.Text(ControlEnvelopeCodec.encode(envelope)))
+    }
+
+    private fun heartbeatEnvelope(type: ControlMessageType, sessionId: String): ControlEnvelope =
+        ControlEnvelope(
+            v = 1,
+            type = type,
+            msgId = "desktop-${type.wireName}",
+            sessionId = sessionId,
+            seq = 0L,
+            sentElapsedNanos = System.nanoTime(),
+        )
+
+    private fun updateSessionState(state: LivenessState) {
+        onSessionStateChanged(
+            when (state) {
+                LivenessState.CONNECTED -> ControlServerSessionState.AUTHENTICATED
+                LivenessState.DEGRADED -> ControlServerSessionState.DEGRADED
+                LivenessState.DISCONNECTED -> ControlServerSessionState.DISCONNECTED
+            },
         )
     }
 
     companion object {
         const val DEFAULT_MAX_MESSAGE_BYTES = 16 * 1024
+        private const val LIVENESS_POLL_MILLIS = 500L
         const val HEADER_DESKTOP_FINGERPRINT = "X-BT-Gun-Desktop-Fingerprint"
         const val HEADER_SESSION = "X-BT-Gun-Session"
         const val HEADER_ANDROID_NONCE = "X-BT-Gun-Android-Nonce"

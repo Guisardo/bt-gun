@@ -140,6 +140,7 @@ class DesktopControlClient(
         proofRequest: ControlProofRequest,
         onAuthenticated: () -> Unit = {},
         onConnectionFailure: (String) -> Unit = {},
+        onLinkStateChanged: (DesktopLinkState) -> Unit = {},
     ): DesktopControlConnectResult {
         val trust = verifyPresentedFingerprint(proofRequest.desktopSpkiSha256)
         if (trust is DesktopControlConnectResult.TrustMismatch) {
@@ -163,6 +164,7 @@ class DesktopControlClient(
             object : WebSocketListener() {
                 override fun onOpen(webSocket: WebSocket, response: Response) {
                     linkState = linkState.copy(phase = DesktopLinkPhase.PAIRING_PROOF)
+                    onLinkStateChanged(linkState)
                 }
 
                 override fun onMessage(webSocket: WebSocket, text: String) {
@@ -182,16 +184,23 @@ class DesktopControlClient(
                         phase = DesktopLinkPhase.DISCONNECTED,
                         lastControlError = reason,
                     )
+                    onLinkStateChanged(linkState)
                     onConnectionFailure(reason)
                 }
 
                 override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
                     socket = null
+                    val wasAuthenticated = authenticated
                     authenticated = false
+                    val closeReason = reason.ifBlank { "control channel closed" }
                     linkState = linkState.copy(
                         phase = DesktopLinkPhase.DISCONNECTED,
-                        lastControlError = reason.ifBlank { null },
+                        lastControlError = closeReason,
                     )
+                    onLinkStateChanged(linkState)
+                    if (!wasAuthenticated) {
+                        onConnectionFailure(closeReason)
+                    }
                 }
             },
         )

@@ -17,6 +17,7 @@ fun main() {
     trustMismatchMovesToTrustProblemWithoutOpeningSocket()
     clientSendRejectsInvalidEnvelopeBeforeSocketWrite()
     desktopLinkHeartbeatMapsLivenessStates()
+    clientPublishesPreAuthCloseAsFailure()
     clientCloseStopsSocketAndDisconnectsLinkState()
     clientUpdatesLinkStateFromHeartbeatDiagnosticsAndErrors()
     profileMetadataModelContainsOnlyRequiredFields()
@@ -221,6 +222,35 @@ private fun desktopLinkHeartbeatMapsLivenessStates() {
     client.refreshLiveness(nowElapsedNanos = 4_000_000_001L)
     expectEquals("missing link", DesktopLinkPhase.DISCONNECTED, client.currentLinkState().phase)
 }
+
+private fun clientPublishesPreAuthCloseAsFailure() {
+    var listener: WebSocketListener? = null
+    val stateChanges = mutableListOf<DesktopLinkState>()
+    val failures = mutableListOf<String>()
+    val client = DesktopControlClient(
+        config = DesktopControlClientConfig(
+            url = "wss://192.168.50.25:41731/control",
+            expectedDesktopSpkiSha256 = FINGERPRINT,
+            maxMessageBytes = 512,
+        ),
+        socketFactory = { _, socketListener ->
+            listener = socketListener
+            FakeSocket()
+        },
+    )
+
+    client.connect(
+        proofRequest = proofRequest(),
+        onConnectionFailure = failures::add,
+        onLinkStateChanged = stateChanges::add,
+    )
+    listener?.onClosed(NOOP_WEB_SOCKET, 1008, "pairing proof rejected")
+
+    expectEquals("failure reason", listOf("pairing proof rejected"), failures)
+    expectEquals("close state", DesktopLinkPhase.DISCONNECTED, stateChanges.last().phase)
+    expectEquals("client close error", "pairing proof rejected", client.currentLinkState().lastControlError)
+}
+
 
 private fun clientCloseStopsSocketAndDisconnectsLinkState() {
     val socket = FakeSocket()
