@@ -1,11 +1,14 @@
 package com.btgun.desktop.control
 
+import com.btgun.desktop.transport.InputStreamConfig
 import com.btgun.desktop.pairing.PairingAttemptResult
 import com.btgun.desktop.pairing.ManualPairingAttemptRequest
 import com.btgun.desktop.pairing.PairingProofRequest
 import com.btgun.desktop.pairing.PairingSessionRegistry
 import com.btgun.desktop.pairing.TrustedPairingSession
 import com.btgun.desktop.security.DesktopTlsIdentity
+import java.security.SecureRandom
+import java.util.Base64
 import io.ktor.server.application.install
 import io.ktor.server.engine.applicationEnvironment
 import io.ktor.server.engine.embeddedServer
@@ -29,6 +32,11 @@ import kotlinx.serialization.json.JsonPrimitive
 class ControlServer(
     private val registry: PairingSessionRegistry,
     private val maxMessageBytes: Int = DEFAULT_MAX_MESSAGE_BYTES,
+    private val udpHost: String = registry.activeSession?.endpoint?.host ?: DEFAULT_UDP_HOST,
+    private val udpPort: Int = registry.activeSession?.endpoint?.port ?: DEFAULT_UDP_PORT,
+    private val streamSecretFactory: () -> ByteArray = {
+        ByteArray(STREAM_SECRET_BYTES).also(secureRandom::nextBytes)
+    },
 ) {
     var onSessionStateChanged: (ControlServerSessionState) -> Unit = {}
     var onControlEnvelopeAccepted: (ControlEnvelope) -> Unit = {}
@@ -68,6 +76,7 @@ class ControlServer(
                         }
                         onSessionStateChanged(ControlServerSessionState.AUTHENTICATED)
                         sendSessionReady(trusted)
+                        sendInputStreamConfig(trusted)
                         sendInitialMetadata(trusted)
                         val heartbeat = HeartbeatMonitor()
                         heartbeat.observePong(System.nanoTime())
@@ -197,9 +206,37 @@ class ControlServer(
             ControlMessageType.PROFILE_METADATA,
             ControlMessageType.PAIRING_STATE,
             ControlMessageType.SESSION_READY,
+            ControlMessageType.INPUT_STREAM_CONFIG,
             -> onControlEnvelopeAccepted(envelope)
             ControlMessageType.RESERVED_HAPTIC_COMMAND -> Unit
         }
+    }
+
+    fun inputStreamConfigEnvelopeFor(
+        trustedSession: TrustedPairingSession,
+        nowElapsedNanos: Long = System.nanoTime(),
+    ): ControlEnvelope {
+        val config = freshInputStreamConfig()
+        return ControlEnvelope(
+            v = 1,
+            type = ControlMessageType.INPUT_STREAM_CONFIG,
+            msgId = "desktop-input-stream-config",
+            sessionId = trustedSession.sid,
+            seq = 0L,
+            sentElapsedNanos = nowElapsedNanos,
+            body = JsonObject(
+                mapOf(
+                    "streamSessionIdHex" to JsonPrimitive(config.streamSessionIdHex),
+                    "udpHost" to JsonPrimitive(config.udpHost),
+                    "udpPort" to JsonPrimitive(config.udpPort),
+                    "hmacSha256KeyBase64Url" to JsonPrimitive(config.hmacSha256KeyBase64Url),
+                    "snapshotHz" to JsonPrimitive(config.snapshotHz),
+                    "frameAgeLimitMs" to JsonPrimitive(config.frameAgeLimitMs),
+                    "streamTimeoutMs" to JsonPrimitive(config.streamTimeoutMs),
+                    "controlDisconnectGraceMs" to JsonPrimitive(config.controlDisconnectGraceMs),
+                ),
+            ),
+        )
     }
 
     private fun authenticate(headers: io.ktor.http.Headers, nowEpochMillis: Long): TrustedPairingSession? {
@@ -241,6 +278,10 @@ class ControlServer(
             sentElapsedNanos = System.nanoTime(),
         )
     )
+
+    private suspend fun io.ktor.server.websocket.DefaultWebSocketServerSession.sendInputStreamConfig(
+        trustedSession: TrustedPairingSession,
+    ) = sendEnvelope(inputStreamConfigEnvelopeFor(trustedSession))
 
     private suspend fun io.ktor.server.websocket.DefaultWebSocketServerSession.sendInitialMetadata(
         trustedSession: TrustedPairingSession,
@@ -306,9 +347,31 @@ class ControlServer(
         )
     }
 
+    private fun freshInputStreamConfig(): InputStreamConfig =
+        InputStreamConfig(
+            streamSessionIdHex = streamSecretFactory().copyOf(STREAM_ID_BYTES).toHex(),
+            udpHost = udpHost,
+            udpPort = udpPort,
+            hmacSha256KeyBase64Url = Base64.getUrlEncoder().withoutPadding().encodeToString(
+                streamSecretFactory().copyOf(STREAM_SECRET_BYTES),
+            ),
+            snapshotHz = DEFAULT_SNAPSHOT_HZ,
+            frameAgeLimitMs = DEFAULT_FRAME_AGE_LIMIT_MILLIS,
+            streamTimeoutMs = DEFAULT_STREAM_TIMEOUT_MILLIS,
+            controlDisconnectGraceMs = DEFAULT_CONTROL_DISCONNECT_GRACE_MILLIS,
+        )
+
     companion object {
         const val DEFAULT_MAX_MESSAGE_BYTES = 16 * 1024
+        const val DEFAULT_UDP_HOST = "127.0.0.1"
+        const val DEFAULT_UDP_PORT = 41731
         private const val LIVENESS_POLL_MILLIS = 500L
+        private const val STREAM_ID_BYTES = 16
+        private const val STREAM_SECRET_BYTES = 32
+        private const val DEFAULT_SNAPSHOT_HZ = 60
+        private const val DEFAULT_FRAME_AGE_LIMIT_MILLIS = 150L
+        private const val DEFAULT_STREAM_TIMEOUT_MILLIS = 250L
+        private const val DEFAULT_CONTROL_DISCONNECT_GRACE_MILLIS = 1500L
         private const val DEFAULT_PROFILE_ID = "default"
         private const val DEFAULT_PROFILE_NAME = "Default profile"
         private const val DEFAULT_PROFILE_REVISION = 1L
@@ -318,8 +381,12 @@ class ControlServer(
         const val HEADER_ANDROID_NONCE = "X-BT-Gun-Android-Nonce"
         const val HEADER_PAIRING_PROOF = "X-BT-Gun-Pairing-Proof"
         const val HEADER_MANUAL_CODE = "X-BT-Gun-Manual-Code"
+        private val secureRandom = SecureRandom()
     }
 }
+
+private fun ByteArray.toHex(): String =
+    joinToString(separator = "") { byte -> "%02x".format(byte.toInt() and 0xff) }
 
 enum class ControlServerSessionState {
     STARTED,

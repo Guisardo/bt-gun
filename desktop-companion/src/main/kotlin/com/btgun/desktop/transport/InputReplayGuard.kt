@@ -1,0 +1,98 @@
+package com.btgun.desktop.transport
+
+enum class InputReplayRejectReason {
+    WRONG_CONTROL_SESSION,
+    WRONG_STREAM_SESSION,
+    DUPLICATE_SEQUENCE,
+    OLD_SEQUENCE,
+    BAD_HMAC,
+    MALFORMED,
+    AGE_EXPIRED,
+}
+
+sealed interface InputReplayDecision {
+    data class Accepted(val input: UdpReceivedInput) : InputReplayDecision
+    data class Rejected(val reason: InputReplayRejectReason) : InputReplayDecision
+}
+
+class InputReplayGuard(
+    private val trustedControlSessionId: String,
+    private val config: InputStreamConfig,
+) {
+    var current: UdpReceivedInput? = null
+        private set
+
+    private var highestAcceptedSequence: Long? = null
+
+    fun acceptDatagram(
+        bytes: ByteArray,
+        receivedElapsedNanos: Long,
+        controlSessionId: String,
+    ): InputReplayDecision =
+        when (val decoded = UdpInputFrameCodec.authenticateAndDecode(bytes, config)) {
+            is UdpInputFrameDecodeResult.Accepted -> accept(decoded.frame, receivedElapsedNanos, controlSessionId)
+            is UdpInputFrameDecodeResult.Rejected -> InputReplayDecision.Rejected(decoded.reason.toReplayRejectReason())
+        }
+
+    fun accept(
+        frame: UdpInputFrame,
+        receivedElapsedNanos: Long,
+        controlSessionId: String,
+    ): InputReplayDecision {
+        if (controlSessionId != trustedControlSessionId) {
+            return InputReplayDecision.Rejected(InputReplayRejectReason.WRONG_CONTROL_SESSION)
+        }
+        if (frame.streamSessionId != config.streamSessionIdHex) {
+            return InputReplayDecision.Rejected(InputReplayRejectReason.WRONG_STREAM_SESSION)
+        }
+        if (frameAgeExpired(frame, receivedElapsedNanos)) {
+            return InputReplayDecision.Rejected(InputReplayRejectReason.AGE_EXPIRED)
+        }
+        val highest = highestAcceptedSequence
+        if (highest != null) {
+            if (frame.sequence == highest) {
+                return InputReplayDecision.Rejected(InputReplayRejectReason.DUPLICATE_SEQUENCE)
+            }
+            if (frame.sequence < highest) {
+                return InputReplayDecision.Rejected(InputReplayRejectReason.OLD_SEQUENCE)
+            }
+        }
+
+        val input = frame.toReceivedInput(
+            controlSessionId = controlSessionId,
+            receivedElapsedNanos = receivedElapsedNanos,
+        )
+        highestAcceptedSequence = frame.sequence
+        current = input
+        return InputReplayDecision.Accepted(input)
+    }
+
+    fun onTimeout(current: UdpReceivedInput): UdpReceivedInput =
+        current.copy(
+            buttons = 0,
+            pressedControls = emptySet(),
+            stickX = 0,
+            stickY = 0,
+            stale = true,
+        ).also { this.current = it }
+
+    private fun frameAgeExpired(frame: UdpInputFrame, receivedElapsedNanos: Long): Boolean {
+        val ageNanos = receivedElapsedNanos - frame.sendElapsedNanos
+        return ageNanos > config.frameAgeLimitMs * NANOS_PER_MILLI
+    }
+
+    companion object {
+        private const val NANOS_PER_MILLI = 1_000_000L
+    }
+}
+
+private fun UdpInputFrameRejectReason.toReplayRejectReason(): InputReplayRejectReason =
+    when (this) {
+        UdpInputFrameRejectReason.INVALID_LENGTH,
+        UdpInputFrameRejectReason.BAD_MAGIC,
+        UdpInputFrameRejectReason.UNSUPPORTED_VERSION,
+        UdpInputFrameRejectReason.UNKNOWN_TYPE,
+        -> InputReplayRejectReason.MALFORMED
+        UdpInputFrameRejectReason.WRONG_STREAM_SESSION -> InputReplayRejectReason.WRONG_STREAM_SESSION
+        UdpInputFrameRejectReason.BAD_HMAC -> InputReplayRejectReason.BAD_HMAC
+    }
