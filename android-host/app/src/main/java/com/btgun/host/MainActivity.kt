@@ -46,6 +46,7 @@ class MainActivity : Activity() {
     private lateinit var manualHostInput: EditText
     private lateinit var manualPortInput: EditText
     private lateinit var manualCodeInput: EditText
+    private lateinit var manualDesktopNonceInput: EditText
     private lateinit var manualFingerprintSuffixInput: EditText
     private lateinit var manualSessionIdInput: EditText
     private lateinit var manualEntryGroup: LinearLayout
@@ -296,7 +297,7 @@ class MainActivity : Activity() {
         manualEntryVisible = true
         desktopLinkState = DesktopLinkState(
             phase = DesktopLinkPhase.CONNECTING,
-            diagnosticText = "Manual entry ready. Enter host/IP, port, and 6-digit code from the desktop.",
+            diagnosticText = "Manual entry ready. Enter host/IP, port, code, challenge, fingerprint suffix, and session id.",
         )
         renderDashboard()
     }
@@ -305,7 +306,7 @@ class MainActivity : Activity() {
         manualEntryVisible = true
         desktopLinkState = DesktopLinkState(
             phase = DesktopLinkPhase.CONNECTING,
-            diagnosticText = "Connecting with manual host/IP, port, and 6-digit code.",
+            diagnosticText = "Connecting with manual host/IP, port, code, and desktop challenge.",
         )
         startServiceAction(
             Intent(this, HostSessionService::class.java)
@@ -313,6 +314,7 @@ class MainActivity : Activity() {
                 .putExtra(HostSessionService.EXTRA_MANUAL_HOST, manualHostInput.text.toString())
                 .putExtra(HostSessionService.EXTRA_MANUAL_PORT, manualPortInput.text.toString())
                 .putExtra(HostSessionService.EXTRA_MANUAL_CODE, manualCodeInput.text.toString())
+                .putExtra(HostSessionService.EXTRA_MANUAL_DESKTOP_NONCE, manualDesktopNonceInput.text.toString())
                 .putExtra(
                     HostSessionService.EXTRA_MANUAL_FINGERPRINT_SUFFIX,
                     manualFingerprintSuffixInput.text.toString(),
@@ -336,7 +338,7 @@ class MainActivity : Activity() {
             phase = DesktopLinkPhase.CONNECTING,
             desktopDisplayName = trusted.displayName,
             fingerprintSuffix = trusted.fingerprintSha256.takeLast(8),
-            diagnosticText = "Connecting to trusted desktop from stored fingerprint metadata.",
+            diagnosticText = "Trusted desktop selected. Start pairing on desktop, then scan QR or enter manual code.",
         )
         startServiceAction(
             Intent(this, HostSessionService::class.java)
@@ -474,6 +476,7 @@ class MainActivity : Activity() {
         manualHostInput = editText("Host/IP")
         manualPortInput = editText("Port")
         manualCodeInput = editText("6-digit code")
+        manualDesktopNonceInput = editText("Desktop challenge")
         manualFingerprintSuffixInput = editText("Fingerprint suffix")
         manualSessionIdInput = editText("Session id")
         manualPairAction = button("Connect manually") { connectManualEntry() }
@@ -481,6 +484,7 @@ class MainActivity : Activity() {
             manualHostInput,
             manualPortInput,
             manualCodeInput,
+            manualDesktopNonceInput,
             manualFingerprintSuffixInput,
             manualSessionIdInput,
             manualPairAction,

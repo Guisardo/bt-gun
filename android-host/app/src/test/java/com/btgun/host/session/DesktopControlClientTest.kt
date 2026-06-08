@@ -2,14 +2,18 @@ package com.btgun.host.session
 
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import okio.ByteString
 import okhttp3.Request
+import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 
 fun main() {
     envelopeCodecMirrorsDesktopAllowlist()
     envelopeCodecRejectsVersionUnknownTypeOversizedAndReservedHapticBody()
+    envelopeCodecRejectsOverflowedVersion()
     clientBuildsPinnedWssRequestAndTrustMismatchResult()
     qrPayloadBuildsControlRequestAndProofHeaders()
+    manualPayloadBuildsProofFromCodeAndChallenge()
     trustMismatchMovesToTrustProblemWithoutOpeningSocket()
     clientSendRejectsInvalidEnvelopeBeforeSocketWrite()
     desktopLinkHeartbeatMapsLivenessStates()
@@ -47,6 +51,12 @@ private fun envelopeCodecRejectsVersionUnknownTypeOversizedAndReservedHapticBody
     expectRejected("reserved haptic", ControlEnvelopeError.RESERVED_HAPTIC_BODY, ControlEnvelopeCodec.decode(reservedBody))
 }
 
+private fun envelopeCodecRejectsOverflowedVersion() {
+    val overflowVersion = """{"v":4294967297,"type":"session_ready","msgId":"m-1","sessionId":"sid-1","seq":1,"sentElapsedNanos":10,"body":{}}"""
+
+    expectRejected("overflow version", ControlEnvelopeError.INVALID_FIELD, ControlEnvelopeCodec.decode(overflowVersion))
+}
+
 private fun clientBuildsPinnedWssRequestAndTrustMismatchResult() {
     val openedRequests = mutableListOf<Request>()
     val client = DesktopControlClient(
@@ -63,7 +73,7 @@ private fun clientBuildsPinnedWssRequestAndTrustMismatchResult() {
 
     val result = client.connect(proofRequest())
 
-    expectTrue("connected", result is DesktopControlConnectResult.Connected)
+    expectTrue("connecting", result is DesktopControlConnectResult.Connecting)
     expectEquals("url", "https://192.168.50.25:41731/control", openedRequests.single().url.toString())
     expectEquals("fingerprint header", FINGERPRINT, openedRequests.single().header("X-BT-Gun-Desktop-Fingerprint"))
     expectTrue("pin present", client.certificatePin().startsWith("sha256/"))
@@ -98,13 +108,48 @@ private fun qrPayloadBuildsControlRequestAndProofHeaders() {
 
     val result = client.connect(request.proofRequest)
 
-    expectTrue("qr connect", result is DesktopControlConnectResult.Connected)
+    expectTrue("qr connecting", result is DesktopControlConnectResult.Connecting)
     expectEquals("qr url", "https://192.168.1.44:44383/control", openedRequests.single().url.toString())
     expectEquals("qr session header", "session-001", openedRequests.single().header("X-BT-Gun-Session"))
     expectEquals("qr nonce header", "11".repeat(16), openedRequests.single().header("X-BT-Gun-Android-Nonce"))
     expectEquals("qr proof header", request.proofRequest.proofHex, openedRequests.single().header("X-BT-Gun-Pairing-Proof"))
     expectEquals("trusted host", "192.168.1.44", request.trustedMetadata(1L).lastHost)
     expectEquals("trusted fingerprint", FINGERPRINT, request.trustedMetadata(1L).fingerprintSha256)
+}
+
+private fun manualPayloadBuildsProofFromCodeAndChallenge() {
+    val request = DesktopControlConnectionRequest.fromManualPayload(
+        payload = ManualPairingPayload(
+            sid = "session-001",
+            host = "192.168.1.44",
+            port = 44383,
+            code = "123456",
+            desktopNonce = "22".repeat(16),
+            desktopSpkiSha256Suffix = FINGERPRINT.takeLast(8),
+        ),
+        trustedDesktop = TrustedDesktopMetadata(
+            fingerprintSha256 = FINGERPRINT,
+            displayName = "BT Gun Desktop",
+            lastHost = "192.168.1.44",
+            lastPort = 44383,
+            lastSeenEpochMillis = 10L,
+        ),
+        androidNonce = "11".repeat(16),
+    )
+
+    expectEquals("manual sid", "session-001", request.proofRequest.sid)
+    expectEquals("manual url", "wss://192.168.1.44:44383/control", request.config.url)
+    expectEquals(
+        "manual proof",
+        PairingProof.create(
+            sid = "session-001",
+            desktopNonce = "22".repeat(16),
+            androidNonce = "11".repeat(16),
+            desktopSpkiSha256 = FINGERPRINT,
+            oneTimeMaterial = "123456",
+        ),
+        request.proofRequest.proofHex,
+    )
 }
 
 private fun trustMismatchMovesToTrustProblemWithoutOpeningSocket() {
@@ -131,16 +176,22 @@ private fun trustMismatchMovesToTrustProblemWithoutOpeningSocket() {
 
 private fun clientSendRejectsInvalidEnvelopeBeforeSocketWrite() {
     val socket = FakeSocket()
+    var listener: WebSocketListener? = null
     val client = DesktopControlClient(
         config = DesktopControlClientConfig(
             url = "wss://192.168.50.25:41731/control",
             expectedDesktopSpkiSha256 = FINGERPRINT,
             maxMessageBytes = 128,
         ),
-        socketFactory = { _, _ -> socket },
+        socketFactory = { _, socketListener ->
+            listener = socketListener
+            socket
+        },
     )
     val connection = client.connect(proofRequest())
-    expectTrue("connected", connection is DesktopControlConnectResult.Connected)
+    expectTrue("connecting", connection is DesktopControlConnectResult.Connecting)
+    expectEquals("pre-auth send blocked", DesktopControlSendResult.NotConnected, client.send(envelope(ControlMessageType.PAIRING_STATE)))
+    listener?.onMessage(NOOP_WEB_SOCKET, readyEnvelope())
 
     val valid = client.send(envelope(ControlMessageType.PAIRING_STATE))
     val invalid = client.send(
@@ -158,7 +209,8 @@ private fun clientSendRejectsInvalidEnvelopeBeforeSocketWrite() {
 private fun desktopLinkHeartbeatMapsLivenessStates() {
     val client = clientWithFakeSocket()
     val connection = client.connect(proofRequest())
-    expectTrue("connected", connection is DesktopControlConnectResult.Connected)
+    expectTrue("connecting", connection is DesktopControlConnectResult.Connecting)
+    client.markReadyForTest()
 
     client.observeHeartbeatPong(nowElapsedNanos = 1_000_000_000L)
     expectEquals("fresh link", DesktopLinkPhase.CONNECTED, client.currentLinkState().phase)
@@ -181,6 +233,7 @@ private fun clientCloseStopsSocketAndDisconnectsLinkState() {
         socketFactory = { _, _ -> socket },
     )
     client.connect(proofRequest())
+    client.markReadyForTest()
 
     client.close()
 
@@ -192,6 +245,7 @@ private fun clientCloseStopsSocketAndDisconnectsLinkState() {
 private fun clientUpdatesLinkStateFromHeartbeatDiagnosticsAndErrors() {
     val client = clientWithFakeSocket()
     client.connect(proofRequest())
+    client.markReadyForTest()
     client.observeHeartbeatPing(nowElapsedNanos = 1_000_000_000L)
     client.applyDiagnostics(
         ControlDiagnostics(
@@ -250,17 +304,21 @@ private fun controlEnvelopeAllowsHeartbeatDiagnosticsAndProfileTypes() {
 
 private fun envelope(
     type: ControlMessageType,
+    sessionId: String = "sid-1",
     body: JsonObject = JsonObject(emptyMap()),
 ): ControlEnvelope =
     ControlEnvelope(
         v = 1,
         type = type,
         msgId = "msg-1",
-        sessionId = "sid-1",
+        sessionId = sessionId,
         seq = 1L,
         sentElapsedNanos = 10L,
         body = body,
     )
+
+private fun readyEnvelope(sessionId: String = "sid-1"): String =
+    ControlEnvelopeCodec.encode(envelope(ControlMessageType.SESSION_READY, sessionId = sessionId))
 
 private fun proofRequest(desktopSpkiSha256: String = FINGERPRINT): ControlProofRequest =
     ControlProofRequest(
@@ -270,15 +328,41 @@ private fun proofRequest(desktopSpkiSha256: String = FINGERPRINT): ControlProofR
         proofHex = "bb".repeat(32),
     )
 
-private fun clientWithFakeSocket(): DesktopControlClient =
-    DesktopControlClient(
+private fun clientWithFakeSocket(): DesktopControlClient {
+    var listener: WebSocketListener? = null
+    return DesktopControlClient(
         config = DesktopControlClientConfig(
             url = "wss://192.168.50.25:41731/control",
             expectedDesktopSpkiSha256 = FINGERPRINT,
             maxMessageBytes = 512,
         ),
-        socketFactory = { _, _ -> FakeSocket() },
+        socketFactory = { _, socketListener ->
+            listener = socketListener
+            TestSocket(FakeSocket(), { listener })
+        },
     )
+}
+
+private fun DesktopControlClient.markReadyForTest() {
+    (this.currentTestSocket())?.listener()?.onMessage(NOOP_WEB_SOCKET, readyEnvelope())
+}
+
+private fun DesktopControlClient.currentTestSocket(): TestSocket? {
+    val field = DesktopControlClient::class.java.getDeclaredField("socket")
+    field.isAccessible = true
+    return field.get(this) as? TestSocket
+}
+
+private class TestSocket(
+    private val delegate: FakeSocket,
+    val listener: () -> WebSocketListener?,
+) : DesktopControlSocket {
+    override fun send(text: String): Boolean = delegate.send(text)
+
+    override fun close() {
+        delegate.close()
+    }
+}
 
 private class FakeSocket : DesktopControlSocket {
     val sent = mutableListOf<String>()
@@ -292,6 +376,15 @@ private class FakeSocket : DesktopControlSocket {
     override fun close() {
         closed = true
     }
+}
+
+private val NOOP_WEB_SOCKET = object : WebSocket {
+    override fun request(): Request = Request.Builder().url("wss://192.168.50.25:41731/control").build()
+    override fun queueSize(): Long = 0L
+    override fun send(text: String): Boolean = true
+    override fun send(bytes: ByteString): Boolean = true
+    override fun close(code: Int, reason: String?): Boolean = true
+    override fun cancel() = Unit
 }
 
 private fun expectRejected(label: String, expected: ControlEnvelopeError, actual: ControlDecodeResult) {

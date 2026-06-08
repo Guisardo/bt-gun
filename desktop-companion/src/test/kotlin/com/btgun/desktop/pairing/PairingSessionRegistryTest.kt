@@ -55,6 +55,7 @@ private fun manualFallbackExposesEndpointCodeAndFingerprintSuffix() {
     expectEquals("manual port", 41731, session.manualPayload.port)
     expectEquals("manual code length", 6, session.manualPayload.code.length)
     expectTrue("manual code digits", session.manualPayload.code.all { it.isDigit() })
+    expectEquals("manual nonce binding", session.qrPayload.desktopNonce, session.manualPayload.desktopNonce)
     expectEquals("manual sid binding", session.sid, session.manualPayload.sid)
     expectEquals("fingerprint suffix", "99aabbcc", session.manualPayload.desktopSpkiSha256Suffix)
 }
@@ -110,9 +111,9 @@ private fun pairingWindowCopyCoversRequiredStatesAndVisibleFallbackOnly() {
     expectContains("manual endpoint", manualHtml, "192.168.50.25:41731")
     expectContains("manual port", manualHtml, "41731")
     expectContains("manual code", manualHtml, session.manualPayload.code)
+    expectContains("manual challenge", manualHtml, session.manualPayload.desktopNonce)
     expectContains("fingerprint suffix", manualHtml, "99aabbcc")
     expectFalse("no qr secret in manual copy", manualHtml.contains(session.qrPayload.qrSecret))
-    expectFalse("no desktop nonce in manual copy", manualHtml.contains(session.qrPayload.desktopNonce))
     expectFalse("no full fingerprint in manual copy", manualHtml.contains(session.qrPayload.desktopSpkiSha256))
 }
 

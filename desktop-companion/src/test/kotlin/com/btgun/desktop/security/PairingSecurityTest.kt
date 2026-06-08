@@ -139,7 +139,8 @@ private fun redactorHidesProofMaterialAndPrivateKeyMarkers() {
     val fingerprintSuffix = "99aabbcc"
     val redacted = SecretRedactor.redact(
         "qr_secret=abcdefghijklmnopqrstuvwxyzABCDEF code=123456 proof=abcdef0123456789 " +
-            "pairing_proof=nonce-abcdef0123456789 private_key=-----BEGIN PRIVATE KEY-----abc " +
+            "pairing_proof=nonce-abcdef0123456789 X-BT-Gun-Pairing-Proof: feedface " +
+            "private_key=-----BEGIN PRIVATE KEY-----abc-----END PRIVATE KEY----- " +
             "fingerprint_suffix=$fingerprintSuffix",
     )
 
@@ -147,6 +148,8 @@ private fun redactorHidesProofMaterialAndPrivateKeyMarkers() {
     expectFalse("no manual code", redacted.contains("123456"))
     expectFalse("no proof", redacted.contains("abcdef0123456789"))
     expectFalse("no private key marker", redacted.contains("BEGIN PRIVATE KEY"))
+    expectFalse("no private key body", redacted.contains("abc-----END"))
+    expectFalse("no header proof", redacted.contains("feedface"))
     expectTrue("fingerprint suffix remains", redacted.contains("fingerprint_suffix=$fingerprintSuffix"))
 }
 

@@ -219,7 +219,9 @@ class PairingWindow(
                 <p><b>Endpoint:</b> ${escapeHtml(payload.host)}:${payload.port}</p>
                 <p><b>Port:</b> ${payload.port}</p>
                 <p><b>6-digit code:</b> ${payload.code}</p>
+                <p><b>Challenge:</b> ${escapeHtml(payload.desktopNonce)}</p>
                 <p><b>Fingerprint suffix:</b> ${escapeHtml(payload.desktopSpkiSha256Suffix)}</p>
+                <p><b>Session id:</b> ${escapeHtml(payload.sid)}</p>
                 </body>
                 </html>
             """.trimIndent()

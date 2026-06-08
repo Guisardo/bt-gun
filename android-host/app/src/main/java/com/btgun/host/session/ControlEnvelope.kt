@@ -109,7 +109,11 @@ object ControlEnvelopeCodec {
         (get(name) as? JsonPrimitive)?.takeIf { it.isString }?.content
 
     private fun JsonObject.intField(name: String): Int? =
-        (get(name) as? JsonPrimitive)?.jsonPrimitive?.longOrNull?.toInt()
+        (get(name) as? JsonPrimitive)
+            ?.jsonPrimitive
+            ?.longOrNull
+            ?.takeIf { it in Int.MIN_VALUE..Int.MAX_VALUE }
+            ?.toInt()
 
     private fun JsonObject.longField(name: String): Long? =
         (get(name) as? JsonPrimitive)?.jsonPrimitive?.longOrNull

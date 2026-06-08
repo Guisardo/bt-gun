@@ -296,12 +296,13 @@ class HostSessionService : Service() {
             )
             return
         }
-        connectDesktopControl(
-            request = DesktopControlConnectionRequest.fromTrustedDesktop(
-                metadata = metadata,
-                androidNonce = newAndroidNonce(),
+        currentState = currentState.copy(
+            desktopLinkState = DesktopLinkState(
+                phase = DesktopLinkPhase.DISCONNECTED,
+                desktopDisplayName = metadata.displayName,
+                fingerprintSuffix = metadata.fingerprintSha256.takeLast(FINGERPRINT_SUFFIX_LENGTH),
+                lastControlError = "Trusted reconnect needs a fresh desktop pairing QR or manual code.",
             ),
-            saveOnSuccess = false,
         )
     }
 
@@ -312,9 +313,10 @@ class HostSessionService : Service() {
         val host = intent?.getStringExtra(EXTRA_MANUAL_HOST).orEmpty()
         val port = intent?.getStringExtra(EXTRA_MANUAL_PORT).orEmpty()
         val code = intent?.getStringExtra(EXTRA_MANUAL_CODE).orEmpty()
+        val desktopNonce = intent?.getStringExtra(EXTRA_MANUAL_DESKTOP_NONCE).orEmpty()
         val suffix = intent?.getStringExtra(EXTRA_MANUAL_FINGERPRINT_SUFFIX).orEmpty()
         val sid = intent?.getStringExtra(EXTRA_MANUAL_SESSION_ID).orEmpty().ifBlank { "manual" }
-        when (val parsed = PairingPayload.parseManual(host, port, code, suffix, sid)) {
+        when (val parsed = PairingPayload.parseManual(host, port, code, desktopNonce, suffix, sid)) {
             is PairingParseResult.Invalid -> {
                 currentState = currentState.copy(
                     desktopLinkState = DesktopLinkState(
@@ -338,8 +340,9 @@ class HostSessionService : Service() {
                     return
                 }
                 connectDesktopControl(
-                    request = DesktopControlConnectionRequest.fromTrustedDesktop(
-                        metadata = trusted.copy(lastHost = parsed.value.host, lastPort = parsed.value.port),
+                    request = DesktopControlConnectionRequest.fromManualPayload(
+                        payload = parsed.value,
+                        trustedDesktop = trusted.copy(lastHost = parsed.value.host, lastPort = parsed.value.port),
                         androidNonce = newAndroidNonce(),
                     ),
                     saveOnSuccess = false,
@@ -359,16 +362,50 @@ class HostSessionService : Service() {
                 fingerprintSuffix = request.config.expectedDesktopSpkiSha256.takeLast(FINGERPRINT_SUFFIX_LENGTH),
             ),
         )
+        desktopControlClient?.close()
+        desktopControlClient = null
         val client = DesktopControlClient(request.config)
-        when (val result = client.connect(request.proofRequest)) {
-            DesktopControlConnectResult.Connected -> {
-                desktopControlClient?.close()
+        when (
+            val result = client.connect(
+                proofRequest = request.proofRequest,
+                onAuthenticated = {
+                    handler.post {
+                        desktopControlClient = client
+                        if (saveOnSuccess) {
+                            trustedDesktopStore.saveTrustedDesktop(request.trustedMetadata(System.currentTimeMillis()))
+                        }
+                        currentState = currentState.copy(
+                            desktopLinkState = client.currentLinkState().copy(
+                                desktopDisplayName = request.displayName,
+                                fingerprintSuffix = request.config.expectedDesktopSpkiSha256.takeLast(FINGERPRINT_SUFFIX_LENGTH),
+                            ),
+                        )
+                    }
+                },
+                onConnectionFailure = { reason ->
+                    handler.post {
+                        if (desktopControlClient === client) {
+                            desktopControlClient = null
+                        }
+                        currentState = currentState.copy(
+                            desktopLinkState = client.currentLinkState().copy(
+                                phase = DesktopLinkPhase.DISCONNECTED,
+                                desktopDisplayName = request.displayName,
+                                fingerprintSuffix = request.config.expectedDesktopSpkiSha256.takeLast(FINGERPRINT_SUFFIX_LENGTH),
+                                lastControlError = reason,
+                            ),
+                        )
+                    }
+                },
+            )
+        ) {
+            DesktopControlConnectResult.Connecting,
+            DesktopControlConnectResult.Connected,
+            -> {
                 desktopControlClient = client
-                if (saveOnSuccess) {
-                    trustedDesktopStore.saveTrustedDesktop(request.trustedMetadata(System.currentTimeMillis()))
-                }
                 currentState = currentState.copy(
                     desktopLinkState = client.currentLinkState().copy(
+                        phase = DesktopLinkPhase.PAIRING_PROOF,
                         desktopDisplayName = request.displayName,
                         fingerprintSuffix = request.config.expectedDesktopSpkiSha256.takeLast(FINGERPRINT_SUFFIX_LENGTH),
                     ),
@@ -791,6 +828,7 @@ class HostSessionService : Service() {
         const val EXTRA_MANUAL_HOST: String = "com.btgun.host.extra.MANUAL_HOST"
         const val EXTRA_MANUAL_PORT: String = "com.btgun.host.extra.MANUAL_PORT"
         const val EXTRA_MANUAL_CODE: String = "com.btgun.host.extra.MANUAL_CODE"
+        const val EXTRA_MANUAL_DESKTOP_NONCE: String = "com.btgun.host.extra.MANUAL_DESKTOP_NONCE"
         const val EXTRA_MANUAL_FINGERPRINT_SUFFIX: String = "com.btgun.host.extra.MANUAL_FINGERPRINT_SUFFIX"
         const val EXTRA_MANUAL_SESSION_ID: String = "com.btgun.host.extra.MANUAL_SESSION_ID"
         const val NOTIFICATION_CHANNEL_ID: String = "bt_gun_host_session"
