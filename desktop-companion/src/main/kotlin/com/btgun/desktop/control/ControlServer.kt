@@ -22,6 +22,8 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 
 class ControlServer(
     private val registry: PairingSessionRegistry,
@@ -65,6 +67,7 @@ class ControlServer(
                         }
                         onSessionStateChanged(ControlServerSessionState.AUTHENTICATED)
                         sendSessionReady(trusted)
+                        sendInitialMetadata(trusted)
                         val heartbeat = HeartbeatMonitor()
                         heartbeat.observePong(System.nanoTime())
                         val livenessJob = launch {
@@ -204,6 +207,46 @@ class ControlServer(
         )
     )
 
+    private suspend fun io.ktor.server.websocket.DefaultWebSocketServerSession.sendInitialMetadata(
+        trustedSession: TrustedPairingSession,
+    ) {
+        sendEnvelope(
+            ControlEnvelope(
+                v = 1,
+                type = ControlMessageType.DIAGNOSTICS,
+                msgId = "desktop-diagnostics",
+                sessionId = trustedSession.sid,
+                seq = 0L,
+                sentElapsedNanos = System.nanoTime(),
+                body = JsonObject(
+                    mapOf(
+                        "sessionState" to JsonPrimitive(DESKTOP_SESSION_CONNECTED),
+                        "desktopIdentitySuffix" to JsonPrimitive(trustedSession.desktopSpkiSha256.takeLast(8)),
+                        "heartbeatAgeMillis" to JsonPrimitive(0L),
+                        "lastControlError" to JsonPrimitive("none"),
+                    ),
+                ),
+            ),
+        )
+        sendEnvelope(
+            ControlEnvelope(
+                v = 1,
+                type = ControlMessageType.PROFILE_METADATA,
+                msgId = "desktop-profile-metadata",
+                sessionId = trustedSession.sid,
+                seq = 0L,
+                sentElapsedNanos = System.nanoTime(),
+                body = JsonObject(
+                    mapOf(
+                        "profileId" to JsonPrimitive(DEFAULT_PROFILE_ID),
+                        "displayName" to JsonPrimitive(DEFAULT_PROFILE_NAME),
+                        "revision" to JsonPrimitive(DEFAULT_PROFILE_REVISION),
+                    ),
+                ),
+            ),
+        )
+    }
+
     private suspend fun io.ktor.server.websocket.DefaultWebSocketServerSession.sendEnvelope(envelope: ControlEnvelope) {
         send(Frame.Text(ControlEnvelopeCodec.encode(envelope)))
     }
@@ -231,6 +274,10 @@ class ControlServer(
     companion object {
         const val DEFAULT_MAX_MESSAGE_BYTES = 16 * 1024
         private const val LIVENESS_POLL_MILLIS = 500L
+        private const val DEFAULT_PROFILE_ID = "default"
+        private const val DEFAULT_PROFILE_NAME = "Default profile"
+        private const val DEFAULT_PROFILE_REVISION = 1L
+        private const val DESKTOP_SESSION_CONNECTED = "connected"
         const val HEADER_DESKTOP_FINGERPRINT = "X-BT-Gun-Desktop-Fingerprint"
         const val HEADER_SESSION = "X-BT-Gun-Session"
         const val HEADER_ANDROID_NONCE = "X-BT-Gun-Android-Nonce"

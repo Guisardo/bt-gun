@@ -407,6 +407,19 @@ class HostSessionService : Service() {
                         )
                     }
                 },
+                onProfileMetadataReceived = { profile ->
+                    handler.post {
+                        val linkState = currentState.desktopLinkState
+                        currentState = currentState.copy(
+                            desktopLinkState = linkState.copy(
+                                desktopDisplayName = request.displayName,
+                                fingerprintSuffix = request.config.expectedDesktopSpkiSha256.takeLast(FINGERPRINT_SUFFIX_LENGTH),
+                                profileDisplayName = profile.displayName,
+                                profileRevision = profile.revision,
+                            ),
+                        )
+                    }
+                },
             )
         ) {
             DesktopControlConnectResult.Connecting,
