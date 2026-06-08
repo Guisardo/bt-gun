@@ -139,7 +139,7 @@ Plans:
   4. Android vibrates the phone for desktop haptic commands and returns ack or failure status.
   5. Android and desktop recover from LAN disconnect without applying old input or playing stale haptics.
 
-**Plans:** 2/5 plans executed
+**Plans:** 3/5 plans executed
 
 ### Phase 5: Desktop Backend Contract and Smoke Harness
 
@@ -242,7 +242,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 | 1. Hardware and Protocol Discovery | 5/5 | Complete | 2026-06-06 |
 | 2. Android Host Live Input | 6/6 | Complete | 2026-06-07 |
 | 3. LAN Pairing and Secure Session | 8/8 | Complete   | 2026-06-08 |
-| 4. Input Stream and Haptic Transport | 2/5 | In Progress|  |
+| 4. Input Stream and Haptic Transport | 3/5 | In Progress|  |
 | 5. Desktop Backend Contract and Smoke Harness | 0/TBD | Not started | - |
 | 6. Windows Virtual Joystick Path | 0/TBD | Not started | - |
 | 7. macOS Virtual Joystick Path | 0/TBD | Not started | - |
