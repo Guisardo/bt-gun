@@ -334,7 +334,7 @@ private fun desktopLinkStateActivatesPairingActionsAndKeepsPacketStreamInactive(
     expectContains("desktop manual action", state.placeholders.desktopLink.body, "Enter manually")
     expectTrue("desktop active", state.placeholders.desktopLink.active)
     expectEquals("packet title", "Packet stream", state.placeholders.packetStream.title)
-    expectEquals("packet body", "Not built yet. Pending Phase 4.", state.placeholders.packetStream.body)
+    expectEquals("packet body", "stopped", state.placeholders.packetStream.body)
     expectFalse("packet inactive", state.placeholders.packetStream.active)
 }
 
@@ -420,7 +420,7 @@ private fun trustedDesktopDisplayDoesNotActivatePacketStream() {
     listOf("packet " + "loss", "jit" + "ter").forEach { forbidden ->
         expectFalse("no $forbidden metric", state.placeholders.desktopLink.body.contains(forbidden, ignoreCase = true))
     }
-    expectEquals("packet body", "Not built yet. Pending Phase 4.", state.placeholders.packetStream.body)
+    expectEquals("packet body", "stopped", state.placeholders.packetStream.body)
     expectFalse("packet inactive", state.placeholders.packetStream.active)
 }
 

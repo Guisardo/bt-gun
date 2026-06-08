@@ -2,7 +2,7 @@
 
 Phase 3 pairing is desktop initiated. Desktop opens one short-lived local session, shows a QR code as the normal path, and keeps a visible manual fallback for scan failures.
 
-This contract covers local pairing, authenticated reliable control, liveness, diagnostics, minimal profile metadata, Phase 4 input stream negotiation, and Phase 4 phone haptic command/result transport. Later phases own desktop virtual joystick behavior, profile mapping, visualizer metrics, and full pattern haptic behavior.
+This contract covers local pairing, authenticated reliable control, liveness, diagnostics, minimal profile metadata, Phase 4 input stream negotiation, input stream lifecycle recovery, and Phase 4 phone haptic command/result transport. Later phases own OS controller backends, desktop aim profiles, visualizer metrics, and full pattern haptic behavior.
 
 ## QR URI
 
@@ -210,6 +210,26 @@ Snapshot frames are authoritative current state and repair dropped edges. Edge f
 
 Motion payload is raw provider/capability/yaw/pitch/roll/raw-aim data only. Android-local preview aim is not product mapping, and desktop profile mapping remains a later desktop responsibility.
 
+## Input Stream Lifecycle
+
+Phase 4 uses these packet-stream lifecycle labels:
+
+| Label | Meaning |
+|-------|---------|
+| `active` | Trusted control is connected and authenticated UDP frames for the current stream config can apply. |
+| `grace` | Reliable control disconnected briefly; UDP for the unchanged session may continue until `controlDisconnectGraceMs` expires. |
+| `stale` | Input timed out or disconnect grace expired. Active buttons/pressed controls are cleared, while last-known raw aim/motion stays visible as stale. |
+| `stopped` | No trusted stream config is active. UDP input must not apply. |
+
+Disconnect and reconnect rules:
+
+- Android may keep sending unchanged-session UDP only inside `controlDisconnectGraceMs`. After grace expires it stops sending until a new trusted `input_stream_config` arrives.
+- Desktop may keep applying unchanged-session UDP only inside `controlDisconnectGraceMs`. After grace expires it rejects frames with `control_grace_expired` and marks packet stream `stale`.
+- A fresh `input_stream_config` resets stream id, auth secret, sequence guard, and stale state. Frames from the old stream id/key must be rejected before apply.
+- A changed trusted control session clears sender and receiver state immediately. The new session needs fresh authenticated control before UDP input is trusted.
+- Stream timeout uses the same receiver state path as replay rejection: buttons, pressed controls, and stick axes clear; raw yaw/pitch/roll/raw-aim and last accepted sequence remain visible with `stale=true`.
+- A short reliable-control disconnect does not cancel an already-started phone pulse. A control session change cancels the active phone pulse and reports `cancelled`.
+
 ## Heartbeat and Liveness
 
 Heartbeat is bidirectional. Either `heartbeat_ping` or `heartbeat_pong` refreshes liveness at the observer's monotonic elapsed timestamp.
@@ -259,6 +279,7 @@ Redact:
 - `qr_secret`
 - six-digit manual `code`
 - `proof` and `pairing_proof` values
+- stream authentication secrets
 - private key markers or local key material
 
 Allowed:
@@ -269,11 +290,10 @@ Allowed:
 
 ## Phase Boundary
 
-Phase 3 defines pairing payload fields, proof verification, trust-anchor behavior, reliable control envelope validation, heartbeat/liveness, limited diagnostics, minimal profile metadata, and the `reserved_haptic_command` type name. Phase 4 defines the `reserved_haptic_command` body and `haptic_result` body.
+Phase 3 defines pairing payload fields, proof verification, trust-anchor behavior, reliable control envelope validation, heartbeat/liveness, limited diagnostics, minimal profile metadata, and the `reserved_haptic_command` type name. Phase 4 defines `input_stream_config`, authenticated UDP input frames, replay/timeout/disconnect recovery, `reserved_haptic_command` body, and `haptic_result` body.
 
 Later phases own:
 
-- high-rate Android-to-desktop transport schemas and parsing
 - desktop virtual-controller input handling
 - full haptic pattern playback and physical gun motor rumble
 - profile mapping behavior and editing

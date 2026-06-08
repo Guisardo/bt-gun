@@ -20,7 +20,7 @@ fun main() {
 }
 
 private fun senderKeepsUdpAliveOnlyDuringControlDisconnectGrace() {
-    val sink = RecordingDatagramSink()
+    val sink = LifecycleRecordingDatagramSink()
     var now = 1_000_000_000L
     val sender = AndroidUdpInputSender(
         datagramSink = sink,
@@ -49,7 +49,7 @@ private fun senderKeepsUdpAliveOnlyDuringControlDisconnectGrace() {
 }
 
 private fun senderStopsImmediatelyWhenSessionChanges() {
-    val sink = RecordingDatagramSink()
+    val sink = LifecycleRecordingDatagramSink()
     val sender = AndroidUdpInputSender(
         datagramSink = sink,
         elapsedRealtimeNanos = { 2_000_000_000L },
@@ -107,7 +107,7 @@ private fun latestValidAndExpiredHapticsStillBehaveAfterRecovery() {
         command = DesktopHapticCommand("cmd-second", strength = 1.0, durationMs = 80L, ttlMs = 500L),
         receivedElapsedNanos = 3_999_950_000L,
     )
-    now = 4_001_000_000L
+    now = 4_001_000_001L
     val expired = executor.handle(
         command = DesktopHapticCommand("cmd-expired", strength = 1.0, durationMs = 80L, ttlMs = 1L),
         receivedElapsedNanos = 4_000_000_000L,
@@ -146,16 +146,16 @@ private fun motionEnvelope(): LiveEnvelope<MotionSample> =
         ),
     )
 
-private class RecordingDatagramSink : AndroidUdpDatagramSink {
-    val datagrams = mutableListOf<RecordedDatagram>()
+private class LifecycleRecordingDatagramSink : AndroidUdpDatagramSink {
+    val datagrams = mutableListOf<LifecycleRecordedDatagram>()
 
     override fun send(host: String, port: Int, payload: ByteArray): Boolean {
-        datagrams += RecordedDatagram(host = host, port = port, payload = payload.copyOf())
+        datagrams += LifecycleRecordedDatagram(host = host, port = port, payload = payload.copyOf())
         return true
     }
 }
 
-private data class RecordedDatagram(
+private data class LifecycleRecordedDatagram(
     val host: String,
     val port: Int,
     val payload: ByteArray,

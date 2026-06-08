@@ -21,13 +21,19 @@ private fun receiverAllowsUnchangedSessionOnlyDuringControlDisconnectGrace() {
 
     expectAccepted(
         "unchanged session accepted during grace",
-        receiver.handleDatagram(UdpInputFrameCodec.encode(frame(sequence = 2L), fixtureConfig()), 2_499_000_000L),
+        receiver.handleDatagram(
+            UdpInputFrameCodec.encode(frame(sequence = 2L, captureElapsedNanos = 2_499_000_000L, sendElapsedNanos = 2_499_000_000L), fixtureConfig()),
+            2_499_000_000L,
+        ),
         sequence = 2L,
     )
     expectRejected(
         "unchanged session rejected after grace",
         InputReplayRejectReason.CONTROL_GRACE_EXPIRED,
-        receiver.handleDatagram(UdpInputFrameCodec.encode(frame(sequence = 3L), fixtureConfig()), 2_501_000_000L),
+        receiver.handleDatagram(
+            UdpInputFrameCodec.encode(frame(sequence = 3L, captureElapsedNanos = 2_501_000_000L, sendElapsedNanos = 2_501_000_000L), fixtureConfig()),
+            2_501_000_000L,
+        ),
     )
     expectEquals("receiver stale after grace", InputStreamLifecycleState.STALE, receiver.lifecycleState)
 }
@@ -46,7 +52,18 @@ private fun receiverRejectsOldUdpFramesAfterFreshReconnect() {
     expectRejected("old stream rejected after reconnect", InputReplayRejectReason.WRONG_STREAM_SESSION, receiver.handleDatagram(oldDatagram, 1_200_000_000L))
     expectAccepted(
         "new stream accepted after fresh auth",
-        receiver.handleDatagram(UdpInputFrameCodec.encode(frame(sequence = 1L, streamSessionId = NEW_STREAM_SESSION_ID_HEX), newFixtureConfig()), 1_200_000_001L),
+        receiver.handleDatagram(
+            UdpInputFrameCodec.encode(
+                frame(
+                    sequence = 1L,
+                    streamSessionId = NEW_STREAM_SESSION_ID_HEX,
+                    captureElapsedNanos = 1_200_000_001L,
+                    sendElapsedNanos = 1_200_000_001L,
+                ),
+                newFixtureConfig(),
+            ),
+            1_200_000_001L,
+        ),
         sequence = 1L,
     )
 }

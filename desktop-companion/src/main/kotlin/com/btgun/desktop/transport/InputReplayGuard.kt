@@ -5,6 +5,7 @@ enum class InputReplayRejectReason {
     WRONG_STREAM_SESSION,
     DUPLICATE_SEQUENCE,
     OLD_SEQUENCE,
+    CONTROL_GRACE_EXPIRED,
     BAD_HMAC,
     MALFORMED,
     AGE_EXPIRED,
