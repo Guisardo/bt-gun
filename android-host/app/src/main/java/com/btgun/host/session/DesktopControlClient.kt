@@ -1,6 +1,7 @@
 package com.btgun.host.session
 
 import android.os.SystemClock
+import com.btgun.host.transport.InputStreamConfig
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
@@ -158,6 +159,7 @@ class DesktopControlClient(
         onConnectionFailure: (String) -> Unit = {},
         onLinkStateChanged: (DesktopLinkState) -> Unit = {},
         onProfileMetadataReceived: (ProfileMetadata) -> Unit = {},
+        onInputStreamConfigReceived: (InputStreamConfig) -> Unit = {},
     ): DesktopControlConnectResult {
         val trust = verifyPresentedFingerprint(authRequest.desktopSpkiSha256)
         if (trust is DesktopControlConnectResult.TrustMismatch) {
@@ -198,6 +200,7 @@ class DesktopControlClient(
                             sendEnvelope = { envelope -> socket?.send(ControlEnvelopeCodec.encode(envelope)) == true },
                             onLinkStateChanged = onLinkStateChanged,
                             onProfileMetadataReceived = onProfileMetadataReceived,
+                            onInputStreamConfigReceived = onInputStreamConfigReceived,
                         )
                     ) {
                         if (!authenticated) {
@@ -344,6 +347,7 @@ class DesktopControlClient(
         sendEnvelope: (ControlEnvelope) -> Boolean,
         onLinkStateChanged: (DesktopLinkState) -> Unit,
         onProfileMetadataReceived: (ProfileMetadata) -> Unit,
+        onInputStreamConfigReceived: (InputStreamConfig) -> Unit,
     ): Boolean =
         when (val decoded = ControlEnvelopeCodec.decode(text, maxBytes = config.maxMessageBytes)) {
             is ControlDecodeResult.Rejected -> {
@@ -387,6 +391,15 @@ class DesktopControlClient(
                             decoded.envelope.body.toProfileMetadata()?.let(onProfileMetadataReceived)
                             false
                         }
+                        ControlMessageType.INPUT_STREAM_CONFIG -> {
+                            val streamConfig = decoded.envelope.body.toInputStreamConfig()
+                            if (streamConfig == null) {
+                                recordControlError("invalid input stream config")
+                            } else {
+                                onInputStreamConfigReceived(streamConfig)
+                            }
+                            false
+                        }
                         else -> false
                     }
                 }
@@ -425,11 +438,30 @@ class DesktopControlClient(
         )
     }
 
+    private fun JsonObject.toInputStreamConfig(): InputStreamConfig? =
+        runCatching {
+            InputStreamConfig(
+                streamSessionIdHex = stringField("streamSessionIdHex") ?: return null,
+                udpHost = stringField("udpHost") ?: return null,
+                udpPort = intField("udpPort") ?: return null,
+                hmacSha256KeyBase64Url = stringField("hmacSha256KeyBase64Url") ?: return null,
+                snapshotHz = intField("snapshotHz") ?: return null,
+                frameAgeLimitMs = longField("frameAgeLimitMs") ?: return null,
+                streamTimeoutMs = longField("streamTimeoutMs") ?: return null,
+                controlDisconnectGraceMs = longField("controlDisconnectGraceMs") ?: return null,
+            )
+        }.getOrNull()
+
     private fun JsonObject.stringField(name: String): String? =
         (get(name) as? JsonPrimitive)?.takeIf { it.isString }?.contentOrNull
 
     private fun JsonObject.longField(name: String): Long? =
         (get(name) as? JsonPrimitive)?.jsonPrimitive?.longOrNull
+
+    private fun JsonObject.intField(name: String): Int? =
+        longField(name)
+            ?.takeIf { value -> value in Int.MIN_VALUE..Int.MAX_VALUE }
+            ?.toInt()
 
     private fun JsonObject.nullableLongField(name: String): Long? =
         if (containsKey(name)) longField(name) else null
