@@ -18,6 +18,7 @@ fun main() {
     clientSendRejectsInvalidEnvelopeBeforeSocketWrite()
     desktopLinkHeartbeatMapsLivenessStates()
     clientPublishesPreAuthCloseAsFailure()
+    clientRespondsToHeartbeatAndAppliesLiveMetadata()
     clientCloseStopsSocketAndDisconnectsLinkState()
     clientUpdatesLinkStateFromHeartbeatDiagnosticsAndErrors()
     profileMetadataModelContainsOnlyRequiredFields()
@@ -251,6 +252,64 @@ private fun clientPublishesPreAuthCloseAsFailure() {
     expectEquals("client close error", "pairing proof rejected", client.currentLinkState().lastControlError)
 }
 
+private fun clientRespondsToHeartbeatAndAppliesLiveMetadata() {
+    val socket = FakeSocket()
+    var listener: WebSocketListener? = null
+    val linkStates = mutableListOf<DesktopLinkState>()
+    val profiles = mutableListOf<ProfileMetadata>()
+    val client = DesktopControlClient(
+        config = DesktopControlClientConfig(
+            url = "wss://192.168.50.25:41731/control",
+            expectedDesktopSpkiSha256 = FINGERPRINT,
+            maxMessageBytes = 512,
+        ),
+        socketFactory = { _, socketListener ->
+            listener = socketListener
+            socket
+        },
+    )
+
+    client.connect(
+        proofRequest = proofRequest(),
+        onLinkStateChanged = linkStates::add,
+        onProfileMetadataReceived = profiles::add,
+    )
+    listener?.onMessage(NOOP_WEB_SOCKET, readyEnvelope())
+    listener?.onMessage(NOOP_WEB_SOCKET, envelopeText(ControlMessageType.HEARTBEAT_PING))
+    listener?.onMessage(
+        NOOP_WEB_SOCKET,
+        envelopeText(
+            type = ControlMessageType.DIAGNOSTICS,
+            body = JsonObject(
+                mapOf(
+                    "sessionState" to JsonPrimitive("degraded"),
+                    "desktopIdentitySuffix" to JsonPrimitive("11223344"),
+                    "heartbeatAgeMillis" to JsonPrimitive(250L),
+                    "lastControlError" to JsonPrimitive("none"),
+                ),
+            ),
+        ),
+    )
+    listener?.onMessage(
+        NOOP_WEB_SOCKET,
+        envelopeText(
+            type = ControlMessageType.PROFILE_METADATA,
+            body = JsonObject(
+                mapOf(
+                    "profileId" to JsonPrimitive("default"),
+                    "displayName" to JsonPrimitive("Default"),
+                    "revision" to JsonPrimitive(2L),
+                ),
+            ),
+        ),
+    )
+
+    val pong = ControlEnvelopeCodec.decode(socket.sent.single()) as ControlDecodeResult.Accepted
+    expectEquals("pong type", ControlMessageType.HEARTBEAT_PONG, pong.envelope.type)
+    expectEquals("diagnostic state", DesktopLinkPhase.DEGRADED, linkStates.last().phase)
+    expectEquals("profile callback", ProfileMetadata("default", "Default", 2L), profiles.single())
+}
+
 
 private fun clientCloseStopsSocketAndDisconnectsLinkState() {
     val socket = FakeSocket()
@@ -349,6 +408,13 @@ private fun envelope(
 
 private fun readyEnvelope(sessionId: String = "sid-1"): String =
     ControlEnvelopeCodec.encode(envelope(ControlMessageType.SESSION_READY, sessionId = sessionId))
+
+private fun envelopeText(
+    type: ControlMessageType,
+    sessionId: String = "sid-1",
+    body: JsonObject = JsonObject(emptyMap()),
+): String =
+    ControlEnvelopeCodec.encode(envelope(type = type, sessionId = sessionId, body = body))
 
 private fun proofRequest(desktopSpkiSha256: String = FINGERPRINT): ControlProofRequest =
     ControlProofRequest(

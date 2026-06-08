@@ -3,6 +3,7 @@ package com.btgun.desktop.security
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.nio.file.StandardCopyOption
 import java.security.KeyFactory
 import java.security.KeyPairGenerator
 import java.security.KeyStore
@@ -49,10 +50,7 @@ class FileDesktopIdentityStore(
         val password = passwordProvider.loadOrCreatePassword()
         if (Files.exists(path)) {
             loadIdentity(password)?.let { return it }
-            loadIdentity(LEGACY_PASSWORD)?.let { identity ->
-                storeIdentity(identity.publicKey ?: return identity, identity.privateKey ?: return identity, password)
-                return identity
-            }
+            quarantineUnreadableIdentity()
         }
 
         val keyPair = KeyPairGenerator.getInstance(KEY_ALGORITHM).apply {
@@ -114,12 +112,30 @@ class FileDesktopIdentityStore(
         private const val SECRET_KEY_ALGORITHM = "RAW"
         private const val PUBLIC_ALIAS = "btgun-desktop-public"
         private const val PRIVATE_ALIAS = "btgun-desktop-private"
-        private val LEGACY_PASSWORD = "bt-gun-desktop-local-identity".toCharArray()
 
         fun spkiSha256(publicKey: PublicKey): String {
             val digest = MessageDigest.getInstance("SHA-256").digest(publicKey.encoded)
             return digest.joinToString(separator = "") { byte -> "%02x".format(byte) }
         }
+    }
+
+    private fun quarantineUnreadableIdentity() {
+        val legacyPath = nextLegacyPath()
+        Files.move(path, legacyPath, StandardCopyOption.ATOMIC_MOVE)
+    }
+
+    private fun nextLegacyPath(): Path {
+        val base = path.resolveSibling("${path.fileName}.legacy-insecure")
+        if (!Files.exists(base)) {
+            return base
+        }
+        for (index in 1..999) {
+            val candidate = path.resolveSibling("${path.fileName}.legacy-insecure.$index")
+            if (!Files.exists(candidate)) {
+                return candidate
+            }
+        }
+        return path.resolveSibling("${path.fileName}.legacy-insecure.${System.currentTimeMillis()}")
     }
 }
 
