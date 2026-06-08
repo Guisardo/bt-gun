@@ -118,7 +118,7 @@ Additional required labels:
 |--------|----------|
 | Desktop link row | Replace Phase 2 placeholder with real state: no desktop, scanning, connecting, proving identity, connected, degraded, disconnected, trust problem. |
 | Primary action | Show `Scan desktop QR` when no trusted desktop is selected. Show `Use trusted desktop` only after a desktop is remembered. |
-| Manual fallback | `Enter manually` is visible next to scan action and opens fields for host/IP, port, and 6-digit code. |
+| Manual fallback | `Enter manually` is visible next to scan action and opens fields for host/IP, port, 6-digit code, and trusted desktop fingerprint suffix. |
 | Trust confirmation | First successful pair stores desktop fingerprint. Reconnect with mismatched fingerprint must block and show `Desktop identity changed`. |
 | Heartbeat | Show heartbeat age in seconds only for pairing/control channel. No packet loss, jitter, frame-rate, or visualizer latency in Phase 3. |
 | Packet stream | Must remain inactive with Phase 4 placeholder copy. Do not make packet stream look connected in Phase 3. |

@@ -19,18 +19,24 @@ data class DesktopLinkState(
     val lastControlError: String? = null,
     val profileDisplayName: String? = null,
     val profileRevision: Long? = null,
-    val primaryActionLabel: String = defaultPrimaryAction(phase, desktopDisplayName),
+    val primaryActionLabelOverride: String? = null,
     val manualActionLabel: String = "Enter manually",
-    val diagnosticText: String = defaultDiagnostic(
-        phase,
-        desktopDisplayName,
-        fingerprintSuffix,
-        heartbeatAgeMillis,
-        lastControlError,
-        profileDisplayName,
-        profileRevision,
-    ),
-)
+    val diagnosticTextOverride: String? = null,
+) {
+    val primaryActionLabel: String
+        get() = primaryActionLabelOverride ?: defaultPrimaryAction(phase, desktopDisplayName)
+
+    val diagnosticText: String
+        get() = diagnosticTextOverride ?: defaultDiagnostic(
+            phase,
+            desktopDisplayName,
+            fingerprintSuffix,
+            heartbeatAgeMillis,
+            lastControlError,
+            profileDisplayName,
+            profileRevision,
+        )
+}
 
 private fun defaultPrimaryAction(
     phase: DesktopLinkPhase,

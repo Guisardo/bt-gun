@@ -32,17 +32,13 @@ data class ManualPairingPayload(
     val host: String,
     val port: Int,
     val code: String,
-    val desktopNonce: String,
     val desktopSpkiSha256Suffix: String,
-    val sid: String,
 ) {
     init {
         require(host.isNotBlank()) { "host must not be blank" }
         require(port in PORT_RANGE) { "port must be between 1 and 65535" }
         require(code.matches(MANUAL_CODE_REGEX)) { "code must be six digits" }
-        require(desktopNonce.matches(HEX_ENTROPY_REGEX)) { "desktopNonce must include enough entropy" }
         require(desktopSpkiSha256Suffix.matches(FINGERPRINT_SUFFIX_REGEX)) { "desktopSpkiSha256Suffix must be visible" }
-        require(sid.isNotBlank()) { "sid must not be blank" }
     }
 }
 
@@ -154,32 +150,24 @@ object PairingPayload {
         host: String,
         port: String,
         code: String,
-        desktopNonce: String,
         desktopSpkiSha256Suffix: String,
-        sid: String,
     ): PairingParseResult<ManualPairingPayload> {
         val normalizedHost = host.trim()
         val normalizedCode = code.trim()
-        val normalizedNonce = desktopNonce.trim().lowercase(Locale.US)
         val normalizedSuffix = desktopSpkiSha256Suffix.trim().lowercase(Locale.US)
-        val normalizedSid = sid.trim()
         val parsedPort = requiredInt("port", port.trim())
 
         if (normalizedHost.isBlank()) return missing("host", qr = false)
         if (parsedPort == null) return malformed("port", qr = false)
         if (!normalizedCode.matches(MANUAL_CODE_REGEX)) return malformed("code", qr = false)
-        if (!normalizedNonce.matches(HEX_ENTROPY_REGEX)) return malformed("desktop_nonce", qr = false)
         if (!normalizedSuffix.matches(FINGERPRINT_SUFFIX_REGEX)) return malformed("desktop_spki_sha256_suffix", qr = false)
-        if (normalizedSid.isBlank()) return missing("sid", qr = false)
 
         return PairingParseResult.Valid(
             ManualPairingPayload(
                 host = normalizedHost,
                 port = parsedPort,
                 code = normalizedCode,
-                desktopNonce = normalizedNonce,
                 desktopSpkiSha256Suffix = normalizedSuffix,
-                sid = normalizedSid,
             ),
         )
     }
@@ -201,8 +189,14 @@ object PairingPayload {
                     ),
                 )
             }
-            val key = decode(keyValue[0])
-            val value = decode(keyValue[1])
+            val key = decode(keyValue[0]) ?: return ParsedFields(
+                values = values,
+                invalid = malformedQueryField(),
+            )
+            val value = decode(keyValue[1]) ?: return ParsedFields(
+                values = values,
+                invalid = malformedQueryField(),
+            )
             if (values.containsKey(key)) {
                 return ParsedFields(
                     values = values,
@@ -219,8 +213,17 @@ object PairingPayload {
         return ParsedFields(values)
     }
 
-    private fun decode(value: String): String =
-        URLDecoder.decode(value, StandardCharsets.UTF_8)
+    private fun decode(value: String): String? =
+        runCatching {
+            URLDecoder.decode(value, StandardCharsets.UTF_8.name())
+        }.getOrNull()
+
+    private fun malformedQueryField(): PairingParseResult.Invalid =
+        invalid(
+            error = PairingPayloadError.MALFORMED_FIELD,
+            message = "Malformed pairing QR field. Rescan the QR code.",
+            recoveryAction = PairingRecoveryAction.RESCAN_QR,
+        )
 
     private fun requiredInt(field: String, value: String?): Int? =
         value?.toIntOrNull()?.takeIf { it in PORT_RANGE || field == "v" }

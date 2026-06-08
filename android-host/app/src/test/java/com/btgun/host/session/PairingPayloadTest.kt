@@ -54,26 +54,20 @@ private fun manualParserRequiresEndpointSixDigitCodeAndFingerprintSuffix() {
         host = "192.168.1.44",
         port = "44383",
         code = "123456",
-        desktopNonce = NONCE,
         desktopSpkiSha256Suffix = "11223344",
-        sid = "session-001",
     )
 
     val valid = expectValid<ManualPairingPayload>("valid manual", result)
     expectEquals("manual host", "192.168.1.44", valid.value.host)
     expectEquals("manual port", 44383, valid.value.port)
     expectEquals("manual code", "123456", valid.value.code)
-    expectEquals("manual nonce", NONCE, valid.value.desktopNonce)
     expectEquals("manual suffix", "11223344", valid.value.desktopSpkiSha256Suffix)
-    expectEquals("manual sid", "session-001", valid.value.sid)
 
     val malformedCode = PairingPayload.parseManual(
         host = "192.168.1.44",
         port = "44383",
         code = "12ab56",
-        desktopNonce = NONCE,
         desktopSpkiSha256Suffix = "11223344",
-        sid = "session-001",
     )
     val invalidCode = expectInvalid("manual code", malformedCode)
     expectEquals("code error", PairingPayloadError.MALFORMED_FIELD, invalidCode.error)
@@ -84,25 +78,21 @@ private fun manualParserRequiresEndpointSixDigitCodeAndFingerprintSuffix() {
         host = "",
         port = "44383",
         code = "123456",
-        desktopNonce = NONCE,
         desktopSpkiSha256Suffix = "11223344",
-        sid = "session-001",
     )
     val invalidHost = expectInvalid("manual host", missingHost)
     expectEquals("host error", PairingPayloadError.MISSING_FIELD, invalidHost.error)
     expectEquals("host field", "host", invalidHost.field)
 
-    val missingSid = PairingPayload.parseManual(
+    val malformedSuffix = PairingPayload.parseManual(
         host = "192.168.1.44",
         port = "44383",
         code = "123456",
-        desktopNonce = NONCE,
-        desktopSpkiSha256Suffix = "11223344",
-        sid = "",
+        desktopSpkiSha256Suffix = "xyz",
     )
-    val invalidSid = expectInvalid("manual sid", missingSid)
-    expectEquals("sid error", PairingPayloadError.MISSING_FIELD, invalidSid.error)
-    expectEquals("sid field", "sid", invalidSid.field)
+    val invalidSuffix = expectInvalid("manual suffix", malformedSuffix)
+    expectEquals("suffix error", PairingPayloadError.MALFORMED_FIELD, invalidSuffix.error)
+    expectEquals("suffix field", "desktop_spki_sha256_suffix", invalidSuffix.field)
 }
 
 private fun validQrUri(): String =

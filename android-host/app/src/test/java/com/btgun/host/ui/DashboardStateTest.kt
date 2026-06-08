@@ -41,6 +41,7 @@ fun main() {
     debugDetailsStayCollapsedUntilToggled()
     desktopLinkStateActivatesPairingActionsAndKeepsPacketStreamInactive()
     desktopLinkStateShowsExpiryReachabilityAndTrustProblemCopy()
+    desktopLinkCopyRecomputesDiagnosticsAndSurfacesControlError()
     trustedDesktopDisplayDoesNotActivatePacketStream()
     phoneHapticsStayLocalOnly()
 }
@@ -351,6 +352,11 @@ private fun desktopLinkStateShowsExpiryReachabilityAndTrustProblemCopy() {
         expectFalse("expired no $forbidden", expired.placeholders.desktopLink.body.contains(forbidden, ignoreCase = true))
     }
     expectFalse("expired packet inactive", expired.placeholders.packetStream.active)
+    expectEquals(
+        "expired current error",
+        "QR expired. Cannot reach desktop. Rescan the QR code or enter the endpoint and 6-digit code manually.",
+        expired.currentError.value,
+    )
 
     val trustProblem = DashboardState.from(
         permissionGateState = permissionGateState(),
@@ -365,6 +371,28 @@ private fun desktopLinkStateShowsExpiryReachabilityAndTrustProblemCopy() {
     expectContains("trust heading", trustProblem.placeholders.desktopLink.body, "Desktop identity changed")
     expectContains("trust body", trustProblem.placeholders.desktopLink.body, "saved fingerprint does not match")
     expectContains("trust suffix", trustProblem.placeholders.desktopLink.body, "11223344")
+}
+
+private fun desktopLinkCopyRecomputesDiagnosticsAndSurfacesControlError() {
+    val copied = DesktopLinkState(
+        phase = DesktopLinkPhase.IDLE,
+    ).copy(
+        phase = DesktopLinkPhase.DISCONNECTED,
+        lastControlError = "SSLPeerUnverifiedException: Hostname 192.168.1.29 not verified",
+    )
+    val state = DashboardState.from(
+        permissionGateState = permissionGateState(),
+        hostSessionState = HostSessionState(),
+        desktopLinkState = copied,
+    )
+
+    expectContains("copy diagnostic phase", state.placeholders.desktopLink.body, "Cannot reach desktop")
+    expectContains("copy diagnostic error", state.placeholders.desktopLink.body, "SSLPeerUnverifiedException")
+    expectEquals(
+        "copy current error",
+        "SSLPeerUnverifiedException: Hostname 192.168.1.29 not verified",
+        state.currentError.value,
+    )
 }
 
 private fun trustedDesktopDisplayDoesNotActivatePacketStream() {

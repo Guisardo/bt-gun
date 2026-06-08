@@ -1,6 +1,7 @@
 package com.btgun.desktop.security
 
 import com.btgun.desktop.pairing.LocalEndpointSelector
+import com.btgun.desktop.pairing.ManualPairingAttemptRequest
 import com.btgun.desktop.pairing.PairingAttemptResult
 import com.btgun.desktop.pairing.PairingProofRequest
 import com.btgun.desktop.pairing.PairingSecurityState
@@ -57,8 +58,12 @@ private fun wrongManualCodeAndQrSecretReject() {
         requestFor(session, wrongQrNonce, proofFor(session, wrongQrNonce, "wrong-qr-secret-material-0000000000")),
         nowEpochMillis = 2_000L,
     )
-    val wrongCode = registry.verifyProof(
-        requestFor(session, wrongCodeNonce, proofFor(session, wrongCodeNonce, "000000")),
+    val wrongCode = registry.verifyManualCode(
+        ManualPairingAttemptRequest(
+            androidNonce = wrongCodeNonce,
+            desktopSpkiSha256 = session.qrPayload.desktopSpkiSha256,
+            code = "000000",
+        ),
         nowEpochMillis = 2_001L,
     )
 
@@ -124,7 +129,7 @@ private fun exhaustedAttemptsLockSession() {
         nowEpochMillis = 2_001L,
     )
     val locked = registry.verifyProof(
-        requestFor(session, "33".repeat(16), proofFor(session, "33".repeat(16), session.manualPayload.code)),
+        requestFor(session, "33".repeat(16), proofFor(session, "33".repeat(16), session.qrPayload.qrSecret)),
         nowEpochMillis = 2_002L,
     )
 

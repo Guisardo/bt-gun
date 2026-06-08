@@ -1,11 +1,11 @@
 package com.btgun.host.session
 
+import android.os.SystemClock
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
-import okhttp3.CertificatePinner
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
@@ -30,10 +30,26 @@ data class DesktopControlClientConfig(
 
 data class ControlProofRequest(
     val sid: String,
-    val androidNonce: String,
-    val desktopSpkiSha256: String,
+    override val androidNonce: String,
+    override val desktopSpkiSha256: String,
     val proofHex: String,
-)
+) : DesktopControlAuthRequest {
+    override val expectedSessionId: String = sid
+}
+
+data class ManualCodeAuthRequest(
+    override val androidNonce: String,
+    override val desktopSpkiSha256: String,
+    val code: String,
+) : DesktopControlAuthRequest {
+    override val expectedSessionId: String? = null
+}
+
+sealed interface DesktopControlAuthRequest {
+    val androidNonce: String
+    val desktopSpkiSha256: String
+    val expectedSessionId: String?
+}
 
 data class ControlDiagnostics(
     val sessionState: String,
@@ -50,7 +66,7 @@ data class ProfileMetadata(
 
 data class DesktopControlConnectionRequest(
     val config: DesktopControlClientConfig,
-    val proofRequest: ControlProofRequest,
+    val authRequest: DesktopControlAuthRequest,
     val displayName: String,
     val host: String,
     val port: Int,
@@ -76,7 +92,7 @@ data class DesktopControlConnectionRequest(
                     url = "wss://${payload.host}:${payload.port}/control",
                     expectedDesktopSpkiSha256 = fingerprint,
                 ),
-                proofRequest = ControlProofRequest(
+                authRequest = ControlProofRequest(
                     sid = payload.sid,
                     androidNonce = androidNonce,
                     desktopSpkiSha256 = fingerprint,
@@ -105,17 +121,10 @@ data class DesktopControlConnectionRequest(
                     url = "wss://${payload.host}:${payload.port}/control",
                     expectedDesktopSpkiSha256 = fingerprint,
                 ),
-                proofRequest = ControlProofRequest(
-                    sid = payload.sid,
+                authRequest = ManualCodeAuthRequest(
                     androidNonce = androidNonce,
                     desktopSpkiSha256 = fingerprint,
-                    proofHex = PairingProof.create(
-                        sid = payload.sid,
-                        desktopNonce = payload.desktopNonce,
-                        androidNonce = androidNonce,
-                        desktopSpkiSha256 = fingerprint,
-                        oneTimeMaterial = payload.code,
-                    ),
+                    code = payload.code,
                 ),
                 displayName = trustedDesktop.displayName,
                 host = payload.host,
@@ -135,20 +144,22 @@ interface DesktopControlSocket {
 class DesktopControlClient(
     private val config: DesktopControlClientConfig,
     private val socketFactory: (Request, WebSocketListener) -> DesktopControlSocket = ::defaultSocket,
+    private val elapsedRealtimeNanos: () -> Long = { SystemClock.elapsedRealtimeNanos() },
 ) {
     private var socket: DesktopControlSocket? = null
     private var lastHeartbeatElapsedNanos: Long? = null
     private var linkState: DesktopLinkState = DesktopLinkState()
     private var authenticated: Boolean = false
+    private var trustedSessionId: String? = null
 
     fun connect(
-        proofRequest: ControlProofRequest,
+        authRequest: DesktopControlAuthRequest,
         onAuthenticated: () -> Unit = {},
         onConnectionFailure: (String) -> Unit = {},
         onLinkStateChanged: (DesktopLinkState) -> Unit = {},
         onProfileMetadataReceived: (ProfileMetadata) -> Unit = {},
     ): DesktopControlConnectResult {
-        val trust = verifyPresentedFingerprint(proofRequest.desktopSpkiSha256)
+        val trust = verifyPresentedFingerprint(authRequest.desktopSpkiSha256)
         if (trust is DesktopControlConnectResult.TrustMismatch) {
             linkState = linkState.copy(
                 phase = DesktopLinkPhase.TRUST_PROBLEM,
@@ -157,13 +168,20 @@ class DesktopControlClient(
             return trust
         }
         authenticated = false
-        val request = Request.Builder()
+        trustedSessionId = authRequest.expectedSessionId
+        lastHeartbeatElapsedNanos = null
+        val requestBuilder = Request.Builder()
             .url(config.url)
             .header("X-BT-Gun-Desktop-Fingerprint", config.expectedDesktopSpkiSha256)
-            .header("X-BT-Gun-Session", proofRequest.sid)
-            .header("X-BT-Gun-Android-Nonce", proofRequest.androidNonce)
-            .header("X-BT-Gun-Pairing-Proof", proofRequest.proofHex)
-            .build()
+            .header("X-BT-Gun-Android-Nonce", authRequest.androidNonce)
+        when (authRequest) {
+            is ControlProofRequest -> requestBuilder
+                .header("X-BT-Gun-Session", authRequest.sid)
+                .header("X-BT-Gun-Pairing-Proof", authRequest.proofHex)
+            is ManualCodeAuthRequest -> requestBuilder
+                .header("X-BT-Gun-Manual-Code", authRequest.code)
+        }
+        val request = requestBuilder.build()
 
         socket = socketFactory(
             request,
@@ -177,7 +195,6 @@ class DesktopControlClient(
                     if (
                         handleServerEnvelope(
                             text = text,
-                            expectedSessionId = proofRequest.sid,
                             sendEnvelope = { envelope -> socket?.send(ControlEnvelopeCodec.encode(envelope)) == true },
                             onLinkStateChanged = onLinkStateChanged,
                             onProfileMetadataReceived = onProfileMetadataReceived,
@@ -193,7 +210,9 @@ class DesktopControlClient(
                 override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
                     socket = null
                     authenticated = false
-                    val reason = t.javaClass.simpleName.ifBlank { "control channel failed" }
+                    trustedSessionId = null
+                    lastHeartbeatElapsedNanos = null
+                    val reason = failureReason(t, response)
                     linkState = linkState.copy(
                         phase = DesktopLinkPhase.DISCONNECTED,
                         lastControlError = reason,
@@ -206,6 +225,8 @@ class DesktopControlClient(
                     socket = null
                     val wasAuthenticated = authenticated
                     authenticated = false
+                    trustedSessionId = null
+                    lastHeartbeatElapsedNanos = null
                     val closeReason = reason.ifBlank { "control channel closed" }
                     linkState = linkState.copy(
                         phase = DesktopLinkPhase.DISCONNECTED,
@@ -223,6 +244,18 @@ class DesktopControlClient(
             fingerprintSuffix = config.expectedDesktopSpkiSha256.takeLast(FINGERPRINT_SUFFIX_LENGTH),
         )
         return DesktopControlConnectResult.Connecting
+    }
+
+    private fun failureReason(error: Throwable, response: Response?): String {
+        val type = error.javaClass.simpleName.ifBlank { "control channel failed" }
+        val message = error.message
+            ?.takeIf { it.isNotBlank() }
+            ?.take(MAX_FAILURE_MESSAGE_CHARS)
+        val httpStatus = response?.let { " http=${it.code}" }
+        return listOfNotNull(
+            type + (message?.let { ": $it" } ?: ""),
+            httpStatus,
+        ).joinToString(separator = "")
     }
 
     fun send(envelope: ControlEnvelope): DesktopControlSendResult {
@@ -250,6 +283,8 @@ class DesktopControlClient(
         socket?.close()
         socket = null
         authenticated = false
+        trustedSessionId = null
+        lastHeartbeatElapsedNanos = null
         linkState = linkState.copy(phase = DesktopLinkPhase.DISCONNECTED)
     }
 
@@ -264,6 +299,13 @@ class DesktopControlClient(
     }
 
     fun refreshLiveness(nowElapsedNanos: Long): DesktopLinkState {
+        if (!authenticated || socket == null) {
+            linkState = linkState.copy(
+                phase = DesktopLinkPhase.DISCONNECTED,
+                heartbeatAgeMillis = heartbeatAgeMillisAt(nowElapsedNanos),
+            )
+            return linkState
+        }
         linkState = linkState.copy(
             phase = livenessPhase(nowElapsedNanos),
             heartbeatAgeMillis = heartbeatAgeMillisAt(nowElapsedNanos),
@@ -299,7 +341,6 @@ class DesktopControlClient(
 
     private fun handleServerEnvelope(
         text: String,
-        expectedSessionId: String,
         sendEnvelope: (ControlEnvelope) -> Boolean,
         onLinkStateChanged: (DesktopLinkState) -> Unit,
         onProfileMetadataReceived: (ProfileMetadata) -> Unit,
@@ -310,23 +351,28 @@ class DesktopControlClient(
                 false
             }
             is ControlDecodeResult.Accepted -> {
-                if (decoded.envelope.sessionId != expectedSessionId) {
+                val expectedSessionId = trustedSessionId
+                if (expectedSessionId != null && decoded.envelope.sessionId != expectedSessionId) {
                     recordControlError("session mismatch")
+                    false
+                } else if (expectedSessionId == null && decoded.envelope.type != ControlMessageType.SESSION_READY) {
+                    recordControlError("session not ready")
                     false
                 } else {
                     when (decoded.envelope.type) {
                         ControlMessageType.SESSION_READY -> {
-                            linkState = linkState.copy(phase = DesktopLinkPhase.CONNECTED)
+                            trustedSessionId = decoded.envelope.sessionId
+                            observeHeartbeat(elapsedRealtimeNanos())
                             true
                         }
                         ControlMessageType.HEARTBEAT_PING -> {
-                            observeHeartbeat(System.nanoTime())
-                            sendEnvelope(heartbeatEnvelope(ControlMessageType.HEARTBEAT_PONG, expectedSessionId))
+                            observeHeartbeat(elapsedRealtimeNanos())
+                            sendEnvelope(heartbeatEnvelope(ControlMessageType.HEARTBEAT_PONG, decoded.envelope.sessionId))
                             onLinkStateChanged(linkState)
                             false
                         }
                         ControlMessageType.HEARTBEAT_PONG -> {
-                            observeHeartbeat(System.nanoTime())
+                            observeHeartbeat(elapsedRealtimeNanos())
                             onLinkStateChanged(linkState)
                             false
                         }
@@ -354,7 +400,7 @@ class DesktopControlClient(
             msgId = "android-${type.wireName}",
             sessionId = sessionId,
             seq = 0L,
-            sentElapsedNanos = System.nanoTime(),
+            sentElapsedNanos = elapsedRealtimeNanos(),
         )
 
     private fun JsonObject.toDiagnostics(): ControlDiagnostics? {
@@ -415,9 +461,9 @@ class DesktopControlClient(
     private companion object {
         private const val FINGERPRINT_SUFFIX_LENGTH = 8
         private const val NANOS_PER_MILLI = 1_000_000L
+        private const val MAX_FAILURE_MESSAGE_CHARS = 160
 
         fun defaultSocket(request: Request, listener: WebSocketListener): DesktopControlSocket {
-            val host = request.url.host
             val pin = request.header("X-BT-Gun-Desktop-Fingerprint")
                 ?: throw IllegalArgumentException("missing expected desktop fingerprint")
             val trustManager = PinnedSpkiTrustManager(pin)
@@ -426,11 +472,6 @@ class DesktopControlClient(
             }
             val client = OkHttpClient.Builder()
                 .sslSocketFactory(sslContext.socketFactory, trustManager)
-                .certificatePinner(
-                    CertificatePinner.Builder()
-                        .add(host, "sha256/${pin.hexToBytes().toByteString().base64()}")
-                        .build(),
-                )
                 .build()
             return OkHttpDesktopControlSocket(client.newWebSocket(request, listener))
         }

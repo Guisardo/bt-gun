@@ -163,6 +163,8 @@ data class DashboardState(
             val placeholders = DashboardPlaceholders(
                 desktopLink = formatDesktopLink(desktopLinkState),
             )
+            val desktopControlError = desktopLinkState.lastControlError
+                ?.takeUnless { it.equals("none", ignoreCase = true) }
             return DashboardState(
                 appTitle = "BT Gun Host",
                 permission = permissionState(permissionGateState),
@@ -181,7 +183,10 @@ data class DashboardState(
                 aimCalibration = DashboardField("Aim calibration", formatCalibration(aimCalibrationState)),
                 recenterState = DashboardField("Recenter state", formatRecenter(reloadHoldState, lastRecenterStatus, nowElapsedNanos)),
                 foregroundService = DashboardField("Foreground service", if (hostSessionState.foregroundActive) "running" else "stopped"),
-                currentError = DashboardField("Current error", hostSessionState.lastError ?: bleConnectionState.lastError ?: "none"),
+                currentError = DashboardField(
+                    "Current error",
+                    hostSessionState.lastError ?: bleConnectionState.lastError ?: desktopControlError ?: "none",
+                ),
                 placeholders = placeholders,
                 phoneHaptic = DashboardPhoneHaptic(
                     label = "Phone haptic",

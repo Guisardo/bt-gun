@@ -13,11 +13,16 @@ fun main() {
     envelopeCodecRejectsOverflowedVersion()
     clientBuildsPinnedWssRequestAndTrustMismatchResult()
     qrPayloadBuildsControlRequestAndProofHeaders()
-    manualPayloadBuildsProofFromCodeAndChallenge()
+    manualPayloadBuildsCodeAuthWithoutSidOrChallenge()
+    manualAuthLearnsSessionIdFromSessionReady()
+    sessionReadyInitializesHeartbeatFreshness()
     trustMismatchMovesToTrustProblemWithoutOpeningSocket()
     clientSendRejectsInvalidEnvelopeBeforeSocketWrite()
     desktopLinkHeartbeatMapsLivenessStates()
+    hardSocketCloseStaysDisconnectedDuringLivenessRefresh()
+    livenessCoordinatorStartsOnlyAfterAuthStopsOnTimeoutAndIgnoresStaleClients()
     clientPublishesPreAuthCloseAsFailure()
+    clientPublishesFullFailureReason()
     clientRespondsToHeartbeatAndAppliesLiveMetadata()
     clientCloseStopsSocketAndDisconnectsLinkState()
     clientUpdatesLinkStateFromHeartbeatDiagnosticsAndErrors()
@@ -108,25 +113,25 @@ private fun qrPayloadBuildsControlRequestAndProofHeaders() {
         },
     )
 
-    val result = client.connect(request.proofRequest)
+    val authRequest = request.authRequest as ControlProofRequest
+    val result = client.connect(authRequest)
 
     expectTrue("qr connecting", result is DesktopControlConnectResult.Connecting)
     expectEquals("qr url", "https://192.168.1.44:44383/control", openedRequests.single().url.toString())
     expectEquals("qr session header", "session-001", openedRequests.single().header("X-BT-Gun-Session"))
     expectEquals("qr nonce header", "11".repeat(16), openedRequests.single().header("X-BT-Gun-Android-Nonce"))
-    expectEquals("qr proof header", request.proofRequest.proofHex, openedRequests.single().header("X-BT-Gun-Pairing-Proof"))
+    expectEquals("qr proof header", authRequest.proofHex, openedRequests.single().header("X-BT-Gun-Pairing-Proof"))
+    expectEquals("qr manual code header", null, openedRequests.single().header("X-BT-Gun-Manual-Code"))
     expectEquals("trusted host", "192.168.1.44", request.trustedMetadata(1L).lastHost)
     expectEquals("trusted fingerprint", FINGERPRINT, request.trustedMetadata(1L).fingerprintSha256)
 }
 
-private fun manualPayloadBuildsProofFromCodeAndChallenge() {
+private fun manualPayloadBuildsCodeAuthWithoutSidOrChallenge() {
     val request = DesktopControlConnectionRequest.fromManualPayload(
         payload = ManualPairingPayload(
-            sid = "session-001",
             host = "192.168.1.44",
             port = 44383,
             code = "123456",
-            desktopNonce = "22".repeat(16),
             desktopSpkiSha256Suffix = FINGERPRINT.takeLast(8),
         ),
         trustedDesktop = TrustedDesktopMetadata(
@@ -138,20 +143,88 @@ private fun manualPayloadBuildsProofFromCodeAndChallenge() {
         ),
         androidNonce = "11".repeat(16),
     )
+    val authRequest = request.authRequest as ManualCodeAuthRequest
+    val openedRequests = mutableListOf<Request>()
+    val client = DesktopControlClient(
+        config = request.config,
+        socketFactory = { openedRequest, _: WebSocketListener ->
+            openedRequests += openedRequest
+            FakeSocket()
+        },
+    )
 
-    expectEquals("manual sid", "session-001", request.proofRequest.sid)
+    val result = client.connect(authRequest)
+
+    expectTrue("manual connecting", result is DesktopControlConnectResult.Connecting)
     expectEquals("manual url", "wss://192.168.1.44:44383/control", request.config.url)
-    expectEquals(
-        "manual proof",
-        PairingProof.create(
-            sid = "session-001",
-            desktopNonce = "22".repeat(16),
+    expectEquals("manual expected sid", null, authRequest.expectedSessionId)
+    expectEquals("manual code", "123456", authRequest.code)
+    expectEquals("manual code header", "123456", openedRequests.single().header("X-BT-Gun-Manual-Code"))
+    expectEquals("manual session header", null, openedRequests.single().header("X-BT-Gun-Session"))
+    expectEquals("manual proof header", null, openedRequests.single().header("X-BT-Gun-Pairing-Proof"))
+}
+
+private fun manualAuthLearnsSessionIdFromSessionReady() {
+    val socket = FakeSocket()
+    var listener: WebSocketListener? = null
+    var authenticated = 0
+    val client = DesktopControlClient(
+        config = DesktopControlClientConfig(
+            url = "wss://192.168.50.25:41731/control",
+            expectedDesktopSpkiSha256 = FINGERPRINT,
+            maxMessageBytes = 512,
+        ),
+        socketFactory = { _, socketListener ->
+            listener = socketListener
+            socket
+        },
+        elapsedRealtimeNanos = { 1_000_000_000L },
+    )
+
+    client.connect(
+        authRequest = ManualCodeAuthRequest(
             androidNonce = "11".repeat(16),
             desktopSpkiSha256 = FINGERPRINT,
-            oneTimeMaterial = "123456",
+            code = "123456",
         ),
-        request.proofRequest.proofHex,
+        onAuthenticated = { authenticated += 1 },
     )
+    listener?.onMessage(NOOP_WEB_SOCKET, readyEnvelope(sessionId = "manual-sid-001"))
+    listener?.onMessage(NOOP_WEB_SOCKET, envelopeText(ControlMessageType.HEARTBEAT_PING, sessionId = "manual-sid-001"))
+
+    val pong = ControlEnvelopeCodec.decode(socket.sent.single()) as ControlDecodeResult.Accepted
+    expectEquals("manual authenticated once", 1, authenticated)
+    expectEquals("manual ready phase", DesktopLinkPhase.CONNECTED, client.currentLinkState().phase)
+    expectEquals("manual pong sid", "manual-sid-001", pong.envelope.sessionId)
+}
+
+private fun sessionReadyInitializesHeartbeatFreshness() {
+    var listener: WebSocketListener? = null
+    var now = 5_000_000_000L
+    val client = DesktopControlClient(
+        config = DesktopControlClientConfig(
+            url = "wss://192.168.50.25:41731/control",
+            expectedDesktopSpkiSha256 = FINGERPRINT,
+            maxMessageBytes = 512,
+        ),
+        socketFactory = { _, socketListener ->
+            listener = socketListener
+            FakeSocket()
+        },
+        elapsedRealtimeNanos = { now },
+    )
+
+    client.connect(proofRequest())
+    listener?.onMessage(NOOP_WEB_SOCKET, readyEnvelope())
+
+    expectEquals("ready freshness phase", DesktopLinkPhase.CONNECTED, client.currentLinkState().phase)
+    expectEquals("ready freshness age", 0L, client.currentLinkState().heartbeatAgeMillis)
+
+    now = 5_900_000_000L
+    val fresh = client.refreshLiveness(nowElapsedNanos = now)
+
+    expectEquals("ready remains fresh", DesktopLinkPhase.CONNECTED, fresh.phase)
+    expectEquals("ready freshness advances", 900L, fresh.heartbeatAgeMillis)
 }
 
 private fun trustMismatchMovesToTrustProblemWithoutOpeningSocket() {
@@ -189,6 +262,7 @@ private fun clientSendRejectsInvalidEnvelopeBeforeSocketWrite() {
             listener = socketListener
             socket
         },
+        elapsedRealtimeNanos = { 1_000_000_000L },
     )
     val connection = client.connect(proofRequest())
     expectTrue("connecting", connection is DesktopControlConnectResult.Connecting)
@@ -224,6 +298,96 @@ private fun desktopLinkHeartbeatMapsLivenessStates() {
     expectEquals("missing link", DesktopLinkPhase.DISCONNECTED, client.currentLinkState().phase)
 }
 
+private fun hardSocketCloseStaysDisconnectedDuringLivenessRefresh() {
+    var listener: WebSocketListener? = null
+    val client = DesktopControlClient(
+        config = DesktopControlClientConfig(
+            url = "wss://192.168.50.25:41731/control",
+            expectedDesktopSpkiSha256 = FINGERPRINT,
+            maxMessageBytes = 512,
+        ),
+        socketFactory = { _, socketListener ->
+            listener = socketListener
+            FakeSocket()
+        },
+        elapsedRealtimeNanos = { 1_000_000_000L },
+    )
+
+    client.connect(proofRequest())
+    listener?.onMessage(NOOP_WEB_SOCKET, readyEnvelope())
+    listener?.onClosed(NOOP_WEB_SOCKET, 1001, "wifi link closed")
+    val refreshed = client.refreshLiveness(nowElapsedNanos = 1_200_000_000L)
+
+    expectEquals("hard close phase", DesktopLinkPhase.DISCONNECTED, refreshed.phase)
+    expectEquals("hard close error", "wifi link closed", refreshed.lastControlError)
+}
+
+private fun livenessCoordinatorStartsOnlyAfterAuthStopsOnTimeoutAndIgnoresStaleClients() {
+    val staleClient = clientWithFakeSocket()
+    staleClient.connect(proofRequest())
+    staleClient.markReadyForTest()
+    val newClient = clientWithFakeSocket()
+    newClient.connect(proofRequest())
+    newClient.markReadyForTest()
+    val currentState = DesktopLinkState(
+        phase = DesktopLinkPhase.CONNECTED,
+        desktopDisplayName = "BT Gun Desktop",
+        fingerprintSuffix = "11223344",
+        profileDisplayName = "Default",
+        profileRevision = 2L,
+    )
+    val coordinator = DesktopLivenessCoordinator()
+
+    val beforeAuth = coordinator.refresh(
+        client = staleClient,
+        currentState = currentState,
+        nowElapsedNanos = 2_500_000_001L,
+    )
+    expectEquals("inactive phase unchanged", DesktopLinkPhase.CONNECTED, beforeAuth.linkState.phase)
+    expectFalse("inactive no polling", beforeAuth.shouldContinuePolling)
+    expectFalse("inactive no close", beforeAuth.shouldCloseClient)
+
+    coordinator.start(staleClient)
+    val degraded = coordinator.refresh(
+        client = staleClient,
+        currentState = currentState,
+        nowElapsedNanos = 2_500_000_001L,
+    )
+    expectEquals("coordinator stale", DesktopLinkPhase.DEGRADED, degraded.linkState.phase)
+    expectEquals("coordinator profile kept", "Default", degraded.linkState.profileDisplayName)
+    expectEquals("coordinator suffix kept", "11223344", degraded.linkState.fingerprintSuffix)
+    expectTrue("coordinator keeps polling", degraded.shouldContinuePolling)
+    expectFalse("coordinator degraded no close", degraded.shouldCloseClient)
+
+    coordinator.start(newClient)
+    val staleIgnored = coordinator.refresh(
+        client = staleClient,
+        currentState = currentState,
+        nowElapsedNanos = 4_000_000_001L,
+    )
+    expectEquals("stale client ignored", DesktopLinkPhase.CONNECTED, staleIgnored.linkState.phase)
+    expectFalse("stale client no clear", staleIgnored.shouldClearClient)
+
+    val expired = coordinator.refresh(
+        client = newClient,
+        currentState = currentState,
+        nowElapsedNanos = 4_000_000_001L,
+    )
+    expectEquals("coordinator expired", DesktopLinkPhase.DISCONNECTED, expired.linkState.phase)
+    expectEquals("coordinator timeout error", DesktopLivenessCoordinator.DEFAULT_TIMEOUT_ERROR, expired.linkState.lastControlError)
+    expectFalse("coordinator stop polling", expired.shouldContinuePolling)
+    expectTrue("coordinator clear client", expired.shouldClearClient)
+    expectTrue("coordinator close timed out client", expired.shouldCloseClient)
+
+    val afterTimeout = coordinator.refresh(
+        client = newClient,
+        currentState = currentState,
+        nowElapsedNanos = 4_100_000_000L,
+    )
+    expectEquals("coordinator stopped after timeout", DesktopLinkPhase.CONNECTED, afterTimeout.linkState.phase)
+    expectFalse("coordinator no polling after timeout", afterTimeout.shouldContinuePolling)
+}
+
 private fun clientPublishesPreAuthCloseAsFailure() {
     var listener: WebSocketListener? = null
     val stateChanges = mutableListOf<DesktopLinkState>()
@@ -241,7 +405,7 @@ private fun clientPublishesPreAuthCloseAsFailure() {
     )
 
     client.connect(
-        proofRequest = proofRequest(),
+        authRequest = proofRequest(),
         onConnectionFailure = failures::add,
         onLinkStateChanged = stateChanges::add,
     )
@@ -250,6 +414,36 @@ private fun clientPublishesPreAuthCloseAsFailure() {
     expectEquals("failure reason", listOf("pairing proof rejected"), failures)
     expectEquals("close state", DesktopLinkPhase.DISCONNECTED, stateChanges.last().phase)
     expectEquals("client close error", "pairing proof rejected", client.currentLinkState().lastControlError)
+}
+
+private fun clientPublishesFullFailureReason() {
+    var listener: WebSocketListener? = null
+    val failures = mutableListOf<String>()
+    val client = DesktopControlClient(
+        config = DesktopControlClientConfig(
+            url = "wss://192.168.50.25:41731/control",
+            expectedDesktopSpkiSha256 = FINGERPRINT,
+            maxMessageBytes = 512,
+        ),
+        socketFactory = { _, socketListener ->
+            listener = socketListener
+            FakeSocket()
+        },
+    )
+
+    client.connect(
+        authRequest = proofRequest(),
+        onConnectionFailure = failures::add,
+    )
+    listener?.onFailure(NOOP_WEB_SOCKET, javax.net.ssl.SSLPeerUnverifiedException("Hostname 192.168.50.25 not verified"), null)
+
+    expectEquals(
+        "failure reason",
+        listOf("SSLPeerUnverifiedException: Hostname 192.168.50.25 not verified"),
+        failures,
+    )
+    expectEquals("failure state", DesktopLinkPhase.DISCONNECTED, client.currentLinkState().phase)
+    expectEquals("failure error", failures.single(), client.currentLinkState().lastControlError)
 }
 
 private fun clientRespondsToHeartbeatAndAppliesLiveMetadata() {
@@ -267,10 +461,11 @@ private fun clientRespondsToHeartbeatAndAppliesLiveMetadata() {
             listener = socketListener
             socket
         },
+        elapsedRealtimeNanos = { 1_000_000_000L },
     )
 
     client.connect(
-        proofRequest = proofRequest(),
+        authRequest = proofRequest(),
         onLinkStateChanged = linkStates::add,
         onProfileMetadataReceived = profiles::add,
     )
@@ -320,6 +515,7 @@ private fun clientCloseStopsSocketAndDisconnectsLinkState() {
             maxMessageBytes = 512,
         ),
         socketFactory = { _, _ -> socket },
+        elapsedRealtimeNanos = { 1_000_000_000L },
     )
     client.connect(proofRequest())
     client.markReadyForTest()
@@ -436,6 +632,7 @@ private fun clientWithFakeSocket(): DesktopControlClient {
             listener = socketListener
             TestSocket(FakeSocket(), { listener })
         },
+        elapsedRealtimeNanos = { 1_000_000_000L },
     )
 }
 

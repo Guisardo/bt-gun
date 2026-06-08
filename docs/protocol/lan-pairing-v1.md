@@ -37,18 +37,16 @@ Fields shown:
 |-------|------|---------|
 | Host | string | Same selected endpoint host as the QR payload. |
 | Port | integer | Same endpoint port as the QR payload. |
-| Code | six decimal digits | One-time code bound to the active `sid`. |
-| Challenge | lowercase hex string | Same `desktop_nonce` used by the proof transcript. |
+| Code | six decimal digits | One-time code bound to the active desktop pairing session. |
 | Fingerprint suffix | lowercase hex string | Last eight characters of `desktop_spki_sha256` for visual confirmation. |
-| Session id | string | Same `sid`, used internally for binding. |
 
 The manual code has the same expiry as the QR material. Starting a new desktop pairing window replaces previous one-time QR and manual material.
 
-Android manual entry validates nonblank host, port `1..65535`, a six-digit code, a lowercase desktop challenge, a lowercase fingerprint suffix, and a nonblank session id before any connection attempt. Manual connect uses the saved trusted desktop fingerprint metadata to recover the full SPKI hash, then proves the active `sid` with the displayed code and challenge. QR is still the first-trust path that can save full fingerprint metadata.
+Android manual entry validates nonblank host, port `1..65535`, a six-digit code, and enough lowercase fingerprint suffix characters to identify exactly one saved trusted desktop before any connection attempt. Manual connect uses the saved trusted desktop fingerprint metadata to recover the full SPKI hash, then sends the code over the pinned TLS control handshake. Desktop authenticates the code against its single active pairing session without Android sending or knowing `sid` or `desktop_nonce`. QR is still the first-trust path that can save full fingerprint metadata.
 
-## Proof Transcript
+## QR Proof Transcript
 
-Before any trusted control state is accepted, Android proves possession of the one-time QR secret or manual code. The proof is an HMAC-SHA256 hex string using the one-time material as the HMAC key. This proof transcript defines replay, rate limit, and fingerprint mismatch handling for pairing.
+Before any trusted control state is accepted through QR, Android proves possession of the one-time QR secret. The proof is an HMAC-SHA256 hex string using the QR secret as the HMAC key. This proof transcript defines replay, rate limit, and fingerprint mismatch handling for QR pairing.
 
 Transcript string:
 
@@ -58,10 +56,22 @@ sid={sid}
 desktop_nonce={desktop_nonce}
 android_nonce={android_nonce}
 desktop_spki_sha256={desktop_spki_sha256}
-one_time_material={qr_secret-or-manual-code}
+one_time_material={qr_secret}
 ```
 
-Field order is fixed. Implementations must reject proofs built with any different order, label, nonce, session id, fingerprint, or one-time material.
+For QR, `one_time_material` is `qr_secret`. Field order is fixed. Implementations must reject proofs built with any different order, label, nonce, session id, fingerprint, or one-time material.
+
+## Manual Code Authentication
+
+Manual pairing does not use the QR proof transcript because Android does not know `sid` or `desktop_nonce`. Android opens the pinned TLS control channel using the saved desktop fingerprint and sends these authentication headers:
+
+| Header | Meaning |
+|--------|---------|
+| `X-BT-Gun-Desktop-Fingerprint` | Full saved trusted desktop SPKI SHA-256 fingerprint. |
+| `X-BT-Gun-Android-Nonce` | Fresh Android nonce for replay defense. |
+| `X-BT-Gun-Manual-Code` | Six-digit manual code shown by the desktop. |
+
+Desktop validates the fingerprint, current active session, expiry, rate limit, fresh Android nonce, and manual code. On success it consumes the active session and returns `session_ready` with the trusted `sessionId`; Android uses that `sessionId` for later control envelopes.
 
 Rules:
 
@@ -90,7 +100,7 @@ Mismatch handling must preserve the old stored fingerprint until an explicit re-
 
 ## Reliable Control Channel
 
-The reliable control channel is WebSocket-style over TLS using the pinned desktop SPKI fingerprint. Desktop accepts trusted control messages only after pairing proof succeeds. Android sends the proof and fingerprint metadata in connection request headers, then waits for a `session_ready` envelope before saving first trust or sending trusted control messages.
+The reliable control channel is WebSocket-style over TLS using the pinned desktop SPKI fingerprint. Desktop accepts trusted control messages only after QR proof or manual code authentication succeeds. Android sends QR proof or manual-code authentication headers, then waits for a `session_ready` envelope before saving first trust or sending trusted control messages.
 
 Control envelopes are JSON objects with these fields:
 

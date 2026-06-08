@@ -1,6 +1,7 @@
 package com.btgun.desktop.control
 
 import com.btgun.desktop.pairing.PairingAttemptResult
+import com.btgun.desktop.pairing.ManualPairingAttemptRequest
 import com.btgun.desktop.pairing.PairingProofRequest
 import com.btgun.desktop.pairing.PairingSessionRegistry
 import com.btgun.desktop.pairing.TrustedPairingSession
@@ -62,7 +63,7 @@ class ControlServer(
                         onSessionStateChanged(ControlServerSessionState.ANDROID_CONNECTED)
                         val trusted = authenticate(headers = call.request.headers, nowEpochMillis = System.currentTimeMillis())
                         if (trusted == null) {
-                            close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "pairing proof rejected"))
+                            close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "pairing authentication rejected"))
                             return@webSocket
                         }
                         onSessionStateChanged(ControlServerSessionState.AUTHENTICATED)
@@ -147,6 +148,23 @@ class ControlServer(
             }
         }
 
+    fun authenticate(
+        manualRequest: ManualPairingAttemptRequest,
+        nowEpochMillis: Long = System.currentTimeMillis(),
+    ): ControlAuthenticationResult =
+        when (val proof = registry.verifyManualCode(manualRequest, nowEpochMillis)) {
+            is PairingAttemptResult.Accepted -> {
+                onSessionStateChanged(ControlServerSessionState.AUTHENTICATED)
+                ControlAuthenticationResult.Accepted(proof.trustedSession)
+            }
+            else -> {
+                if (proof is PairingAttemptResult.RejectedRateLimited) {
+                    onSessionStateChanged(ControlServerSessionState.RATE_LIMITED)
+                }
+                ControlAuthenticationResult.Rejected(proof)
+            }
+        }
+
     fun handleTrustedEnvelope(trustedSession: TrustedPairingSession, text: String): ControlServerResult =
         when (val decoded = ControlEnvelopeCodec.decode(text, maxBytes = maxMessageBytes)) {
             is ControlDecodeResult.Rejected -> ControlServerResult.RejectedEnvelope(decoded.error)
@@ -185,13 +203,30 @@ class ControlServer(
     }
 
     private fun authenticate(headers: io.ktor.http.Headers, nowEpochMillis: Long): TrustedPairingSession? {
-        val request = PairingProofRequest(
-            sid = headers[HEADER_SESSION] ?: return null,
-            androidNonce = headers[HEADER_ANDROID_NONCE] ?: return null,
-            desktopSpkiSha256 = headers[HEADER_DESKTOP_FINGERPRINT] ?: return null,
-            proofHex = headers[HEADER_PAIRING_PROOF] ?: return null,
-        )
-        return (authenticate(request, nowEpochMillis) as? ControlAuthenticationResult.Accepted)?.trustedSession
+        val androidNonce = headers[HEADER_ANDROID_NONCE] ?: return null
+        val desktopFingerprint = headers[HEADER_DESKTOP_FINGERPRINT] ?: return null
+        val manualCode = headers[HEADER_MANUAL_CODE]
+        val result = if (manualCode != null) {
+            authenticate(
+                ManualPairingAttemptRequest(
+                    androidNonce = androidNonce,
+                    desktopSpkiSha256 = desktopFingerprint,
+                    code = manualCode,
+                ),
+                nowEpochMillis,
+            )
+        } else {
+            authenticate(
+                PairingProofRequest(
+                    sid = headers[HEADER_SESSION] ?: return null,
+                    androidNonce = androidNonce,
+                    desktopSpkiSha256 = desktopFingerprint,
+                    proofHex = headers[HEADER_PAIRING_PROOF] ?: return null,
+                ),
+                nowEpochMillis,
+            )
+        }
+        return (result as? ControlAuthenticationResult.Accepted)?.trustedSession
     }
 
     private suspend fun io.ktor.server.websocket.DefaultWebSocketServerSession.sendSessionReady(
@@ -282,6 +317,7 @@ class ControlServer(
         const val HEADER_SESSION = "X-BT-Gun-Session"
         const val HEADER_ANDROID_NONCE = "X-BT-Gun-Android-Nonce"
         const val HEADER_PAIRING_PROOF = "X-BT-Gun-Pairing-Proof"
+        const val HEADER_MANUAL_CODE = "X-BT-Gun-Manual-Code"
     }
 }
 
