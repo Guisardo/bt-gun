@@ -204,7 +204,7 @@ Android sends fixed-size binary UDP frames authenticated with HMAC-SHA256 over b
 | 80 | 8 | source sensor elapsed nanos | Sensor timestamp provenance. |
 | 88 | 32 | HMAC-SHA256 tag | Full tag over bytes `0..87`. |
 
-Desktop must reject malformed length, wrong magic, unsupported version, unknown type, wrong stream id, wrong trusted session, bad tag, duplicate or old sequence, and age-expired frames before applying input.
+Desktop must reject malformed length, wrong magic, unsupported version, unknown type, wrong stream id, wrong trusted session, bad tag, and duplicate or old sequence before applying input. Once a trusted sender-to-receiver clock offset is negotiated, desktop must also reject frames outside `frameAgeLimitMs`.
 
 Snapshot frames are authoritative current state and repair dropped edges. Edge frames are opportunistic low-latency control changes. A late edge older than the newest accepted sequence must be dropped. Stream timeout clears active buttons/pressed controls; aim remains last-known and marked stale for downstream status.
 
