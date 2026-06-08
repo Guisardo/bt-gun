@@ -1,11 +1,17 @@
 package com.btgun.host.transport
 
 import java.io.File
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
+import java.util.Base64
+import javax.crypto.Mac
+import javax.crypto.spec.SecretKeySpec
 
 fun main() {
     codecConstantsMatchWireContract()
     goldenSnapshotAndEdgeFramesRoundTrip()
     decoderRejectsMalformedOrUntrustedFrames()
+    decoderRejectsAuthenticatedMalformedFields()
     debugDecoderRedactsSecrets()
     sourceContractExcludesPreviewAimAndJsonUdp()
 }
@@ -98,6 +104,33 @@ private fun decoderRejectsMalformedOrUntrustedFrames() {
     expectRejected("bad hmac", UdpInputFrameRejectReason.BAD_HMAC, UdpInputFrameCodec.authenticateAndDecode(mutated(119, 0x00), config))
 }
 
+private fun decoderRejectsAuthenticatedMalformedFields() {
+    val config = fixtureConfig()
+
+    expectRejected(
+        "zero sequence",
+        UdpInputFrameRejectReason.MALFORMED_FIELD,
+        UdpInputFrameCodec.authenticateAndDecode(authenticatedLongMutation(UdpInputFrameCodec.OFFSET_SEQUENCE, 0L), config),
+    )
+    expectRejected(
+        "negative capture timestamp",
+        UdpInputFrameRejectReason.MALFORMED_FIELD,
+        UdpInputFrameCodec.authenticateAndDecode(authenticatedLongMutation(UdpInputFrameCodec.OFFSET_CAPTURE_ELAPSED_NANOS, -1L), config),
+    )
+    expectRejected(
+        "send before capture",
+        UdpInputFrameRejectReason.MALFORMED_FIELD,
+        UdpInputFrameCodec.authenticateAndDecode(
+            authenticatedMutation { bytes ->
+                val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.BIG_ENDIAN)
+                buffer.putLong(UdpInputFrameCodec.OFFSET_CAPTURE_ELAPSED_NANOS, 500L)
+                buffer.putLong(UdpInputFrameCodec.OFFSET_SEND_ELAPSED_NANOS, 499L)
+            },
+            config,
+        ),
+    )
+}
+
 private fun debugDecoderRedactsSecrets() {
     val config = fixtureConfig()
     val summary = UdpInputFrameCodec.debugDecode(GOLDEN_SNAPSHOT_FRAME_HEX.hexToBytes(), config).toString()
@@ -137,6 +170,24 @@ private fun expectRejected(label: String, expected: UdpInputFrameRejectReason, a
 
 private fun mutated(offset: Int, value: Int): ByteArray =
     GOLDEN_SNAPSHOT_FRAME_HEX.hexToBytes().also { it[offset] = value.toByte() }
+
+private fun authenticatedLongMutation(offset: Int, value: Long): ByteArray =
+    authenticatedMutation { bytes ->
+        ByteBuffer.wrap(bytes).order(ByteOrder.BIG_ENDIAN).putLong(offset, value)
+    }
+
+private fun authenticatedMutation(mutator: (ByteArray) -> Unit): ByteArray =
+    GOLDEN_SNAPSHOT_FRAME_HEX.hexToBytes().also { bytes ->
+        mutator(bytes)
+        hmac(bytes.copyOfRange(0, UdpInputFrameCodec.OFFSET_HMAC_TAG))
+            .copyInto(bytes, UdpInputFrameCodec.OFFSET_HMAC_TAG)
+    }
+
+private fun hmac(input: ByteArray): ByteArray {
+    val mac = Mac.getInstance("HmacSHA256")
+    mac.init(SecretKeySpec(Base64.getUrlDecoder().decode(HMAC_KEY_BASE64URL), "HmacSHA256"))
+    return mac.doFinal(input)
+}
 
 private fun String.hexToBytes(): ByteArray =
     chunked(2).map { it.toInt(16).toByte() }.toByteArray()
