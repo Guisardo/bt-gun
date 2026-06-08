@@ -377,6 +377,8 @@ private fun trustedDesktopDisplayDoesNotActivatePacketStream() {
             fingerprintSuffix = "11223344",
             heartbeatAgeMillis = 1_500L,
             lastControlError = "none",
+            profileDisplayName = "Default profile",
+            profileRevision = 1L,
         ),
     )
 
@@ -384,6 +386,7 @@ private fun trustedDesktopDisplayDoesNotActivatePacketStream() {
     expectContains("trusted action", state.placeholders.desktopLink.body, "Use trusted desktop")
     expectContains("trusted suffix", state.placeholders.desktopLink.body, "11223344")
     expectContains("heartbeat seconds", state.placeholders.desktopLink.body, "heartbeat=1s")
+    expectContains("profile metadata", state.placeholders.desktopLink.body, "Default profile rev=1")
     listOf("packet " + "loss", "jit" + "ter").forEach { forbidden ->
         expectFalse("no $forbidden metric", state.placeholders.desktopLink.body.contains(forbidden, ignoreCase = true))
     }

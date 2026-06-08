@@ -17,9 +17,19 @@ data class DesktopLinkState(
     val fingerprintSuffix: String? = null,
     val heartbeatAgeMillis: Long? = null,
     val lastControlError: String? = null,
+    val profileDisplayName: String? = null,
+    val profileRevision: Long? = null,
     val primaryActionLabel: String = defaultPrimaryAction(phase, desktopDisplayName),
     val manualActionLabel: String = "Enter manually",
-    val diagnosticText: String = defaultDiagnostic(phase, desktopDisplayName, fingerprintSuffix, heartbeatAgeMillis, lastControlError),
+    val diagnosticText: String = defaultDiagnostic(
+        phase,
+        desktopDisplayName,
+        fingerprintSuffix,
+        heartbeatAgeMillis,
+        lastControlError,
+        profileDisplayName,
+        profileRevision,
+    ),
 )
 
 private fun defaultPrimaryAction(
@@ -39,6 +49,8 @@ private fun defaultDiagnostic(
     fingerprintSuffix: String?,
     heartbeatAgeMillis: Long?,
     lastControlError: String?,
+    profileDisplayName: String?,
+    profileRevision: Long?,
 ): String {
     val base = when (phase) {
         DesktopLinkPhase.IDLE -> if (desktopDisplayName == null) {
@@ -61,5 +73,6 @@ private fun defaultDiagnostic(
         fingerprintSuffix?.let { "fingerprint_suffix=$it" },
         heartbeatAgeMillis?.let { "heartbeat=${it / 1_000L}s" },
         lastControlError?.let { "last_control_error=$it" },
+        profileDisplayName?.let { profile -> "profile=$profile" + (profileRevision?.let { " rev=$it" } ?: "") },
     ).joinToString(" | ")
 }
