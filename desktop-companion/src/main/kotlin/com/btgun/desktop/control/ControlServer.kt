@@ -2,6 +2,7 @@ package com.btgun.desktop.control
 
 import com.btgun.desktop.transport.InputStreamConfig
 import com.btgun.desktop.haptics.HapticCommand
+import com.btgun.desktop.pairing.LocalEndpoint
 import com.btgun.desktop.pairing.PairingAttemptResult
 import com.btgun.desktop.pairing.ManualPairingAttemptRequest
 import com.btgun.desktop.pairing.PairingProofRequest
@@ -33,8 +34,8 @@ import kotlinx.serialization.json.JsonPrimitive
 class ControlServer(
     private val registry: PairingSessionRegistry,
     private val maxMessageBytes: Int = DEFAULT_MAX_MESSAGE_BYTES,
-    private val udpHost: String = registry.activeSession?.endpoint?.host ?: DEFAULT_UDP_HOST,
-    private val udpPort: Int = registry.activeSession?.endpoint?.port ?: DEFAULT_UDP_PORT,
+    private val udpHost: String? = null,
+    private val udpPort: Int? = null,
     private val streamSecretFactory: () -> ByteArray = {
         ByteArray(STREAM_SECRET_BYTES).also(secureRandom::nextBytes)
     },
@@ -43,10 +44,14 @@ class ControlServer(
     var onControlEnvelopeAccepted: (ControlEnvelope) -> Unit = {}
 
     private var stopServer: (() -> Unit)? = null
+    private var activeUdpHost: String = DEFAULT_UDP_HOST
+    private var activeUdpPort: Int = DEFAULT_UDP_PORT
 
     fun start(port: Int, host: String = "0.0.0.0"): ControlServer {
         stop()
-        val certificateHost = registry.activeSession?.endpoint?.host ?: host
+        val endpoint = registry.activeSession?.endpoint
+        updateActiveUdpEndpoint(endpoint = endpoint, fallbackHost = host, fallbackPort = port)
+        val certificateHost = endpoint?.host ?: host
         val tls = DesktopTlsIdentity.keyStoreFor(registry.desktopIdentity(), certificateHost)
         val server = embeddedServer(
             Netty,
@@ -144,9 +149,11 @@ class ControlServer(
     fun authenticate(
         proofRequest: PairingProofRequest,
         nowEpochMillis: Long = System.currentTimeMillis(),
-    ): ControlAuthenticationResult =
-        when (val proof = registry.verifyProof(proofRequest, nowEpochMillis)) {
+    ): ControlAuthenticationResult {
+        val pendingEndpoint = registry.activeSession?.takeIf { it.sid == proofRequest.sid }?.endpoint
+        return when (val proof = registry.verifyProof(proofRequest, nowEpochMillis)) {
             is PairingAttemptResult.Accepted -> {
+                updateActiveUdpEndpoint(endpoint = pendingEndpoint)
                 onSessionStateChanged(ControlServerSessionState.AUTHENTICATED)
                 ControlAuthenticationResult.Accepted(proof.trustedSession)
             }
@@ -157,13 +164,16 @@ class ControlServer(
                 ControlAuthenticationResult.Rejected(proof)
             }
         }
+    }
 
     fun authenticate(
         manualRequest: ManualPairingAttemptRequest,
         nowEpochMillis: Long = System.currentTimeMillis(),
-    ): ControlAuthenticationResult =
-        when (val proof = registry.verifyManualCode(manualRequest, nowEpochMillis)) {
+    ): ControlAuthenticationResult {
+        val pendingEndpoint = registry.activeSession?.endpoint
+        return when (val proof = registry.verifyManualCode(manualRequest, nowEpochMillis)) {
             is PairingAttemptResult.Accepted -> {
+                updateActiveUdpEndpoint(endpoint = pendingEndpoint)
                 onSessionStateChanged(ControlServerSessionState.AUTHENTICATED)
                 ControlAuthenticationResult.Accepted(proof.trustedSession)
             }
@@ -174,6 +184,7 @@ class ControlServer(
                 ControlAuthenticationResult.Rejected(proof)
             }
         }
+    }
 
     fun handleTrustedEnvelope(trustedSession: TrustedPairingSession, text: String): ControlServerResult =
         when (val decoded = ControlEnvelopeCodec.decode(text, maxBytes = maxMessageBytes)) {
@@ -367,8 +378,8 @@ class ControlServer(
     private fun freshInputStreamConfig(): InputStreamConfig =
         InputStreamConfig(
             streamSessionIdHex = streamSecretFactory().copyOf(STREAM_ID_BYTES).toHex(),
-            udpHost = udpHost,
-            udpPort = udpPort,
+            udpHost = activeUdpHost,
+            udpPort = activeUdpPort,
             hmacSha256KeyBase64Url = Base64.getUrlEncoder().withoutPadding().encodeToString(
                 streamSecretFactory().copyOf(STREAM_SECRET_BYTES),
             ),
@@ -377,6 +388,15 @@ class ControlServer(
             streamTimeoutMs = DEFAULT_STREAM_TIMEOUT_MILLIS,
             controlDisconnectGraceMs = DEFAULT_CONTROL_DISCONNECT_GRACE_MILLIS,
         )
+
+    private fun updateActiveUdpEndpoint(
+        endpoint: LocalEndpoint?,
+        fallbackHost: String = DEFAULT_UDP_HOST,
+        fallbackPort: Int = DEFAULT_UDP_PORT,
+    ) {
+        activeUdpHost = udpHost ?: endpoint?.host ?: fallbackHost
+        activeUdpPort = udpPort ?: endpoint?.port ?: fallbackPort
+    }
 
     companion object {
         const val DEFAULT_MAX_MESSAGE_BYTES = 16 * 1024

@@ -38,6 +38,7 @@ fun main() {
     controlServerBuildsTrustedHapticCommandEnvelope()
     controlServerAcceptsHapticResultAfterProof()
     controlServerSendsFreshInputStreamConfigAfterTrustedSession()
+    controlServerUsesPairingEndpointForInputStreamConfigWhenConstructedBeforePairing()
 }
 
 private fun envelopeCodecAcceptsOnlyVersionOneAndKnownTypes() {
@@ -355,6 +356,27 @@ private fun controlServerSendsFreshInputStreamConfigAfterTrustedSession() {
     listOf("qrSecret", "qr_secret", "manualCode", "manual code", "pairingProof", "proof").forEach { secret ->
         expectTrue("config body excludes $secret", first.body.toString().contains(secret, ignoreCase = true).not())
     }
+}
+
+private fun controlServerUsesPairingEndpointForInputStreamConfigWhenConstructedBeforePairing() {
+    val registry = testRegistry()
+    val server = ControlServer(
+        registry = registry,
+        maxMessageBytes = 2048,
+        streamSecretFactory = incrementalSecretFactory(),
+    )
+    val session = registry.startPairing(nowEpochMillis = 1_000L)
+    val trusted = server.authenticate(proofRequestFor(session, "dd".repeat(16)), nowEpochMillis = 2_000L)
+    expectTrue("authenticated", trusted is ControlAuthenticationResult.Accepted)
+
+    val envelope = server.inputStreamConfigEnvelopeFor(
+        trustedSession = (trusted as ControlAuthenticationResult.Accepted).trustedSession,
+        nowElapsedNanos = 3_000_000_000L,
+    )
+
+    expectEquals("pairing endpoint host", session.endpoint.host, envelope.body.stringField("udpHost"))
+    expectEquals("pairing endpoint port", session.endpoint.port.toLong(), envelope.body.longField("udpPort"))
+    expectTrue("not loopback fallback", envelope.body.stringField("udpHost") != ControlServer.DEFAULT_UDP_HOST)
 }
 
 private fun envelope(
