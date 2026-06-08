@@ -16,8 +16,8 @@ Shared fixture config:
 | Snapshot type | `1` |
 | Edge type | `2` |
 | Stream session id | `00112233445566778899aabbccddeeff` |
-| HMAC key hex | `0123456789abcdeffedcba98765432100123456789abcdeffedcba9876543210` |
-| HMAC key base64url | `ASNFZ4mrze_-3LqYdlQyEAEjRWeJq83v_ty6mHZUMhA` |
+| Fixture auth secret hex | `0123456789abcdeffedcba98765432100123456789abcdeffedcba9876543210` |
+| Fixture auth secret base64url | `ASNFZ4mrze_-3LqYdlQyEAEjRWeJq83v_ty6mHZUMhA` |
 | Frame size | `120` bytes |
 | HMAC tag size | `32` bytes |
 | HMAC input | bytes `0..87` |
@@ -103,4 +103,4 @@ Edge decoded fields:
 
 - UDP payloads are fixed binary frames, not JSON.
 - Motion fields are raw provider/capability/yaw/pitch/roll/raw-aim values only.
-- Android preview aim, desktop profile mapping, QR secrets, manual codes, proof material, and HMAC keys must not appear in debug output.
+- Android preview-derived product fields, desktop-side mapper details, pairing one-time material, fallback digits, proof material, and stream auth material must not appear in debug output.
