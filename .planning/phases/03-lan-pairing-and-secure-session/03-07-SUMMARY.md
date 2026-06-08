@@ -17,13 +17,16 @@ provides:
 affects: [03-lan-pairing-and-secure-session, android-host, phase-03-plan-08, phase-04-input-stream-and-haptic-transport]
 
 tech-stack:
-  added: []
+  added:
+    - com.google.android.gms:play-services-code-scanner:16.1.0
   patterns: [imperative Android platform-view pairing actions, foreground-service-owned control client, fail-closed fingerprint trust]
 
 key-files:
   created:
     - .planning/phases/03-lan-pairing-and-secure-session/03-07-SUMMARY.md
   modified:
+    - android-host/settings.gradle.kts
+    - android-host/app/build.gradle.kts
     - android-host/app/src/main/java/com/btgun/host/MainActivity.kt
     - android-host/app/src/main/java/com/btgun/host/HostSessionService.kt
     - android-host/app/src/main/java/com/btgun/host/session/DesktopControlClient.kt
@@ -63,6 +66,7 @@ completed: 2026-06-07T23:34:00Z
 ## Accomplishments
 
 - Wired Android `Scan desktop QR` to launch scanner handling, pass QR payload text to `HostSessionService`, parse endpoint/proof data, and call `DesktopControlClient.connect`.
+- Added approved Google Code Scanner dependency and an explicit `maven.google.com` repository fallback so the normal QR scanner path resolves in the Android build.
 - Added visible manual fallback fields for host/IP, port, 6-digit code, fingerprint suffix, and session id with explicit manual connect action.
 - Added explicit `Use trusted desktop` action that appears only when stored metadata exists and connects using the stored fingerprint.
 - Bound desktop control socket ownership to `HostSessionService`; service stop closes the socket and moves desktop link to disconnected.
@@ -108,6 +112,14 @@ completed: 2026-06-07T23:34:00Z
 - **Verification:** Focused and full Android unit tests passed; scanner-unavailable state shows manual fallback.
 - **Committed in:** `db2d24b`
 
+**1b. [Rule 3 - Blocking] Restored approved Code Scanner dependency after network repair**
+- **Found during:** Orchestrator spot-check before Plan 03-08
+- **Issue:** Leaving the scanner dependency absent made QR scanner handling reflection-only and would always fall back on devices without the library in the APK.
+- **Fix:** Added `com.google.android.gms:play-services-code-scanner:16.1.0` and an explicit `https://maven.google.com` dependency repository because direct `dl.google.com` access remained flaky while `maven.google.com` resolved.
+- **Files modified:** `android-host/settings.gradle.kts`, `android-host/app/build.gradle.kts`, `.planning/phases/03-lan-pairing-and-secure-session/03-07-SUMMARY.md`
+- **Verification:** Focused Android tests passed after dependency resolution.
+- **Committed in:** orchestrator follow-up fix commit after `575a474`
+
 **2. [Rule 1 - Bug] Removed empty trusted reconnect proof header**
 - **Found during:** Closeout stub scan
 - **Issue:** Trusted reconnect request construction used an empty proof string, which created weak request metadata and tripped stub scanning.
@@ -118,13 +130,13 @@ completed: 2026-06-07T23:34:00Z
 
 ---
 
-**Total deviations:** 2 auto-fixed (1 blocking, 1 bug)
-**Impact on plan:** Core Android pairing/service behavior is implemented and tested. Code Scanner remains optional until Google Maven is reachable or the artifact is present in cache; QR payload-to-control-client flow is still wired and scanner-unavailable fallback is visible.
+**Total deviations:** 3 auto-fixed (2 blocking, 1 bug)
+**Impact on plan:** Core Android pairing/service behavior is implemented and tested. Code Scanner is now present in the dependency graph through the approved coordinate; scanner-unavailable/manual fallback remains visible for devices without compatible Google Play services.
 
 ## Issues Encountered
 
 - Sandboxed Gradle could not create local file-lock sockets, so Gradle verification was rerun with approved escalation and normal Gradle behavior.
-- Google Maven DNS resolution failed for the approved Code Scanner coordinate, so no new dependency was added in this plan.
+- Google Maven DNS resolution initially failed for the approved Code Scanner coordinate. After network repair, `maven.google.com` resolved and the dependency was added.
 - Sandboxed git index writes were blocked for later commits, so `git add` and `git commit` were rerun with approved escalation and normal hooks.
 
 ## Auth Gates
