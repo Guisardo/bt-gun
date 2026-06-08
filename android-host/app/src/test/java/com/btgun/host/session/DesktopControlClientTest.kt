@@ -13,7 +13,7 @@ import okhttp3.WebSocketListener
 
 fun main() {
     envelopeCodecMirrorsDesktopAllowlist()
-    envelopeCodecRejectsVersionUnknownTypeOversizedAndReservedHapticBody()
+    envelopeCodecRejectsVersionUnknownTypeAndOversizedText()
     envelopeCodecRejectsOverflowedVersion()
     clientBuildsPinnedWssRequestAndTrustMismatchResult()
     qrPayloadBuildsControlRequestAndProofHeaders()
@@ -55,7 +55,7 @@ private fun envelopeCodecMirrorsDesktopAllowlist() {
     expectEquals("haptic result name", "haptic_result", ControlMessageType.HAPTIC_RESULT.wireName)
 }
 
-private fun envelopeCodecRejectsVersionUnknownTypeOversizedAndReservedHapticBody() {
+private fun envelopeCodecRejectsVersionUnknownTypeAndOversizedText() {
     val unsupportedVersion = """{"v":2,"type":"session_ready","msgId":"m-1","sessionId":"sid-1","seq":1,"sentElapsedNanos":10,"body":{}}"""
     val unknownType = """{"v":1,"type":"profile_update","msgId":"m-1","sessionId":"sid-1","seq":1,"sentElapsedNanos":10,"body":{}}"""
 
@@ -278,13 +278,13 @@ private fun clientSendRejectsInvalidEnvelopeBeforeSocketWrite() {
     val valid = client.send(envelope(ControlMessageType.PAIRING_STATE))
     val invalid = client.send(
         envelope(
-            ControlMessageType.RESERVED_HAPTIC_COMMAND,
-            body = JsonObject(mapOf("command" to JsonPrimitive("pulse"))),
+            ControlMessageType.DIAGNOSTICS,
+            body = JsonObject(mapOf("lastControlError" to JsonPrimitive("x".repeat(256)))),
         ),
     )
 
     expectEquals("valid sent", DesktopControlSendResult.Sent, valid)
-    expectEquals("invalid rejected", DesktopControlSendResult.Rejected(ControlEnvelopeError.RESERVED_HAPTIC_BODY), invalid)
+    expectEquals("invalid rejected", DesktopControlSendResult.Rejected(ControlEnvelopeError.OVERSIZED), invalid)
     expectEquals("one socket send", 1, socket.sent.size)
 }
 

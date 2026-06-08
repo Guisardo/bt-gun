@@ -42,6 +42,8 @@ import com.btgun.host.motion.RawAimPoint
 import com.btgun.host.motion.RawAimTracker
 import com.btgun.host.motion.fallbackAim
 import com.btgun.host.motion.SelectedMotionProvider
+import com.btgun.host.haptics.DesktopHapticCommandExecutor
+import com.btgun.host.haptics.PhoneHaptics
 import com.btgun.host.permissions.HostCapabilityProbe
 import com.btgun.host.permissions.PermissionGateState
 import com.btgun.host.recenter.ReloadHoldRecenter
@@ -82,6 +84,12 @@ class HostSessionService : Service() {
     private var desktopControlClient: DesktopControlClient? = null
     private var udpInputSender: AndroidUdpInputSender? = null
     private var udpInputConfig: InputStreamConfig? = null
+    private val desktopHapticExecutor: DesktopHapticCommandExecutor by lazy {
+        DesktopHapticCommandExecutor(
+            phone = PhoneHaptics(this),
+            elapsedRealtimeNanos = { SystemClock.elapsedRealtimeNanos() },
+        )
+    }
     private val desktopLivenessCoordinator = DesktopLivenessCoordinator()
     private val nonceRandom = SecureRandom()
 
@@ -474,6 +482,9 @@ class HostSessionService : Service() {
                         }
                         startUdpInput(streamConfig)
                     }
+                },
+                onHapticCommandReceived = { command, receivedElapsedNanos ->
+                    desktopHapticExecutor.handle(command, receivedElapsedNanos).status
                 },
             )
         ) {

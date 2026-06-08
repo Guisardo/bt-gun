@@ -35,6 +35,7 @@ fun main() {
     profileMetadataContainsOnlyRequiredFields()
     controlEnvelopeAllowsHeartbeatDiagnosticsAndProfileTypes()
     controlEnvelopeAllowsHapticResultBody()
+    controlServerBuildsTrustedHapticCommandEnvelope()
     controlServerAcceptsHapticResultAfterProof()
     controlServerSendsFreshInputStreamConfigAfterTrustedSession()
 }
@@ -274,6 +275,31 @@ private fun controlEnvelopeAllowsHapticResultBody() {
     )
 
     expectTrue("haptic result body accepted", decoded is ControlDecodeResult.Accepted)
+}
+
+private fun controlServerBuildsTrustedHapticCommandEnvelope() {
+    val registry = testRegistry()
+    val session = registry.startPairing(nowEpochMillis = 1_000L)
+    val server = ControlServer(registry = registry, maxMessageBytes = 1024)
+    val trusted = server.authenticate(proofRequestFor(session, "cc".repeat(16)), nowEpochMillis = 2_000L)
+    expectTrue("authenticated", trusted is ControlAuthenticationResult.Accepted)
+
+    val envelope = server.hapticCommandEnvelopeFor(
+        trustedSession = (trusted as ControlAuthenticationResult.Accepted).trustedSession,
+        command = HapticCommand(
+            commandId = "cmd-001",
+            strength = 0.75,
+            durationMs = 120L,
+            ttlMs = 500L,
+        ),
+        nowElapsedNanos = 3_000_000_000L,
+    )
+
+    expectEquals("haptic command type", ControlMessageType.RESERVED_HAPTIC_COMMAND, envelope.type)
+    expectEquals("trusted sid", session.sid, envelope.sessionId)
+    expectEquals("command id", "cmd-001", envelope.body.stringField("commandId"))
+    expectEquals("strength", "0.75", envelope.body.stringField("strength"))
+    expectTrue("command encodes", ControlEnvelopeCodec.decode(ControlEnvelopeCodec.encode(envelope)) is ControlDecodeResult.Accepted)
 }
 
 private fun controlServerAcceptsHapticResultAfterProof() = runBlocking {

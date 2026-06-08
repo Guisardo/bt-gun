@@ -1,6 +1,7 @@
 package com.btgun.desktop.control
 
 import com.btgun.desktop.transport.InputStreamConfig
+import com.btgun.desktop.haptics.HapticCommand
 import com.btgun.desktop.pairing.PairingAttemptResult
 import com.btgun.desktop.pairing.ManualPairingAttemptRequest
 import com.btgun.desktop.pairing.PairingProofRequest
@@ -207,6 +208,7 @@ class ControlServer(
             ControlMessageType.PAIRING_STATE,
             ControlMessageType.SESSION_READY,
             ControlMessageType.INPUT_STREAM_CONFIG,
+            ControlMessageType.HAPTIC_RESULT,
             -> onControlEnvelopeAccepted(envelope)
             ControlMessageType.RESERVED_HAPTIC_COMMAND -> Unit
         }
@@ -238,6 +240,21 @@ class ControlServer(
             ),
         )
     }
+
+    fun hapticCommandEnvelopeFor(
+        trustedSession: TrustedPairingSession,
+        command: HapticCommand,
+        nowElapsedNanos: Long = System.nanoTime(),
+    ): ControlEnvelope =
+        ControlEnvelope(
+            v = 1,
+            type = ControlMessageType.RESERVED_HAPTIC_COMMAND,
+            msgId = "desktop-haptic-command-${command.commandId}",
+            sessionId = trustedSession.sid,
+            seq = 0L,
+            sentElapsedNanos = nowElapsedNanos,
+            body = command.toJsonBody(),
+        )
 
     private fun authenticate(headers: io.ktor.http.Headers, nowEpochMillis: Long): TrustedPairingSession? {
         val androidNonce = headers[HEADER_ANDROID_NONCE] ?: return null

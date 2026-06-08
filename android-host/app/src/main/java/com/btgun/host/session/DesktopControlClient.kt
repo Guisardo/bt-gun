@@ -1,6 +1,9 @@
 package com.btgun.host.session
 
 import android.os.SystemClock
+import com.btgun.host.haptics.DesktopHapticCommand
+import com.btgun.host.haptics.HapticResult
+import com.btgun.host.haptics.HapticResultStatus
 import com.btgun.host.transport.InputStreamConfig
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -160,6 +163,7 @@ class DesktopControlClient(
         onLinkStateChanged: (DesktopLinkState) -> Unit = {},
         onProfileMetadataReceived: (ProfileMetadata) -> Unit = {},
         onInputStreamConfigReceived: (InputStreamConfig) -> Unit = {},
+        onHapticCommandReceived: (DesktopHapticCommand, Long) -> HapticResultStatus = { _, _ -> HapticResultStatus.UNSUPPORTED },
     ): DesktopControlConnectResult {
         val trust = verifyPresentedFingerprint(authRequest.desktopSpkiSha256)
         if (trust is DesktopControlConnectResult.TrustMismatch) {
@@ -201,6 +205,7 @@ class DesktopControlClient(
                             onLinkStateChanged = onLinkStateChanged,
                             onProfileMetadataReceived = onProfileMetadataReceived,
                             onInputStreamConfigReceived = onInputStreamConfigReceived,
+                            onHapticCommandReceived = onHapticCommandReceived,
                         )
                     ) {
                         if (!authenticated) {
@@ -348,6 +353,7 @@ class DesktopControlClient(
         onLinkStateChanged: (DesktopLinkState) -> Unit,
         onProfileMetadataReceived: (ProfileMetadata) -> Unit,
         onInputStreamConfigReceived: (InputStreamConfig) -> Unit,
+        onHapticCommandReceived: (DesktopHapticCommand, Long) -> HapticResultStatus,
     ): Boolean =
         when (val decoded = ControlEnvelopeCodec.decode(text, maxBytes = config.maxMessageBytes)) {
             is ControlDecodeResult.Rejected -> {
@@ -400,6 +406,28 @@ class DesktopControlClient(
                             }
                             false
                         }
+                        ControlMessageType.RESERVED_HAPTIC_COMMAND -> {
+                            val observedElapsedNanos = elapsedRealtimeNanos()
+                            val command = DesktopHapticCommand.fromJsonBody(decoded.envelope.body)
+                            val result = if (command == null) {
+                                HapticResult(
+                                    commandId = decoded.envelope.body.stringField("commandId")?.ifBlank { "invalid" } ?: "invalid",
+                                    status = HapticResultStatus.FAILED,
+                                    detail = "invalid haptic command",
+                                    observedElapsedNanos = observedElapsedNanos,
+                                )
+                            } else {
+                                val status = onHapticCommandReceived(command, observedElapsedNanos)
+                                HapticResult(
+                                    commandId = command.commandId,
+                                    status = status,
+                                    detail = status.wireName,
+                                    observedElapsedNanos = elapsedRealtimeNanos(),
+                                )
+                            }
+                            send(resultEnvelope(decoded.envelope.sessionId, result))
+                            false
+                        }
                         else -> false
                     }
                 }
@@ -414,6 +442,17 @@ class DesktopControlClient(
             sessionId = sessionId,
             seq = 0L,
             sentElapsedNanos = elapsedRealtimeNanos(),
+        )
+
+    private fun resultEnvelope(sessionId: String, result: HapticResult): ControlEnvelope =
+        ControlEnvelope(
+            v = 1,
+            type = ControlMessageType.HAPTIC_RESULT,
+            msgId = "android-haptic-result-${result.commandId}",
+            sessionId = sessionId,
+            seq = 0L,
+            sentElapsedNanos = elapsedRealtimeNanos(),
+            body = result.toJsonBody(),
         )
 
     private fun JsonObject.toDiagnostics(): ControlDiagnostics? {

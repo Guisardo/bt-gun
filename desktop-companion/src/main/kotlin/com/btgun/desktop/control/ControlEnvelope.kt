@@ -28,7 +28,8 @@ enum class ControlMessageType(val wireName: String) {
     DIAGNOSTICS("diagnostics"),
     PROFILE_METADATA("profile_metadata"),
     INPUT_STREAM_CONFIG("input_stream_config"),
-    RESERVED_HAPTIC_COMMAND("reserved_haptic_command");
+    RESERVED_HAPTIC_COMMAND("reserved_haptic_command"),
+    HAPTIC_RESULT("haptic_result");
 
     companion object {
         fun fromWireName(wireName: String): ControlMessageType? =
@@ -46,7 +47,6 @@ enum class ControlEnvelopeError {
     MALFORMED,
     UNSUPPORTED_VERSION,
     UNKNOWN_TYPE,
-    RESERVED_HAPTIC_BODY,
     INVALID_FIELD,
 }
 
@@ -88,10 +88,6 @@ object ControlEnvelopeCodec {
         val type = ControlMessageType.fromWireName(typeWireName)
             ?: return ControlDecodeResult.Rejected(ControlEnvelopeError.UNKNOWN_TYPE)
         val body = root["body"] as? JsonObject ?: return ControlDecodeResult.Rejected(ControlEnvelopeError.INVALID_FIELD, "body")
-        if (type == ControlMessageType.RESERVED_HAPTIC_COMMAND && body.isNotEmpty()) {
-            return ControlDecodeResult.Rejected(ControlEnvelopeError.RESERVED_HAPTIC_BODY)
-        }
-
         return ControlDecodeResult.Accepted(
             ControlEnvelope(
                 v = version,
