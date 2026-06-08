@@ -154,6 +154,8 @@ class DesktopControlClient(
     private var lastHeartbeatElapsedNanos: Long? = null
     private var linkState: DesktopLinkState = DesktopLinkState()
     private var authenticated: Boolean = false
+    private var sessionReady: Boolean = false
+    private var expectedSessionId: String? = null
     private var trustedSessionId: String? = null
 
     fun connect(
@@ -174,7 +176,9 @@ class DesktopControlClient(
             return trust
         }
         authenticated = false
-        trustedSessionId = authRequest.expectedSessionId
+        sessionReady = false
+        expectedSessionId = authRequest.expectedSessionId
+        trustedSessionId = null
         lastHeartbeatElapsedNanos = null
         val requestBuilder = Request.Builder()
             .url(config.url)
@@ -218,6 +222,8 @@ class DesktopControlClient(
                 override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
                     socket = null
                     authenticated = false
+                    sessionReady = false
+                    expectedSessionId = null
                     trustedSessionId = null
                     lastHeartbeatElapsedNanos = null
                     val reason = failureReason(t, response)
@@ -233,6 +239,8 @@ class DesktopControlClient(
                     socket = null
                     val wasAuthenticated = authenticated
                     authenticated = false
+                    sessionReady = false
+                    expectedSessionId = null
                     trustedSessionId = null
                     lastHeartbeatElapsedNanos = null
                     val closeReason = reason.ifBlank { "control channel closed" }
@@ -291,6 +299,8 @@ class DesktopControlClient(
         socket?.close()
         socket = null
         authenticated = false
+        sessionReady = false
+        expectedSessionId = null
         trustedSessionId = null
         lastHeartbeatElapsedNanos = null
         linkState = linkState.copy(phase = DesktopLinkPhase.DISCONNECTED)
@@ -361,17 +371,30 @@ class DesktopControlClient(
                 false
             }
             is ControlDecodeResult.Accepted -> {
-                val expectedSessionId = trustedSessionId
-                if (expectedSessionId != null && decoded.envelope.sessionId != expectedSessionId) {
+                if (!sessionReady) {
+                    val expected = expectedSessionId
+                    when {
+                        decoded.envelope.type != ControlMessageType.SESSION_READY -> {
+                            recordControlError("session not ready")
+                            false
+                        }
+                        expected != null && decoded.envelope.sessionId != expected -> {
+                            recordControlError("session mismatch")
+                            false
+                        }
+                        else -> {
+                            trustedSessionId = decoded.envelope.sessionId
+                            sessionReady = true
+                            observeHeartbeat(elapsedRealtimeNanos())
+                            true
+                        }
+                    }
+                } else if (decoded.envelope.sessionId != trustedSessionId) {
                     recordControlError("session mismatch")
-                    false
-                } else if (expectedSessionId == null && decoded.envelope.type != ControlMessageType.SESSION_READY) {
-                    recordControlError("session not ready")
                     false
                 } else {
                     when (decoded.envelope.type) {
                         ControlMessageType.SESSION_READY -> {
-                            trustedSessionId = decoded.envelope.sessionId
                             observeHeartbeat(elapsedRealtimeNanos())
                             true
                         }

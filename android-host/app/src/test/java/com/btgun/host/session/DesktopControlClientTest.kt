@@ -34,10 +34,12 @@ fun main() {
     controlEnvelopeAllowsHeartbeatDiagnosticsAndProfileTypes()
     controlEnvelopeAllowsInputStreamConfigType()
     clientRejectsInputStreamConfigBeforeSessionReady()
+    clientRejectsQrInputStreamConfigBeforeSessionReady()
     clientRejectsInputStreamConfigForMismatchedSession()
     clientPublishesTrustedInputStreamConfigAfterSessionReady()
     controlEnvelopeAllowsHapticCommandAndResultTypes()
     clientRejectsHapticCommandBeforeSessionReady()
+    clientRejectsQrHapticCommandBeforeSessionReady()
     clientRejectsHapticCommandForMismatchedSession()
     clientHandlesTrustedHapticCommandAndSendsResult()
 }
@@ -636,6 +638,38 @@ private fun clientRejectsInputStreamConfigBeforeSessionReady() {
     expectEquals("pre-ready error", "session not ready", client.currentLinkState().lastControlError)
 }
 
+private fun clientRejectsQrInputStreamConfigBeforeSessionReady() {
+    var listener: WebSocketListener? = null
+    val configs = mutableListOf<InputStreamConfig>()
+    val socket = FakeSocket()
+    val client = DesktopControlClient(
+        config = DesktopControlClientConfig(
+            url = "wss://192.168.50.25:41731/control",
+            expectedDesktopSpkiSha256 = FINGERPRINT,
+            maxMessageBytes = 1024,
+        ),
+        socketFactory = { _, socketListener ->
+            listener = socketListener
+            socket
+        },
+        elapsedRealtimeNanos = { 1_000_000_000L },
+    )
+
+    client.connect(
+        authRequest = proofRequest(),
+        onInputStreamConfigReceived = configs::add,
+    )
+    listener?.onMessage(
+        NOOP_WEB_SOCKET,
+        envelopeText(ControlMessageType.INPUT_STREAM_CONFIG, sessionId = "sid-1", body = inputStreamConfigBody()),
+    )
+
+    expectEquals("qr pre-ready config ignored", emptyList<InputStreamConfig>(), configs)
+    expectEquals("qr pre-ready send blocked", DesktopControlSendResult.NotConnected, client.send(envelope(ControlMessageType.PAIRING_STATE)))
+    expectEquals("qr pre-ready socket no response", emptyList<String>(), socket.sent)
+    expectEquals("qr pre-ready error", "session not ready", client.currentLinkState().lastControlError)
+}
+
 private fun clientRejectsInputStreamConfigForMismatchedSession() {
     var listener: WebSocketListener? = null
     val configs = mutableListOf<InputStreamConfig>()
@@ -755,6 +789,40 @@ private fun clientRejectsHapticCommandBeforeSessionReady() {
 
     expectEquals("pre-ready haptic ignored", emptyList<DesktopHapticCommand>(), handled)
     expectEquals("pre-ready haptic error", "session not ready", client.currentLinkState().lastControlError)
+}
+
+private fun clientRejectsQrHapticCommandBeforeSessionReady() {
+    var listener: WebSocketListener? = null
+    val handled = mutableListOf<DesktopHapticCommand>()
+    val socket = FakeSocket()
+    val client = DesktopControlClient(
+        config = DesktopControlClientConfig(
+            url = "wss://192.168.50.25:41731/control",
+            expectedDesktopSpkiSha256 = FINGERPRINT,
+            maxMessageBytes = 1024,
+        ),
+        socketFactory = { _, socketListener ->
+            listener = socketListener
+            socket
+        },
+        elapsedRealtimeNanos = { 1_000_000_000L },
+    )
+
+    client.connect(
+        authRequest = proofRequest(),
+        onHapticCommandReceived = { command, _ ->
+            handled += command
+            HapticResultStatus.STARTED
+        },
+    )
+    listener?.onMessage(
+        NOOP_WEB_SOCKET,
+        envelopeText(ControlMessageType.RESERVED_HAPTIC_COMMAND, sessionId = "sid-1", body = hapticCommandBody()),
+    )
+
+    expectEquals("qr pre-ready haptic ignored", emptyList<DesktopHapticCommand>(), handled)
+    expectEquals("qr pre-ready haptic no result", emptyList<String>(), socket.sent)
+    expectEquals("qr pre-ready haptic error", "session not ready", client.currentLinkState().lastControlError)
 }
 
 private fun clientRejectsHapticCommandForMismatchedSession() {
