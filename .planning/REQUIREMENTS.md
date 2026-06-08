@@ -43,7 +43,7 @@
 - [x] **TRAN-06**: Android and desktop maintain a reliable control channel for pairing state, heartbeat, diagnostics, profile metadata, and haptic commands.
 - [x] **TRAN-07**: Desktop can send a haptic command with command id, strength, duration, expiry/TTL, and optional pattern.
 - [x] **TRAN-08**: Android host app returns haptic acknowledgement or failure status to desktop.
-- [ ] **TRAN-09**: Desktop and Android can recover cleanly from LAN disconnect without playing stale haptic commands.
+- [x] **TRAN-09**: Desktop and Android can recover cleanly from LAN disconnect without playing stale haptic commands.
 
 ### Desktop Virtual Controller
 
@@ -172,7 +172,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | TRAN-06 | Phase 3 | Complete |
 | TRAN-07 | Phase 4 | Complete |
 | TRAN-08 | Phase 4 | Complete |
-| TRAN-09 | Phase 4 | Pending |
+| TRAN-09 | Phase 4 | Complete |
 | DESK-01 | Phase 4 | Complete |
 | DESK-02 | Phase 6 | Pending |
 | DESK-03 | Phase 7 | Pending |
