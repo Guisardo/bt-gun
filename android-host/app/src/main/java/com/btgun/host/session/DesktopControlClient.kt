@@ -165,7 +165,14 @@ class DesktopControlClient(
         onLinkStateChanged: (DesktopLinkState) -> Unit = {},
         onProfileMetadataReceived: (ProfileMetadata) -> Unit = {},
         onInputStreamConfigReceived: (InputStreamConfig) -> Unit = {},
-        onHapticCommandReceived: (DesktopHapticCommand, Long) -> HapticResultStatus = { _, _ -> HapticResultStatus.UNSUPPORTED },
+        onHapticCommandReceived: (DesktopHapticCommand, Long) -> HapticResult = { command, observedElapsedNanos ->
+            HapticResult(
+                commandId = command.commandId,
+                status = HapticResultStatus.UNSUPPORTED,
+                detail = HapticResultStatus.UNSUPPORTED.wireName,
+                observedElapsedNanos = observedElapsedNanos,
+            )
+        },
     ): DesktopControlConnectResult {
         val trust = verifyPresentedFingerprint(authRequest.desktopSpkiSha256)
         if (trust is DesktopControlConnectResult.TrustMismatch) {
@@ -363,7 +370,7 @@ class DesktopControlClient(
         onLinkStateChanged: (DesktopLinkState) -> Unit,
         onProfileMetadataReceived: (ProfileMetadata) -> Unit,
         onInputStreamConfigReceived: (InputStreamConfig) -> Unit,
-        onHapticCommandReceived: (DesktopHapticCommand, Long) -> HapticResultStatus,
+        onHapticCommandReceived: (DesktopHapticCommand, Long) -> HapticResult,
     ): Boolean =
         when (val decoded = ControlEnvelopeCodec.decode(text, maxBytes = config.maxMessageBytes)) {
             is ControlDecodeResult.Rejected -> {
@@ -440,13 +447,7 @@ class DesktopControlClient(
                                     observedElapsedNanos = observedElapsedNanos,
                                 )
                             } else {
-                                val status = onHapticCommandReceived(command, observedElapsedNanos)
-                                HapticResult(
-                                    commandId = command.commandId,
-                                    status = status,
-                                    detail = status.wireName,
-                                    observedElapsedNanos = elapsedRealtimeNanos(),
-                                )
+                                onHapticCommandReceived(command, observedElapsedNanos)
                             }
                             send(resultEnvelope(decoded.envelope.sessionId, result))
                             false

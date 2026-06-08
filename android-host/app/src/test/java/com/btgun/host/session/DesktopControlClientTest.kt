@@ -2,6 +2,7 @@ package com.btgun.host.session
 
 import com.btgun.host.transport.InputStreamConfig
 import com.btgun.host.haptics.DesktopHapticCommand
+import com.btgun.host.haptics.HapticResult
 import com.btgun.host.haptics.HapticResultStatus
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -42,6 +43,7 @@ fun main() {
     clientRejectsQrHapticCommandBeforeSessionReady()
     clientRejectsHapticCommandForMismatchedSession()
     clientHandlesTrustedHapticCommandAndSendsResult()
+    clientPreservesHapticResultDetailsFromCallback()
 }
 
 private fun envelopeCodecMirrorsDesktopAllowlist() {
@@ -779,7 +781,7 @@ private fun clientRejectsHapticCommandBeforeSessionReady() {
         ),
         onHapticCommandReceived = { command, _ ->
             handled += command
-            HapticResultStatus.STARTED
+            hapticResult(command, HapticResultStatus.STARTED, "phone pulse started")
         },
     )
     listener?.onMessage(
@@ -812,7 +814,7 @@ private fun clientRejectsQrHapticCommandBeforeSessionReady() {
         authRequest = proofRequest(),
         onHapticCommandReceived = { command, _ ->
             handled += command
-            HapticResultStatus.STARTED
+            hapticResult(command, HapticResultStatus.STARTED, "phone pulse started")
         },
     )
     listener?.onMessage(
@@ -845,7 +847,7 @@ private fun clientRejectsHapticCommandForMismatchedSession() {
         authRequest = proofRequest(),
         onHapticCommandReceived = { command, _ ->
             handled += command
-            HapticResultStatus.STARTED
+            hapticResult(command, HapticResultStatus.STARTED, "phone pulse started")
         },
     )
     listener?.onMessage(NOOP_WEB_SOCKET, readyEnvelope(sessionId = "sid-1"))
@@ -880,7 +882,7 @@ private fun clientHandlesTrustedHapticCommandAndSendsResult() {
         onHapticCommandReceived = { command, receivedElapsedNanos ->
             handled += command
             expectEquals("received time", 1_050_000_000L, receivedElapsedNanos)
-            HapticResultStatus.STARTED
+            hapticResult(command, HapticResultStatus.STARTED, "phone pulse started")
         },
     )
     listener?.onMessage(NOOP_WEB_SOCKET, readyEnvelope(sessionId = "sid-1"))
@@ -893,6 +895,47 @@ private fun clientHandlesTrustedHapticCommandAndSendsResult() {
     val result = ControlEnvelopeCodec.decode(socket.sent.single()) as ControlDecodeResult.Accepted
     expectEquals("result type", ControlMessageType.HAPTIC_RESULT, result.envelope.type)
     expectEquals("result status", HapticResultStatus.STARTED.wireName, result.envelope.body["status"]?.jsonPrimitive?.content)
+    expectEquals("result detail", "phone pulse started", result.envelope.body["detail"]?.jsonPrimitive?.content)
+}
+
+private fun clientPreservesHapticResultDetailsFromCallback() {
+    listOf(
+        HapticResultStatus.PERMISSION_BLOCKED to "vibrate permission blocked",
+        HapticResultStatus.FAILED to "IllegalStateException",
+        HapticResultStatus.EXPIRED to "haptic command expired",
+    ).forEach { (status, detail) ->
+        val socket = FakeSocket()
+        var listener: WebSocketListener? = null
+        val client = DesktopControlClient(
+            config = DesktopControlClientConfig(
+                url = "wss://192.168.50.25:41731/control",
+                expectedDesktopSpkiSha256 = FINGERPRINT,
+                maxMessageBytes = 2048,
+            ),
+            socketFactory = { _, socketListener ->
+                listener = socketListener
+                socket
+            },
+            elapsedRealtimeNanos = { 1_050_000_000L },
+        )
+
+        client.connect(
+            authRequest = proofRequest(),
+            onHapticCommandReceived = { command, receivedElapsedNanos ->
+                expectEquals("${status.wireName} received time", 1_050_000_000L, receivedElapsedNanos)
+                hapticResult(command, status, detail, observedElapsedNanos = 1_060_000_000L)
+            },
+        )
+        listener?.onMessage(NOOP_WEB_SOCKET, readyEnvelope(sessionId = "sid-1"))
+        listener?.onMessage(
+            NOOP_WEB_SOCKET,
+            envelopeText(ControlMessageType.RESERVED_HAPTIC_COMMAND, sessionId = "sid-1", body = hapticCommandBody()),
+        )
+
+        val result = ControlEnvelopeCodec.decode(socket.sent.single()) as ControlDecodeResult.Accepted
+        expectEquals("${status.wireName} result status", status.wireName, result.envelope.body["status"]?.jsonPrimitive?.content)
+        expectEquals("${status.wireName} result detail", detail, result.envelope.body["detail"]?.jsonPrimitive?.content)
+    }
 }
 
 private fun envelope(
@@ -956,6 +999,19 @@ private fun fixtureHapticCommand(): DesktopHapticCommand =
         strength = 0.75,
         durationMs = 120L,
         ttlMs = 500L,
+    )
+
+private fun hapticResult(
+    command: DesktopHapticCommand,
+    status: HapticResultStatus,
+    detail: String,
+    observedElapsedNanos: Long = 1_050_000_000L,
+): HapticResult =
+    HapticResult(
+        commandId = command.commandId,
+        status = status,
+        detail = detail,
+        observedElapsedNanos = observedElapsedNanos,
     )
 
 private fun fixtureConfig(): InputStreamConfig =

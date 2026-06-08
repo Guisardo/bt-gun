@@ -504,7 +504,7 @@ class HostSessionService : Service() {
                     }
                 },
                 onHapticCommandReceived = { command, receivedElapsedNanos ->
-                    desktopHapticExecutor.handle(command, receivedElapsedNanos).status
+                    desktopHapticExecutor.handle(command, receivedElapsedNanos)
                 },
             )
         ) {
