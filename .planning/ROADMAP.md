@@ -17,7 +17,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 2: Android Host Live Input** - Android can connect to the gun, read controls and motion sensors, and expose live session status.
 - [x] **Phase 3: LAN Pairing and Secure Session** - Android and desktop can establish an authenticated local session by QR or pairing code. (completed 2026-06-08)
 - [x] **Phase 4: Input Stream and Haptic Transport** - Versioned UDP input and reliable control messages carry input, diagnostics, and phone haptic commands safely. (physical smoke plan added 2026-06-09) (completed 2026-06-09)
-- [ ] **Phase 5: Desktop Backend Contract and Smoke Harness** - Shared desktop backend contract and fake-input smoke tests work before real OS driver work.
+- [x] **Phase 5: Desktop Backend Contract and Smoke Harness** - Shared desktop backend contract and fake-input smoke tests work before real OS driver work. (completed 2026-06-09)
 - [ ] **Phase 6: Windows Virtual Joystick Path** - Windows 11 x64 exposes the gun stream as a regular gamepad-style joystick with output-to-phone-haptic forwarding.
 - [ ] **Phase 7: macOS Virtual Joystick Path** - macOS Apple Silicon exposes the gun stream as a regular gamepad-style joystick and reports output limits clearly.
 - [ ] **Phase 8: Desktop Profiles and Mapping** - Users can configure aim and button mapping on desktop without Android rebuilds.
@@ -171,7 +171,7 @@ Plans:
   2. Virtual joystick descriptor includes trigger, reload, joystick axes, X/Y/A/B buttons, and aim axes.
   3. Desktop companion reports backend capability flags for buttons, axes, haptics, output reports, and platform limitations.
 
-**Plans:** 4/5 plans executed
+**Plans:** 5/5 plans complete
 Plans:
 **Wave 1**
 
@@ -191,7 +191,7 @@ Plans:
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
-- [ ] 05-05-PLAN.md — Simulated output-report haptic smoke and cross-platform evidence gate.
+- [x] 05-05-PLAN.md — Simulated output-report haptic smoke and cross-platform evidence gate.
 
 ### Phase 6: Windows Virtual Joystick Path
 

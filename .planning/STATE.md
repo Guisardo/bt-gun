@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
-stopped_at: Completed 05-04-PLAN.md
-last_updated: "2026-06-09T19:05:57.000Z"
-last_activity: 2026-06-09 -- Phase 05 Plan 04 complete
+status: ready-for-next-phase
+stopped_at: Completed 05-05-PLAN.md and Phase 05
+last_updated: "2026-06-09T21:18:43.000Z"
+last_activity: 2026-06-09 -- Phase 05 complete
 progress:
   total_phases: 10
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 30
-  completed_plans: 29
-  percent: 97
+  completed_plans: 30
+  percent: 100
 ---
 
 # Project State
@@ -21,22 +21,22 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-09)
 
 **Core value:** Make the discontinued iPega AR gun usable as a normal wireless joystick gun on modern macOS and Windows with responsive motion aiming and v1 phone haptic feedback.
-**Current focus:** Phase 05 — desktop-backend-contract-and-smoke-harness
+**Current focus:** Phase 06 — Windows Virtual Joystick Path
 
 ## Current Position
 
-Phase: 05 (desktop-backend-contract-and-smoke-harness) — EXECUTING
-Plan: 5 of 5
-Status: Ready to execute
-Last activity: 2026-06-09 -- Phase 05 Plan 04 complete
+Phase: 05 (desktop-backend-contract-and-smoke-harness) — COMPLETE
+Next phase: 06 (Windows Virtual Joystick Path)
+Status: Ready for Phase 06 planning
+Last activity: 2026-06-09 -- Phase 05 complete
 
-Progress: [██████████] 97% by planned plans. Phase 05 has 4/5 plans executed.
+Progress: [██████████] 100% by planned plans. Phase 05 has 5/5 plans executed.
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 29
+- Total plans completed: 30
 - Average duration: not tracked for hardware-interactive plans
 - Total execution time: not tracked after Plan 02
 
@@ -47,11 +47,12 @@ Progress: [██████████] 97% by planned plans. Phase 05 has 4/
 | 01 | 5 | not tracked | not tracked |
 | 02 | 6 | hardware-interactive | hardware-interactive |
 | 04 | 6 | - | - |
+| 05 | 5 | hardware-interactive | hardware-interactive |
 
 **Recent Trend:**
 
-- Last 5 completed execution plans: 04-P06, 05-P01, 05-P02, 05-P03, 05-P04 complete
-- Trend: Phase 05 desktop backend contract now has descriptor/state, DESK-07 capabilities, receiver-backed UDP semantic mapping, and platform stub smoke XML complete.
+- Last 5 completed execution plans: 05-P01, 05-P02, 05-P03, 05-P04, 05-P05 complete
+- Trend: Phase 05 desktop backend contract is complete with descriptor/state, capabilities, receiver-backed UDP semantic mapping, platform smoke XML, and live phone-haptic evidence on macOS and Windows.
 
 *Updated after each plan completion*
 | Phase 01 P01 | 10 min | 3 tasks | 6 files |
@@ -83,6 +84,7 @@ Progress: [██████████] 97% by planned plans. Phase 05 has 4/
 | Phase 05 P02 | 10min | 2 tasks | 5 files |
 | Phase 05 P03 | 6min | 2 tasks | 4 files |
 | Phase 05 P04 | 10min | 2 tasks | 6 files |
+| Phase 05 P05 | 2h 10m | 3 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -146,6 +148,9 @@ Recent decisions affecting current work:
 - [Phase 05]: UdpControllerStateAdapter maps only pressedControls, stick axes, rawAimX/rawAimY, stale, and lastAcceptedSequence.
 - [Phase 05]: Platform smoke commands use distinct macos-stub/windows-stub JavaExec entrypoints and write separate JUnit-style XML artifacts.
 - [Phase 05]: Smoke XML records only case names, pass/fail status, and timing; fixture bytes and stream authentication material stay out of artifacts.
+- [Phase 05]: Simulated backend output reports route to phone haptics only through authenticated ControlServer haptic commands.
+- [Phase 05]: Headless haptic smoke writes a scannable QR PNG artifact and keeps pairing/control secrets out of committed evidence.
+- [Phase 05]: Android trusted-desktop conflict detection is endpoint-scoped for unknown fingerprints so macOS and Windows desktop identities can both be trusted.
 
 ### Pending Todos
 
@@ -165,6 +170,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-09T19:05:57.000Z
-Stopped at: Completed 05-04-PLAN.md
+Last session: 2026-06-09T21:18:43.000Z
+Stopped at: Completed 05-05-PLAN.md and Phase 05
 Resume file: None
