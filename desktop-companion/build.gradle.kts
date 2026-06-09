@@ -54,6 +54,7 @@ tasks.withType<Test>().configureEach {
             "com.btgun.desktop.haptics.HapticCommandCodecTestKt",
             "com.btgun.desktop.ui.PairingWindowTestKt",
             "com.btgun.desktop.backend.BackendContractTestKt",
+            "com.btgun.desktop.backend.BackendCapabilitiesTestKt",
         ).forEach { testClass ->
             providers.exec {
                 commandLine(
