@@ -66,6 +66,11 @@ private fun trustedStoreValidatesIdentityByFingerprintNotNameOrHost() {
         store.validateIdentity(fingerprintSha256 = OTHER_FINGERPRINT, displayName = "Desk B", host = "10.0.0.9", port = 44383)
             is TrustValidationResult.FirstTrust,
     )
+    expectTrue(
+        "same display name different endpoint first trust",
+        store.validateIdentity(fingerprintSha256 = OTHER_FINGERPRINT, displayName = "Desk A", host = "10.0.0.9", port = 44383)
+            is TrustValidationResult.FirstTrust,
+    )
 }
 
 private fun trustedStoreReturnsFirstTrustMissingAndMismatchWithoutOverwrite() {
