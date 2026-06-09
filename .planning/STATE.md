@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 5 context gathered
-last_updated: "2026-06-09T18:08:11.072Z"
-last_activity: 2026-06-09 -- Phase 05 planning complete
+stopped_at: Completed 05-01-PLAN.md
+last_updated: "2026-06-09T18:28:40Z"
+last_activity: 2026-06-09 -- Phase 05 Plan 01 complete
 progress:
   total_phases: 10
   completed_phases: 4
-  total_plans: 25
-  completed_plans: 25
-  percent: 40
+  total_plans: 30
+  completed_plans: 26
+  percent: 87
 ---
 
 # Project State
@@ -21,22 +21,22 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-09)
 
 **Core value:** Make the discontinued iPega AR gun usable as a normal wireless joystick gun on modern macOS and Windows with responsive motion aiming and v1 phone haptic feedback.
-**Current focus:** Phase 04 complete — next focus Phase 05 desktop backend contract and smoke harness
+**Current focus:** Phase 05 — desktop-backend-contract-and-smoke-harness
 
 ## Current Position
 
-Phase: 5
-Plan: Not started
+Phase: 05 (desktop-backend-contract-and-smoke-harness) — EXECUTING
+Plan: 2 of 5
 Status: Ready to execute
-Last activity: 2026-06-09 -- Phase 05 planning complete
+Last activity: 2026-06-09 -- Phase 05 Plan 01 complete
 
-Progress: [██████████] 100% by planned plans through Phase 04. Phase 04 has 6/6 plans executed and physical smoke evidence approved.
+Progress: [█████████░] 87% by planned plans. Phase 05 has 1/5 plans executed.
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 25
+- Total plans completed: 26
 - Average duration: not tracked for hardware-interactive plans
 - Total execution time: not tracked after Plan 02
 
@@ -50,8 +50,8 @@ Progress: [██████████] 100% by planned plans through Phase 0
 
 **Recent Trend:**
 
-- Last 5 completed execution plans: 04-P02, 04-P03, 04-P04, 04-P05, 04-P06 complete
-- Trend: Phase 04 input/haptic transport implementation and physical smoke evidence complete; Phase 05 desktop backend contract work is next.
+- Last 5 completed execution plans: 04-P03, 04-P04, 04-P05, 04-P06, 05-P01 complete
+- Trend: Phase 05 desktop backend contract work started with DESK-04 descriptor/state contract complete.
 
 *Updated after each plan completion*
 | Phase 01 P01 | 10 min | 3 tasks | 6 files |
@@ -79,6 +79,7 @@ Progress: [██████████] 100% by planned plans through Phase 0
 | Phase 04 P04 | 23 min | 2 tasks | 15 files |
 | Phase 04 P05 | 15m 32s | 2 tasks | 17 files |
 | Phase 04 P06 | hardware-interactive; closeout 2 min | 2 tasks | 4 files |
+| Phase 05 P01 | 14 min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -134,6 +135,8 @@ Recent decisions affecting current work:
 - [Phase 04]: Cancel phone haptic on trusted session change, not on short reliable-control disconnect. — Session change invalidates command ownership; short disconnect alone should not interrupt an already valid pulse.
 - [Phase 04]: Treat the user's 2026-06-09 Phase 4 approval as pass status for every planned physical-smoke capture id.
 - [Phase 04]: Do not invent or commit raw log text, device identifiers, pairing material, stream secrets, proof values, keys, or screenshots.
+- [Phase 05]: BT Gun v1 backend descriptor is fixed to one gamepad_like_joystick with trigger/reload/X/Y/A/B, stickX/stickY/aimX/aimY, and digital trigger. — Locks DESK-04 before platform-specific adapters.
+- [Phase 05]: SemanticControllerState stays immutable and semantic-only with no platform HID/report fields. — Keeps Windows and macOS adapter details deferred to later phases.
 
 ### Pending Todos
 
@@ -153,6 +156,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-09T17:26:59.922Z
-Stopped at: Phase 5 context gathered
-Resume file: .planning/phases/05-desktop-backend-contract-and-smoke-harness/05-CONTEXT.md
+Last session: 2026-06-09T18:27:39.541Z
+Stopped at: Completed 05-01-PLAN.md
+Resume file: None
