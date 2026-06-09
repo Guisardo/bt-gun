@@ -208,11 +208,25 @@ Plans:
 **Plans:** 6 plans
 Plans:
 
+**Wave 1**
+
 - [ ] 06-01-PLAN.md — Windows HID report packing and output haptic mapping.
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 06-02-PLAN.md — VHF/KMDF driver, IOCTL ABI, INF, and helper tools.
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 06-03-PLAN.md — Windows desktop backend bridge and capabilities.
-- [ ] 06-04-PLAN.md — Live companion runtime wiring and Windows VHF smoke entrypoint.
 - [ ] 06-05-PLAN.md — GitHub Actions build/sign/package workflow and Windows setup docs.
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 06-04-PLAN.md — Live companion runtime wiring and Windows VHF smoke entrypoint.
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
 - [ ] 06-06-PLAN.md — Approval-gated Windows target proof with `joy.cpl`, live input, and real output haptic.
 
 ### Phase 7: macOS Virtual Joystick Path
