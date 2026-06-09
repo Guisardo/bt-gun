@@ -11,6 +11,7 @@ import com.btgun.desktop.pairing.PairingSession
 import com.btgun.desktop.pairing.PairingSessionRegistry
 import com.btgun.desktop.security.DesktopIdentity
 import com.btgun.desktop.security.DesktopIdentityStore
+import com.btgun.desktop.security.FileDesktopIdentityStore
 import com.btgun.desktop.security.PairingProof
 import com.btgun.desktop.smoke.BackendHapticSmokeSession
 import kotlinx.coroutines.channels.Channel
@@ -103,12 +104,18 @@ private fun activeTrustedSessionRoutesHapticOverReservedControlEnvelope() {
 private fun liveHapticSmokeFailsClosedWithoutAndroid() {
     val port = ServerSocket(0).use { it.localPort }
     val qrPath = Paths.get("build/test-results/btgun-smoke/macos-stub/haptic-pairing-qr.png")
+    val identityPath = Paths.get("build/test-results/btgun-smoke/macos-stub/haptic-test-identity.p12")
     Files.deleteIfExists(qrPath)
+    Files.deleteIfExists(identityPath)
 
     val result = BackendHapticSmokeSession.runLiveHaptic(
         platformId = "macos-stub",
         port = port,
         timeoutMillis = 50L,
+        identityStore = FileDesktopIdentityStore(
+            path = identityPath,
+            password = "btgun-haptic-test".toCharArray(),
+        ),
     )
 
     expectEquals("no Android is failure", false, result.passed)
