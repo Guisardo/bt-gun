@@ -33,11 +33,11 @@ Per-phase validation contract for feedback sampling during execution.
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
 | 05-01-01 | 01 | 1 | DESK-04 | T-05-01 | Descriptor exposes only six v1 buttons, four v1 axes, and digital trigger. | unit/contract | `gradle test` | no - Wave 0 | pending |
-| 05-01-02 | 01 | 1 | DESK-07 | T-05-02 | Capabilities include platform/detail reasons for unsupported output/haptic features. | unit/contract | `gradle test` | no - Wave 0 | pending |
-| 05-02-01 | 02 | 1 | DESK-08 | T-05-03 | UDP fixture replay goes through authenticated receiver path before backend publish. | integration | `gradle test` | no - Wave 0 | pending |
-| 05-03-01 | 03 | 2 | DESK-08 | T-05-04 | macOS stub emits JUnit-style XML without claiming OS-visible HID support. | smoke | `gradle smokeDesktopBackendMacosStub` | no - Wave 0 | pending |
-| 05-03-02 | 03 | 2 | DESK-08 | T-05-04 | Windows stub emits JUnit-style XML without claiming OS-visible HID support. | smoke/human-run | `gradle smokeDesktopBackendWindowsStub` | no - Wave 0 | pending |
-| 05-04-01 | 04 | 3 | DESK-07, DESK-08 | T-05-05 | Simulated output report maps to existing authenticated phone haptic command path only. | smoke/manual | `gradle smokeDesktopBackendMacosStub -Pbtgun.smoke.haptic=true` and Windows equivalent | no - Wave 0 | pending |
+| 05-02-01 | 02 | 2 | DESK-07 | T-05-02 | Capabilities include platform/detail reasons for unsupported output/haptic features. | unit/contract | `gradle test` | no - Wave 0 | pending |
+| 05-03-01 | 03 | 3 | DESK-08 | T-05-03 | UDP fixture replay goes through authenticated receiver path before backend publish. | integration | `gradle test` | no - Wave 0 | pending |
+| 05-04-01 | 04 | 4 | DESK-08 | T-05-04 | macOS stub emits JUnit-style XML without claiming OS-visible HID support. | smoke | `gradle smokeDesktopBackendMacosStub` | no - Wave 0 | pending |
+| 05-04-02 | 04 | 4 | DESK-08 | T-05-04 | Windows stub emits JUnit-style XML without claiming OS-visible HID support. | smoke/human-run | `gradle smokeDesktopBackendWindowsStub` | no - Wave 0 | pending |
+| 05-05-01 | 05 | 5 | DESK-07, DESK-08 | T-05-05 | Simulated output report maps to existing authenticated phone haptic command path only. | smoke/manual | `gradle smokeDesktopBackendMacosStub -Pbtgun.smoke.haptic=true` and Windows equivalent | no - Wave 0 | pending |
 
 *Status: pending / green / red / flaky*
 
