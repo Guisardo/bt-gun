@@ -7,11 +7,14 @@ import com.btgun.desktop.control.ControlServerSessionState
 import com.btgun.desktop.control.HapticSendResult
 import com.btgun.desktop.haptics.HapticResult
 import com.btgun.desktop.haptics.HapticResultStatus
+import com.btgun.desktop.pairing.QrCodeRenderer
 import com.btgun.desktop.pairing.LocalEndpointSelector
 import com.btgun.desktop.pairing.PairingSessionRegistry
 import com.btgun.desktop.security.FileDesktopIdentityStore
 import com.btgun.desktop.security.SecretRedactor
+import java.nio.file.Files
 import java.nio.file.Paths
+import javax.imageio.ImageIO
 import java.util.concurrent.atomic.AtomicReference
 
 object BackendHapticSmokeSession {
@@ -44,7 +47,10 @@ object BackendHapticSmokeSession {
         server.onHapticResultReceived = hapticResult::set
 
         return try {
-            println("btgun haptic smoke QR URI: ${pairing.qrPayload.toPairingUri()}")
+            val qrPath = hapticQrPath(platformId)
+            qrPath.parent?.let(Files::createDirectories)
+            ImageIO.write(QrCodeRenderer.render(pairing.qrPayload.toPairingUri(), size = 420), "png", qrPath.toFile())
+            println("btgun haptic smoke QR image: ${qrPath.toAbsolutePath()}")
             println(
                 "btgun haptic smoke manual: host=${pairing.manualPayload.host} " +
                     "port=${pairing.manualPayload.port} code=${pairing.manualPayload.code} " +
@@ -103,6 +109,9 @@ object BackendHapticSmokeSession {
             "windows-stub" -> StubVirtualControllerBackend.windows()
             else -> throw IllegalArgumentException("unsupported platform id")
         }
+
+    private fun hapticQrPath(platformId: String) =
+        Paths.get("build/test-results/btgun-smoke/$platformId/haptic-pairing-qr.png")
 
     private fun waitUntil(deadlineNanos: Long, condition: () -> Boolean): Boolean {
         while (System.nanoTime() < deadlineNanos) {

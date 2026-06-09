@@ -17,6 +17,8 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
 import java.net.ServerSocket
+import java.nio.file.Files
+import java.nio.file.Paths
 
 fun main() {
     simulatedOutputReportMapsToPhoneHapticCommand()
@@ -100,6 +102,8 @@ private fun activeTrustedSessionRoutesHapticOverReservedControlEnvelope() {
 
 private fun liveHapticSmokeFailsClosedWithoutAndroid() {
     val port = ServerSocket(0).use { it.localPort }
+    val qrPath = Paths.get("build/test-results/btgun-smoke/macos-stub/haptic-pairing-qr.png")
+    Files.deleteIfExists(qrPath)
 
     val result = BackendHapticSmokeSession.runLiveHaptic(
         platformId = "macos-stub",
@@ -109,6 +113,7 @@ private fun liveHapticSmokeFailsClosedWithoutAndroid() {
 
     expectEquals("no Android is failure", false, result.passed)
     expectTrue("failure mentions Android session", result.message.contains("Android session"))
+    expectTrue("haptic smoke writes scannable QR image", Files.size(qrPath) > 100L)
 }
 
 private fun proofRequestFor(session: PairingSession, androidNonce: String): PairingProofRequest =
