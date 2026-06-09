@@ -84,7 +84,7 @@ class TrustedDesktopStore {
             return TrustValidationResult.Trusted(metadata)
         }
         val conflicting = trusted.firstOrNull { desktop ->
-            desktop.displayName == displayName || (desktop.lastHost == host && desktop.lastPort == port)
+            desktop.lastHost == host && desktop.lastPort == port
         }
         return if (conflicting != null) {
             TrustValidationResult.Mismatch(
