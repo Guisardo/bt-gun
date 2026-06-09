@@ -2,6 +2,9 @@ package com.btgun.desktop.ui
 
 import com.btgun.desktop.control.ControlServer
 import com.btgun.desktop.control.ControlServerSessionState
+import com.btgun.desktop.control.HapticSendResult
+import com.btgun.desktop.haptics.HapticCommand
+import com.btgun.desktop.haptics.HapticResult
 import com.btgun.desktop.pairing.LocalEndpoint
 import com.btgun.desktop.pairing.ManualPairingPayload
 import com.btgun.desktop.pairing.PairingSecurityState
@@ -39,11 +42,15 @@ class PairingWindow(
     private val qr = JLabel("Start pairing", SwingConstants.CENTER)
     private val countdown = JLabel("Countdown: inactive")
     private val manual = JLabel("Manual fallback: inactive")
-    private val diagnostics = JLabel(diagnosticsHtml(DesktopSessionUiState.IDLE, null))
+    private val diagnostics = JLabel(diagnosticsHtml(DesktopSessionUiState.IDLE, lastControlError = null))
     private val action = JButton("Start pairing")
+    private val hapticAction = JButton("Test haptic")
     private var session: PairingSession? = null
     private var displayState = DesktopSessionUiState.IDLE
+    private var serverAuthenticated = false
+    private var packetStreamState = InputStreamLifecycleState.STOPPED
     private var lastControlError: String? = null
+    private var lastHapticStatus: String = "inactive"
 
     init {
         title.font = title.font.deriveFont(Font.BOLD, 22f)
@@ -59,9 +66,31 @@ class PairingWindow(
                 applyServerState(serverState)
             }
         }
+        controlServer.onUdpInputStateChanged = { streamState ->
+            SwingUtilities.invokeLater {
+                packetStreamState = streamState
+                updateDiagnostics()
+            }
+        }
+        controlServer.onUdpInputRejected = { reason ->
+            SwingUtilities.invokeLater {
+                lastControlError = "UDP input rejected: ${reason.name.lowercase()}"
+                updateDiagnostics()
+            }
+        }
+        controlServer.onHapticResultReceived = { result ->
+            SwingUtilities.invokeLater {
+                lastHapticStatus = hapticStatusText(result)
+                updateDiagnostics()
+            }
+        }
 
         action.addActionListener {
             startPairing()
+        }
+        hapticAction.isEnabled = false
+        hapticAction.addActionListener {
+            sendTestHaptic()
         }
 
         frame.defaultCloseOperation = JFrame.EXIT_ON_CLOSE
@@ -107,6 +136,8 @@ class PairingWindow(
         side.add(diagnostics)
         side.add(Box.createVerticalStrut(16))
         side.add(action)
+        side.add(Box.createVerticalStrut(8))
+        side.add(hapticAction)
 
         root.add(header, BorderLayout.NORTH)
         root.add(primary, BorderLayout.CENTER)
@@ -122,7 +153,9 @@ class PairingWindow(
 
     private fun renderSession(current: PairingSession) {
         displayState = DesktopSessionUiState.PAIRING_READY
+        serverAuthenticated = false
         lastControlError = null
+        lastHapticStatus = "inactive"
         startControlServer(current)
         state.text = stateText(displayState)
         endpoint.text = endpointText(current.endpoint)
@@ -148,7 +181,8 @@ class PairingWindow(
         if (current == null) {
             countdown.text = "Countdown: inactive"
             state.text = stateText(DesktopSessionUiState.IDLE)
-            diagnostics.text = diagnosticsHtml(DesktopSessionUiState.IDLE, lastControlError)
+            hapticAction.isEnabled = false
+            updateDiagnostics(DesktopSessionUiState.IDLE)
             return
         }
 
@@ -156,7 +190,8 @@ class PairingWindow(
         displayState = stateFromSecurity(current, now)
         countdown.text = countdownText(current.expiresAtEpochMillis, now)
         state.text = stateText(displayState)
-        diagnostics.text = diagnosticsHtml(displayState, lastControlError)
+        hapticAction.isEnabled = hapticButtonEnabled(displayState, serverAuthenticated)
+        updateDiagnostics()
         if (displayState == DesktopSessionUiState.EXPIRED) {
             registry.expire(now)
             startPairing()
@@ -173,8 +208,34 @@ class PairingWindow(
             ControlServerSessionState.DISCONNECTED -> DesktopSessionUiState.DISCONNECTED
             ControlServerSessionState.RATE_LIMITED -> DesktopSessionUiState.RATE_LIMITED
         }
+        serverAuthenticated = when (serverState) {
+            ControlServerSessionState.AUTHENTICATED -> true
+            ControlServerSessionState.DEGRADED -> serverAuthenticated
+            else -> false
+        }
         state.text = stateText(displayState)
-        diagnostics.text = diagnosticsHtml(displayState, lastControlError)
+        hapticAction.isEnabled = hapticButtonEnabled(displayState, serverAuthenticated)
+        updateDiagnostics()
+    }
+
+    private fun sendTestHaptic() {
+        val command = smokeHapticCommand("ui-test-${System.nanoTime()}")
+        lastHapticStatus = when (val result = controlServer.sendHapticCommand(command)) {
+            HapticSendResult.Sent -> "queued: ${command.commandId}"
+            HapticSendResult.NoActiveSession -> "not connected"
+            is HapticSendResult.Rejected -> "rejected: ${result.error.name.lowercase()}"
+            is HapticSendResult.Failed -> "failed: ${result.reason}"
+        }
+        updateDiagnostics()
+    }
+
+    private fun updateDiagnostics(state: DesktopSessionUiState = displayState) {
+        diagnostics.text = diagnosticsHtml(
+            state = state,
+            packetState = packetStreamState,
+            lastControlError = lastControlError,
+            lastHapticStatus = lastHapticStatus,
+        )
     }
 
     private fun stateFromSecurity(current: PairingSession, nowEpochMillis: Long): DesktopSessionUiState =
@@ -187,12 +248,7 @@ class PairingWindow(
                 else -> DesktopSessionUiState.PAIRING_READY
             }
             PairingSecurityState.RATE_LIMITED -> DesktopSessionUiState.RATE_LIMITED
-            PairingSecurityState.ACCEPTED -> when (displayState) {
-                DesktopSessionUiState.DEGRADED,
-                DesktopSessionUiState.DISCONNECTED,
-                -> displayState
-                else -> DesktopSessionUiState.AUTHENTICATED
-            }
+            PairingSecurityState.ACCEPTED -> displayState
             PairingSecurityState.EXPIRED -> DesktopSessionUiState.EXPIRED
             PairingSecurityState.MISSING -> when (displayState) {
                 DesktopSessionUiState.AUTHENTICATED,
@@ -220,6 +276,23 @@ class PairingWindow(
                 </html>
             """.trimIndent()
 
+        internal fun smokeHapticCommand(commandId: String): HapticCommand =
+            HapticCommand(
+                commandId = commandId,
+                strength = 0.6,
+                durationMs = 80L,
+                ttlMs = 500L,
+            )
+
+        internal fun hapticButtonEnabled(state: DesktopSessionUiState): Boolean =
+            hapticButtonEnabled(state, serverAuthenticated = state == DesktopSessionUiState.AUTHENTICATED)
+
+        internal fun hapticButtonEnabled(state: DesktopSessionUiState, serverAuthenticated: Boolean): Boolean =
+            state == DesktopSessionUiState.AUTHENTICATED && serverAuthenticated
+
+        internal fun hapticStatusText(result: HapticResult): String =
+            "${result.status.wireName}: ${result.detail}"
+
         internal fun endpointText(endpoint: LocalEndpoint): String =
             "Endpoint: ${endpoint.host}:${endpoint.port}"
 
@@ -244,15 +317,20 @@ class PairingWindow(
         private fun stateText(state: DesktopSessionUiState): String =
             "State: ${state.label}"
 
-        private fun diagnosticsHtml(state: DesktopSessionUiState, lastControlError: String?): String {
+        private fun diagnosticsHtml(
+            state: DesktopSessionUiState,
+            packetState: InputStreamLifecycleState = InputStreamLifecycleState.STOPPED,
+            lastControlError: String?,
+            lastHapticStatus: String = "inactive",
+        ): String {
             val safeError = SecretRedactor.redact(lastControlError ?: "none")
             return """
                 <html>
                 <body>
                 <p><b>Session:</b> ${state.label}</p>
-                <p>Packet stream: ${InputStreamLifecycleState.STOPPED.label}</p>
+                <p>Packet stream: ${packetState.label}</p>
                 <p><b>Last control error:</b> ${escapeHtml(safeError)}</p>
-                <p>Phone haptics use trusted control.</p>
+                <p><b>Phone haptic:</b> ${escapeHtml(lastHapticStatus)}</p>
                 </body>
                 </html>
             """.trimIndent()

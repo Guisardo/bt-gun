@@ -2,7 +2,7 @@ package com.btgun.desktop.transport
 
 fun main() {
     replayGuardAcceptsFirstValidFrameAndRejectsReplayCases()
-    replayGuardRejectsWrongSessionMalformedBadMacAndAcceptsClockSkewedDatagrams()
+    replayGuardRejectsWrongSessionMalformedBadMacAgeExpiredAndAcceptsClockSkewedDatagrams()
     timeoutClearsControlsButPreservesRawMotion()
 }
 
@@ -37,7 +37,7 @@ private fun replayGuardAcceptsFirstValidFrameAndRejectsReplayCases() {
     expectEquals("snapshot raw aim y remains current", -0.75f, guard.current?.motion?.rawAimY)
 }
 
-private fun replayGuardRejectsWrongSessionMalformedBadMacAndAcceptsClockSkewedDatagrams() {
+private fun replayGuardRejectsWrongSessionMalformedBadMacAgeExpiredAndAcceptsClockSkewedDatagrams() {
     val guard = InputReplayGuard(
         trustedControlSessionId = CONTROL_SESSION_ID,
         config = fixtureConfig(),
@@ -48,7 +48,11 @@ private fun replayGuardRejectsWrongSessionMalformedBadMacAndAcceptsClockSkewedDa
     val badMac = validBytes.copyOf().also { it[it.lastIndex] = (it[it.lastIndex].toInt() xor 0x01).toByte() }
     val malformed = validBytes.copyOfRange(0, validBytes.lastIndex)
     val skewedUptime = UdpInputFrameCodec.encode(
-        frame(sequence = 22L, captureElapsedNanos = 1_000_000_000L, sendElapsedNanos = 1_000_000_000L),
+        frame(sequence = 22L, captureElapsedNanos = 1_000_000_000L, sendElapsedNanos = 1_000_001_000L),
+        fixtureConfig(),
+    )
+    val senderLocalStale = UdpInputFrameCodec.encode(
+        frame(sequence = 23L, captureElapsedNanos = 1_000_000_000L, sendElapsedNanos = 1_151_000_001L),
         fixtureConfig(),
     )
 
@@ -77,6 +81,11 @@ private fun replayGuardRejectsWrongSessionMalformedBadMacAndAcceptsClockSkewedDa
         guard.acceptDatagram(skewedUptime, receivedElapsedNanos = 900_000_000_000_000L, controlSessionId = CONTROL_SESSION_ID),
         sequence = 22L,
         buttonBitmask = 0x23,
+    )
+    expectRejected(
+        "sender-local stale frame rejected",
+        InputReplayRejectReason.AGE_EXPIRED,
+        guard.acceptDatagram(senderLocalStale, receivedElapsedNanos = 900_000_000_000_100L, controlSessionId = CONTROL_SESSION_ID),
     )
 }
 

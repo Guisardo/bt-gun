@@ -132,14 +132,24 @@ class DesktopHapticCommandExecutor(
         require(nowElapsedNanos >= 0L) { "nowElapsedNanos must be non-negative" }
     }
 
-    fun onSessionChanged(newSessionId: String): HapticResultStatus {
+    fun onSessionChanged(newSessionId: String): HapticResult? {
         require(newSessionId.isNotBlank()) { "newSessionId must not be blank" }
-        if (activeCommandId == null) {
-            return HapticResultStatus.CANCELLED
-        }
+        val commandId = activeCommandId ?: return null
         activeCommandId = null
-        return phone.cancel()
+        val status = phone.cancel()
+        return result(commandId, status, cancelDetail(status), elapsedRealtimeNanos())
     }
+
+    private fun cancelDetail(status: HapticResultStatus): String =
+        when (status) {
+            HapticResultStatus.CANCELLED -> "phone pulse cancelled"
+            HapticResultStatus.UNSUPPORTED -> "phone haptic unsupported"
+            HapticResultStatus.PERMISSION_BLOCKED -> "vibrate permission blocked"
+            HapticResultStatus.FAILED -> "phone haptic cancel failed"
+            HapticResultStatus.STARTED,
+            HapticResultStatus.EXPIRED,
+            -> status.wireName
+        }
 
     private fun result(
         commandId: String,

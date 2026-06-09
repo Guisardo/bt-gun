@@ -51,6 +51,13 @@ class UdpInputReceiver(
         }
     }
 
+    fun refresh(nowElapsedNanos: Long) {
+        require(nowElapsedNanos >= 0L) { "nowElapsedNanos must be non-negative" }
+        if (controlGraceExpired(nowElapsedNanos)) {
+            lifecycleState = InputStreamLifecycleState.STALE
+        }
+    }
+
     fun onTimeout(): UdpReceivedInput? {
         return onStreamTimeout(nowElapsedNanos = 0L)
     }

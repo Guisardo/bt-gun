@@ -5,6 +5,7 @@ enum class InputReplayRejectReason {
     WRONG_STREAM_SESSION,
     DUPLICATE_SEQUENCE,
     OLD_SEQUENCE,
+    AGE_EXPIRED,
     CONTROL_GRACE_EXPIRED,
     BAD_HMAC,
     MALFORMED,
@@ -45,10 +46,15 @@ class InputReplayGuard(
         if (frame.streamSessionId != config.streamSessionIdHex) {
             return InputReplayDecision.Rejected(InputReplayRejectReason.WRONG_STREAM_SESSION)
         }
+        val senderLocalFrameAgeNanos = frame.sendElapsedNanos - frame.captureElapsedNanos
+        if (senderLocalFrameAgeNanos > config.frameAgeLimitMs * NANOS_PER_MILLISECOND) {
+            return InputReplayDecision.Rejected(InputReplayRejectReason.AGE_EXPIRED)
+        }
         // Android and desktop monotonic clocks have unrelated origins. Do not
         // compare sendElapsedNanos with receivedElapsedNanos until a trusted
-        // control-channel clock offset exists; sequence replay, stream timeout,
-        // and control-disconnect grace still bound stale input.
+        // control-channel clock offset exists; sequence replay, Android-local
+        // capture-to-send age, stream timeout, and control-disconnect grace
+        // still bound stale input.
         val highest = highestAcceptedSequence
         if (highest != null) {
             if (frame.sequence == highest) {
@@ -78,6 +84,8 @@ class InputReplayGuard(
         ).also { this.current = it }
 
 }
+
+private const val NANOS_PER_MILLISECOND = 1_000_000L
 
 private fun UdpInputFrameRejectReason.toReplayRejectReason(): InputReplayRejectReason =
     when (this) {

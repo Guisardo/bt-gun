@@ -12,6 +12,11 @@ import com.btgun.desktop.security.PairingProof
 import com.btgun.desktop.haptics.HapticCommand
 import com.btgun.desktop.haptics.HapticResult
 import com.btgun.desktop.haptics.HapticResultStatus
+import com.btgun.desktop.transport.InputStreamConfig
+import com.btgun.desktop.transport.InputStreamLifecycleState
+import com.btgun.desktop.transport.UdpInputRuntime
+import com.btgun.desktop.transport.UdpInputRuntimeStartResult
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.JsonObject
@@ -36,8 +41,15 @@ fun main() {
     controlEnvelopeAllowsHeartbeatDiagnosticsAndProfileTypes()
     controlEnvelopeAllowsHapticResultBody()
     controlServerBuildsTrustedHapticCommandEnvelope()
-    controlServerAcceptsHapticResultAfterProof()
+    controlServerSendsHapticCommandOnlyForActiveSession()
+    controlServerAcceptsOnlyPendingActiveHapticResult()
+    controlServerRejectsHapticsAfterLivenessDisconnect()
+    controlServerAcceptsStartedAndThenCancelledForActiveHaptic()
+    controlServerKeepsOnlyLatestStartedHapticCancellable()
+    controlServerAcceptsActiveHapticCancelFailureStatuses()
     controlServerSendsFreshInputStreamConfigAfterTrustedSession()
+    controlServerStartsUdpRuntimeWithAdvertisedInputStreamConfig()
+    controlServerReportsUdpStartFailureBeforeStreamConfig()
     controlServerUsesPairingEndpointForInputStreamConfigWhenConstructedBeforePairing()
 }
 
@@ -303,14 +315,88 @@ private fun controlServerBuildsTrustedHapticCommandEnvelope() {
     expectTrue("command encodes", ControlEnvelopeCodec.decode(ControlEnvelopeCodec.encode(envelope)) is ControlDecodeResult.Accepted)
 }
 
-private fun controlServerAcceptsHapticResultAfterProof() = runBlocking {
-    val server = ControlServer(registry = testRegistry(), maxMessageBytes = 1024)
+private fun controlServerSendsHapticCommandOnlyForActiveSession() {
+    val registry = testRegistry()
+    val session = registry.startPairing(nowEpochMillis = 1_000L)
+    val server = ControlServer(registry = registry, maxMessageBytes = 1024)
+    val command = HapticCommand(
+        commandId = "cmd-001",
+        strength = 0.5,
+        durationMs = 80L,
+        ttlMs = 500L,
+    )
+
+    expectEquals("pre-auth haptic blocked", HapticSendResult.NoActiveSession, server.sendHapticCommand(command))
+
+    val trusted = server.authenticate(proofRequestFor(session, "ee".repeat(16)), nowEpochMillis = 2_000L)
+    expectTrue("authenticated", trusted is ControlAuthenticationResult.Accepted)
+    val outbound = Channel<ControlEnvelope>(Channel.UNLIMITED)
+    server.registerActiveControlSessionForTest((trusted as ControlAuthenticationResult.Accepted).trustedSession, outbound)
+
+    val send = server.sendHapticCommand(command, nowElapsedNanos = 3_000_000_000L)
+    val sentEnvelope = outbound.tryReceive().getOrNull()
+
+    expectEquals("active haptic sent", HapticSendResult.Sent, send)
+    expectEquals("haptic type", ControlMessageType.RESERVED_HAPTIC_COMMAND, sentEnvelope?.type)
+    expectEquals("haptic command id", "cmd-001", sentEnvelope?.body?.stringField("commandId"))
+}
+
+private fun controlServerAcceptsOnlyPendingActiveHapticResult() = runBlocking {
+    val registry = testRegistry()
+    val session = registry.startPairing(nowEpochMillis = 1_000L)
+    val server = ControlServer(registry = registry, maxMessageBytes = 1024)
     val accepted = mutableListOf<ControlEnvelope>()
+    val parsed = mutableListOf<HapticResult>()
     server.onControlEnvelopeAccepted = accepted::add
+    server.onHapticResultReceived = parsed::add
+    val trusted = server.authenticate(proofRequestFor(session, "ef".repeat(16)), nowEpochMillis = 2_000L)
+    expectTrue("authenticated", trusted is ControlAuthenticationResult.Accepted)
+    val trustedSession = (trusted as ControlAuthenticationResult.Accepted).trustedSession
+    val outbound = Channel<ControlEnvelope>(Channel.UNLIMITED)
+    server.registerActiveControlSessionForTest(trustedSession, outbound, token = "active-token")
+
+    server.handleAcceptedEnvelope(
+        envelope = envelope(ControlMessageType.HAPTIC_RESULT, sessionId = trustedSession.sid, body = JsonObject(emptyMap())),
+        heartbeat = HeartbeatMonitor(),
+        controlSessionToken = "active-token",
+    )
+    server.handleAcceptedEnvelope(
+        envelope = envelope(
+            ControlMessageType.HAPTIC_RESULT,
+            sessionId = trustedSession.sid,
+            body = HapticResult(
+                commandId = "unknown",
+                status = HapticResultStatus.STARTED,
+                detail = "phone pulse started",
+                observedElapsedNanos = 1_050_000_000L,
+            ).toJsonBody(),
+        ),
+        heartbeat = HeartbeatMonitor(),
+        controlSessionToken = "active-token",
+    )
+    server.sendHapticCommand(HapticCommand("cmd-stale", strength = 0.5, durationMs = 80L, ttlMs = 500L))
+    outbound.tryReceive().getOrNull()
+    server.handleAcceptedEnvelope(
+        envelope = envelope(
+            ControlMessageType.HAPTIC_RESULT,
+            sessionId = trustedSession.sid,
+            body = HapticResult(
+                commandId = "cmd-stale",
+                status = HapticResultStatus.STARTED,
+                detail = "phone pulse started",
+                observedElapsedNanos = 1_050_000_000L,
+            ).toJsonBody(),
+        ),
+        heartbeat = HeartbeatMonitor(),
+        controlSessionToken = "stale-token",
+    )
+    server.sendHapticCommand(HapticCommand("cmd-001", strength = 0.5, durationMs = 80L, ttlMs = 500L))
+    outbound.tryReceive().getOrNull()
 
     server.handleAcceptedEnvelope(
         envelope = envelope(
             ControlMessageType.HAPTIC_RESULT,
+            sessionId = trustedSession.sid,
             body = HapticResult(
                 commandId = "cmd-001",
                 status = HapticResultStatus.STARTED,
@@ -319,9 +405,158 @@ private fun controlServerAcceptsHapticResultAfterProof() = runBlocking {
             ).toJsonBody(),
         ),
         heartbeat = HeartbeatMonitor(),
+        controlSessionToken = "active-token",
     )
 
+    expectEquals("one parsed haptic result", 1, parsed.size)
+    expectEquals("parsed command", "cmd-001", parsed.single().commandId)
     expectEquals("haptic callback", ControlMessageType.HAPTIC_RESULT, accepted.single().type)
+}
+
+private fun controlServerRejectsHapticsAfterLivenessDisconnect() = runBlocking {
+    val registry = testRegistry()
+    val session = registry.startPairing(nowEpochMillis = 1_000L)
+    val runtime = FakeUdpRuntime()
+    val server = ControlServer(registry = registry, maxMessageBytes = 1024, udpRuntime = runtime)
+    val trusted = server.authenticate(proofRequestFor(session, "f0".repeat(16)), nowEpochMillis = 2_000L)
+    expectTrue("authenticated", trusted is ControlAuthenticationResult.Accepted)
+    val outbound = Channel<ControlEnvelope>(Channel.UNLIMITED)
+    val token = server.registerActiveControlSessionForTest((trusted as ControlAuthenticationResult.Accepted).trustedSession, outbound)
+
+    server.updateSessionState(
+        state = LivenessState.DISCONNECTED,
+        controlSessionToken = token,
+        nowElapsedNanos = 4_000_000_001L,
+    )
+
+    expectEquals(
+        "stale session cannot send haptic",
+        HapticSendResult.NoActiveSession,
+        server.sendHapticCommand(HapticCommand("cmd-after-disconnect", 0.5, 80L, 500L)),
+    )
+    expectEquals("udp disconnect signaled once", 1, runtime.disconnects)
+}
+
+private fun controlServerAcceptsStartedAndThenCancelledForActiveHaptic() = runBlocking {
+    val registry = testRegistry()
+    val session = registry.startPairing(nowEpochMillis = 1_000L)
+    val server = ControlServer(registry = registry, maxMessageBytes = 1024)
+    val parsed = mutableListOf<HapticResult>()
+    server.onHapticResultReceived = parsed::add
+    val trusted = server.authenticate(proofRequestFor(session, "f1".repeat(16)), nowEpochMillis = 2_000L)
+    expectTrue("authenticated", trusted is ControlAuthenticationResult.Accepted)
+    val trustedSession = (trusted as ControlAuthenticationResult.Accepted).trustedSession
+    val outbound = Channel<ControlEnvelope>(Channel.UNLIMITED)
+    val token = server.registerActiveControlSessionForTest(trustedSession, outbound)
+    server.sendHapticCommand(HapticCommand("cmd-active", 0.5, 80L, 500L))
+    outbound.tryReceive().getOrNull()
+
+    server.handleAcceptedEnvelope(
+        envelope = envelope(
+            ControlMessageType.HAPTIC_RESULT,
+            sessionId = trustedSession.sid,
+            body = HapticResult("cmd-active", HapticResultStatus.STARTED, "phone pulse started", 10L).toJsonBody(),
+        ),
+        heartbeat = HeartbeatMonitor(),
+        controlSessionToken = token,
+    )
+    server.handleAcceptedEnvelope(
+        envelope = envelope(
+            ControlMessageType.HAPTIC_RESULT,
+            sessionId = trustedSession.sid,
+            body = HapticResult("cmd-active", HapticResultStatus.CANCELLED, "phone pulse cancelled", 20L).toJsonBody(),
+        ),
+        heartbeat = HeartbeatMonitor(),
+        controlSessionToken = token,
+    )
+
+    expectEquals("started then cancelled", listOf(HapticResultStatus.STARTED, HapticResultStatus.CANCELLED), parsed.map { it.status })
+}
+
+private fun controlServerKeepsOnlyLatestStartedHapticCancellable() = runBlocking {
+    val registry = testRegistry()
+    val session = registry.startPairing(nowEpochMillis = 1_000L)
+    val server = ControlServer(registry = registry, maxMessageBytes = 1024)
+    val parsed = mutableListOf<HapticResult>()
+    server.onHapticResultReceived = parsed::add
+    val trusted = server.authenticate(proofRequestFor(session, "f2".repeat(16)), nowEpochMillis = 2_000L)
+    expectTrue("authenticated", trusted is ControlAuthenticationResult.Accepted)
+    val trustedSession = (trusted as ControlAuthenticationResult.Accepted).trustedSession
+    val outbound = Channel<ControlEnvelope>(Channel.UNLIMITED)
+    val token = server.registerActiveControlSessionForTest(trustedSession, outbound)
+
+    listOf("cmd-old", "cmd-new").forEach { commandId ->
+        server.sendHapticCommand(HapticCommand(commandId, 0.5, 80L, 500L))
+        outbound.tryReceive().getOrNull()
+        server.handleAcceptedEnvelope(
+            envelope = envelope(
+                ControlMessageType.HAPTIC_RESULT,
+                sessionId = trustedSession.sid,
+                body = HapticResult(commandId, HapticResultStatus.STARTED, "phone pulse started", 10L).toJsonBody(),
+            ),
+            heartbeat = HeartbeatMonitor(),
+            controlSessionToken = token,
+        )
+    }
+    server.handleAcceptedEnvelope(
+        envelope = envelope(
+            ControlMessageType.HAPTIC_RESULT,
+            sessionId = trustedSession.sid,
+            body = HapticResult("cmd-old", HapticResultStatus.CANCELLED, "old cancel", 20L).toJsonBody(),
+        ),
+        heartbeat = HeartbeatMonitor(),
+        controlSessionToken = token,
+    )
+    server.handleAcceptedEnvelope(
+        envelope = envelope(
+            ControlMessageType.HAPTIC_RESULT,
+            sessionId = trustedSession.sid,
+            body = HapticResult("cmd-new", HapticResultStatus.CANCELLED, "new cancel", 30L).toJsonBody(),
+        ),
+        heartbeat = HeartbeatMonitor(),
+        controlSessionToken = token,
+    )
+
+    expectEquals(
+        "old cancel ignored, latest cancel accepted",
+        listOf("cmd-old", "cmd-new", "cmd-new"),
+        parsed.map { it.commandId },
+    )
+}
+
+private fun controlServerAcceptsActiveHapticCancelFailureStatuses() = runBlocking {
+    val registry = testRegistry()
+    val session = registry.startPairing(nowEpochMillis = 1_000L)
+    val server = ControlServer(registry = registry, maxMessageBytes = 1024)
+    val parsed = mutableListOf<HapticResult>()
+    server.onHapticResultReceived = parsed::add
+    val trusted = server.authenticate(proofRequestFor(session, "f3".repeat(16)), nowEpochMillis = 2_000L)
+    expectTrue("authenticated", trusted is ControlAuthenticationResult.Accepted)
+    val trustedSession = (trusted as ControlAuthenticationResult.Accepted).trustedSession
+    val outbound = Channel<ControlEnvelope>(Channel.UNLIMITED)
+    val token = server.registerActiveControlSessionForTest(trustedSession, outbound)
+    server.sendHapticCommand(HapticCommand("cmd-active", 0.5, 80L, 500L))
+    outbound.tryReceive().getOrNull()
+    server.handleAcceptedEnvelope(
+        envelope = envelope(
+            ControlMessageType.HAPTIC_RESULT,
+            sessionId = trustedSession.sid,
+            body = HapticResult("cmd-active", HapticResultStatus.STARTED, "phone pulse started", 10L).toJsonBody(),
+        ),
+        heartbeat = HeartbeatMonitor(),
+        controlSessionToken = token,
+    )
+    server.handleAcceptedEnvelope(
+        envelope = envelope(
+            ControlMessageType.HAPTIC_RESULT,
+            sessionId = trustedSession.sid,
+            body = HapticResult("cmd-active", HapticResultStatus.PERMISSION_BLOCKED, "vibrate permission blocked", 20L).toJsonBody(),
+        ),
+        heartbeat = HeartbeatMonitor(),
+        controlSessionToken = token,
+    )
+
+    expectEquals("started then cancel failure", listOf(HapticResultStatus.STARTED, HapticResultStatus.PERMISSION_BLOCKED), parsed.map { it.status })
 }
 
 private fun controlServerSendsFreshInputStreamConfigAfterTrustedSession() {
@@ -356,6 +591,51 @@ private fun controlServerSendsFreshInputStreamConfigAfterTrustedSession() {
     listOf("qrSecret", "qr_secret", "manualCode", "manual code", "pairingProof", "proof").forEach { secret ->
         expectTrue("config body excludes $secret", first.body.toString().contains(secret, ignoreCase = true).not())
     }
+}
+
+private fun controlServerStartsUdpRuntimeWithAdvertisedInputStreamConfig() {
+    val runtime = FakeUdpRuntime()
+    val registry = testRegistry()
+    val session = registry.startPairing(nowEpochMillis = 1_000L)
+    val server = ControlServer(
+        registry = registry,
+        maxMessageBytes = 2048,
+        streamSecretFactory = incrementalSecretFactory(),
+        udpRuntime = runtime,
+    )
+    val trusted = server.authenticate(proofRequestFor(session, "cd".repeat(16)), nowEpochMillis = 2_000L)
+    expectTrue("authenticated", trusted is ControlAuthenticationResult.Accepted)
+
+    val started = server.startInputStreamForTrustedSession(
+        trustedSession = (trusted as ControlAuthenticationResult.Accepted).trustedSession,
+        nowElapsedNanos = 3_000_000_000L,
+    )
+
+    expectTrue("stream started", started is ControlInputStreamStartResult.Started)
+    val result = started as ControlInputStreamStartResult.Started
+    expectEquals("one runtime start", 1, runtime.starts.size)
+    expectEquals("runtime config", result.config, runtime.starts.single().config)
+    expectEquals("advertised stream", result.config.streamSessionIdHex, result.envelope.body.stringField("streamSessionIdHex"))
+    expectEquals("advertised host", result.config.udpHost, result.envelope.body.stringField("udpHost"))
+    expectEquals("advertised port", result.config.udpPort.toLong(), result.envelope.body.longField("udpPort"))
+}
+
+private fun controlServerReportsUdpStartFailureBeforeStreamConfig() {
+    val runtime = FakeUdpRuntime(startResult = UdpInputRuntimeStartResult.Failed("bind failed"))
+    val registry = testRegistry()
+    val session = registry.startPairing(nowEpochMillis = 1_000L)
+    val server = ControlServer(registry = registry, maxMessageBytes = 2048, udpRuntime = runtime)
+    val trusted = server.authenticate(proofRequestFor(session, "ce".repeat(16)), nowEpochMillis = 2_000L)
+    expectTrue("authenticated", trusted is ControlAuthenticationResult.Accepted)
+
+    val started = server.startInputStreamForTrustedSession(
+        trustedSession = (trusted as ControlAuthenticationResult.Accepted).trustedSession,
+        nowElapsedNanos = 3_000_000_000L,
+    )
+
+    expectTrue("stream failed", started is ControlInputStreamStartResult.Failed)
+    expectEquals("failure reason", "bind failed", (started as ControlInputStreamStartResult.Failed).reason)
+    expectEquals("one attempted start", 1, runtime.starts.size)
 }
 
 private fun controlServerUsesPairingEndpointForInputStreamConfigWhenConstructedBeforePairing() {
@@ -449,6 +729,33 @@ private fun incrementalSecretFactory(): () -> ByteArray {
     var next = 1
     return {
         ByteArray(32) { (next + it).toByte() }.also { next += 32 }
+    }
+}
+
+private class FakeUdpRuntime(
+    private val startResult: UdpInputRuntimeStartResult = UdpInputRuntimeStartResult.Started,
+) : UdpInputRuntime {
+    data class Start(val trustedSession: String, val config: InputStreamConfig)
+
+    val starts = mutableListOf<Start>()
+    var disconnects = 0
+        private set
+    var stops = 0
+        private set
+
+    override val lifecycleState: InputStreamLifecycleState = InputStreamLifecycleState.STOPPED
+
+    override fun start(trustedSession: String, config: InputStreamConfig): UdpInputRuntimeStartResult {
+        starts.add(Start(trustedSession, config))
+        return startResult
+    }
+
+    override fun onControlDisconnected(nowElapsedNanos: Long) {
+        disconnects += 1
+    }
+
+    override fun stop(reason: String) {
+        stops += 1
     }
 }
 

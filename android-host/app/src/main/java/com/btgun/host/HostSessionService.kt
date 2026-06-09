@@ -425,9 +425,12 @@ class HostSessionService : Service() {
     ) {
         cancelDesktopLivenessTick()
         desktopLivenessCoordinator.stop()
-        desktopControlClient?.close()
+        val previousClient = desktopControlClient
+        desktopHapticExecutor
+            .onSessionChanged(request.authRequest.expectedSessionId ?: request.config.url)
+            ?.let { result -> previousClient?.sendHapticResult(result) }
+        previousClient?.close()
         desktopControlClient = null
-        desktopHapticExecutor.onSessionChanged(request.authRequest.expectedSessionId ?: request.config.url)
         stopUdpInput()
         currentState = currentState.copy(
             desktopLinkState = DesktopLinkState(
