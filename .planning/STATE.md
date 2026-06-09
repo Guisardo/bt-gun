@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
-stopped_at: Created 04-06-PLAN.md
-last_updated: "2026-06-09T14:20:26Z"
-last_activity: 2026-06-09 -- Phase 04 Plan 06 added for physical smoke evidence
+status: ready
+stopped_at: Completed 04-06-PLAN.md
+last_updated: "2026-06-09T15:57:57.023Z"
+last_activity: 2026-06-09 -- Phase 04 execution started
 progress:
   total_phases: 10
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 25
-  completed_plans: 24
-  percent: 30
+  completed_plans: 25
+  percent: 40
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-07)
 
 **Core value:** Make the discontinued iPega AR gun usable as a normal wireless joystick gun on modern macOS and Windows with responsive motion aiming and v1 phone haptic feedback.
-**Current focus:** Phase 04 — input-stream-and-haptic-transport physical smoke evidence
+**Current focus:** Phase 04 complete — next focus Phase 05 desktop backend contract and smoke harness
 
 ## Current Position
 
-Phase: 04 (input-stream-and-haptic-transport) — READY TO EXECUTE
+Phase: 04 (input-stream-and-haptic-transport) — COMPLETE
 Plan: 6 of 6
-Status: Ready to execute
-Last activity: 2026-06-09 -- Phase 04 Plan 06 added for physical smoke evidence
+Status: Phase 04 complete; ready for Phase 05 planning/execution
+Last activity: 2026-06-09 -- Phase 04 physical smoke approved and Plan 06 completed
 
-Progress: [████████░░] 96% by plan for Phases 01-04. Phase 04 has 5/6 plans executed and is ready to execute physical smoke evidence.
+Progress: [██████████] 100% by planned plans through Phase 04. Phase 04 has 6/6 plans executed and physical smoke evidence approved.
 
 ## Performance Metrics
 
@@ -49,8 +49,8 @@ Progress: [████████░░] 96% by plan for Phases 01-04. Phase 0
 
 **Recent Trend:**
 
-- Last 5 completed execution plans: 03-P04, 03-P05, 03-P06, 03-P07, 03-P08 complete
-- Trend: Phase 03 secure LAN pairing/control foundation complete; Phase 04 input/haptic transport code is implemented and physical smoke evidence remains.
+- Last 5 completed execution plans: 04-P02, 04-P03, 04-P04, 04-P05, 04-P06 complete
+- Trend: Phase 04 input/haptic transport implementation and physical smoke evidence complete; Phase 05 desktop backend contract work is next.
 
 *Updated after each plan completion*
 | Phase 01 P01 | 10 min | 3 tasks | 6 files |
@@ -78,6 +78,7 @@ Progress: [████████░░] 96% by plan for Phases 01-04. Phase 0
 | Phase 04 P04 | 23 min | 2 tasks | 15 files |
 | Phase 04 P05 | 15m 32s | 2 tasks | 17 files |
 | Phase 04 P06 | pending | physical smoke evidence | planned |
+| Phase 04 P06 | hardware-interactive; closeout 2 min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -131,15 +132,15 @@ Recent decisions affecting current work:
 - [Phase 04]: Use active/grace/stale/stopped as the shared packet stream lifecycle labels. — Plan 04-05 needs concise endpoint-local state for Android dashboard and desktop diagnostics without adding later visualizer metrics.
 - [Phase 04]: Allow unchanged-session UDP only during controlDisconnectGraceMs; require fresh stream config after reconnect or session change. — This fails closed across LAN disconnects and prevents old frames from applying after trust changes.
 - [Phase 04]: Cancel phone haptic on trusted session change, not on short reliable-control disconnect. — Session change invalidates command ownership; short disconnect alone should not interrupt an already valid pulse.
+- [Phase 04]: Treat the user's 2026-06-09 Phase 4 approval as pass status for every planned physical-smoke capture id.
+- [Phase 04]: Do not invent or commit raw log text, device identifiers, pairing material, stream secrets, proof values, keys, or screenshots.
 
 ### Pending Todos
 
 - Run Phase 03 manual smoke on a physical Android device and desktop companion when ready.
-- Execute Phase 4 Plan 06 physical smoke evidence.
 
 ### Blockers/Concerns
 
-- [Phase 4]: Preserve Phase 3 secure-session boundaries while adding fast input transport and haptic command execution.
 - [Phase 7]: macOS virtual HID/output path may depend on entitlement and OS support.
 
 ## Deferred Items
@@ -152,6 +153,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-08T20:27:54.951Z
-Stopped at: Completed 04-05-PLAN.md
+Last session: 2026-06-09T15:57:57.004Z
+Stopped at: Completed 04-06-PLAN.md
 Resume file: None
