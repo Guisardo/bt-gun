@@ -205,7 +205,15 @@ Plans:
   2. Windows virtual joystick receives desktop rumble or output requests and maps them to v1 phone haptic commands.
   3. Repository documents the selected Windows virtual HID strategy, driver signing requirements, and development setup.
 
-**Plans:** TBD
+**Plans:** 6 plans
+Plans:
+
+- [ ] 06-01-PLAN.md — Windows HID report packing and output haptic mapping.
+- [ ] 06-02-PLAN.md — VHF/KMDF driver, IOCTL ABI, INF, and helper tools.
+- [ ] 06-03-PLAN.md — Windows desktop backend bridge and capabilities.
+- [ ] 06-04-PLAN.md — Live companion runtime wiring and Windows VHF smoke entrypoint.
+- [ ] 06-05-PLAN.md — GitHub Actions build/sign/package workflow and Windows setup docs.
+- [ ] 06-06-PLAN.md — Approval-gated Windows target proof with `joy.cpl`, live input, and real output haptic.
 
 ### Phase 7: macOS Virtual Joystick Path
 
