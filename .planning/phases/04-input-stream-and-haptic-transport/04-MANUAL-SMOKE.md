@@ -2,6 +2,8 @@
 
 Use this after automated Android and desktop tests pass. Goal: prove the real Android host and desktop companion recover from LAN/control interruptions without applying old input or stale phone haptics.
 
+Record results in `04-PHYSICAL-SMOKE-RESULTS.md`. Keep raw screenshots, logs, or packet captures only under `.evidence/phase4/input-haptic-transport/`. Commit only sanitized notes and stable `capture_id` values.
+
 ## Setup
 
 1. Build and install the Android host app on the test phone.
@@ -16,33 +18,28 @@ Use this after automated Android and desktop tests pass. Goal: prove the real An
 
 ## Input Stream
 
-1. Press and release trigger. Expected: desktop receiver state updates trigger down/up.
-2. Press and release reload. Expected: desktop receiver state updates reload down/up.
-3. Press X, Y, A, and B. Expected: desktop receiver state shows each button in pressed controls while held, then clears on release.
-4. Move the gun stick through left/right/up/down. Expected: desktop receiver stick axes update and return to zero when released.
-5. Move the phone. Expected: desktop receiver raw motion fields update while packet stream remains active.
+| capture_id | Action | Expected |
+|---|---|---|
+| `phase4-input-stream-001` | Press/release trigger and reload; press/release X, Y, A, and B; move stick left/right/up/down. | Desktop receiver state updates trigger, reload, X/Y/A/B, and stick while packet stream remains `active`; released controls clear. |
+| `phase4-control-edge-001` | Tap trigger, reload, X/Y/A/B with short presses. | Desktop receiver shows button down/up edges without waiting for a later snapshot. |
+| `phase4-motion-stream-001` | Move the phone while stream stays connected. | Desktop receiver raw motion/provider fields update while packet stream remains `active`. |
 
 ## Disconnect Recovery
 
-1. While holding trigger or another button, interrupt reliable control or LAN briefly.
-2. Expected during the configured grace window: unchanged-session UDP may continue and packet stream shows grace.
-3. Wait past the grace window.
-4. Expected: active buttons/pressed controls clear, stick axes clear, last-known raw aim/motion remains visible with stale status.
-5. Reconnect through trusted control and wait for a fresh stream config.
-6. Replay or resend an old UDP frame from the prior stream if available from diagnostics.
-7. Expected: old frame is rejected before apply; packet stream returns active only for the new stream.
+| capture_id | Action | Expected |
+|---|---|---|
+| `phase4-disconnect-grace-001` | While holding trigger or another button, interrupt reliable control or LAN briefly. | During the configured grace window, unchanged-session UDP may continue and packet stream shows `grace`. |
+| `phase4-stale-timeout-001` | Keep the interruption past the grace window. | Active buttons/pressed controls clear, stick axes clear, and last-known raw aim/motion remains visible with `stale` status. |
+| `phase4-reconnect-reject-001` | Reconnect through trusted control, wait for a fresh stream config, then replay or resend an old UDP frame from the prior stream if diagnostics allow it. | Old frame is rejected before apply; packet stream returns `active` only for the new stream. Mark `blocked` if replay/resend tooling is unavailable. |
 
 ## Phone Haptics
 
-1. Send a valid phone haptic command from desktop with nonzero strength, short duration, and unexpired TTL.
-2. Expected: phone pulses once and Android returns `started`.
-3. Send an expired haptic command.
-4. Expected: phone does not pulse and Android returns `expired`.
-5. Start a longer valid phone pulse.
-6. Change the trusted control session by starting a new pairing session and reconnecting Android.
-7. Expected: active pulse is cancelled, Android reports `cancelled`, and old input from the prior stream is rejected.
-8. During a short reliable-control disconnect without session change, keep an already-started pulse running.
-9. Expected: no cancel result is emitted solely because of the short disconnect.
+| capture_id | Action | Expected |
+|---|---|---|
+| `phase4-haptic-valid-001` | Send a valid phone haptic command from desktop with nonzero strength, short duration, and unexpired TTL. | Phone pulses once and Android returns `started`. |
+| `phase4-haptic-expired-001` | Send an expired haptic command. | Phone does not pulse and Android returns `expired`. |
+| `phase4-haptic-session-change-001` | Start a longer valid phone pulse, then change the trusted control session by starting a new pairing session and reconnecting Android. | Active pulse is cancelled, Android reports `cancelled`, and old input from the prior stream is rejected. |
+| `phase4-haptic-short-disconnect-001` | During a short reliable-control disconnect without session change, keep an already-started pulse running. | No cancel result is emitted solely because of the short disconnect. |
 
 ## Pass Criteria
 

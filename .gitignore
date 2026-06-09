@@ -4,6 +4,7 @@
 .evidence/phase1/decompile/
 .evidence/phase1/app-logs/
 .evidence/phase2/host-live-input/
+.evidence/phase4/input-haptic-transport/
 
 # Throwaway Android diagnostic build output
 android-diagnostic/.gradle/
