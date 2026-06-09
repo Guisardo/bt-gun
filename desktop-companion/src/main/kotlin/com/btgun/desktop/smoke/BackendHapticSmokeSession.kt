@@ -10,7 +10,7 @@ import com.btgun.desktop.haptics.HapticResultStatus
 import com.btgun.desktop.pairing.QrCodeRenderer
 import com.btgun.desktop.pairing.LocalEndpointSelector
 import com.btgun.desktop.pairing.PairingSessionRegistry
-import com.btgun.desktop.security.FileDesktopIdentityStore
+import com.btgun.desktop.security.DesktopIdentityStore
 import com.btgun.desktop.security.SecretRedactor
 import java.nio.file.Files
 import java.nio.file.Paths
@@ -22,6 +22,7 @@ object BackendHapticSmokeSession {
         platformId: String,
         port: Int = ControlServer.DEFAULT_UDP_PORT,
         timeoutMillis: Long = 120_000L,
+        identityStore: DesktopIdentityStore = DesktopIdentityStore.default(),
     ): SmokeCaseResult {
         val startedNanos = System.nanoTime()
         fun result(passed: Boolean, message: String): SmokeCaseResult =
@@ -34,10 +35,7 @@ object BackendHapticSmokeSession {
 
         val registry = PairingSessionRegistry(
             endpointSelector = LocalEndpointSelector(port = port),
-            identityStore = FileDesktopIdentityStore(
-                path = Paths.get("build/btgun-smoke/live-haptic-desktop-identity.p12"),
-                password = "btgun-smoke-live-haptic".toCharArray(),
-            ),
+            identityStore = identityStore,
         )
         val pairing = registry.startPairing()
         val server = ControlServer(registry = registry)
