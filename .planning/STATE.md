@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 05-01-PLAN.md
-last_updated: "2026-06-09T18:28:40Z"
-last_activity: 2026-06-09 -- Phase 05 Plan 01 complete
+stopped_at: Completed 05-02-PLAN.md
+last_updated: "2026-06-09T18:44:54.146Z"
+last_activity: 2026-06-09 -- Phase 05 Plan 02 complete
 progress:
   total_phases: 10
   completed_phases: 4
   total_plans: 30
-  completed_plans: 26
-  percent: 87
+  completed_plans: 27
+  percent: 90
 ---
 
 # Project State
@@ -26,17 +26,17 @@ See: .planning/PROJECT.md (updated 2026-06-09)
 ## Current Position
 
 Phase: 05 (desktop-backend-contract-and-smoke-harness) — EXECUTING
-Plan: 2 of 5
+Plan: 3 of 5
 Status: Ready to execute
-Last activity: 2026-06-09 -- Phase 05 Plan 01 complete
+Last activity: 2026-06-09 -- Phase 05 Plan 02 complete
 
-Progress: [█████████░] 87% by planned plans. Phase 05 has 1/5 plans executed.
+Progress: [█████████░] 90% by planned plans. Phase 05 has 2/5 plans executed.
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 26
+- Total plans completed: 27
 - Average duration: not tracked for hardware-interactive plans
 - Total execution time: not tracked after Plan 02
 
@@ -50,8 +50,8 @@ Progress: [█████████░] 87% by planned plans. Phase 05 has 1/
 
 **Recent Trend:**
 
-- Last 5 completed execution plans: 04-P03, 04-P04, 04-P05, 04-P06, 05-P01 complete
-- Trend: Phase 05 desktop backend contract work started with DESK-04 descriptor/state contract complete.
+- Last 5 completed execution plans: 04-P04, 04-P05, 04-P06, 05-P01, 05-P02 complete
+- Trend: Phase 05 desktop backend contract now has descriptor/state and DESK-07 capabilities complete.
 
 *Updated after each plan completion*
 | Phase 01 P01 | 10 min | 3 tasks | 6 files |
@@ -80,6 +80,7 @@ Progress: [█████████░] 87% by planned plans. Phase 05 has 1/
 | Phase 04 P05 | 15m 32s | 2 tasks | 17 files |
 | Phase 04 P06 | hardware-interactive; closeout 2 min | 2 tasks | 4 files |
 | Phase 05 P01 | 14 min | 2 tasks | 4 files |
+| Phase 05 P02 | 10min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -137,6 +138,8 @@ Recent decisions affecting current work:
 - [Phase 04]: Do not invent or commit raw log text, device identifiers, pairing material, stream secrets, proof values, keys, or screenshots.
 - [Phase 05]: BT Gun v1 backend descriptor is fixed to one gamepad_like_joystick with trigger/reload/X/Y/A/B, stickX/stickY/aimX/aimY, and digital trigger. — Locks DESK-04 before platform-specific adapters.
 - [Phase 05]: SemanticControllerState stays immutable and semantic-only with no platform HID/report fields. — Keeps Windows and macOS adapter details deferred to later phases.
+- [Phase 05]: Stub capabilities use explicit macos-stub/windows-stub ids and unsupported reasons for OS-visible device/output-report limits. — Keeps DESK-07 honest before platform adapters.
+- [Phase 05]: Stub backend publish state is synchronized and records current state plus last publish result. — Future adapters must preserve observable lifecycle/publish semantics.
 
 ### Pending Todos
 
@@ -156,6 +159,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-09T18:27:39.541Z
-Stopped at: Completed 05-01-PLAN.md
+Last session: 2026-06-09T18:44:54.082Z
+Stopped at: Completed 05-02-PLAN.md
 Resume file: None
