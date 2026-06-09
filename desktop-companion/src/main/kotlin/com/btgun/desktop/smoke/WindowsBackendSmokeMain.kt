@@ -7,10 +7,14 @@ fun main() {
     val result = BackendSmokeRunner.run(
         platformId = "windows-stub",
         outputFile = Paths.get("build/test-results/btgun-smoke/windows/TEST-btgun-windows-stub.xml"),
+        includeHaptic = hapticSmokeEnabled(),
     )
     result.requirePassed()
     println("btgun windows stub smoke XML: ${result.xmlPath.absolute()}")
 }
+
+private fun hapticSmokeEnabled(): Boolean =
+    System.getProperty("btgun.smoke.haptic").equals("true", ignoreCase = true)
 
 private fun BackendSmokeResult.requirePassed() {
     val failed = cases.filterNot { it.passed }

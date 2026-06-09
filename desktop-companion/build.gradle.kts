@@ -22,6 +22,10 @@ application {
     mainClass.set("com.btgun.desktop.MainKt")
 }
 
+val btgunSmokeHapticEnabled = providers.gradleProperty("btgun.smoke.haptic")
+    .map { value -> value.equals("true", ignoreCase = true) }
+    .orElse(false)
+
 dependencies {
     implementation("io.ktor:ktor-server-core-jvm:3.5.0")
     implementation("io.ktor:ktor-server-netty-jvm:3.5.0")
@@ -76,6 +80,7 @@ tasks.register<JavaExec>("smokeDesktopBackendMacosStub") {
     description = "Runs the macOS desktop backend stub smoke and writes JUnit-style XML."
     classpath = sourceSets.main.get().runtimeClasspath
     mainClass.set("com.btgun.desktop.smoke.MacosBackendSmokeMainKt")
+    systemProperty("btgun.smoke.haptic", btgunSmokeHapticEnabled.get().toString())
 }
 
 tasks.register<JavaExec>("smokeDesktopBackendWindowsStub") {
@@ -83,4 +88,5 @@ tasks.register<JavaExec>("smokeDesktopBackendWindowsStub") {
     description = "Runs the Windows desktop backend stub smoke and writes JUnit-style XML."
     classpath = sourceSets.main.get().runtimeClasspath
     mainClass.set("com.btgun.desktop.smoke.WindowsBackendSmokeMainKt")
+    systemProperty("btgun.smoke.haptic", btgunSmokeHapticEnabled.get().toString())
 }
