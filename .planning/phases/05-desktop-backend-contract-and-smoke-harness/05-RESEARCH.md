@@ -508,22 +508,22 @@ Gradle's built-in Test task can create JUnit XML for discovered tests, but the c
 | A1 | A tiny local XML writer is preferable to adding JUnit for Phase 5 smoke artifacts. [ASSUMED] | Standard Stack / Code Examples | Planner might choose dependency migration instead; would need package legitimacy gate and broader build changes. |
 | A2 | XML escaping helper is sufficient for smoke output values. [ASSUMED] | Don't Hand-Roll | Bad escaping could produce invalid evidence XML; planner should include parse verification. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Where will Windows smoke run?** [VERIFIED: Phase 5 D-07 requires both OSes]
+1. **RESOLVED: Where will Windows smoke run?** [VERIFIED: Phase 5 D-07 requires both OSes]
    - What we know: Current machine is macOS arm64, and Phase 5 is not accepted unless commands run on both macOS and Windows. [VERIFIED: local `uname -a`; `.planning/phases/05-desktop-backend-contract-and-smoke-harness/05-CONTEXT.md`]
-   - What's unclear: Whether planner should include a human checkpoint for running `smokeDesktopBackendWindowsStub` on Windows 11 x64 or a CI/remote path. [ASSUMED]
-   - Recommendation: Planner must add a human-run evidence checkpoint for Windows if no Windows executor exists. [VERIFIED: Phase 5 D-07]
+   - Resolution: Phase 5 plans include a human-run evidence checkpoint for `smokeDesktopBackendWindowsStub` on Windows 11 x64 because no Windows executor exists in this session. [VERIFIED: Phase 5 D-07]
+   - Planner decision: Windows acceptance is recorded in `05-05-PLAN.md` and `docs/evidence/manifests/phase5-desktop-backend-smoke.jsonl`. [VERIFIED: `.planning/phases/05-desktop-backend-contract-and-smoke-harness/05-05-PLAN.md`]
 
-2. **Should smoke XML live under Gradle `test-results` or a docs evidence directory?** [VERIFIED: Phase 5 D-08]
+2. **RESOLVED: Should smoke XML live under Gradle `test-results` or a docs evidence directory?** [VERIFIED: Phase 5 D-08]
    - What we know: Existing Gradle `test` output has no XML; Phase 4 evidence manifests live under `docs/evidence/manifests/`. [VERIFIED: local build output; `docs/evidence/manifests/phase4-input-haptic-transport.jsonl`]
-   - What's unclear: Preferred long-term evidence collection path. [ASSUMED]
-   - Recommendation: Emit machine XML under `desktop-companion/build/test-results/btgun-smoke/<platform>/` and commit a sanitized manifest under `docs/evidence/manifests/phase5-desktop-backend-smoke.jsonl`. [ASSUMED]
+   - Resolution: Emit machine XML under `desktop-companion/build/test-results/btgun-smoke/<platform>/` and commit sanitized evidence rows under `docs/evidence/manifests/phase5-desktop-backend-smoke.jsonl`. [VERIFIED: `.planning/phases/05-desktop-backend-contract-and-smoke-harness/05-04-PLAN.md`; `.planning/phases/05-desktop-backend-contract-and-smoke-harness/05-05-PLAN.md`]
+   - Planner decision: `05-04-PLAN.md` owns smoke XML paths; `05-05-PLAN.md` owns manifest rows and human evidence gate. [VERIFIED: local plan files]
 
-3. **Does Phase 5 haptic smoke require live Android during every platform stub run?** [VERIFIED: D-19/D-20]
+3. **RESOLVED: Does Phase 5 haptic smoke require live Android during every platform stub run?** [VERIFIED: D-19/D-20]
    - What we know: Android absence fails haptic smoke, and phone vibration needs human confirmation. [VERIFIED: `.planning/phases/05-desktop-backend-contract-and-smoke-harness/05-CONTEXT.md`]
-   - What's unclear: Whether contract-only smoke can pass independently while haptic-live case remains human-gated. [ASSUMED]
-   - Recommendation: Split automated stub contract cases from `requires_android=true` haptic case; phase acceptance requires both platforms plus human haptic confirmation. [VERIFIED: D-07/D-19/D-20]
+   - Resolution: Default contract smoke can pass without live Android; haptic mode with `-Pbtgun.smoke.haptic=true` is human-gated and fails if Android is absent. [VERIFIED: `.planning/phases/05-desktop-backend-contract-and-smoke-harness/05-05-PLAN.md`]
+   - Planner decision: Phase acceptance requires both platform XML artifacts plus paired Android phone haptic confirmation. [VERIFIED: D-07/D-19/D-20; `.planning/phases/05-desktop-backend-contract-and-smoke-harness/05-05-PLAN.md`]
 
 ## Environment Availability
 
