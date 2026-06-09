@@ -4,6 +4,7 @@ fun main() {
     receiverAllowsUnchangedSessionOnlyDuringControlDisconnectGrace()
     receiverRejectsOldUdpFramesAfterFreshReconnect()
     streamTimeoutUsesLifecyclePathAndPreservesAimAsStale()
+    receiverRefreshExpiresControlGraceWithoutNewDatagram()
 }
 
 private fun receiverAllowsUnchangedSessionOnlyDuringControlDisconnectGrace() {
@@ -89,6 +90,16 @@ private fun streamTimeoutUsesLifecyclePathAndPreservesAimAsStale() {
     expectEquals("raw aim x preserved", 0.125f, stale?.motion?.rawAimX)
     expectEquals("raw aim y preserved", -0.25f, stale?.motion?.rawAimY)
     expectEquals("stale surfaced to callback", true, received.last().stale)
+}
+
+private fun receiverRefreshExpiresControlGraceWithoutNewDatagram() {
+    val receiver = UdpInputReceiver()
+        .start(trustedSession = CONTROL_SESSION_ID, config = fixtureConfig())
+
+    receiver.onControlDisconnected(nowElapsedNanos = 1_000_000_000L)
+    receiver.refresh(nowElapsedNanos = 2_501_000_000L)
+
+    expectEquals("refresh marks stale after grace", InputStreamLifecycleState.STALE, receiver.lifecycleState)
 }
 
 private fun expectAccepted(label: String, actual: UdpInputReceiverResult, sequence: Long) {

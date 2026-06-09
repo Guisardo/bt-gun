@@ -6,6 +6,7 @@ fun main() {
     unsupportedPatternDoesNotStartPhoneVibration()
     validPulseStartsImmediately()
     secondValidCommandCancelsActivePulseBeforeStarting()
+    sessionChangeReportsCancelledResultOnlyForActivePulse()
     permissionAndRuntimeFailuresMapToExplicitStatuses()
     invalidCommandReturnsFailedWithoutVibration()
 }
@@ -95,6 +96,27 @@ private fun secondValidCommandCancelsActivePulseBeforeStarting() {
             PhoneCall.Cancel,
             PhoneCall.Pulse(90L, 1.0),
         ),
+        phone.calls,
+    )
+}
+
+private fun sessionChangeReportsCancelledResultOnlyForActivePulse() {
+    val phone = RecordingPhoneHapticActuator()
+    val executor = DesktopHapticCommandExecutor(phone = phone, elapsedRealtimeNanos = { 1_000_000_000L })
+
+    expectEquals("no active cancel result", null, executor.onSessionChanged("first-session"))
+    executor.handle(
+        command = DesktopHapticCommand("cmd-active", strength = 0.5, durationMs = 200L, ttlMs = 500L),
+        receivedElapsedNanos = 999_900_000L,
+    )
+    val cancelled = executor.onSessionChanged("next-session")
+
+    expectEquals("cancel command", "cmd-active", cancelled?.commandId)
+    expectEquals("cancel status", HapticResultStatus.CANCELLED, cancelled?.status)
+    expectEquals("cancel detail", "phone pulse cancelled", cancelled?.detail)
+    expectEquals(
+        "pulse then cancel",
+        listOf(PhoneCall.Pulse(200L, 0.5), PhoneCall.Cancel),
         phone.calls,
     )
 }

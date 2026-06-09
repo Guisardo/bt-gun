@@ -44,6 +44,7 @@ fun main() {
     clientRejectsHapticCommandForMismatchedSession()
     clientHandlesTrustedHapticCommandAndSendsResult()
     clientPreservesHapticResultDetailsFromCallback()
+    clientCanSendCancellationHapticResultBeforeClose()
 }
 
 private fun envelopeCodecMirrorsDesktopAllowlist() {
@@ -936,6 +937,39 @@ private fun clientPreservesHapticResultDetailsFromCallback() {
         expectEquals("${status.wireName} result status", status.wireName, result.envelope.body["status"]?.jsonPrimitive?.content)
         expectEquals("${status.wireName} result detail", detail, result.envelope.body["detail"]?.jsonPrimitive?.content)
     }
+}
+
+private fun clientCanSendCancellationHapticResultBeforeClose() {
+    val socket = FakeSocket()
+    var listener: WebSocketListener? = null
+    val client = DesktopControlClient(
+        config = DesktopControlClientConfig(
+            url = "wss://192.168.50.25:41731/control",
+            expectedDesktopSpkiSha256 = FINGERPRINT,
+            maxMessageBytes = 2048,
+        ),
+        socketFactory = { _, socketListener ->
+            listener = socketListener
+            socket
+        },
+        elapsedRealtimeNanos = { 1_050_000_000L },
+    )
+    val result = HapticResult(
+        commandId = "cmd-cancel",
+        status = HapticResultStatus.CANCELLED,
+        detail = "phone pulse cancelled",
+        observedElapsedNanos = 1_050_000_000L,
+    )
+
+    client.connect(authRequest = proofRequest())
+    expectEquals("pre-ready result blocked", DesktopControlSendResult.NotConnected, client.sendHapticResult(result))
+    listener?.onMessage(NOOP_WEB_SOCKET, readyEnvelope(sessionId = "sid-1"))
+
+    expectEquals("cancel result sent", DesktopControlSendResult.Sent, client.sendHapticResult(result))
+    val envelope = ControlEnvelopeCodec.decode(socket.sent.single()) as ControlDecodeResult.Accepted
+    expectEquals("result type", ControlMessageType.HAPTIC_RESULT, envelope.envelope.type)
+    expectEquals("result command", "cmd-cancel", envelope.envelope.body["commandId"]?.jsonPrimitive?.content)
+    expectEquals("result status", HapticResultStatus.CANCELLED.wireName, envelope.envelope.body["status"]?.jsonPrimitive?.content)
 }
 
 private fun envelope(

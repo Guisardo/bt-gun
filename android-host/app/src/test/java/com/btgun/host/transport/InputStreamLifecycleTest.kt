@@ -85,7 +85,8 @@ private fun hapticSessionChangeCancelsActivePulseButShortDisconnectDoesNot() {
 
     val cancelled = executor.onSessionChanged(newSessionId = "new-session")
 
-    expectEquals("session change reports cancelled", HapticResultStatus.CANCELLED, cancelled)
+    expectEquals("session change reports cancelled", HapticResultStatus.CANCELLED, cancelled?.status)
+    expectEquals("session change reports active command", "cmd-active", cancelled?.commandId)
     expectEquals(
         "session change cancels active pulse",
         listOf(PhoneCall.Pulse(300L, 0.5), PhoneCall.Cancel),

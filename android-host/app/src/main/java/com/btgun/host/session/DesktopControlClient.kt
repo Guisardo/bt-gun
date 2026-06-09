@@ -302,6 +302,11 @@ class DesktopControlClient(
         }
     }
 
+    fun sendHapticResult(result: HapticResult): DesktopControlSendResult {
+        val sessionId = trustedSessionId ?: return DesktopControlSendResult.NotConnected
+        return send(resultEnvelope(sessionId, result))
+    }
+
     fun close() {
         socket?.close()
         socket = null

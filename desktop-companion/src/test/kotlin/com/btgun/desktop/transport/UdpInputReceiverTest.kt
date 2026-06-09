@@ -52,6 +52,10 @@ private fun receiverRejectsUntrustedReplayAndAcceptsClockSkewedDatagrams() {
         frame(sequence = 52L, captureElapsedNanos = 1_000_000_000L, sendElapsedNanos = 1_000_000_000L),
         fixtureConfig(),
     )
+    val senderLocalStale = UdpInputFrameCodec.encode(
+        frame(sequence = 53L, captureElapsedNanos = 1_000_000_000L, sendElapsedNanos = 1_151_000_001L),
+        fixtureConfig(),
+    )
 
     expectAccepted("valid", receiver.handleDatagram(valid, receivedElapsedNanos = 1_111_111_300L), sequence = 50L)
     expectRejected("duplicate", InputReplayRejectReason.DUPLICATE_SEQUENCE, receiver.handleDatagram(valid, 1_111_111_301L))
@@ -59,6 +63,7 @@ private fun receiverRejectsUntrustedReplayAndAcceptsClockSkewedDatagrams() {
     expectRejected("wrong stream", InputReplayRejectReason.WRONG_STREAM_SESSION, receiver.handleDatagram(wrongStream, 1_111_111_303L))
     expectRejected("bad mac", InputReplayRejectReason.BAD_HMAC, receiver.handleDatagram(badMac, 1_111_111_304L))
     expectAccepted("clock-skewed uptime", receiver.handleDatagram(skewedUptime, 900_000_000_000_000L), sequence = 52L)
+    expectRejected("sender-local stale", InputReplayRejectReason.AGE_EXPIRED, receiver.handleDatagram(senderLocalStale, 900_000_000_000_100L))
     expectEquals("valid and skewed applied", 2, received.size)
 }
 
