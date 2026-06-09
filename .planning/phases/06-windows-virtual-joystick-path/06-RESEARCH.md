@@ -496,22 +496,22 @@ The mapped command must still pass through `ControlServer.sendHapticCommand`; di
 | A3 | Simple vendor-defined output report is enough for Phase 6 haptic proof with fallback sender. | Architecture Patterns / Alternatives | If user wants game-origin force feedback, Phase 6 scope would expand to HID PID/force-feedback descriptor work. |
 | A4 | GitHub Actions Windows runner can be configured with matching WDK/SDK without installing toolchains on `192.168.1.100`. | Standard Stack | CI setup may require longer workflow/tool-cache work or a separate Windows build box. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Root-enumerated install mechanism**
    - What we know: PnPUtil manages driver packages and DevGen creates software/root-enumerated devices for testing. [CITED: https://learn.microsoft.com/en-us/windows-hardware/drivers/devtest/pnputil; CITED: https://learn.microsoft.com/en-us/windows-hardware/drivers/devtest/devgen]
-   - What's unclear: Whether `pnputil /add-driver /install` alone will create the first `Root\BTGunVJoy` devnode for this package on Windows 11 `10.0.22000`. [ASSUMED]
-   - Recommendation: Planner should put install-flow validation before live input work and include a fallback install helper/DevGen path. [ASSUMED]
+   - Resolution: Plan 05 owns artifact install scripts and Plan 06 owns target proof. `Install-BtGunVJoy.ps1` must try package install/devnode creation with built-in or packaged tools, print explicit approval gates, and fail closed if `Root\BTGunVJoy` cannot be created or verified before live input proof.
+   - Chosen plan path: `06-05-PLAN.md` Task 2 and Task 3 create the install/rollback/artifact path; `06-06-PLAN.md` Task 2 verifies PnP/HID and `joy.cpl` on `192.168.1.100`.
 
 2. **`joy.cpl` output initiation**
    - What we know: `joy.cpl` final visibility proof is mandatory, and Phase 6 must try `joy.cpl` first for output. [VERIFIED: `.planning/phases/06-windows-virtual-joystick-path/06-CONTEXT.md`]
-   - What's unclear: Whether `joy.cpl` exposes any output/rumble action for this simple HID descriptor. [ASSUMED]
-   - Recommendation: Plan a fallback HID output sender that calls `HidD_SetOutputReport`/output write and document `joy.cpl` limitation if observed. [VERIFIED: `.planning/phases/06-windows-virtual-joystick-path/06-CONTEXT.md`; CITED: https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/hidclass/ni-hidclass-ioctl_hid_set_output_report]
+   - Resolution: Plan 06 requires a `joy.cpl` output attempt first. If `joy.cpl` cannot initiate output for this descriptor, execution must document that limitation, then use the packaged HID output sender for the real report ID 2 to Android phone haptic proof.
+   - Chosen plan path: `06-02-PLAN.md` Task 3 creates `btgun-hid-output-sender.exe`; `06-06-PLAN.md` Task 3 performs `joy.cpl` first, fallback sender second, and user phone-vibration confirmation.
 
 3. **CI WDK version**
    - What we know: Microsoft docs require matching SDK/WDK build numbers and support WDK through installer, EWDK, and NuGet paths. [CITED: https://learn.microsoft.com/en-us/windows-hardware/drivers/download-the-wdk]
-   - What's unclear: Which GitHub Actions image/toolchain path is fastest and stable for `origin`. [ASSUMED]
-   - Recommendation: Planner should include a CI spike task that records WDK/SDK/MSBuild versions in artifact metadata. [ASSUMED]
+   - Resolution: Plan 05 owns CI toolchain discovery and blocks completion if GitHub CLI auth, workflow secrets, WDK/MSBuild, signing, artifact upload, or artifact download cannot pass. The selected WDK/SDK/MSBuild versions must be recorded in build metadata, not assumed from this macOS workspace.
+   - Chosen plan path: `06-05-PLAN.md` Task 1 creates the workflow/package script; Task 3 runs `gh workflow run`, `gh run watch`, `gh run download`, and artifact assertions for `.sys`, `.inf`, `.cat`, `BtGunVJoyIoctl.h`, helper EXEs, scripts, and metadata.
 
 ## Environment Availability
 
