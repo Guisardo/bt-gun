@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: ready-for-next-phase
-stopped_at: Completed 05-05-PLAN.md and Phase 05
-last_updated: "2026-06-09T21:18:43.000Z"
-last_activity: 2026-06-09 -- Phase 05 complete
+stopped_at: Quick task 260609-pnq repaired stale Phase 05 roadmap and validation status
+last_updated: "2026-06-09T21:28:28.253Z"
+last_activity: 2026-06-09 -- Quick repair: Phase 05 roadmap and validation status
 progress:
   total_phases: 10
   completed_phases: 5
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-06-09)
 Phase: 05 (desktop-backend-contract-and-smoke-harness) — COMPLETE
 Next phase: 06 (Windows Virtual Joystick Path)
 Status: Ready for Phase 06 planning
-Last activity: 2026-06-09 -- Phase 05 complete
+Last activity: 2026-06-09 -- Quick repair: Phase 05 roadmap and validation status
 
 Progress: [██████████] 100% by planned plans. Phase 05 has 5/5 plans executed.
 
@@ -151,14 +151,21 @@ Recent decisions affecting current work:
 - [Phase 05]: Simulated backend output reports route to phone haptics only through authenticated ControlServer haptic commands.
 - [Phase 05]: Headless haptic smoke writes a scannable QR PNG artifact and keeps pairing/control secrets out of committed evidence.
 - [Phase 05]: Android trusted-desktop conflict detection is endpoint-scoped for unknown fingerprints so macOS and Windows desktop identities can both be trusted.
+- [Phase 03 approved]: Physical Android plus desktop manual smoke completed. — User confirmed during the 2026-06-09 quick repair, so no Phase 03 manual smoke todo remains.
 
 ### Pending Todos
 
-- Run Phase 03 manual smoke on a physical Android device and desktop companion when ready.
+None.
 
 ### Blockers/Concerns
 
 - [Phase 7]: macOS virtual HID/output path may depend on entitlement and OS support.
+
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 260609-pnq | repair stale Phase 5 roadmap/validation status | 2026-06-09 | this commit | [260609-pnq-repair-stale-phase-5-roadmap-validation-](./quick/260609-pnq-repair-stale-phase-5-roadmap-validation-/) |
 
 ## Deferred Items
 
@@ -170,6 +177,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-09T21:18:43.000Z
-Stopped at: Completed 05-05-PLAN.md and Phase 05
+Last session: 2026-06-09T21:28:28.253Z
+Stopped at: Quick task 260609-pnq repaired stale Phase 05 roadmap and validation status
 Resume file: None
