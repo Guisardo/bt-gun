@@ -32,5 +32,6 @@ interface VirtualControllerBackend {
 
     fun start(): BackendLifecycleResult
     fun publish(state: SemanticControllerState): BackendPublishResult
+    fun simulateOutputReport(report: SimulatedOutputReport): com.btgun.desktop.haptics.HapticCommand?
     fun stop(reason: String = "stopped"): BackendLifecycleResult
 }

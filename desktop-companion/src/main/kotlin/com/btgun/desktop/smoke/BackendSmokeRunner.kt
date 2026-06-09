@@ -20,7 +20,13 @@ data class BackendSmokeResult(
 )
 
 object BackendSmokeRunner {
-    fun run(platformId: String, outputFile: Path): BackendSmokeResult {
+    fun run(
+        platformId: String,
+        outputFile: Path,
+        includeHaptic: Boolean = false,
+        hapticPort: Int = 41731,
+        hapticTimeoutMillis: Long = 120_000L,
+    ): BackendSmokeResult {
         val suiteName = suiteName(platformId)
         val backend = backendFor(platformId)
         val acceptedSequences = mutableListOf<Long>()
@@ -53,6 +59,13 @@ object BackendSmokeRunner {
             require(finalState.stickX == -32768) { "edge state stickX mismatch" }
             require(finalState.stickY == 32767) { "edge state stickY mismatch" }
             require(finalState.sourceSequence == 43L) { "edge state sequence mismatch" }
+        }
+        if (includeHaptic) {
+            cases += BackendHapticSmokeSession.runLiveHaptic(
+                platformId = platformId,
+                port = hapticPort,
+                timeoutMillis = hapticTimeoutMillis,
+            )
         }
 
         JunitSmokeXml.write(outputFile, suiteName, cases)
