@@ -203,13 +203,24 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PACK-03 | Phase 7 | Pending |
 | PACK-04 | Phase 10 | Pending |
 | PACK-05 | Phase 10 | Pending |
+| BT2-01 | v2 | Deferred |
+| TR2-01 | v2 | Deferred |
+| TR2-02 | v2 | Deferred |
+| GP2-01 | v2 | Deferred |
+| GP2-02 | v2 | Deferred |
+| MD2-01 | v2 | Deferred |
+| MD2-02 | v2 | Deferred |
+| RUMBLE2-01 | v2 | Deferred |
+| RUMBLE2-02 | v2 | Deferred |
 
 **Coverage:**
 
 - v1 requirements: 54 total
 - Mapped to phases: 54
 - Unmapped: 0
+- v2 requirements: 9 total
+- Deferred/mapped: 9
 
 ---
 *Requirements defined: 2026-06-06*
-*Last updated: 2026-06-06 after initialization*
+*Last updated: 2026-06-09 after Phase 4 completion*

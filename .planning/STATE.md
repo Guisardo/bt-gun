@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: ready
+status: planning
 stopped_at: Completed 04-06-PLAN.md
-last_updated: "2026-06-09T15:57:57.023Z"
-last_activity: 2026-06-09 -- Phase 04 execution started
+last_updated: "2026-06-09T16:29:54.292Z"
+last_activity: 2026-06-09
 progress:
   total_phases: 10
   completed_phases: 4
@@ -18,17 +18,17 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-06-07)
+See: .planning/PROJECT.md (updated 2026-06-09)
 
 **Core value:** Make the discontinued iPega AR gun usable as a normal wireless joystick gun on modern macOS and Windows with responsive motion aiming and v1 phone haptic feedback.
 **Current focus:** Phase 04 complete — next focus Phase 05 desktop backend contract and smoke harness
 
 ## Current Position
 
-Phase: 04 (input-stream-and-haptic-transport) — COMPLETE
-Plan: 6 of 6
+Phase: 5
+Plan: Not started
 Status: Phase 04 complete; ready for Phase 05 planning/execution
-Last activity: 2026-06-09 -- Phase 04 physical smoke approved and Plan 06 completed
+Last activity: 2026-06-09
 
 Progress: [██████████] 100% by planned plans through Phase 04. Phase 04 has 6/6 plans executed and physical smoke evidence approved.
 
@@ -36,7 +36,7 @@ Progress: [██████████] 100% by planned plans through Phase 0
 
 **Velocity:**
 
-- Total plans completed: 19
+- Total plans completed: 25
 - Average duration: not tracked for hardware-interactive plans
 - Total execution time: not tracked after Plan 02
 
@@ -46,6 +46,7 @@ Progress: [██████████] 100% by planned plans through Phase 0
 |-------|-------|-------|----------|
 | 01 | 5 | not tracked | not tracked |
 | 02 | 6 | hardware-interactive | hardware-interactive |
+| 04 | 6 | - | - |
 
 **Recent Trend:**
 
@@ -77,7 +78,6 @@ Progress: [██████████] 100% by planned plans through Phase 0
 | Phase 04 P03 | 44 min | 2 tasks | 8 files |
 | Phase 04 P04 | 23 min | 2 tasks | 15 files |
 | Phase 04 P05 | 15m 32s | 2 tasks | 17 files |
-| Phase 04 P06 | pending | physical smoke evidence | planned |
 | Phase 04 P06 | hardware-interactive; closeout 2 min | 2 tasks | 4 files |
 
 ## Accumulated Context

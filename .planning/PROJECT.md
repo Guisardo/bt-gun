@@ -20,14 +20,14 @@ Make the discontinued iPega AR gun usable as a normal wireless joystick gun on m
 - [x] Phase 2 Android host app can read Android motion sensor data for aiming, using gyro, accelerometer/gravity, and rotation-vector providers as available.
 - [x] Phase 2 Android host app shows live session status, aim graph/calibration state, foreground-service state, current errors, and local phone haptic status.
 - [x] Phase 2 holding reload for two seconds recenters motion aim without suppressing normal reload behavior.
+- [x] Phase 3 desktop companion can pair with the Android host via QR or pairing code over a proof-gated secure local session.
+- [x] Phase 4 Android host app can stream normalized gun input and motion samples to a desktop companion over Wi-Fi/LAN.
+- [x] Phase 4 desktop-to-Android haptic messages can vibrate the Android phone for v1 feedback.
 
 ### Active
 
-- [ ] Android host app can stream normalized gun input and motion samples to a desktop companion over Wi-Fi/LAN.
-- [ ] Desktop companion can pair with the Android host via QR or pairing code.
 - [ ] Desktop companion can expose a regular gamepad-style gun controller on both Windows 11 x64 and macOS Apple Silicon.
 - [ ] Desktop profiles can map motion aim into joystick axes, with configurable aim mapping in v1.
-- [ ] Desktop-to-Android haptic messages can vibrate the Android phone for v1 feedback.
 - [ ] End-to-end input latency targets under 50 ms for the v1 visualizer path.
 - [ ] A simple joystick visualizer can prove buttons, axes, aim mapping, recentering, and phone haptics.
 - [ ] Reverse-engineering of the discontinued reference APK/XAPK apps and the iPega Bluetooth protocol is allowed when standard Android controller APIs are insufficient.
@@ -79,12 +79,12 @@ Both desktop targets matter for v1: Windows 11 x64 and macOS on M3/Apple Silicon
 | Use Android as gun host | Original device was designed for Android Bluetooth pairing and phone-based motion aiming. | - Validated in Phase 2 |
 | Support Windows and macOS in v1 | Both Windows 11 x64 and macOS M3 are required target desktops. | - Pending |
 | Expose a gamepad-style gun HID shape | Regular joystick/gamepad compatibility is safer than a custom gun HID report. | - Pending |
-| Use Wi-Fi/LAN transport for v1 | Simpler local pairing, debugging, and latency measurement than desktop Bluetooth/BLE. | - Pending |
+| Use Wi-Fi/LAN transport for v1 | Simpler local pairing, debugging, and latency measurement than desktop Bluetooth/BLE. | - Validated in Phase 4 |
 | Store aim profiles on desktop | Desktop owns target platform mapping and virtual controller behavior. | - Pending |
 | Support accelerometer-aware motion aim | Fused rotation sensors can improve stability when gyro and accelerometer data are available, and accelerometer/gravity tilt can keep a limited aiming mode working on devices without a gyroscope. | - Validated in Phase 2 |
-| Pair by QR or pairing code | Reduces manual IP setup while keeping local-only networking. | - Pending |
+| Pair by QR or pairing code | Reduces manual IP setup while keeping local-only networking. | - Validated in Phase 3 |
 | Validate first with a joystick visualizer | Proves the input and phone-haptic pipeline before game-specific work. | - Pending |
-| Defer physical gun motor rumble | BLE `fff5` is only a read/write candidate; no verified physical gun motor command path exists. Android phone vibration is confirmed and good enough for v1 feedback. | - Validated in Phase 1; still deferred after Phase 2 |
+| Defer physical gun motor rumble | BLE `fff5` is only a read/write candidate; no verified physical gun motor command path exists. Android phone vibration is confirmed and good enough for v1 feedback. | - Validated in Phase 1; still deferred after Phase 4 |
 
 ## Evolution
 
@@ -104,4 +104,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-07 after Phase 2 approval*
+*Last updated: 2026-06-09 after Phase 4 approval*
