@@ -171,7 +171,7 @@ Plans:
   2. Virtual joystick descriptor includes trigger, reload, joystick axes, X/Y/A/B buttons, and aim axes.
   3. Desktop companion reports backend capability flags for buttons, axes, haptics, output reports, and platform limitations.
 
-**Plans:** 3/5 plans executed
+**Plans:** 4/5 plans executed
 Plans:
 **Wave 1**
 
@@ -187,7 +187,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 05-04-PLAN.md — macOS and Windows fake-input smoke commands with JUnit-style XML.
+- [x] 05-04-PLAN.md — macOS and Windows fake-input smoke commands with JUnit-style XML.
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
