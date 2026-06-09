@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 05-03-PLAN.md
-last_updated: "2026-06-09T18:56:42.189Z"
-last_activity: 2026-06-09 -- Phase 05 Plan 03 complete
+stopped_at: Completed 05-04-PLAN.md
+last_updated: "2026-06-09T19:05:57.000Z"
+last_activity: 2026-06-09 -- Phase 05 Plan 04 complete
 progress:
   total_phases: 10
   completed_phases: 4
   total_plans: 30
-  completed_plans: 28
-  percent: 93
+  completed_plans: 29
+  percent: 97
 ---
 
 # Project State
@@ -26,17 +26,17 @@ See: .planning/PROJECT.md (updated 2026-06-09)
 ## Current Position
 
 Phase: 05 (desktop-backend-contract-and-smoke-harness) — EXECUTING
-Plan: 4 of 5
+Plan: 5 of 5
 Status: Ready to execute
-Last activity: 2026-06-09 -- Phase 05 Plan 03 complete
+Last activity: 2026-06-09 -- Phase 05 Plan 04 complete
 
-Progress: [█████████░] 93% by planned plans. Phase 05 has 3/5 plans executed.
+Progress: [██████████] 97% by planned plans. Phase 05 has 4/5 plans executed.
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 28
+- Total plans completed: 29
 - Average duration: not tracked for hardware-interactive plans
 - Total execution time: not tracked after Plan 02
 
@@ -50,8 +50,8 @@ Progress: [█████████░] 93% by planned plans. Phase 05 has 3/
 
 **Recent Trend:**
 
-- Last 5 completed execution plans: 04-P05, 04-P06, 05-P01, 05-P02, 05-P03 complete
-- Trend: Phase 05 desktop backend contract now has descriptor/state, DESK-07 capabilities, and receiver-backed UDP semantic mapping complete.
+- Last 5 completed execution plans: 04-P06, 05-P01, 05-P02, 05-P03, 05-P04 complete
+- Trend: Phase 05 desktop backend contract now has descriptor/state, DESK-07 capabilities, receiver-backed UDP semantic mapping, and platform stub smoke XML complete.
 
 *Updated after each plan completion*
 | Phase 01 P01 | 10 min | 3 tasks | 6 files |
@@ -82,6 +82,7 @@ Progress: [█████████░] 93% by planned plans. Phase 05 has 3/
 | Phase 05 P01 | 14 min | 2 tasks | 4 files |
 | Phase 05 P02 | 10min | 2 tasks | 5 files |
 | Phase 05 P03 | 6min | 2 tasks | 4 files |
+| Phase 05 P04 | 10min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -143,6 +144,8 @@ Recent decisions affecting current work:
 - [Phase 05]: Stub backend publish state is synchronized and records current state plus last publish result. — Future adapters must preserve observable lifecycle/publish semantics.
 - [Phase 05]: UDP handoff tests pass authenticated fixture bytes through UdpInputReceiver before semantic state mapping.
 - [Phase 05]: UdpControllerStateAdapter maps only pressedControls, stick axes, rawAimX/rawAimY, stale, and lastAcceptedSequence.
+- [Phase 05]: Platform smoke commands use distinct macos-stub/windows-stub JavaExec entrypoints and write separate JUnit-style XML artifacts.
+- [Phase 05]: Smoke XML records only case names, pass/fail status, and timing; fixture bytes and stream authentication material stay out of artifacts.
 
 ### Pending Todos
 
@@ -162,6 +165,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-09T18:56:42.183Z
-Stopped at: Completed 05-03-PLAN.md
+Last session: 2026-06-09T19:05:57.000Z
+Stopped at: Completed 05-04-PLAN.md
 Resume file: None
