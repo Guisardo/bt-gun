@@ -88,6 +88,7 @@ object UdpInputFrameCodec {
     const val TAG_SIZE = 32
     const val MAGIC = "BTGI"
     const val VERSION = 1
+    const val OFFSET_RESERVED_FLAGS = 6
     const val OFFSET_SEQUENCE = 24
     const val OFFSET_CAPTURE_ELAPSED_NANOS = 32
     const val OFFSET_SEND_ELAPSED_NANOS = 40
@@ -96,6 +97,7 @@ object UdpInputFrameCodec {
     const val OFFSET_STICK_Y = 54
     const val OFFSET_MOTION_PROVIDER = 56
     const val OFFSET_MOTION_CAPABILITY_FLAGS = 57
+    const val OFFSET_RESERVED_MOTION = 58
     const val OFFSET_YAW = 60
     const val OFFSET_PITCH = 64
     const val OFFSET_ROLL = 68
@@ -154,6 +156,12 @@ object UdpInputFrameCodec {
             return UdpInputFrameDecodeResult.Rejected(UdpInputFrameRejectReason.BAD_HMAC)
         }
         val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.BIG_ENDIAN)
+        if (buffer.getShort(OFFSET_RESERVED_FLAGS).toInt() != 0) {
+            return UdpInputFrameDecodeResult.Rejected(UdpInputFrameRejectReason.MALFORMED_FIELD, "reserved flags")
+        }
+        if (buffer.getShort(OFFSET_RESERVED_MOTION).toInt() != 0) {
+            return UdpInputFrameDecodeResult.Rejected(UdpInputFrameRejectReason.MALFORMED_FIELD, "reserved motion")
+        }
         val frame = runCatching {
             UdpInputFrame(
                 type = type,

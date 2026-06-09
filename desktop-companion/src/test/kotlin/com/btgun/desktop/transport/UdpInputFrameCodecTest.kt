@@ -12,6 +12,7 @@ fun main() {
     goldenSnapshotAndEdgeFramesRoundTrip()
     decoderRejectsMalformedOrUntrustedFrames()
     decoderRejectsAuthenticatedMalformedFields()
+    inputStreamConfigRejectsOutOfRangeTimingValues()
     debugDecoderRedactsSecrets()
     sourceContractExcludesPreviewAimAndJsonUdp()
 }
@@ -23,6 +24,7 @@ private fun codecConstantsMatchWireContract() {
     expectEquals("version", 1, UdpInputFrameCodec.VERSION)
     expectEquals("snapshot type", 1, UdpInputFrameType.SNAPSHOT.wireValue)
     expectEquals("edge type", 2, UdpInputFrameType.EDGE.wireValue)
+    expectEquals("reserved flags offset", 6, UdpInputFrameCodec.OFFSET_RESERVED_FLAGS)
     expectEquals("sequence offset", 24, UdpInputFrameCodec.OFFSET_SEQUENCE)
     expectEquals("capture offset", 32, UdpInputFrameCodec.OFFSET_CAPTURE_ELAPSED_NANOS)
     expectEquals("send offset", 40, UdpInputFrameCodec.OFFSET_SEND_ELAPSED_NANOS)
@@ -31,6 +33,7 @@ private fun codecConstantsMatchWireContract() {
     expectEquals("stick y offset", 54, UdpInputFrameCodec.OFFSET_STICK_Y)
     expectEquals("provider offset", 56, UdpInputFrameCodec.OFFSET_MOTION_PROVIDER)
     expectEquals("capability offset", 57, UdpInputFrameCodec.OFFSET_MOTION_CAPABILITY_FLAGS)
+    expectEquals("reserved motion offset", 58, UdpInputFrameCodec.OFFSET_RESERVED_MOTION)
     expectEquals("yaw offset", 60, UdpInputFrameCodec.OFFSET_YAW)
     expectEquals("pitch offset", 64, UdpInputFrameCodec.OFFSET_PITCH)
     expectEquals("roll offset", 68, UdpInputFrameCodec.OFFSET_ROLL)
@@ -129,6 +132,23 @@ private fun decoderRejectsAuthenticatedMalformedFields() {
             config,
         ),
     )
+    expectRejected(
+        "nonzero reserved flags",
+        UdpInputFrameRejectReason.MALFORMED_FIELD,
+        UdpInputFrameCodec.authenticateAndDecode(authenticatedShortMutation(UdpInputFrameCodec.OFFSET_RESERVED_FLAGS, 1), config),
+    )
+    expectRejected(
+        "nonzero reserved motion",
+        UdpInputFrameRejectReason.MALFORMED_FIELD,
+        UdpInputFrameCodec.authenticateAndDecode(authenticatedShortMutation(UdpInputFrameCodec.OFFSET_RESERVED_MOTION, 1), config),
+    )
+}
+
+private fun inputStreamConfigRejectsOutOfRangeTimingValues() {
+    expectThrows("snapshot too high") { fixtureConfig().copy(snapshotHz = 241) }
+    expectThrows("age too high") { fixtureConfig().copy(frameAgeLimitMs = 5_001L) }
+    expectThrows("timeout too high") { fixtureConfig().copy(streamTimeoutMs = 10_001L) }
+    expectThrows("grace too high") { fixtureConfig().copy(controlDisconnectGraceMs = 10_001L) }
 }
 
 private fun debugDecoderRedactsSecrets() {
@@ -176,6 +196,11 @@ private fun authenticatedLongMutation(offset: Int, value: Long): ByteArray =
         ByteBuffer.wrap(bytes).order(ByteOrder.BIG_ENDIAN).putLong(offset, value)
     }
 
+private fun authenticatedShortMutation(offset: Int, value: Int): ByteArray =
+    authenticatedMutation { bytes ->
+        ByteBuffer.wrap(bytes).order(ByteOrder.BIG_ENDIAN).putShort(offset, value.toShort())
+    }
+
 private fun authenticatedMutation(mutator: (ByteArray) -> Unit): ByteArray =
     GOLDEN_SNAPSHOT_FRAME_HEX.hexToBytes().also { bytes ->
         mutator(bytes)
@@ -217,6 +242,15 @@ private fun expectContains(label: String, actual: String, expectedPart: String) 
     if (!actual.contains(expectedPart)) {
         throw AssertionError("$label expected <$actual> to contain <$expectedPart>")
     }
+}
+
+private fun expectThrows(label: String, block: () -> Unit) {
+    try {
+        block()
+    } catch (_: IllegalArgumentException) {
+        return
+    }
+    throw AssertionError("$label expected IllegalArgumentException")
 }
 
 private const val STREAM_SESSION_ID_HEX = "00112233445566778899aabbccddeeff"
