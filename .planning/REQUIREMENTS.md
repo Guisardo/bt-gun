@@ -50,7 +50,7 @@
 - [x] **DESK-01**: Desktop companion can receive, validate, decrypt/authenticate, and parse normalized Android input frames.
 - [ ] **DESK-02**: Desktop companion can expose a regular gamepad-style virtual joystick on Windows 11 x64.
 - [ ] **DESK-03**: Desktop companion can expose a regular gamepad-style virtual joystick on macOS Apple Silicon.
-- [ ] **DESK-04**: Virtual joystick descriptor exposes trigger, reload, joystick axes, X/Y/A/B buttons, and aim axes.
+- [x] **DESK-04**: Virtual joystick descriptor exposes trigger, reload, joystick axes, X/Y/A/B buttons, and aim axes.
 - [ ] **DESK-05**: Windows virtual joystick path can receive desktop rumble/output requests and map them to v1 phone haptic commands.
 - [ ] **DESK-06**: macOS virtual joystick path can receive desktop rumble/output requests or clearly report the platform limitation while preserving v1 phone haptic support.
 - [ ] **DESK-07**: Desktop companion exposes backend capability flags for buttons, axes, haptic feedback, output reports, and platform limitations.
@@ -176,7 +176,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DESK-01 | Phase 4 | Complete |
 | DESK-02 | Phase 6 | Pending |
 | DESK-03 | Phase 7 | Pending |
-| DESK-04 | Phase 5 | Pending |
+| DESK-04 | Phase 5 | Complete |
 | DESK-05 | Phase 6 | Pending |
 | DESK-06 | Phase 7 | Pending |
 | DESK-07 | Phase 5 | Pending |

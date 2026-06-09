@@ -171,11 +171,11 @@ Plans:
   2. Virtual joystick descriptor includes trigger, reload, joystick axes, X/Y/A/B buttons, and aim axes.
   3. Desktop companion reports backend capability flags for buttons, axes, haptics, output reports, and platform limitations.
 
-**Plans:** 5 plans
+**Plans:** 1/5 plans executed
 Plans:
 **Wave 1**
 
-- [ ] 05-01-PLAN.md — Semantic controller state and gamepad-like descriptor contract.
+- [x] 05-01-PLAN.md — Semantic controller state and gamepad-like descriptor contract.
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -281,7 +281,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 | 2. Android Host Live Input | 6/6 | Complete | 2026-06-07 |
 | 3. LAN Pairing and Secure Session | 8/8 | Complete   | 2026-06-08 |
 | 4. Input Stream and Haptic Transport | 6/6 | Complete    | 2026-06-09 |
-| 5. Desktop Backend Contract and Smoke Harness | 0/5 | Not started | - |
+| 5. Desktop Backend Contract and Smoke Harness | 1/5 | Executing | - |
 | 6. Windows Virtual Joystick Path | 0/TBD | Not started | - |
 | 7. macOS Virtual Joystick Path | 0/TBD | Not started | - |
 | 8. Desktop Profiles and Mapping | 0/TBD | Not started | - |
