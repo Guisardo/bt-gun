@@ -69,3 +69,17 @@ tasks.withType<Test>().configureEach {
         }
     }
 }
+
+tasks.register<JavaExec>("smokeDesktopBackendMacosStub") {
+    group = "verification"
+    description = "Runs the macOS desktop backend stub smoke and writes JUnit-style XML."
+    classpath = sourceSets.main.get().runtimeClasspath
+    mainClass.set("com.btgun.desktop.smoke.MacosBackendSmokeMainKt")
+}
+
+tasks.register<JavaExec>("smokeDesktopBackendWindowsStub") {
+    group = "verification"
+    description = "Runs the Windows desktop backend stub smoke and writes JUnit-style XML."
+    classpath = sourceSets.main.get().runtimeClasspath
+    mainClass.set("com.btgun.desktop.smoke.WindowsBackendSmokeMainKt")
+}
