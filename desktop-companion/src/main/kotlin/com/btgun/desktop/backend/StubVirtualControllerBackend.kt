@@ -1,5 +1,7 @@
 package com.btgun.desktop.backend
 
+import com.btgun.desktop.haptics.HapticCommand
+
 class StubVirtualControllerBackend(
     private val platform: StubPlatform,
     override val descriptor: VirtualControllerDescriptor = btGunV1Descriptor,
@@ -8,6 +10,7 @@ class StubVirtualControllerBackend(
     private var state: SemanticControllerState = SemanticControllerState()
     private var lifecycle: BackendLifecycleState = BackendLifecycleState.STOPPED
     private var lastResult: BackendPublishResult? = null
+    private var outputReportCounter: Long = 0L
 
     init {
         requireBtGunV1Invariant(descriptor)
@@ -46,6 +49,22 @@ class StubVirtualControllerBackend(
             result
         }
 
+    override fun simulateOutputReport(report: SimulatedOutputReport): HapticCommand? =
+        synchronized(lock) {
+            if (report.pattern != null) {
+                null
+            } else {
+                outputReportCounter += 1L
+                HapticCommand(
+                    commandId = "stub-output-report-${platform.id}-$outputReportCounter",
+                    strength = report.strength,
+                    durationMs = report.durationMs,
+                    ttlMs = report.ttlMs,
+                    pattern = null,
+                )
+            }
+        }
+
     override fun stop(reason: String): BackendLifecycleResult =
         synchronized(lock) {
             lifecycle = BackendLifecycleState.STOPPED
@@ -54,7 +73,13 @@ class StubVirtualControllerBackend(
 
     enum class StubPlatform {
         MACOS,
-        WINDOWS,
+        WINDOWS;
+
+        val id: String
+            get() = when (this) {
+                MACOS -> "macos-stub"
+                WINDOWS -> "windows-stub"
+            }
     }
 
     companion object {
