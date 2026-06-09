@@ -96,10 +96,16 @@ class DesktopHapticCommandExecutor(
     private val phone: PhoneHapticActuator,
     private val elapsedRealtimeNanos: () -> Long,
 ) {
-    private var activeCommandId: String? = null
+    private data class ActiveHaptic(
+        val commandId: String,
+        val endsAtNanos: Long,
+    )
+
+    private var active: ActiveHaptic? = null
 
     fun handle(command: DesktopHapticCommand, receivedElapsedNanos: Long): HapticResult {
         val now = elapsedRealtimeNanos()
+        clearExpired(now)
         command.validationError()?.let { error ->
             return result(command.commandId.ifBlank { "invalid" }, HapticResultStatus.FAILED, error, now)
         }
@@ -109,15 +115,19 @@ class DesktopHapticCommandExecutor(
         if (command.pattern != null) {
             return result(command.commandId, HapticResultStatus.UNSUPPORTED, "haptic pattern playback unsupported", now)
         }
-        if (activeCommandId != null) {
+        if (active != null) {
             phone.cancel()
-            activeCommandId = null
+            active = null
         }
 
         return when (val start = phone.pulse(command.durationMs, command.strength)) {
             PhoneHapticStartResult.Started -> {
-                activeCommandId = command.commandId
-                result(command.commandId, HapticResultStatus.STARTED, "phone pulse started", elapsedRealtimeNanos())
+                val observed = elapsedRealtimeNanos()
+                active = ActiveHaptic(
+                    commandId = command.commandId,
+                    endsAtNanos = observed + command.durationMs * NANOS_PER_MILLI,
+                )
+                result(command.commandId, HapticResultStatus.STARTED, "phone pulse started", observed)
             }
             PhoneHapticStartResult.Unsupported ->
                 result(command.commandId, HapticResultStatus.UNSUPPORTED, "phone haptic unsupported", elapsedRealtimeNanos())
@@ -134,10 +144,19 @@ class DesktopHapticCommandExecutor(
 
     fun onSessionChanged(newSessionId: String): HapticResult? {
         require(newSessionId.isNotBlank()) { "newSessionId must not be blank" }
-        val commandId = activeCommandId ?: return null
-        activeCommandId = null
+        val now = elapsedRealtimeNanos()
+        clearExpired(now)
+        val commandId = active?.commandId ?: return null
+        active = null
         val status = phone.cancel()
         return result(commandId, status, cancelDetail(status), elapsedRealtimeNanos())
+    }
+
+    private fun clearExpired(nowElapsedNanos: Long) {
+        val activeHaptic = active ?: return
+        if (nowElapsedNanos >= activeHaptic.endsAtNanos) {
+            active = null
+        }
     }
 
     private fun cancelDetail(status: HapticResultStatus): String =

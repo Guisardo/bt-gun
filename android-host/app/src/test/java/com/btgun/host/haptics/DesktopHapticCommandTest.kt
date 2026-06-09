@@ -7,6 +7,8 @@ fun main() {
     validPulseStartsImmediately()
     secondValidCommandCancelsActivePulseBeforeStarting()
     sessionChangeReportsCancelledResultOnlyForActivePulse()
+    sessionChangeAfterPulseEndDoesNotReportCancelled()
+    expiredReplacementDoesNotForgetActivePulse()
     permissionAndRuntimeFailuresMapToExplicitStatuses()
     invalidCommandReturnsFailedWithoutVibration()
 }
@@ -117,6 +119,47 @@ private fun sessionChangeReportsCancelledResultOnlyForActivePulse() {
     expectEquals(
         "pulse then cancel",
         listOf(PhoneCall.Pulse(200L, 0.5), PhoneCall.Cancel),
+        phone.calls,
+    )
+}
+
+private fun sessionChangeAfterPulseEndDoesNotReportCancelled() {
+    val phone = RecordingPhoneHapticActuator()
+    var now = 1_000_000_000L
+    val executor = DesktopHapticCommandExecutor(phone = phone, elapsedRealtimeNanos = { now })
+
+    executor.handle(
+        command = DesktopHapticCommand("cmd-short", strength = 0.5, durationMs = 80L, ttlMs = 500L),
+        receivedElapsedNanos = 999_900_000L,
+    )
+    now += 81_000_000L
+    val cancelled = executor.onSessionChanged("next-session")
+
+    expectEquals("expired pulse has no cancel result", null, cancelled)
+    expectEquals("completed pulse not cancelled", listOf(PhoneCall.Pulse(80L, 0.5)), phone.calls)
+}
+
+private fun expiredReplacementDoesNotForgetActivePulse() {
+    val phone = RecordingPhoneHapticActuator()
+    var now = 1_000_000_000L
+    val executor = DesktopHapticCommandExecutor(phone = phone, elapsedRealtimeNanos = { now })
+
+    executor.handle(
+        command = DesktopHapticCommand("cmd-active", strength = 0.5, durationMs = 300L, ttlMs = 500L),
+        receivedElapsedNanos = 999_900_000L,
+    )
+    now += 50_000_000L
+    val expired = executor.handle(
+        command = DesktopHapticCommand("cmd-expired", strength = 1.0, durationMs = 80L, ttlMs = 1L),
+        receivedElapsedNanos = 1_000_000_000L,
+    )
+    val cancelled = executor.onSessionChanged("next-session")
+
+    expectEquals("replacement expired", HapticResultStatus.EXPIRED, expired.status)
+    expectEquals("active command still cancellable", "cmd-active", cancelled?.commandId)
+    expectEquals(
+        "expired replacement does not cancel or forget active pulse",
+        listOf(PhoneCall.Pulse(300L, 0.5), PhoneCall.Cancel),
         phone.calls,
     )
 }

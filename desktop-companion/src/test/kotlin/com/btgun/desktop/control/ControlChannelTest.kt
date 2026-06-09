@@ -46,6 +46,7 @@ fun main() {
     controlServerRejectsHapticsAfterLivenessDisconnect()
     controlServerAcceptsStartedAndThenCancelledForActiveHaptic()
     controlServerKeepsOnlyLatestStartedHapticCancellable()
+    controlServerKeepsActiveHapticWhenReplacementFails()
     controlServerAcceptsActiveHapticCancelFailureStatuses()
     controlServerSendsFreshInputStreamConfigAfterTrustedSession()
     controlServerStartsUdpRuntimeWithAdvertisedInputStreamConfig()
@@ -520,6 +521,57 @@ private fun controlServerKeepsOnlyLatestStartedHapticCancellable() = runBlocking
     expectEquals(
         "old cancel ignored, latest cancel accepted",
         listOf("cmd-old", "cmd-new", "cmd-new"),
+        parsed.map { it.commandId },
+    )
+}
+
+private fun controlServerKeepsActiveHapticWhenReplacementFails() = runBlocking {
+    val registry = testRegistry()
+    val session = registry.startPairing(nowEpochMillis = 1_000L)
+    val server = ControlServer(registry = registry, maxMessageBytes = 1024)
+    val parsed = mutableListOf<HapticResult>()
+    server.onHapticResultReceived = parsed::add
+    val trusted = server.authenticate(proofRequestFor(session, "f4".repeat(16)), nowEpochMillis = 2_000L)
+    expectTrue("authenticated", trusted is ControlAuthenticationResult.Accepted)
+    val trustedSession = (trusted as ControlAuthenticationResult.Accepted).trustedSession
+    val outbound = Channel<ControlEnvelope>(Channel.UNLIMITED)
+    val token = server.registerActiveControlSessionForTest(trustedSession, outbound)
+
+    server.sendHapticCommand(HapticCommand("cmd-active", 0.5, 300L, 500L))
+    outbound.tryReceive().getOrNull()
+    server.handleAcceptedEnvelope(
+        envelope = envelope(
+            ControlMessageType.HAPTIC_RESULT,
+            sessionId = trustedSession.sid,
+            body = HapticResult("cmd-active", HapticResultStatus.STARTED, "phone pulse started", 10L).toJsonBody(),
+        ),
+        heartbeat = HeartbeatMonitor(),
+        controlSessionToken = token,
+    )
+    server.sendHapticCommand(HapticCommand("cmd-expired", 0.5, 80L, 1L))
+    outbound.tryReceive().getOrNull()
+    server.handleAcceptedEnvelope(
+        envelope = envelope(
+            ControlMessageType.HAPTIC_RESULT,
+            sessionId = trustedSession.sid,
+            body = HapticResult("cmd-expired", HapticResultStatus.EXPIRED, "haptic command expired", 20L).toJsonBody(),
+        ),
+        heartbeat = HeartbeatMonitor(),
+        controlSessionToken = token,
+    )
+    server.handleAcceptedEnvelope(
+        envelope = envelope(
+            ControlMessageType.HAPTIC_RESULT,
+            sessionId = trustedSession.sid,
+            body = HapticResult("cmd-active", HapticResultStatus.CANCELLED, "phone pulse cancelled", 30L).toJsonBody(),
+        ),
+        heartbeat = HeartbeatMonitor(),
+        controlSessionToken = token,
+    )
+
+    expectEquals(
+        "failed replacement leaves previous active command cancellable",
+        listOf("cmd-active", "cmd-expired", "cmd-active"),
         parsed.map { it.commandId },
     )
 }

@@ -349,7 +349,6 @@ class ControlServer(
         val stillActive = synchronized(stateLock) {
             if (activeControlSession?.token == active.token) {
                 pendingHapticCommandIds.add(command.commandId)
-                activeStartedHapticCommandId = null
                 true
             } else {
                 false
