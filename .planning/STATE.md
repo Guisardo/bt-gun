@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: verifying
-stopped_at: Completed 04-05-PLAN.md
-last_updated: "2026-06-08T20:27:54.959Z"
-last_activity: 2026-06-08 -- Phase 04 Plan 05 completed; phase ready for verification
+status: executing
+stopped_at: Created 04-06-PLAN.md
+last_updated: "2026-06-09T14:20:26Z"
+last_activity: 2026-06-09 -- Phase 04 Plan 06 added for physical smoke evidence
 progress:
   total_phases: 10
-  completed_phases: 4
-  total_plans: 24
+  completed_phases: 3
+  total_plans: 25
   completed_plans: 24
-  percent: 40
+  percent: 30
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-07)
 
 **Core value:** Make the discontinued iPega AR gun usable as a normal wireless joystick gun on modern macOS and Windows with responsive motion aiming and v1 phone haptic feedback.
-**Current focus:** Phase 04 — input-stream-and-haptic-transport verification
+**Current focus:** Phase 04 — input-stream-and-haptic-transport physical smoke evidence
 
 ## Current Position
 
-Phase: 04 (input-stream-and-haptic-transport) — READY FOR VERIFICATION
-Plan: 5 of 5
-Status: Phase complete — ready for verification
-Last activity: 2026-06-08 -- Phase 04 Plan 05 completed; phase ready for verification
+Phase: 04 (input-stream-and-haptic-transport) — READY TO EXECUTE
+Plan: 6 of 6
+Status: Ready to execute
+Last activity: 2026-06-09 -- Phase 04 Plan 06 added for physical smoke evidence
 
-Progress: [██████████] 100% by plan for Phases 01-04. Phase 04 has 5/5 plans executed and is ready for verification.
+Progress: [████████░░] 96% by plan for Phases 01-04. Phase 04 has 5/6 plans executed and is ready to execute physical smoke evidence.
 
 ## Performance Metrics
 
@@ -50,7 +50,7 @@ Progress: [██████████] 100% by plan for Phases 01-04. Phase 
 **Recent Trend:**
 
 - Last 5 completed execution plans: 03-P04, 03-P05, 03-P06, 03-P07, 03-P08 complete
-- Trend: Phase 03 secure LAN pairing/control foundation complete; Phase 04 input/haptic transport plans are ready to execute.
+- Trend: Phase 03 secure LAN pairing/control foundation complete; Phase 04 input/haptic transport code is implemented and physical smoke evidence remains.
 
 *Updated after each plan completion*
 | Phase 01 P01 | 10 min | 3 tasks | 6 files |
@@ -77,6 +77,7 @@ Progress: [██████████] 100% by plan for Phases 01-04. Phase 
 | Phase 04 P03 | 44 min | 2 tasks | 8 files |
 | Phase 04 P04 | 23 min | 2 tasks | 15 files |
 | Phase 04 P05 | 15m 32s | 2 tasks | 17 files |
+| Phase 04 P06 | pending | physical smoke evidence | planned |
 
 ## Accumulated Context
 
@@ -134,7 +135,7 @@ Recent decisions affecting current work:
 ### Pending Todos
 
 - Run Phase 03 manual smoke on a physical Android device and desktop companion when ready.
-- Execute Phase 4 Plan 05.
+- Execute Phase 4 Plan 06 physical smoke evidence.
 
 ### Blockers/Concerns
 

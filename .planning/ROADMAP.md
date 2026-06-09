@@ -16,7 +16,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Hardware and Protocol Discovery** - Prove how the real iPega gun exposes input and verify phone vibration as the v1 feedback path.
 - [x] **Phase 2: Android Host Live Input** - Android can connect to the gun, read controls and motion sensors, and expose live session status.
 - [x] **Phase 3: LAN Pairing and Secure Session** - Android and desktop can establish an authenticated local session by QR or pairing code. (completed 2026-06-08)
-- [x] **Phase 4: Input Stream and Haptic Transport** - Versioned UDP input and reliable control messages carry input, diagnostics, and phone haptic commands safely. (completed 2026-06-08)
+- [ ] **Phase 4: Input Stream and Haptic Transport** - Versioned UDP input and reliable control messages carry input, diagnostics, and phone haptic commands safely. (physical smoke plan added 2026-06-09)
 - [ ] **Phase 5: Desktop Backend Contract and Smoke Harness** - Shared desktop backend contract and fake-input smoke tests work before real OS driver work.
 - [ ] **Phase 6: Windows Virtual Joystick Path** - Windows 11 x64 exposes the gun stream as a regular gamepad-style joystick with output-to-phone-haptic forwarding.
 - [ ] **Phase 7: macOS Virtual Joystick Path** - macOS Apple Silicon exposes the gun stream as a regular gamepad-style joystick and reports output limits clearly.
@@ -127,7 +127,7 @@ Plans:
 
 ### Phase 4: Input Stream and Haptic Transport
 
-**Goal:** Desktop can safely receive high-rate Android input while haptic commands travel back to the Android phone with acknowledgements.
+**Goal:** As a desktop user, I want to receive live Android gun input and send phone haptic commands, so that I can verify the transport works before virtual joystick work.
 **Mode:** mvp
 **Depends on:** Phase 3
 **Requirements:** ANDR-07, TRAN-04, TRAN-05, TRAN-07, TRAN-08, TRAN-09, DESK-01, PERF-03
@@ -139,7 +139,25 @@ Plans:
   4. Android vibrates the phone for desktop haptic commands and returns ack or failure status.
   5. Android and desktop recover from LAN disconnect without applying old input or playing stale haptics.
 
-**Plans:** 5/5 plans complete
+**Plans:** 5/6 plans complete
+Plans:
+**Wave 1**
+
+- [x] 04-01-PLAN.md — Wire contract foundation.
+- [x] 04-02-PLAN.md — Android trusted config UDP sender.
+- [x] 04-03-PLAN.md — Desktop authenticated UDP receiver.
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [x] 04-04-PLAN.md — Reliable phone haptic transport.
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [x] 04-05-PLAN.md — Input stream recovery.
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 04-06-PLAN.md — Physical LAN smoke evidence and UAT readiness.
 
 ### Phase 5: Desktop Backend Contract and Smoke Harness
 
@@ -242,7 +260,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 | 1. Hardware and Protocol Discovery | 5/5 | Complete | 2026-06-06 |
 | 2. Android Host Live Input | 6/6 | Complete | 2026-06-07 |
 | 3. LAN Pairing and Secure Session | 8/8 | Complete   | 2026-06-08 |
-| 4. Input Stream and Haptic Transport | 5/5 | Complete   | 2026-06-08 |
+| 4. Input Stream and Haptic Transport | 5/6 | Ready to execute | - |
 | 5. Desktop Backend Contract and Smoke Harness | 0/TBD | Not started | - |
 | 6. Windows Virtual Joystick Path | 0/TBD | Not started | - |
 | 7. macOS Virtual Joystick Path | 0/TBD | Not started | - |
