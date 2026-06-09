@@ -55,6 +55,7 @@ tasks.withType<Test>().configureEach {
             "com.btgun.desktop.ui.PairingWindowTestKt",
             "com.btgun.desktop.backend.BackendContractTestKt",
             "com.btgun.desktop.backend.BackendCapabilitiesTestKt",
+            "com.btgun.desktop.backend.UdpControllerStateAdapterTestKt",
         ).forEach { testClass ->
             providers.exec {
                 commandLine(
