@@ -67,6 +67,7 @@ No accepted risks.
 | 2026-06-09 | 24 | 23 | 1 | gsd-security-auditor |
 | 2026-06-09 | 24 | 24 | 0 | Codex |
 | 2026-06-09 | 24 | 24 | 0 | gsd-security-auditor rerun |
+| 2026-06-09 | 24 | 24 | 0 | Codex secure-phase rerun |
 
 ## Sign-Off
 
