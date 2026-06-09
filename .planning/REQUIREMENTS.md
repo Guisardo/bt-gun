@@ -54,7 +54,7 @@
 - [ ] **DESK-05**: Windows virtual joystick path can receive desktop rumble/output requests and map them to v1 phone haptic commands.
 - [ ] **DESK-06**: macOS virtual joystick path can receive desktop rumble/output requests or clearly report the platform limitation while preserving v1 phone haptic support.
 - [x] **DESK-07**: Desktop companion exposes backend capability flags for buttons, axes, haptic feedback, output reports, and platform limitations.
-- [ ] **DESK-08**: Developer can run a fake-input virtual controller smoke test on both Windows and macOS before using the real Android stream.
+- [x] **DESK-08**: Developer can run a fake-input virtual controller smoke test on both Windows and macOS before using the real Android stream.
 
 ### Profiles
 
@@ -180,7 +180,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DESK-05 | Phase 6 | Pending |
 | DESK-06 | Phase 7 | Pending |
 | DESK-07 | Phase 5 | Complete |
-| DESK-08 | Phase 5 | Pending |
+| DESK-08 | Phase 5 | Complete |
 | PROF-01 | Phase 8 | Pending |
 | PROF-02 | Phase 8 | Pending |
 | PROF-03 | Phase 8 | Pending |
