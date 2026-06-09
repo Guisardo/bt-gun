@@ -1,7 +1,7 @@
 ---
 phase: 06
 slug: windows-virtual-joystick-path
-status: draft
+status: coverage-planned
 nyquist_compliant: false
 wave_0_complete: false
 created: 2026-06-09
@@ -10,6 +10,8 @@ created: 2026-06-09
 # Phase 06 - Validation Strategy
 
 Per-phase validation contract for feedback sampling during execution.
+
+Revision note: Wave 0 validation coverage is now mapped to concrete plan/task IDs. Frontmatter stays `nyquist_compliant: false` and `wave_0_complete: false` until those tasks execute and pass.
 
 ## Test Infrastructure
 
@@ -32,29 +34,29 @@ Per-phase validation contract for feedback sampling during execution.
 
 ## Per-Task Verification Map
 
-| Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
-|---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 06-W0-01 | TBD | 0 | DESK-02 | T-06-01 | Semantic state packs to report ID 1 with six buttons, four axes, bounded values, and stale button clearing. | unit | `gradle test --offline --no-daemon --console=plain` from `desktop-companion/` | no, W0 | pending |
-| 06-W0-02 | TBD | 0 | DESK-05 | T-06-02 | Report ID 2 maps only valid, bounded output bytes to `HapticCommand` and rejects bad id, length, version, duration, TTL, and strength. | unit | `gradle test --offline --no-daemon --console=plain` from `desktop-companion/` | no, W0 | pending |
-| 06-W0-03 | TBD | 0 | DESK-02 | T-06-03 | KMDF/VHF driver package builds and contains `.sys`, `.inf`, `.cat`, public IOCTL header, and install metadata. | CI build | GitHub Actions Windows driver workflow | no, W0 | pending |
-| 06-W0-04 | TBD | 0 | DESK-02 | T-06-04 | Driver IOCTL path validates buffer size, version, report id, and access before submitting input to VHF. | driver/unit or CI smoke | GitHub Actions Windows driver workflow | no, W0 | pending |
-| 06-W0-05 | TBD | 0 | DESK-02 | T-06-05 | Windows target shows PnP/HID device and `joy.cpl` lists the virtual joystick. | manual gate | `pnputil`, `Get-PnpDevice`, `control joy.cpl` | no, W0 | pending |
-| 06-W0-06 | TBD | 0 | DESK-02 | T-06-06 | Live paired Android/gun input moves Windows-visible buttons and axes; replay/fake input is not accepted as final proof. | manual live smoke | Windows backend run plus live paired Android/gun | no, W0 | pending |
-| 06-W0-07 | TBD | 0 | DESK-05 | T-06-07 | Real Windows HID output report reaches the driver callback and routes to authenticated Android phone haptic. | manual live smoke | `joy.cpl` attempt, then `hid-output-sender.exe` fallback only if documented | no, W0 | pending |
-| 06-W0-08 | TBD | 0 | PACK-02 | T-06-08 | Docs describe VHF strategy, test signing, install, proof, rollback, and no private key material. | docs review | `rg -n "VHF|testsigning|joy.cpl|pnputil|rollback" docs/windows windows .github/workflows` | no, W0 | pending |
+| Validation ID | Plan/Task Coverage | Execution Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | Planned Artifact | Status |
+|---------------|--------------------|----------------|-------------|------------|-----------------|-----------|-------------------|------------------|--------|
+| 06-W0-01 | 06-01 Task 1, 06-01 Task 2 | 1 | DESK-02 | T-06-01 | Semantic state packs to report ID 1 with six buttons, four axes, bounded values, and stale button clearing. | unit | `cd desktop-companion && GRADLE_USER_HOME=/private/tmp/bt-gun-gradle gradle test --offline --no-daemon --console=plain` | `WindowsHidReportPacker.kt`, `WindowsHidReportPackerTest.kt` | coverage planned; execution pending |
+| 06-W0-02 | 06-01 Task 1, 06-01 Task 2 | 1 | DESK-05 | T-06-02 | Report ID 2 maps only valid, bounded output bytes to `HapticCommand` and rejects bad id, length, version, duration, TTL, and strength. | unit | `cd desktop-companion && GRADLE_USER_HOME=/private/tmp/bt-gun-gradle gradle test --offline --no-daemon --console=plain` | `WindowsOutputReportMapper.kt`, `WindowsOutputReportMapperTest.kt` | coverage planned; execution pending |
+| 06-W0-03 | 06-02 Task 2, 06-05 Task 1, 06-05 Task 3 | 2/3 | DESK-02, PACK-02 | T-06-04, T-06-16 | KMDF/VHF driver package builds and artifact contains `.sys`, `.inf`, `.cat`, public IOCTL header, helper tools, install scripts, and build metadata. | CI build/artifact | `gh workflow run windows-driver.yml --ref "$(git rev-parse --abbrev-ref HEAD)"`, then `gh run watch`, `gh run download`, and artifact `find` assertions from 06-05 Task 3 | `.github/workflows/windows-driver.yml`, `windows/btgun-vjoy/driver/BtGunVJoy.vcxproj`, CI artifact | coverage planned; execution pending |
+| 06-W0-04 | 06-02 Task 1, 06-02 Task 2, 06-05 Task 3 | 2/3 | DESK-02 | T-06-04, T-06-05 | Driver IOCTL path validates buffer size, version, report id, and access before submitting input to VHF. | driver source review plus WDK/CI build | `powershell -NoProfile -ExecutionPolicy Bypass -Command "msbuild windows\btgun-vjoy\driver\BtGunVJoy.vcxproj /p:Configuration=Release /p:Platform=x64 /m"` when Windows+WDK is available; otherwise 06-05 CI artifact gate must pass | `BtGunVJoyIoctl.h`, `BtGunVJoyQueue.c`, CI artifact | coverage planned; execution pending |
+| 06-W0-05 | 06-06 Task 2, 06-06 Task 3 | 5 | DESK-02 | T-06-19, T-06-20 | Windows target shows PnP/HID device and `joy.cpl` lists the virtual joystick after approval-gated install. | manual gate plus CLI | `pnputil`, `Get-PnpDevice`, `control joy.cpl` per 06-06 Task 3 | `phase6-pnp-hid-cli`, `phase6-joy-cpl-visible` manifest rows | coverage planned; execution pending |
+| 06-W0-06 | 06-04 Task 1, 06-04 Task 2, 06-06 Task 3 | 4/5 | DESK-02 | T-06-11, T-06-20 | Live paired Android/gun input moves Windows-visible buttons and axes; replay/fake input is not accepted as final proof. | manual live smoke | Windows backend run with `btgun.windows.driver.enabled=true` plus live paired Android/gun | `phase6-live-android-gun-input` manifest row | coverage planned; execution pending |
+| 06-W0-07 | 06-02 Task 2, 06-02 Task 3, 06-04 Task 1, 06-04 Task 2, 06-06 Task 3 | 2/4/5 | DESK-05 | T-06-05, T-06-13, T-06-21 | Real Windows HID output report reaches the driver callback and routes to authenticated Android phone haptic. | manual live smoke | `joy.cpl` attempt, then `btgun-hid-output-sender.exe --strength 192 --duration-ms 120 --ttl-ms 500` fallback only if documented | `phase6-hid-output-report-phone-haptic` manifest row | coverage planned; execution pending |
+| 06-W0-08 | 06-05 Task 2, 06-05 Task 3, 06-06 Task 1 | 3/5 | PACK-02 | T-06-17, T-06-18, T-06-22 | Docs describe VHF strategy, test signing, install, proof, rollback, and no private key material. | docs review/redaction scan | `rg -n "VHF|testsigning|joy.cpl|pnputil|rollback" docs/windows windows .github/workflows` plus redaction scan in 06-06 Task 3 | `docs/windows/test-signing-and-install.md`, `docs/windows/phase6-proof-checklist.md` | coverage planned; execution pending |
 
-Status: pending, green, red, flaky.
+Status values: coverage planned; execution pending; green; red; flaky.
 
 ## Wave 0 Requirements
 
-- [ ] `desktop-companion/src/main/kotlin/com/btgun/desktop/backend/windows/WindowsHidReportPacker.kt` - DESK-02 fixed Phase 5 semantic state to HID report ID 1.
-- [ ] `desktop-companion/src/test/kotlin/com/btgun/desktop/backend/windows/WindowsHidReportPackerTest.kt` - report bytes, axis bounds, button bits, and stale behavior.
-- [ ] `desktop-companion/src/main/kotlin/com/btgun/desktop/backend/windows/WindowsOutputReportMapper.kt` - DESK-05 output report ID 2 to phone haptic command.
-- [ ] `desktop-companion/src/test/kotlin/com/btgun/desktop/backend/windows/WindowsOutputReportMapperTest.kt` - valid output mapping and malformed output rejection.
-- [ ] `windows/btgun-vjoy/driver/` - KMDF/VHF source driver with minimal report bridge behavior.
-- [ ] `windows/btgun-vjoy/package/btgunvjoy.inf` - driver package metadata for the Windows virtual joystick path.
-- [ ] `.github/workflows/windows-driver.yml` - CI build/sign/package artifact workflow without committed private key material.
-- [ ] `docs/windows/test-signing-and-install.md` - explicit approval, test-signing, install, proof, and rollback steps.
+- [ ] 06-W0-01 / 06-01 Task 2: `desktop-companion/src/main/kotlin/com/btgun/desktop/backend/windows/WindowsHidReportPacker.kt` - DESK-02 fixed Phase 5 semantic state to HID report ID 1.
+- [ ] 06-W0-01 / 06-01 Task 1: `desktop-companion/src/test/kotlin/com/btgun/desktop/backend/windows/WindowsHidReportPackerTest.kt` - report bytes, axis bounds, button bits, and stale behavior.
+- [ ] 06-W0-02 / 06-01 Task 2: `desktop-companion/src/main/kotlin/com/btgun/desktop/backend/windows/WindowsOutputReportMapper.kt` - DESK-05 output report ID 2 to phone haptic command.
+- [ ] 06-W0-02 / 06-01 Task 1: `desktop-companion/src/test/kotlin/com/btgun/desktop/backend/windows/WindowsOutputReportMapperTest.kt` - valid output mapping and malformed output rejection.
+- [ ] 06-W0-03 and 06-W0-04 / 06-02 Task 2 plus 06-05 Task 3: `windows/btgun-vjoy/driver/` - KMDF/VHF source driver with minimal report bridge behavior and CI artifact build validation.
+- [ ] 06-W0-03 / 06-02 Task 2: `windows/btgun-vjoy/package/btgunvjoy.inf` - driver package metadata for the Windows virtual joystick path.
+- [ ] 06-W0-03 / 06-05 Task 1 and Task 3: `.github/workflows/windows-driver.yml` - CI build/sign/package artifact workflow without committed private key material and with downloaded artifact assertions.
+- [ ] 06-W0-08 / 06-05 Task 2 and Task 3: `docs/windows/test-signing-and-install.md` - explicit approval, test-signing, install, proof, and rollback steps.
 
 ## Manual-Only Verifications
 
