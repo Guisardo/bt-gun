@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: planning
-stopped_at: Phase 6 context gathered
-last_updated: "2026-06-09T23:22:22.569Z"
-last_activity: "2026-06-09 -- Quick repair: Phase 05 roadmap and validation status"
+status: executing
+stopped_at: Completed 06-01-PLAN.md
+last_updated: "2026-06-10T00:15:53.553Z"
+last_activity: 2026-06-10 -- Phase 06 Plan 01 complete
 progress:
   total_phases: 10
   completed_phases: 5
-  total_plans: 30
-  completed_plans: 30
-  percent: 50
+  total_plans: 36
+  completed_plans: 31
+  percent: 86
 ---
 
 # Project State
@@ -21,22 +21,23 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-09)
 
 **Core value:** Make the discontinued iPega AR gun usable as a normal wireless joystick gun on modern macOS and Windows with responsive motion aiming and v1 phone haptic feedback.
-**Current focus:** Phase 06 — Windows Virtual Joystick Path
+**Current focus:** Phase 06 — windows-virtual-joystick-path
 
 ## Current Position
 
-Phase: 05 (desktop-backend-contract-and-smoke-harness) — COMPLETE
+Phase: 06 (windows-virtual-joystick-path) — EXECUTING
+Plan: 2 of 6
 Next phase: 06 (Windows Virtual Joystick Path)
-Status: Ready for Phase 06 planning
-Last activity: 2026-06-09 -- Quick repair: Phase 05 roadmap and validation status
+Status: Ready to execute
+Last activity: 2026-06-10 -- Phase 06 Plan 01 complete
 
-Progress: [██████████] 100% by planned plans. Phase 05 has 5/5 plans executed.
+Progress: [█████████░] 86% by planned plans. Phase 06 has 1/6 plans executed.
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 30
+- Total plans completed: 31
 - Average duration: not tracked for hardware-interactive plans
 - Total execution time: not tracked after Plan 02
 
@@ -51,8 +52,8 @@ Progress: [██████████] 100% by planned plans. Phase 05 has 5
 
 **Recent Trend:**
 
-- Last 5 completed execution plans: 05-P01, 05-P02, 05-P03, 05-P04, 05-P05 complete
-- Trend: Phase 05 desktop backend contract is complete with descriptor/state, capabilities, receiver-backed UDP semantic mapping, platform smoke XML, and live phone-haptic evidence on macOS and Windows.
+- Last 5 completed execution plans: 05-P02, 05-P03, 05-P04, 05-P05, 06-P01 complete
+- Trend: Phase 06 Windows report contract is underway with deterministic HID input packing and output-report haptic byte mapping complete.
 
 *Updated after each plan completion*
 | Phase 01 P01 | 10 min | 3 tasks | 6 files |
@@ -85,6 +86,7 @@ Progress: [██████████] 100% by planned plans. Phase 05 has 5
 | Phase 05 P03 | 6min | 2 tasks | 4 files |
 | Phase 05 P04 | 10min | 2 tasks | 6 files |
 | Phase 05 P05 | 2h 10m | 3 tasks | 11 files |
+| Phase 06 P01 | 12 min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -152,6 +154,8 @@ Recent decisions affecting current work:
 - [Phase 05]: Headless haptic smoke writes a scannable QR PNG artifact and keeps pairing/control secrets out of committed evidence.
 - [Phase 05]: Android trusted-desktop conflict detection is endpoint-scoped for unknown fingerprints so macOS and Windows desktop identities can both be trusted.
 - [Phase 03 approved]: Physical Android plus desktop manual smoke completed. — User confirmed during the 2026-06-09 quick repair, so no Phase 03 manual smoke todo remains.
+- [Phase 06]: Windows input report ID 1 uses byte 0 report id, byte 1 trigger/reload/X/Y/A/B bits, then stickX/stickY/aimX/aimY signed int16 little-endian axes.
+- [Phase 06]: Windows output report ID 2 version 1 maps one strength byte plus duration/TTL uint16 little-endian fields to a pattern-null HapticCommand after reserved bytes validate as zero.
 
 ### Pending Todos
 
@@ -177,6 +181,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-09T22:35:41.467Z
-Stopped at: Phase 6 context gathered
-Resume file: .planning/phases/06-windows-virtual-joystick-path/06-CONTEXT.md
+Last session: 2026-06-10T00:15:53.545Z
+Stopped at: Completed 06-01-PLAN.md
+Resume file: None

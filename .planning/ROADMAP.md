@@ -205,12 +205,12 @@ Plans:
   2. Windows virtual joystick receives desktop rumble or output requests and maps them to v1 phone haptic commands.
   3. Repository documents the selected Windows virtual HID strategy, driver signing requirements, and development setup.
 
-**Plans:** 6 plans
+**Plans:** 1/6 plans executed
 Plans:
 
 **Wave 1**
 
-- [ ] 06-01-PLAN.md — Windows HID report packing and output haptic mapping.
+- [x] 06-01-PLAN.md — Windows HID report packing and output haptic mapping.
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -304,7 +304,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 | 3. LAN Pairing and Secure Session | 8/8 | Complete   | 2026-06-08 |
 | 4. Input Stream and Haptic Transport | 6/6 | Complete    | 2026-06-09 |
 | 5. Desktop Backend Contract and Smoke Harness | 5/5 | Complete | 2026-06-09 |
-| 6. Windows Virtual Joystick Path | 0/TBD | Not started | - |
+| 6. Windows Virtual Joystick Path | 1/6 | In Progress|  |
 | 7. macOS Virtual Joystick Path | 0/TBD | Not started | - |
 | 8. Desktop Profiles and Mapping | 0/TBD | Not started | - |
 | 9. Visualizer Acceptance Path | 0/TBD | Not started | - |
