@@ -18,6 +18,7 @@ public final class PermissionGateTest {
         sensorCapabilityReportsAvailableAndUnavailableWithoutRuntimePermission();
         vibrationCapabilityReportsHardwareState();
         lanCapabilityReportsNetworkState();
+        hidCapabilityRowsDoNotChangeBleSessionGate();
         envelopeSequencesAreIndependentPerStream();
         envelopeCarriesOptionalDebugProvenance();
     }
@@ -222,6 +223,49 @@ public final class PermissionGateTest {
         ));
 
         expectState("lan network unavailable", CapabilityState.UNAVAILABLE, noNetwork.getLanNetwork().getState());
+    }
+
+    private static void hidCapabilityRowsDoNotChangeBleSessionGate() {
+        PermissionGateState noHidHost = PermissionGate.evaluate(new PermissionGateInput(
+                35,
+                Set.of(PermissionGate.BLUETOOTH_SCAN, PermissionGate.BLUETOOTH_CONNECT),
+                true,
+                true,
+                true,
+                false,
+                false,
+                true,
+                true,
+                true,
+                true,
+                AndroidHidProfileStatus.AVAILABLE,
+                AndroidHidRegistrationStatus.REGISTERED,
+                AndroidHidHostConnectionStatus.NOT_CONNECTED
+        ));
+
+        expectState("hid no host row", CapabilityState.BLOCKED, noHidHost.getBluetoothHidRole().getState());
+        expectEquals("hid no host label", "Bluetooth HID host not connected", noHidHost.getBluetoothHidRole().getLabel());
+        expectEquals("ble session unaffected by hid no host", true, noHidHost.getCanStartSession());
+
+        PermissionGateState hidConnectedButBleBlocked = PermissionGate.evaluate(new PermissionGateInput(
+                35,
+                Set.of(PermissionGate.BLUETOOTH_CONNECT),
+                true,
+                true,
+                true,
+                false,
+                false,
+                true,
+                true,
+                true,
+                true,
+                AndroidHidProfileStatus.AVAILABLE,
+                AndroidHidRegistrationStatus.REGISTERED,
+                AndroidHidHostConnectionStatus.CONNECTED
+        ));
+
+        expectState("hid connected row", CapabilityState.AVAILABLE, hidConnectedButBleBlocked.getBluetoothHidRole().getState());
+        expectEquals("ble session still needs scan permission", false, hidConnectedButBleBlocked.getCanStartSession());
     }
 
     private static void envelopeSequencesAreIndependentPerStream() {
