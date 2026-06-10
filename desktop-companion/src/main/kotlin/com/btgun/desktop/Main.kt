@@ -1,6 +1,8 @@
 package com.btgun.desktop
 
 import com.btgun.desktop.control.ControlServer
+import com.btgun.desktop.backend.windows.WindowsBackendRuntime
+import com.btgun.desktop.backend.windows.WindowsBackendRuntimeConfig
 import com.btgun.desktop.pairing.PairingSessionRegistry
 import com.btgun.desktop.security.DesktopIdentityStore
 import com.btgun.desktop.ui.PairingWindow
@@ -16,8 +18,37 @@ private fun createPairingWindow(): PairingWindow {
     val identityStore = DesktopIdentityStore.default()
     val registry = PairingSessionRegistry(identityStore = identityStore)
     val controlServer = ControlServer(registry = registry)
+    val windowsBackendLaunch = createWindowsBackendLaunch()
     return PairingWindow(
         registry = registry,
         controlServer = controlServer,
+        windowsBackendRuntime = windowsBackendLaunch.runtime,
+        windowsBackendStartupDiagnostic = windowsBackendLaunch.diagnostic,
     )
 }
+
+private fun createWindowsBackendLaunch(): WindowsBackendLaunch {
+    val enabled = System.getProperty(WINDOWS_DRIVER_ENABLED_PROPERTY).equals("true", ignoreCase = true)
+    if (!enabled) {
+        return WindowsBackendLaunch(runtime = null, diagnostic = "disabled")
+    }
+    val bridgePath = System.getProperty(WINDOWS_DRIVER_BRIDGE_PATH_PROPERTY)?.trim().orEmpty()
+    if (bridgePath.isBlank()) {
+        return WindowsBackendLaunch(
+            runtime = null,
+            diagnostic = "enabled but btgun.windows.driver.bridge.path is missing",
+        )
+    }
+    return WindowsBackendLaunch(
+        runtime = WindowsBackendRuntime(WindowsBackendRuntimeConfig(bridgePath = bridgePath)),
+        diagnostic = "enabled",
+    )
+}
+
+private data class WindowsBackendLaunch(
+    val runtime: WindowsBackendRuntime?,
+    val diagnostic: String,
+)
+
+private const val WINDOWS_DRIVER_ENABLED_PROPERTY = "btgun.windows.driver.enabled"
+private const val WINDOWS_DRIVER_BRIDGE_PATH_PROPERTY = "btgun.windows.driver.bridge.path"
