@@ -1,6 +1,6 @@
 package com.btgun.host.permissions
 
-data class PermissionGateInput(
+data class PermissionGateInput @JvmOverloads constructor(
     val sdkInt: Int,
     val grantedPermissions: Set<String>,
     val bluetoothEnabled: Boolean,
@@ -12,6 +12,9 @@ data class PermissionGateInput(
     val hasGravity: Boolean,
     val hasVibrator: Boolean,
     val hasNetwork: Boolean,
+    val bluetoothHidProfileStatus: AndroidHidProfileStatus = AndroidHidProfileStatus.NOT_PROBED,
+    val bluetoothHidRegistrationStatus: AndroidHidRegistrationStatus = AndroidHidRegistrationStatus.NOT_REQUESTED,
+    val bluetoothHidHostConnectionStatus: AndroidHidHostConnectionStatus = AndroidHidHostConnectionStatus.NOT_CONNECTED,
 )
 
 data class PermissionGateState(
@@ -22,6 +25,7 @@ data class PermissionGateState(
     val motionSensors: CapabilityStatus,
     val vibration: CapabilityStatus,
     val lanNetwork: CapabilityStatus,
+    val bluetoothHidRole: CapabilityStatus = AndroidHidCapability.notStartedStatus,
 ) {
     val canStartSession: Boolean =
         bluetoothScan.state == CapabilityState.AVAILABLE &&
@@ -63,6 +67,18 @@ object PermissionGate {
 
         val locationCompatible = locationScanCompatibility(input, android12OrNewer)
 
+        val hidCapability = AndroidHidCapability.evaluate(
+            AndroidHidCapabilityInput(
+                sdkInt = input.sdkInt,
+                bluetoothEnabled = input.bluetoothEnabled,
+                bluetoothConnectPermissionGranted = !android12OrNewer ||
+                    input.grantedPermissions.contains(BLUETOOTH_CONNECT),
+                profileStatus = input.bluetoothHidProfileStatus,
+                registrationStatus = input.bluetoothHidRegistrationStatus,
+                hostConnectionStatus = input.bluetoothHidHostConnectionStatus,
+            ),
+        )
+
         return PermissionGateState(
             bluetoothPermissionModel = model,
             bluetoothScan = bluetoothScan(input, android12OrNewer, locationCompatible),
@@ -79,6 +95,7 @@ object PermissionGate {
                 availableLabel = "LAN network available",
                 unavailableLabel = "LAN network unavailable",
             ),
+            bluetoothHidRole = hidCapability.hidRole,
         )
     }
 
