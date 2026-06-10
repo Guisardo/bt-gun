@@ -45,7 +45,7 @@ The build script must:
 
 1. Run the sanitized environment probe.
 2. Compile the Swift package if `swift` can import CoreHID.
-3. Ad-hoc sign first with `codesign --force --sign - --entitlements native/macos-hid-helper/Entitlements.plist`.
+3. Ad-hoc sign first with `codesign --force --sign - --entitlements native/macos-hid-helper/Entitlements.plist`, unless `BTGUN_MACOS_HID_SIGN_IDENTITY` names a local Keychain identity for a blocked runtime proof retry.
 4. Run the helper in `--probe` mode.
 5. Collect sanitized `hidutil` and `ioreg` visibility evidence.
 6. Record `corehid-pass`, `corehid-compile-blocked`, `corehid-runtime-blocked`, `corehid-visibility-failed`, or `corehid-output-failed` for later plans.
@@ -62,6 +62,14 @@ Manual ad-hoc signing command:
 ```bash
 codesign --force --sign - --entitlements native/macos-hid-helper/Entitlements.plist native/macos-hid-helper/.build/debug/BtGunMacosHidHelper
 ```
+
+Manual local Keychain signing command, used only when ad-hoc signing is runtime-blocked:
+
+```bash
+BTGUN_MACOS_HID_SIGN_IDENTITY=keychain-bio-local native/macos-hid-helper/scripts/build-corehid-helper.sh
+```
+
+Current Task 3 retry result: `keychain-bio-local` was visible to `security find-identity` outside the sandbox and `codesign` accepted it, but the helper was still killed before `hidutil` enumeration. Current blocker is `corehid-runtime-blocked`: virtual HID entitlement or macOS runtime policy, not Swift compilation.
 
 Manual launch command:
 

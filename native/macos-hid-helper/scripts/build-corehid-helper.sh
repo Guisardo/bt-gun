@@ -5,6 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HELPER_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 REPO_ROOT="$(cd "${HELPER_DIR}/../.." && pwd)"
 BUILD_ROOT="${BTGUN_MACOS_HID_BUILD_ROOT:-/private/tmp/btgun-macos-hid-helper}"
+SIGN_IDENTITY="${BTGUN_MACOS_HID_SIGN_IDENTITY:--}"
 RUN_ID="$(date -u +%Y%m%dT%H%M%SZ)"
 OUT_DIR="${BUILD_ROOT}/${RUN_ID}"
 SWIFTPM_SCRATCH="${OUT_DIR}/swiftpm"
@@ -15,8 +16,9 @@ mkdir -p "${OUT_DIR}" "${CLANG_MODULE_CACHE_PATH}"
 emit_manifest_reason() {
   local gate="$1"
   local reason="$2"
+  local resume="${3:-sudo xcode-select -s /Applications/Xcode.app/Contents/Developer}"
   printf 'MANIFEST_REASON gate=%s status=blocked sanitized=true reason="%s"\n' "$gate" "$reason"
-  printf 'RESUME_COMMAND sudo xcode-select -s /Applications/Xcode.app/Contents/Developer\n'
+  printf 'RESUME_COMMAND %s\n' "$resume"
 }
 
 sanitize_stream() {
@@ -52,12 +54,23 @@ BIN_DIR="$(swift build --package-path "${HELPER_DIR}" --scratch-path "${SWIFTPM_
 HELPER_BIN="${BIN_DIR}/BtGunMacosHidHelper"
 
 printf '\n[codesign]\n'
-if ! codesign --force --sign - --entitlements "${HELPER_DIR}/Entitlements.plist" "${HELPER_BIN}" >"${OUT_DIR}/codesign.out" 2>"${OUT_DIR}/codesign.err"; then
+if [ "${SIGN_IDENTITY}" = "-" ]; then
+  printf 'sign_identity=adhoc\n'
+else
+  printf 'sign_identity=keychain-named\n'
+fi
+if ! codesign --force --sign "${SIGN_IDENTITY}" --entitlements "${HELPER_DIR}/Entitlements.plist" "${HELPER_BIN}" >"${OUT_DIR}/codesign.out" 2>"${OUT_DIR}/codesign.err"; then
   sanitize_stream <"${OUT_DIR}/codesign.err"
-  emit_manifest_reason "corehid-runtime-blocked" "Ad-hoc signing with com.apple.developer.hid.virtual.device entitlement failed."
+  emit_manifest_reason "corehid-runtime-blocked" "Signing with com.apple.developer.hid.virtual.device entitlement failed." "provide an entitlement-capable signing identity/provisioning profile for com.apple.developer.hid.virtual.device"
   exit 21
 fi
 sanitize_stream <"${OUT_DIR}/codesign.out"
+codesign -d --entitlements - "${HELPER_BIN}" >"${OUT_DIR}/codesign-entitlements.out" 2>&1 || true
+sanitize_stream <"${OUT_DIR}/codesign-entitlements.out"
+if ! rg -q "com.apple.developer.hid.virtual.device" "${OUT_DIR}/codesign-entitlements.out"; then
+  emit_manifest_reason "corehid-runtime-blocked" "Signed helper does not contain com.apple.developer.hid.virtual.device entitlement." "provide an entitlement-capable signing identity/provisioning profile for com.apple.developer.hid.virtual.device"
+  exit 21
+fi
 
 printf '\n[helper probe]\n'
 "${HELPER_BIN}" --probe --hold-seconds 8 >"${OUT_DIR}/helper-probe.out" 2>"${OUT_DIR}/helper-probe.err" &
@@ -67,7 +80,7 @@ sleep 2
 if ! kill -0 "${HELPER_PID}" >/dev/null 2>&1; then
   wait "${HELPER_PID}" || true
   sanitize_stream <"${OUT_DIR}/helper-probe.err"
-  emit_manifest_reason "corehid-runtime-blocked" "CoreHID helper exited before enumeration; entitlement or runtime policy likely blocked virtual device creation."
+  emit_manifest_reason "corehid-runtime-blocked" "CoreHID helper exited before enumeration; entitlement or runtime policy likely blocked virtual device creation." "provide an entitlement-capable signing identity/provisioning profile for com.apple.developer.hid.virtual.device, then rerun BTGUN_MACOS_HID_SIGN_IDENTITY=<identity> native/macos-hid-helper/scripts/build-corehid-helper.sh"
   exit 22
 fi
 
