@@ -88,7 +88,7 @@ class AndroidUdpInputSender(
             type = UdpInputFrameType.SNAPSHOT,
             state = state,
             motion = motion,
-            captureElapsedNanos = motion?.captureElapsedNanos ?: elapsedRealtimeNanos(),
+            captureElapsedNanos = elapsedRealtimeNanos(),
             edgeBitmask = 0,
         )
 

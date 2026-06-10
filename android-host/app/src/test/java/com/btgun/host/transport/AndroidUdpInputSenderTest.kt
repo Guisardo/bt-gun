@@ -13,6 +13,7 @@ fun main() {
     sequencerResetsForEachStreamSession()
     senderDoesNotSendBeforeTrustedConfig()
     snapshotUsesCurrentStateMotionAndAuthenticatedConfig()
+    snapshotUsesFreshCaptureTimeForOldMotionSample()
     edgeUsesSharedMonotonicSequenceAndImmediateSend()
     senderSourceExcludesPreviewAimAndProductMapping()
 }
@@ -76,7 +77,7 @@ private fun snapshotUsesCurrentStateMotionAndAuthenticatedConfig() {
     expectEquals("snapshot port", 41731, sink.datagrams.single().port)
     expectEquals("snapshot type", UdpInputFrameType.SNAPSHOT, decoded.type)
     expectEquals("snapshot seq", 1L, decoded.sequence)
-    expectEquals("snapshot capture", 1_111_111_111L, decoded.captureElapsedNanos)
+    expectEquals("snapshot capture", now, decoded.captureElapsedNanos)
     expectEquals("snapshot send", now, decoded.sendElapsedNanos)
     expectEquals("buttons", AndroidUdpInputSender.BUTTON_TRIGGER or AndroidUdpInputSender.BUTTON_A, decoded.buttonBitmask)
     expectEquals("stick x", 16_384, decoded.stickX)
@@ -86,6 +87,35 @@ private fun snapshotUsesCurrentStateMotionAndAuthenticatedConfig() {
     expectEquals("raw aim x", 0.125f, decoded.rawAimX)
     expectEquals("raw aim y", -0.25f, decoded.rawAimY)
     expectEquals("source sensor", 1_111_111_000L, decoded.sourceSensorElapsedNanos)
+}
+
+private fun snapshotUsesFreshCaptureTimeForOldMotionSample() {
+    val sink = RecordingDatagramSink()
+    val now = 5_000_000_000L
+    val sender = AndroidUdpInputSender(
+        datagramSink = sink,
+        elapsedRealtimeNanos = { now },
+    )
+
+    sender.start(fixtureConfig())
+    val result = sender.sendSnapshot(
+        state = GunInputState(pressedControls = setOf("trigger")),
+        motion = motionEnvelope(
+            captureElapsedNanos = 4_000_000_000L,
+            emittedElapsedNanos = 4_000_000_100L,
+            sourceSensorElapsedNanos = 3_999_999_900L,
+            rawAimX = 0.75f,
+            rawAimY = -0.5f,
+        ),
+    )
+
+    val decoded = decodeSingle(sink)
+    expectEquals("old motion snapshot result", AndroidUdpInputSendResult.SENT, result)
+    expectEquals("snapshot frame capture is fresh", now, decoded.captureElapsedNanos)
+    expectEquals("snapshot frame send is fresh", now, decoded.sendElapsedNanos)
+    expectEquals("old sensor timestamp preserved", 3_999_999_900L, decoded.sourceSensorElapsedNanos)
+    expectEquals("raw aim x preserved", 0.75f, decoded.rawAimX)
+    expectEquals("raw aim y preserved", -0.5f, decoded.rawAimY)
 }
 
 private fun edgeUsesSharedMonotonicSequenceAndImmediateSend() {
