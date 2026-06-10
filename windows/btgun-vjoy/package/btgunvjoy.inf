@@ -7,7 +7,7 @@ Signature="$WINDOWS NT$"
 Class=HIDClass
 ClassGuid={745A17A0-74D3-11D0-B6FE-00A0C90F57DA}
 Provider=%ManufacturerName%
-DriverVer=06/10/2026,0.6.2.0
+DriverVer=06/10/2026,0.6.2.1
 CatalogFile=btgunvjoy.cat
 PnpLockdown=1
 
