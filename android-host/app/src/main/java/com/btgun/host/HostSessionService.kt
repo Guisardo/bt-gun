@@ -114,6 +114,7 @@ class HostSessionService : Service() {
     private var desktopControlClient: DesktopControlClient? = null
     private var udpInputSender: AndroidUdpInputSender? = null
     private var udpInputConfig: InputStreamConfig? = null
+    private var lastUdpSnapshotSentElapsedNanos: Long? = null
     private val desktopHapticExecutor: DesktopHapticCommandExecutor by lazy {
         DesktopHapticCommandExecutor(
             phone = PhoneHaptics(this),
@@ -187,6 +188,7 @@ class HostSessionService : Service() {
                 aimBaseline = currentAimBaseline,
                 aimCalibrationState = aimCalibrationSession.state,
             )
+            sendUdpSnapshot(throttled = true)
         }
 
         override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
@@ -639,6 +641,7 @@ class HostSessionService : Service() {
         ).also { sender ->
             sender.start(config)
         }
+        lastUdpSnapshotSentElapsedNanos = null
         currentState = currentState.copy(packetStreamState = InputStreamLifecycleState.ACTIVE)
         scheduleUdpSnapshotTick()
         sendUdpSnapshot()
@@ -650,6 +653,7 @@ class HostSessionService : Service() {
         udpInputSender?.stop("stream stopped")
         udpInputSender = null
         udpInputConfig = null
+        lastUdpSnapshotSentElapsedNanos = null
         currentState = currentState.copy(packetStreamState = InputStreamLifecycleState.STOPPED)
     }
 
@@ -659,6 +663,7 @@ class HostSessionService : Service() {
         udpInputSender?.stop("control disconnect grace expired")
         udpInputSender = null
         udpInputConfig = null
+        lastUdpSnapshotSentElapsedNanos = null
         currentState = currentState.copy(packetStreamState = InputStreamLifecycleState.STALE)
     }
 
@@ -699,12 +704,20 @@ class HostSessionService : Service() {
         handler.postDelayed(udpSnapshotTick, snapshotIntervalMillis(config))
     }
 
-    private fun sendUdpSnapshot() {
+    private fun sendUdpSnapshot(throttled: Boolean = false) {
         val sender = udpInputSender ?: return
-        sender.sendSnapshot(
+        val config = udpInputConfig
+        val nowElapsedNanos = SystemClock.elapsedRealtimeNanos()
+        if (throttled && config != null && !canSendThrottledUdpSnapshot(nowElapsedNanos, config)) {
+            return
+        }
+        val result = sender.sendSnapshot(
             state = currentState.gunInputState,
             motion = currentState.lastMotionSample,
         )
+        if (result == com.btgun.host.transport.AndroidUdpInputSendResult.SENT) {
+            lastUdpSnapshotSentElapsedNanos = nowElapsedNanos
+        }
     }
 
     private fun sendUdpEdge(envelope: LiveEnvelope<GunEvent>, state: GunInputState) {
@@ -718,6 +731,12 @@ class HostSessionService : Service() {
 
     private fun snapshotIntervalMillis(config: InputStreamConfig): Long =
         ((1_000L + config.snapshotHz.toLong() - 1L) / config.snapshotHz.toLong()).coerceAtLeast(1L)
+
+    private fun canSendThrottledUdpSnapshot(nowElapsedNanos: Long, config: InputStreamConfig): Boolean {
+        val lastSent = lastUdpSnapshotSentElapsedNanos ?: return true
+        val intervalNanos = snapshotIntervalMillis(config) * 1_000_000L
+        return nowElapsedNanos - lastSent >= intervalNanos
+    }
 
     private fun ensureForegroundForDesktopControl(): Boolean {
         if (currentState.foregroundActive) {

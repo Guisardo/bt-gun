@@ -60,7 +60,7 @@ private fun pressedControlsFrom(buttons: Int): Set<String> =
     buildSet {
         if (buttons and 0x01 != 0) add("trigger")
         if (buttons and 0x02 != 0) add("reload")
-        if (buttons and 0x04 != 0 || buttons and 0x100 != 0) add("x")
+        if (buttons and 0x04 != 0) add("x")
         if (buttons and 0x08 != 0) add("y")
         if (buttons and 0x10 != 0) add("a")
         if (buttons and 0x20 != 0) add("b")

@@ -32,7 +32,7 @@ private fun packsButtonsAndAxesIntoReportIdOne() {
     expectEquals("byte length", WINDOWS_INPUT_REPORT_LENGTH_BYTES, report.bytes.size)
     expectEquals("button bits", 0b0001_0111.toByte(), report.bytes[1])
     expectEquals("stickX", 12345, report.bytes.readInt16Le(2))
-    expectEquals("stickY", -12345, report.bytes.readInt16Le(4))
+    expectEquals("stickY inverted for Windows HID", 12345, report.bytes.readInt16Le(4))
     expectEquals("aimX", 16384, report.bytes.readInt16Le(6))
     expectEquals("aimY", -8192, report.bytes.readInt16Le(8))
     expectEquals("stale metadata", false, report.stale)
@@ -50,7 +50,7 @@ private fun clampsAimAxesBeforeSignedInt16Encoding() {
     )
 
     expectEquals("stickX clamp", 32767, report.bytes.readInt16Le(2))
-    expectEquals("stickY clamp", -32768, report.bytes.readInt16Le(4))
+    expectEquals("stickY inverted clamp", 32767, report.bytes.readInt16Le(4))
     expectEquals("aimX clamp", 32767, report.bytes.readInt16Le(6))
     expectEquals("aimY clamp", -32768, report.bytes.readInt16Le(8))
 }
