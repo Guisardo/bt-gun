@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 06-01-PLAN.md
-last_updated: "2026-06-10T00:15:53.553Z"
+stopped_at: Completed 06-02-PLAN.md
+last_updated: "2026-06-10T00:31:51.646Z"
 last_activity: 2026-06-10 -- Phase 06 Plan 01 complete
 progress:
   total_phases: 10
   completed_phases: 5
   total_plans: 36
-  completed_plans: 31
-  percent: 86
+  completed_plans: 32
+  percent: 50
 ---
 
 # Project State
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-06-09)
 ## Current Position
 
 Phase: 06 (windows-virtual-joystick-path) — EXECUTING
-Plan: 2 of 6
+Plan: 3 of 6
 Next phase: 06 (Windows Virtual Joystick Path)
 Status: Ready to execute
 Last activity: 2026-06-10 -- Phase 06 Plan 01 complete
@@ -87,6 +87,7 @@ Progress: [█████████░] 86% by planned plans. Phase 06 has 1/
 | Phase 05 P04 | 10min | 2 tasks | 6 files |
 | Phase 05 P05 | 2h 10m | 3 tasks | 11 files |
 | Phase 06 P01 | 12 min | 2 tasks | 5 files |
+| Phase 06 P02 | 8 min | 3 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -156,6 +157,9 @@ Recent decisions affecting current work:
 - [Phase 03 approved]: Physical Android plus desktop manual smoke completed. — User confirmed during the 2026-06-09 quick repair, so no Phase 03 manual smoke todo remains.
 - [Phase 06]: Windows input report ID 1 uses byte 0 report id, byte 1 trigger/reload/X/Y/A/B bits, then stickX/stickY/aimX/aimY signed int16 little-endian axes.
 - [Phase 06]: Windows output report ID 2 version 1 maps one strength byte plus duration/TTL uint16 little-endian fields to a pattern-null HapticCommand after reserved bytes validate as zero.
+- [Phase 06]: Windows driver ABI uses METHOD_BUFFERED IOCTLs with FILE_WRITE_DATA for input submission and FILE_READ_DATA for output/status reads. — Matches Plan 02 user-mode to kernel tampering mitigation.
+- [Phase 06]: KMDF/VHF kernel code stays a HID report bridge only; LAN/session/security and haptic transport stay in user mode. — Preserves D-11 and D-12 boundaries while reducing kernel attack surface.
+- [Phase 06]: Local macOS execution records the WDK/MSBuild build gate as source-only blocked; Plan 05 CI must validate build/sign/package before target use. — The executor has no Windows WDK/MSBuild toolchain, and Plan 02 build_gate allows source-only closeout.
 
 ### Pending Todos
 
@@ -181,6 +185,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-10T00:15:53.545Z
-Stopped at: Completed 06-01-PLAN.md
+Last session: 2026-06-10T00:31:51.639Z
+Stopped at: Completed 06-02-PLAN.md
 Resume file: None
