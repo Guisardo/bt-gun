@@ -4,6 +4,19 @@ import com.btgun.host.HostSessionPhase
 import com.btgun.host.HostSessionState
 import com.btgun.host.ble.BleGunConnectionPhase
 import com.btgun.host.ble.BleGunConnectionState
+import com.btgun.host.haptics.HapticResult
+import com.btgun.host.haptics.HapticResultStatus
+import com.btgun.host.hid.BtGunHidDescriptor
+import com.btgun.host.hid.BtGunHidHostConnectionState
+import com.btgun.host.hid.BtGunHidInputReportStatus
+import com.btgun.host.hid.BtGunHidInputSendResult
+import com.btgun.host.hid.BtGunHidOutputCallbackKind
+import com.btgun.host.hid.BtGunHidOutputCallbackStatus
+import com.btgun.host.hid.BtGunHidOutputValidationState
+import com.btgun.host.hid.BtGunHidOutputValidationStatus
+import com.btgun.host.hid.BtGunHidPairingWindowStatus
+import com.btgun.host.hid.BtGunHidRegistrationState
+import com.btgun.host.hid.BtGunHidStatus
 import com.btgun.host.haptics.PhoneHapticStatus
 import com.btgun.host.model.GunEvent
 import com.btgun.host.model.GunInputState
@@ -46,6 +59,9 @@ fun main() {
     trustedDesktopDisplayDoesNotActivatePacketStream()
     packetStreamShowsConciseLifecycleStates()
     phoneHapticsStayLocalOnly()
+    hidBlockedRowsRenderInPermissionDebugStatus()
+    hidPairingHostAndInputProofRenderAsFirstClassFields()
+    hidOutputProofFieldsStaySeparateFromLanHaptics()
 }
 
 private fun initialStateUsesRequiredShellCopyAndCollapsedDebugPanels() {
@@ -467,6 +483,95 @@ private fun phoneHapticsStayLocalOnly() {
     }
 }
 
+private fun hidBlockedRowsRenderInPermissionDebugStatus() {
+    val blockedRows = listOf(
+        CapabilityStatus(CapabilityState.BLOCKED, "Bluetooth HID role blocked", "Bluetooth is off."),
+        CapabilityStatus(CapabilityState.BLOCKED, "Bluetooth HID permission blocked", "Grant Nearby Devices connect permission before starting Bluetooth gamepad."),
+        CapabilityStatus(CapabilityState.BLOCKED, "HID_DEVICE proxy unavailable", "This Android build did not expose the Bluetooth HID_DEVICE profile proxy."),
+        CapabilityStatus(CapabilityState.BLOCKED, "Bluetooth HID registration failed", "Android rejected or lost HID gamepad app registration."),
+        CapabilityStatus(CapabilityState.BLOCKED, "Bluetooth HID host not connected", "Pair macOS while Bluetooth gamepad mode is active."),
+        CapabilityStatus(CapabilityState.BLOCKED, "Bluetooth HID host disconnected", "Host disconnected; restart pairing or reconnect from macOS Bluetooth."),
+    )
+
+    blockedRows.forEach { hidRole ->
+        val state = DashboardState.from(
+            permissionGateState = permissionGateState(bluetoothHidRole = hidRole),
+            hostSessionState = HostSessionState(),
+            debugExpanded = DebugExpansion(permissionState = true),
+        )
+
+        expectEquals("hid label ${hidRole.label}", hidRole.label, state.hidGamepad.roleCapability.label)
+        expectContains("hid detail ${hidRole.label}", state.hidGamepad.roleCapability.value, hidRole.detail)
+        expectContains("permission hid ${hidRole.label}", state.permission.details, hidRole.detail)
+        expectContains("debug hid ${hidRole.label}", state.debugPanels.permissionState.body, "bluetooth_hid=${hidRole.label}")
+    }
+}
+
+private fun hidPairingHostAndInputProofRenderAsFirstClassFields() {
+    val state = DashboardState.from(
+        permissionGateState = permissionGateState(),
+        hostSessionState = HostSessionState(
+            hidGamepadStatus = BtGunHidStatus(
+                registration = BtGunHidRegistrationState.REGISTERED,
+                hostConnection = BtGunHidHostConnectionState.CONNECTED,
+                pairingWindow = BtGunHidPairingWindowStatus(
+                    open = true,
+                    durationSeconds = 120,
+                    detail = "pairing window open",
+                ),
+                lastInputReport = BtGunHidInputReportStatus(
+                    result = BtGunHidInputSendResult.SENT,
+                    reportId = BtGunHidDescriptor.INPUT_REPORT_ID,
+                    payloadLength = BtGunHidDescriptor.INPUT_REPORT_PAYLOAD_LENGTH_BYTES,
+                    aimSource = "calibrated",
+                    stale = false,
+                ),
+            ),
+        ),
+    )
+
+    expectEquals("hid model type", "Bluetooth gamepad", state.hidGamepad.role)
+    expectEquals("registration field", "registered", state.hidGamepad.registration.value)
+    expectEquals("pairing countdown", "open for 120s | pairing window open", state.hidGamepad.pairingWindow.value)
+    expectEquals("host connection", "connected", state.hidGamepad.hostConnection.value)
+    expectEquals("last input", "sent | report=1 payload=9 aim=calibrated stale=false", state.hidGamepad.lastInputReport.value)
+}
+
+private fun hidOutputProofFieldsStaySeparateFromLanHaptics() {
+    val state = DashboardState.from(
+        permissionGateState = permissionGateState(),
+        hostSessionState = HostSessionState(
+            hidGamepadStatus = BtGunHidStatus(
+                lastOutputCallback = BtGunHidOutputCallbackStatus(
+                    kind = BtGunHidOutputCallbackKind.SET_REPORT,
+                    reportType = 2,
+                    reportId = 2,
+                    payloadLength = 8,
+                ),
+                lastOutputValidation = BtGunHidOutputValidationStatus(
+                    state = BtGunHidOutputValidationState.VALID,
+                    detail = "valid output report",
+                ),
+                lastHapticResult = HapticResult(
+                    commandId = "hid-output-test",
+                    status = HapticResultStatus.STARTED,
+                    detail = "phone pulse started",
+                    observedElapsedNanos = 1_000L,
+                ),
+                unsupportedReason = "macOS output callback not seen yet",
+            ),
+        ),
+        phoneHapticStatus = PhoneHapticStatus.started(durationMs = 1_000L),
+    )
+
+    expectEquals("output callback", "set_report | type=2 report=2 payload=8", state.hidGamepad.outputCallback.value)
+    expectEquals("output validation", "valid | valid output report", state.hidGamepad.outputValidation.value)
+    expectEquals("output haptic", "started | phone pulse started", state.hidGamepad.outputHaptic.value)
+    expectContains("fallback separate", state.hidGamepad.fallback.value, "LAN haptics are diagnostics/fallback only")
+    expectFalse("phone local not hid proof", state.phoneHaptic.lastLocalTest.contains("HID", ignoreCase = true))
+    expectFalse("output field not lan ack", state.hidGamepad.outputHaptic.value.contains("ack", ignoreCase = true))
+}
+
 private fun gunEvent(
     seq: Long,
     captureElapsedNanos: Long,
@@ -485,7 +590,13 @@ private fun gunEvent(
         provenance = provenance,
     )
 
-private fun permissionGateState(): PermissionGateState =
+private fun permissionGateState(
+    bluetoothHidRole: CapabilityStatus = CapabilityStatus(
+        CapabilityState.BLOCKED,
+        "Bluetooth HID role not started",
+        "Tap Start Bluetooth gamepad to probe HID_DEVICE support.",
+    ),
+): PermissionGateState =
     PermissionGateState(
         bluetoothPermissionModel = BluetoothPermissionModel.ANDROID_12_NEARBY_DEVICES,
         bluetoothScan = CapabilityStatus(CapabilityState.AVAILABLE, "Bluetooth scan available", "Runtime permission granted."),
@@ -494,6 +605,7 @@ private fun permissionGateState(): PermissionGateState =
         motionSensors = CapabilityStatus(CapabilityState.AVAILABLE, "Motion sensors available", "Capability detected."),
         vibration = CapabilityStatus(CapabilityState.AVAILABLE, "Phone vibration available", "Capability detected."),
         lanNetwork = CapabilityStatus(CapabilityState.AVAILABLE, "LAN network available", "Capability detected."),
+        bluetoothHidRole = bluetoothHidRole,
     )
 
 private fun expectEquals(label: String, expected: Any?, actual: Any?) {
