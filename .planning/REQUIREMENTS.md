@@ -5,8 +5,8 @@
 
 ## User Stories
 
-- As a user with the discontinued iPega AR gun, I can connect the gun to an Android phone and use it as a wireless controller for a desktop computer.
-- As a desktop user, I can see the gun as a normal gamepad-style joystick device on Windows 11 x64 and macOS Apple Silicon.
+- As a user with the discontinued iPega AR gun, I can connect the gun to an Android phone and use the phone itself as a wireless Bluetooth HID gamepad for a desktop computer.
+- As a desktop user, I can see the gun stream as a normal gamepad-style joystick device through Android Bluetooth HID on macOS Apple Silicon, with the completed Windows virtual joystick path retained as fallback.
 - As a player, I can aim with Android phone motion sensors, press the gun controls, recenter aim, and feel phone haptic feedback from the desktop.
 - As a developer/debugger, I can inspect connection state, packet timing, mapped axes, button states, and haptic results in a simple joystick visualizer.
 
@@ -32,8 +32,13 @@
 - [x] **ANDR-06**: Holding reload for two seconds recenters motion aim without preventing normal reload press/release events.
 - [x] **ANDR-07**: Android host app can receive a haptic command from desktop and vibrate the Android phone.
 - [x] **ANDR-08**: Android host app shows active session status for gun connection, desktop link, packet stream, and haptic feedback.
+- [ ] **ANDR-09**: Android host app can register or advertise as a Bluetooth HID gamepad using the phone's supported HID peripheral role, with a clear blocked state when the device/OEM does not support the role.
+- [ ] **ANDR-10**: Android host app maps normalized gun controls and Android motion aim into regular gamepad-style HID input reports without requiring a macOS virtual HID driver.
+- [ ] **ANDR-11**: Android host app can receive Bluetooth HID output or rumble reports from the desktop OS and map valid output to v1 phone haptics, or report the platform limitation clearly.
 
 ### LAN Session
+
+Retained for diagnostics, pairing/control experiments, and Windows virtual-controller fallback. The primary no-subscription macOS v1 path is Android-to-desktop Bluetooth HID, not LAN-to-macOS virtual HID.
 
 - [x] **TRAN-01**: Desktop companion can create a local pairing session and display a QR code plus pairing-code fallback.
 - [x] **TRAN-02**: Android host app can pair to the desktop companion using QR code or pairing code without manual IP entry in the normal path.
@@ -45,14 +50,14 @@
 - [x] **TRAN-08**: Android host app returns haptic acknowledgement or failure status to desktop.
 - [x] **TRAN-09**: Desktop and Android can recover cleanly from LAN disconnect without playing stale haptic commands.
 
-### Desktop Virtual Controller
+### Desktop / OS-visible Controller
 
 - [x] **DESK-01**: Desktop companion can receive, validate, decrypt/authenticate, and parse normalized Android input frames.
 - [x] **DESK-02**: Desktop companion can expose a regular gamepad-style virtual joystick on Windows 11 x64.
-- [ ] **DESK-03**: Desktop companion can expose a regular gamepad-style virtual joystick on macOS Apple Silicon.
+- [ ] **DESK-03**: macOS Apple Silicon can see the Android phone as a regular Bluetooth HID gamepad-style joystick for the gun stream, avoiding paid Apple virtual HID entitlements in the primary v1 path.
 - [x] **DESK-04**: Virtual joystick descriptor exposes trigger, reload, joystick axes, X/Y/A/B buttons, and aim axes.
 - [x] **DESK-05**: Windows virtual joystick path can receive desktop rumble/output requests and map them to v1 phone haptic commands.
-- [ ] **DESK-06**: macOS virtual joystick path can receive desktop rumble/output requests or clearly report the platform limitation while preserving v1 phone haptic support.
+- [ ] **DESK-06**: macOS Bluetooth HID gamepad path can receive OS output or rumble reports and route them to Android phone haptics, or clearly report the platform limitation while preserving v1 phone haptic support.
 - [x] **DESK-07**: Desktop companion exposes backend capability flags for buttons, axes, haptic feedback, output reports, and platform limitations.
 - [x] **DESK-08**: Developer can run a fake-input virtual controller smoke test on both Windows and macOS before using the real Android stream.
 
@@ -86,9 +91,10 @@
 
 - [ ] **PACK-01**: Repository documents the selected Android build toolchain and device testing workflow.
 - [x] **PACK-02**: Repository documents the selected Windows virtual HID strategy, driver signing requirements, and development setup.
-- [ ] **PACK-03**: Repository documents the selected macOS virtual HID strategy, entitlement requirements, and development setup.
+- [ ] **PACK-03**: Repository documents the selected macOS strategy: Android Bluetooth HID gamepad as the primary no-subscription path, with CoreHID/DriverKit virtual HID work retained only as blocked/fallback evidence unless entitlement-capable proof exists.
 - [ ] **PACK-04**: Repository documents the LAN session protocol, packet schemas, pairing flow, and security model.
-- [ ] **PACK-05**: Repository documents known limitations, including unsupported direct desktop Bluetooth and lack of game-specific presets in v1.
+- [ ] **PACK-05**: Repository documents known limitations, including unsupported direct desktop-to-gun Bluetooth, Android Bluetooth HID device compatibility risk, and lack of game-specific presets in v1.
+- [ ] **PACK-06**: Repository documents Android Bluetooth HID gamepad setup, phone compatibility checks, macOS/Windows pairing flow, HID report descriptors, output-report behavior, and fallback routing to the completed Windows virtual joystick path.
 
 ## Acceptance Criteria
 
@@ -96,7 +102,8 @@
 - [ ] Android host app can show live gun controls and motion sensor samples, including which motion provider is active.
 - [ ] Desktop companion can pair to Android by QR or pairing code.
 - [ ] Windows 11 x64 sees an OS-visible virtual gamepad-style joystick.
-- [ ] macOS Apple Silicon sees an OS-visible virtual gamepad-style joystick.
+- [ ] macOS Apple Silicon sees the Android phone as an OS-visible Bluetooth HID gamepad-style joystick.
+- [ ] If Android Bluetooth HID gamepad mode is blocked on the phone or macOS, the project can fall back to the completed Windows virtual joystick path without discarding that work.
 - [ ] Visualizer shows live controls, mapped aim axes, recenter state, packet timing, and packet loss.
 - [ ] Visualizer haptic test vibrates the Android phone and displays ack/fail.
 - [ ] Normal local Wi-Fi visualizer path targets under 50 ms end-to-end latency.
@@ -111,7 +118,7 @@
 ### Additional Transports
 
 - **TR2-01**: Android and desktop can communicate over Wi-Fi Direct.
-- **TR2-02**: Android and desktop can communicate over Bluetooth/BLE transport when LAN is unavailable.
+- **TR2-02**: Android and desktop can communicate over non-HID Bluetooth/BLE transport when LAN is unavailable.
 
 ### Game Profiles
 
@@ -134,7 +141,7 @@ Explicitly excluded. Documented to prevent scope creep.
 
 | Feature | Reason |
 |---------|--------|
-| Direct desktop-to-gun Bluetooth in v1 | Android host preserves the phone motion-sensor role and reduces platform-specific Bluetooth work. |
+| Direct desktop-to-gun Bluetooth in v1 | Android host preserves the phone motion-sensor role and reduces platform-specific gun Bluetooth work. Android-to-desktop Bluetooth HID is now the primary macOS path. |
 | Cloud or internet relay | Local LAN keeps latency and security manageable. |
 | Wired Android-to-desktop transport | User requested wireless. |
 | Custom gun-specific HID descriptor | Regular gamepad/joystick HID has better compatibility for v1. |
@@ -164,6 +171,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ANDR-06 | Phase 2 | Complete |
 | ANDR-07 | Phase 4 | Complete |
 | ANDR-08 | Phase 2 | Complete |
+| ANDR-09 | Phase 7 | Pending |
+| ANDR-10 | Phase 7 | Pending |
+| ANDR-11 | Phase 7 | Pending |
 | TRAN-01 | Phase 3 | Complete |
 | TRAN-02 | Phase 3 | Complete |
 | TRAN-03 | Phase 3 | Complete |
@@ -203,6 +213,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PACK-03 | Phase 7 | Pending |
 | PACK-04 | Phase 10 | Pending |
 | PACK-05 | Phase 10 | Pending |
+| PACK-06 | Phase 7 | Pending |
 | BT2-01 | v2 | Deferred |
 | TR2-01 | v2 | Deferred |
 | TR2-02 | v2 | Deferred |
@@ -215,12 +226,12 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 **Coverage:**
 
-- v1 requirements: 54 total
-- Mapped to phases: 54
+- v1 requirements: 58 total
+- Mapped to phases: 58
 - Unmapped: 0
 - v2 requirements: 9 total
 - Deferred/mapped: 9
 
 ---
 *Requirements defined: 2026-06-06*
-*Last updated: 2026-06-09 after Phase 4 completion*
+*Last updated: 2026-06-10 after Android Bluetooth HID gamepad reroute*
