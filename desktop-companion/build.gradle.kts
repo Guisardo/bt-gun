@@ -26,6 +26,9 @@ val btgunSmokeHapticEnabled = providers.gradleProperty("btgun.smoke.haptic")
     .map { value -> value.equals("true", ignoreCase = true) }
     .orElse(false)
 
+val btgunWindowsDriverBridgePath = providers.systemProperty("btgun.windows.driver.bridge.path")
+    .orElse("")
+
 dependencies {
     implementation("io.ktor:ktor-server-core-jvm:3.5.0")
     implementation("io.ktor:ktor-server-netty-jvm:3.5.0")
@@ -93,4 +96,12 @@ tasks.register<JavaExec>("smokeDesktopBackendWindowsStub") {
     classpath = sourceSets.main.get().runtimeClasspath
     mainClass.set("com.btgun.desktop.smoke.WindowsBackendSmokeMainKt")
     systemProperty("btgun.smoke.haptic", btgunSmokeHapticEnabled.get().toString())
+}
+
+tasks.register<JavaExec>("smokeDesktopBackendWindowsVhf") {
+    group = "verification"
+    description = "Runs the Windows VHF desktop backend smoke against a Plan 05 driver bridge artifact."
+    classpath = sourceSets.main.get().runtimeClasspath
+    mainClass.set("com.btgun.desktop.smoke.WindowsVhfBackendSmokeMainKt")
+    systemProperty("btgun.windows.driver.bridge.path", btgunWindowsDriverBridgePath.get())
 }
