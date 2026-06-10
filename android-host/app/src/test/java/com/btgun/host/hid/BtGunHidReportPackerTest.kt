@@ -104,7 +104,7 @@ private fun hidPackageDoesNotDependOnDesktopModules() {
         File("app/src/main/java/com/btgun/host/hid"),
         File("app/src/test/java/com/btgun/host/hid"),
     )
-    val banned = listOf("com.btgun.desktop", "MacosHid", "Windows" + "Hid")
+    val banned = listOf("com.btgun." + "desktop", "Macos" + "Hid", "Windows" + "Hid")
     roots.flatMap { root -> root.walkTopDown().filter { it.isFile }.toList() }.forEach { file ->
         val text = file.readText()
         banned.forEach { token ->
