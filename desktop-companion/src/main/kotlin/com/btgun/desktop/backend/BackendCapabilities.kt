@@ -49,6 +49,29 @@ object BackendCapabilityPresets {
             deviceDetail = "Phase 5 Windows stub does not create OS-visible virtual controller devices.",
         )
 
+    fun windowsVhf(): BackendCapabilities =
+        BackendCapabilities(
+            platform = "windows-vhf",
+            buttons = btGunV1Descriptor.buttons,
+            axes = btGunV1Descriptor.axes,
+            haptics = HapticEffectCapability(
+                strength = true,
+                duration = true,
+                pattern = false,
+                phoneHaptic = true,
+                outputReport = true,
+                unsupported = listOf(
+                    UnsupportedReason(
+                        platform = "windows-vhf",
+                        feature = "pattern",
+                        detail = "Windows VHF output reports support phone haptic strength and duration only; pattern output is unsupported in v1.",
+                    ),
+                ),
+            ),
+            lifecycle = listOf(BackendLifecycleState.STOPPED, BackendLifecycleState.STARTED),
+            limitations = emptyList(),
+        )
+
     private fun stub(platform: String, deviceDetail: String): BackendCapabilities =
         BackendCapabilities(
             platform = platform,
