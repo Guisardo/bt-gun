@@ -91,10 +91,23 @@ class LocalEndpointSelector private constructor(
         runCatching {
             DatagramSocket().use { socket ->
                 socket.connect(InetSocketAddress(DEFAULT_ROUTE_PROBE_HOST, DEFAULT_ROUTE_PROBE_PORT))
-                socket.localAddress as? Inet4Address
+                val address = socket.localAddress as? Inet4Address ?: return@use null
+                val networkInterface = NetworkInterface.getByInetAddress(address)
+                if (networkInterface == null) {
+                    address.takeIf { usableAddress(it) }
+                } else {
+                    val priority = candidatePriority(
+                        name = networkInterface.name,
+                        displayName = networkInterface.displayName,
+                        virtual = networkInterface.isVirtual,
+                        pointToPoint = networkInterface.isPointToPoint,
+                        multicast = runCatching { networkInterface.supportsMulticast() }.getOrDefault(false),
+                        address = address,
+                    )
+                    address.takeIf { priority != null }
+                }
             }
         }.getOrNull()
-            ?.takeIf { address -> usableAddress(address) }
 
     private data class EndpointCandidate(
         val address: Inet4Address,
@@ -135,7 +148,15 @@ class LocalEndpointSelector private constructor(
             if (address.isSiteLocalAddress) priority += 100
             if (address.hostAddress.startsWith("192.168.")) priority += 30
             if (address.hostAddress.startsWith("10.")) priority += 20
-            if (lowerName.startsWith("en") || lowerName.startsWith("wl") || lowerDisplay.contains("wi-fi") || lowerDisplay.contains("wifi")) {
+            if (
+                lowerName.startsWith("en") ||
+                lowerName.startsWith("eth") ||
+                lowerDisplay.contains("wi-fi") ||
+                lowerDisplay.contains("wifi") ||
+                lowerDisplay.contains("ethernet") ||
+                lowerDisplay.contains("gbe") ||
+                lowerDisplay.contains("realtek")
+            ) {
                 priority += 25
             }
             if (multicast) priority += 5
@@ -154,15 +175,23 @@ class LocalEndpointSelector private constructor(
                 "bridge",
                 "docker",
                 "feth",
+                "host-only",
                 "hyper-v",
                 "llw",
+                "openvpn",
+                "tailscale",
                 "utun",
                 "vbox",
                 "vethernet",
+                "virtual",
+                "virtualbox",
                 "vmnet",
                 "vmware",
                 "vnic",
+                "vpn",
+                "wireguard",
                 "wsl",
+                "zerotier",
             ).any(combined::contains) || name.lowercase().startsWith("br-")
         }
     }

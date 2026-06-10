@@ -48,6 +48,7 @@ Get-PnpDevice -PresentOnly | Where-Object { $_.FriendlyName -like "*BT Gun*" -or
 ### phase6-live-android-gun-input
 
 - Start the desktop companion with the real Windows backend enabled and the CI artifact bridge path.
+- If the target has VPN, virtual, or host-only adapters, force the advertised LAN endpoint with `-Dbtgun.desktop.host=192.168.1.100`.
 - Pair the Android app and physical iPega gun live.
 - Move trigger, reload, X/Y/A/B, stick, and aim.
 - Confirm Windows-visible axes/buttons move.

@@ -25,7 +25,7 @@ fun main() {
     desktopIdentityStoreRotatesLegacyPasswordStore()
     desktopIdentityStoreRotatesMismatchedKeyPair()
     qrRendererProducesMinimumSizedImage()
-    localEndpointSelectorPrefersWifiLanOverVirtualAdapters()
+    localEndpointSelectorPrefersLanAdaptersOverVirtualAdapters()
     redactorHidesPairingSecrets()
     pairingWindowCopyCoversRequiredStatesAndVisibleFallbackOnly()
 }
@@ -106,7 +106,7 @@ private fun qrRendererProducesMinimumSizedImage() {
     expectEquals("qr height", 240, image.height)
 }
 
-private fun localEndpointSelectorPrefersWifiLanOverVirtualAdapters() {
+private fun localEndpointSelectorPrefersLanAdaptersOverVirtualAdapters() {
     val wifiPriority = LocalEndpointSelector.candidatePriority(
         name = "en0",
         displayName = "Wi-Fi",
@@ -114,6 +114,30 @@ private fun localEndpointSelectorPrefersWifiLanOverVirtualAdapters() {
         pointToPoint = false,
         multicast = true,
         address = ipv4("192.168.1.29"),
+    )
+    val ethernetPriority = LocalEndpointSelector.candidatePriority(
+        name = "Ethernet",
+        displayName = "Realtek PCIe GbE Family Controller",
+        virtual = false,
+        pointToPoint = false,
+        multicast = true,
+        address = ipv4("192.168.1.100"),
+    )
+    val zeroTierPriority = LocalEndpointSelector.candidatePriority(
+        name = "ZeroTier One [a09acf02338a73b5]",
+        displayName = "ZeroTier Virtual Port #2",
+        virtual = false,
+        pointToPoint = false,
+        multicast = true,
+        address = ipv4("192.168.196.101"),
+    )
+    val virtualBoxPriority = LocalEndpointSelector.candidatePriority(
+        name = "Ethernet 2",
+        displayName = "VirtualBox Host-Only Ethernet Adapter",
+        virtual = false,
+        pointToPoint = false,
+        multicast = true,
+        address = ipv4("192.168.56.1"),
     )
     val virtualPriority = LocalEndpointSelector.candidatePriority(
         name = "feth3790",
@@ -133,6 +157,9 @@ private fun localEndpointSelectorPrefersWifiLanOverVirtualAdapters() {
     )
 
     expectTrue("wifi priority", wifiPriority != null && wifiPriority > 0)
+    expectTrue("ethernet priority", ethernetPriority != null && ethernetPriority > 0)
+    expectEquals("zerotier rejected", null, zeroTierPriority)
+    expectEquals("virtualbox rejected", null, virtualBoxPriority)
     expectEquals("virtual rejected", null, virtualPriority)
     expectEquals("loopback rejected", null, loopbackPriority)
 }
