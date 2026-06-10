@@ -1,3 +1,5 @@
+#include <initguid.h>
+
 #include "BtGunVJoy.h"
 
 const UCHAR BtGunVJoyReportDescriptor[] = {
@@ -38,3 +40,88 @@ const UCHAR BtGunVJoyReportDescriptor[] = {
 };
 
 const ULONG BtGunVJoyReportDescriptorLength = sizeof(BtGunVJoyReportDescriptor);
+
+NTSTATUS
+BtGunVJoyCreateDevice(
+    _Inout_ PWDFDEVICE_INIT DeviceInit)
+{
+    WDF_OBJECT_ATTRIBUTES deviceAttributes;
+    WDFDEVICE device;
+    PBTGVJOY_DEVICE_CONTEXT context;
+    WDF_IO_QUEUE_CONFIG queueConfig;
+    VHF_CONFIG vhfConfig;
+    NTSTATUS status;
+
+    WdfDeviceInitSetDeviceType(DeviceInit, FILE_DEVICE_UNKNOWN);
+    WdfDeviceInitSetIoType(DeviceInit, WdfDeviceIoBuffered);
+
+    WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&deviceAttributes, BTGVJOY_DEVICE_CONTEXT);
+    deviceAttributes.EvtCleanupCallback = BtGunVJoyEvtDeviceContextCleanup;
+
+    status = WdfDeviceCreate(&DeviceInit, &deviceAttributes, &device);
+    if (!NT_SUCCESS(status)) {
+        return status;
+    }
+
+    context = BtGunVJoyGetDeviceContext(device);
+    RtlZeroMemory(context, sizeof(*context));
+    context->Device = device;
+    context->LastNtStatus = STATUS_SUCCESS;
+    ExInitializeFastMutex(&context->OutputQueueLock);
+
+    status = WdfDeviceCreateDeviceInterface(device, &GUID_DEVINTERFACE_BTGUNVJOY, NULL);
+    if (!NT_SUCCESS(status)) {
+        context->LastNtStatus = status;
+        return status;
+    }
+
+    WDF_IO_QUEUE_CONFIG_INIT_DEFAULT_QUEUE(&queueConfig, WdfIoQueueDispatchSequential);
+    queueConfig.EvtIoDeviceControl = BtGunVJoyEvtIoDeviceControl;
+
+    status = WdfIoQueueCreate(device, &queueConfig, WDF_NO_OBJECT_ATTRIBUTES, &context->IoctlQueue);
+    if (!NT_SUCCESS(status)) {
+        context->LastNtStatus = status;
+        return status;
+    }
+
+    VHF_CONFIG_INIT(
+        &vhfConfig,
+        WdfDeviceWdmGetDeviceObject(device),
+        BtGunVJoyReportDescriptorLength,
+        (PUCHAR)BtGunVJoyReportDescriptor);
+    vhfConfig.EvtVhfAsyncOperationWriteReport = BtGunVJoyHandleWriteReport;
+    vhfConfig.VhfClientContext = context;
+
+    status = VhfCreate(&vhfConfig, &context->VhfHandle);
+    if (!NT_SUCCESS(status)) {
+        context->LastNtStatus = status;
+        return status;
+    }
+
+    status = VhfStart(context->VhfHandle);
+    if (!NT_SUCCESS(status)) {
+        context->LastNtStatus = status;
+        VhfDelete(context->VhfHandle, TRUE);
+        context->VhfHandle = NULL;
+        return status;
+    }
+
+    context->VhfStarted = TRUE;
+    context->DriverStarted = TRUE;
+    return STATUS_SUCCESS;
+}
+
+VOID
+BtGunVJoyEvtDeviceContextCleanup(
+    _In_ WDFOBJECT DeviceObject)
+{
+    PBTGVJOY_DEVICE_CONTEXT context;
+
+    context = BtGunVJoyGetDeviceContext(DeviceObject);
+    if (context->VhfHandle != NULL) {
+        VhfDelete(context->VhfHandle, TRUE);
+        context->VhfHandle = NULL;
+    }
+    context->VhfStarted = FALSE;
+    context->DriverStarted = FALSE;
+}

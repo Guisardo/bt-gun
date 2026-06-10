@@ -1,0 +1,59 @@
+; btgunvjoy.inf
+; Root hardware id: Root\BTGunVJoy
+; Test-signing package inputs: BtGunVJoy.sys, btgunvjoy.inf, btgunvjoy.cat
+
+[Version]
+Signature="$WINDOWS NT$"
+Class=HIDClass
+ClassGuid={745A17A0-74D3-11D0-B6FE-00A0C90F57DA}
+Provider=%ManufacturerName%
+DriverVer=06/10/2026,0.6.2.0
+CatalogFile=btgunvjoy.cat
+PnpLockdown=1
+
+[DestinationDirs]
+DefaultDestDir=13
+
+[Manufacturer]
+%ManufacturerName%=Standard,NTamd64
+
+[Standard.NTamd64]
+%BtGunVJoy.DeviceDesc%=BtGunVJoy_Install, Root\BTGunVJoy
+
+[BtGunVJoy_Install.NT]
+CopyFiles=BtGunVJoy_CopyFiles
+AddReg=BtGunVJoy_AddReg
+
+[BtGunVJoy_CopyFiles]
+BtGunVJoy.sys
+
+[BtGunVJoy_AddReg]
+HKR,,FriendlyName,,%BtGunVJoy.DeviceDesc%
+
+[BtGunVJoy_Install.NT.Services]
+AddService=BtGunVJoy,0x00000002,BtGunVJoy_Service_Install
+
+[BtGunVJoy_Service_Install]
+DisplayName=%BtGunVJoy.ServiceDesc%
+ServiceType=1
+StartType=3
+ErrorControl=1
+ServiceBinary=%13%\BtGunVJoy.sys
+
+[BtGunVJoy_Install.NT.Wdf]
+KmdfService=BtGunVJoy,BtGunVJoy_WdfSection
+
+[BtGunVJoy_WdfSection]
+KmdfLibraryVersion=1.33
+
+[SourceDisksNames]
+1=%DiskName%,,,
+
+[SourceDisksFiles]
+BtGunVJoy.sys=1
+
+[Strings]
+ManufacturerName="BT Gun"
+BtGunVJoy.DeviceDesc="BT Gun VJoy"
+BtGunVJoy.ServiceDesc="BT Gun VJoy KMDF/VHF virtual HID bridge"
+DiskName="BT Gun VJoy Driver Package"
