@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 07-03-PLAN.md
-last_updated: "2026-06-10T23:13:09.611Z"
+stopped_at: Completed 07-04-PLAN.md
+last_updated: "2026-06-10T23:31:25.434Z"
 last_activity: 2026-06-10 -- Phase 07 execution started
 progress:
   total_phases: 10
   completed_phases: 6
   total_plans: 42
-  completed_plans: 39
-  percent: 93
+  completed_plans: 40
+  percent: 95
 ---
 
 # Project State
@@ -26,18 +26,18 @@ See: .planning/PROJECT.md (updated 2026-06-09)
 ## Current Position
 
 Phase: 07 (macos-virtual-joystick-path) — EXECUTING
-Plan: 4 of 6
+Plan: 5 of 6
 Next phase: Execute Phase 07 Android Bluetooth HID gamepad path
 Status: Ready to execute
 Last activity: 2026-06-10 -- Phase 07 execution started
 
-Progress: [█████████░] 39/42 active planned plans complete. Phase 06 has 6/6 plans complete; Phase 07 has 3/6 active Android Bluetooth HID plans executed after the reroute.
+Progress: [██████████] 40/42 active planned plans complete. Phase 06 has 6/6 plans complete; Phase 07 has 4/6 active Android Bluetooth HID plans executed after the reroute.
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 42
+- Total plans completed: 40
 - Average duration: not tracked for hardware-interactive plans
 - Total execution time: not tracked after Plan 02
 
@@ -50,7 +50,7 @@ Progress: [█████████░] 39/42 active planned plans complete. 
 | 04 | 6 | - | - |
 | 05 | 5 | hardware-interactive | hardware-interactive |
 | 06 | 6 | hardware-interactive | hardware-interactive |
-| 07 | 6 | 27min | P01-P02 complete; Android Bluetooth HID plans 03-06 ready to execute |
+| 07 | 6 | 39min | P01-P04 complete; Android Bluetooth HID plans 05-06 ready to execute |
 
 **Recent Trend:**
 
@@ -98,6 +98,7 @@ Progress: [█████████░] 39/42 active planned plans complete. 
 | Phase 07 P01 | 8min | 3 tasks | 7 files |
 | Phase 07 P02 | 19min | 2 tasks | 5 files |
 | Phase 07 P03 | 10min | 2 tasks | 6 files |
+| Phase 07 P04 | 12min | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -199,6 +200,7 @@ Recent decisions affecting current work:
 - [Phase 07]: Android HID output reports use report ID 2 as callback metadata and an 8-byte payload before DesktopHapticCommand mapping.
 - [Phase 07]: AndroidBluetoothHidGamepad hides BluetoothHidDevice calls behind injectable connector/proxy interfaces for unit-tested lifecycle and callbacks.
 - [Phase 07]: DESK-06 remains a live evidence gate; Plan 07-03 adds Android callback/status foundation but makes no macOS output-report claim.
+- [Phase 07]: Android HID mode starts only through explicit service actions; live BLE/LAN session startup remains separate. — Plan 07-04 keeps Bluetooth HID gamepad proof separate from LAN diagnostics and desktop companion input.
 
 ### Pending Todos
 
@@ -225,6 +227,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-10T23:13:00.847Z
-Stopped at: Completed 07-03-PLAN.md
+Last session: 2026-06-10T23:31:01.687Z
+Stopped at: Completed 07-04-PLAN.md
 Resume file: None
