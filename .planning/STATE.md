@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 07-01-PLAN.md
-last_updated: "2026-06-10T22:33:24.980Z"
+stopped_at: Completed 07-02-PLAN.md
+last_updated: "2026-06-10T22:57:23.538Z"
 last_activity: 2026-06-10 -- Phase 07 execution started
 progress:
   total_phases: 10
   completed_phases: 6
   total_plans: 42
-  completed_plans: 37
-  percent: 88
+  completed_plans: 38
+  percent: 90
 ---
 
 # Project State
@@ -26,18 +26,18 @@ See: .planning/PROJECT.md (updated 2026-06-09)
 ## Current Position
 
 Phase: 07 (macos-virtual-joystick-path) — EXECUTING
-Plan: 2 of 6
+Plan: 3 of 6
 Next phase: Execute Phase 07 Android Bluetooth HID gamepad path
 Status: Ready to execute
 Last activity: 2026-06-10 -- Phase 07 execution started
 
-Progress: [█████████░] 37/42 active planned plans complete. Phase 06 has 6/6 plans complete; Phase 07 has 1/6 active Android Bluetooth HID plans executed after the reroute.
+Progress: [█████████░] 38/42 active planned plans complete. Phase 06 has 6/6 plans complete; Phase 07 has 2/6 active Android Bluetooth HID plans executed after the reroute.
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 41
+- Total plans completed: 42
 - Average duration: not tracked for hardware-interactive plans
 - Total execution time: not tracked after Plan 02
 
@@ -50,11 +50,11 @@ Progress: [█████████░] 37/42 active planned plans complete. 
 | 04 | 6 | - | - |
 | 05 | 5 | hardware-interactive | hardware-interactive |
 | 06 | 6 | hardware-interactive | hardware-interactive |
-| 07 | 6 | 8min | P01 complete; Android Bluetooth HID plans 02-06 ready to execute |
+| 07 | 6 | 27min | P01-P02 complete; Android Bluetooth HID plans 03-06 ready to execute |
 
 **Recent Trend:**
 
-- Recent completed execution plans: 05-P05, 06-P01, 06-P02, 06-P03, 06-P05, 06-P04, and 06-P06 complete.
+- Recent completed execution plans: 06-P01, 06-P02, 06-P03, 06-P05, 06-P04, 06-P06, 07-P01, and 07-P02 complete.
 - Trend: CoreHID and DriverKit are no longer primary for macOS because no-subscription virtual HID is blocked. Phase 07 active plans now target Android phone Bluetooth HID gamepad proof, with Windows VHF retained as fallback.
 
 *Updated after each plan completion*
@@ -96,6 +96,7 @@ Progress: [█████████░] 37/42 active planned plans complete. 
 | Phase 06 P06 | hardware-interactive | Windows target proof | approved |
 | Phase 07 legacy P01-P05 | archived | CoreHID/DriverKit evidence | fallback only |
 | Phase 07 P01 | 8min | 3 tasks | 7 files |
+| Phase 07 P02 | 19min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -191,6 +192,9 @@ Recent decisions affecting current work:
 - [Phase 07]: Android Bluetooth HID readiness is modeled separately from the BLE gun/LAN session gate. — Plan 07-01 keeps canStartSession unchanged while adding bluetoothHidRole.
 - [Phase 07]: HostCapabilityProbe remains synchronous; async HID_DEVICE proxy, registration, and host connection results are explicit status inputs. — Startup probing must not guess phone/OEM Bluetooth HID support before the later adapter runs.
 - [Phase 07]: Android HID evidence starts as schema and policy only. — Plan 07-01 names later proof rows but claims no current-phone, macOS input, output-report, unsupported-output, or fallback success.
+- [Phase 07]: Android HID descriptor and report packing stay Android-owned; tests copy semantic parity values instead of importing desktop production code.
+- [Phase 07]: Stick Y is inverted in the Android Bluetooth HID payload, matching the existing v1 HID axis convention.
+- [Phase 07]: Input reports use payload bytes only, with report ID 1 carried separately for Android BluetoothHidDevice.sendReport.
 
 ### Pending Todos
 
@@ -217,6 +221,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-10T22:33:24.973Z
-Stopped at: Completed 07-01-PLAN.md
+Last session: 2026-06-10T22:57:23.297Z
+Stopped at: Completed 07-02-PLAN.md
 Resume file: None

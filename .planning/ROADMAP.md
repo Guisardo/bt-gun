@@ -243,7 +243,7 @@ Plans:
   4. Bluetooth HID output or rumble reports route to Android phone haptics when supported, or the app reports the limitation clearly.
   5. Repository documents Android Bluetooth HID setup, macOS pairing, output-report behavior, compatibility risks, and the fallback to the completed Windows virtual joystick path.
 
-**Plans:** 1/6 plans executed
+**Plans:** 2/6 plans executed
 Plans:
 
 **Reroute note (2026-06-10):** CoreHID and DriverKit virtual HID paths require Apple entitlement/signing or local security relaxation and do not satisfy the no-subscription primary path. Legacy work is retained only as evidence/fallback scaffolding. The active Phase 7 plan set below is Android Bluetooth HID gamepad work.
@@ -254,7 +254,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 07-02-PLAN.md — Android Bluetooth HID descriptor and deterministic input report packer.
+- [x] 07-02-PLAN.md — Android Bluetooth HID descriptor and deterministic input report packer.
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
@@ -334,7 +334,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 | 4. Input Stream and Haptic Transport | 6/6 | Complete    | 2026-06-09 |
 | 5. Desktop Backend Contract and Smoke Harness | 5/5 | Complete | 2026-06-09 |
 | 6. Windows Virtual Joystick Path | 6/6 | Complete | 2026-06-10 |
-| 7. macOS Virtual Joystick Path | 1/6 | In Progress|  |
+| 7. macOS Virtual Joystick Path | 2/6 | In Progress|  |
 | 8. Desktop Profiles and Mapping | 0/TBD | Not started | - |
 | 9. Visualizer Acceptance Path | 0/TBD | Not started | - |
 | 10. Diagnostics, Replay, and v1 Docs | 0/TBD | Not started | - |
