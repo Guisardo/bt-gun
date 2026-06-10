@@ -241,7 +241,36 @@ Plans:
   2. macOS virtual joystick receives desktop rumble or output requests where supported, or clearly reports the platform output limitation while preserving v1 phone haptic support.
   3. Repository documents the selected macOS virtual HID strategy, entitlement requirements, and development setup.
 
-**Plans:** TBD
+**Plans:** 0/7 plans complete
+Plans:
+
+**Wave 1**
+
+- [ ] 07-01-PLAN.md — Toolchain/CoreHID feasibility, entitlement gate, and PACK-03 setup foundation.
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 07-02-PLAN.md — macOS HID report packing and output haptic mapping.
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 07-03-PLAN.md — macOS helper client, backend lifecycle, and honest capabilities.
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 07-04-PLAN.md — Live companion runtime wiring and authenticated haptic routing.
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
+- [ ] 07-05-PLAN.md — CoreHID OS-visible smoke and OS-origin output probe gate.
+
+**Wave 6** *(blocked on Wave 5 completion)*
+
+- [ ] 07-06-PLAN.md — Conditional HIDDriverKit fallback when CoreHID fails visibility or output proof.
+
+**Wave 7** *(blocked on Wave 6 completion)*
+
+- [ ] 07-07-PLAN.md — Final live Android/gun macOS joystick proof and output-to-phone-haptic evidence gate.
 
 ### Phase 8: Desktop Profiles and Mapping
 
