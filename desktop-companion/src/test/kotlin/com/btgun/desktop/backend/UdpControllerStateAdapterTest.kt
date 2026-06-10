@@ -8,6 +8,7 @@ import com.btgun.desktop.transport.UdpInputReceiverResult
 fun main() {
     snapshotFixtureReplaysThroughReceiverBeforeMapping()
     edgeFixtureMapsSemanticControlsAndNeutralizesNanAim()
+    edgeFlagDoesNotBecomeButtonThree()
     staleReceiverInputClearsButtonsAndStickBeforeMapping()
 }
 
@@ -33,7 +34,7 @@ private fun edgeFixtureMapsSemanticControlsAndNeutralizesNanAim() {
 
     expectEquals("trigger", true, state.trigger)
     expectEquals("reload", false, state.reload)
-    expectEquals("x", true, state.x)
+    expectEquals("x", false, state.x)
     expectEquals("y", false, state.y)
     expectEquals("a", false, state.a)
     expectEquals("b", false, state.b)
@@ -42,6 +43,13 @@ private fun edgeFixtureMapsSemanticControlsAndNeutralizesNanAim() {
     expectEquals("aimX neutral", 0.0f, state.aimX)
     expectEquals("aimY neutral", 0.0f, state.aimY)
     expectEquals("sourceSequence", 43L, state.sourceSequence)
+}
+
+private fun edgeFlagDoesNotBecomeButtonThree() {
+    val input = acceptFixture(GOLDEN_EDGE_FRAME_HEX).input
+
+    expectEquals("edge flag present", true, input.buttons and 0x100 != 0)
+    expectEquals("edge flag ignored for controls", setOf("trigger"), input.pressedControls)
 }
 
 private fun staleReceiverInputClearsButtonsAndStickBeforeMapping() {

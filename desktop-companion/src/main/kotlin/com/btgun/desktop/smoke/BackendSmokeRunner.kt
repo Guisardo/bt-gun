@@ -55,7 +55,8 @@ object BackendSmokeRunner {
         }
         cases += timedCase("backend-published-edge-state") {
             val finalState = backend.currentState
-            require(finalState.x) { "edge state x not published" }
+            require(finalState.trigger) { "edge state trigger not published" }
+            require(!finalState.x) { "edge control flag leaked into x button" }
             require(finalState.stickX == -32768) { "edge state stickX mismatch" }
             require(finalState.stickY == 32767) { "edge state stickY mismatch" }
             require(finalState.sourceSequence == 43L) { "edge state sequence mismatch" }

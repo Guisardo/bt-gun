@@ -27,7 +27,7 @@ object WindowsHidReportPacker {
         report[0] = WINDOWS_INPUT_REPORT_ID.toByte()
         report[1] = if (state.stale) 0 else state.buttonBits().toByte()
         report.writeInt16Le(offset = 2, value = if (state.stale) 0 else state.stickX.clampSignedInt16())
-        report.writeInt16Le(offset = 4, value = if (state.stale) 0 else state.stickY.clampSignedInt16())
+        report.writeInt16Le(offset = 4, value = if (state.stale) 0 else state.stickY.invertSignedInt16())
         report.writeInt16Le(offset = 6, value = state.aimX.toSignedInt16Axis())
         report.writeInt16Le(offset = 8, value = state.aimY.toSignedInt16Axis())
 
@@ -51,6 +51,9 @@ object WindowsHidReportPacker {
 
     private fun Int.clampSignedInt16(): Int =
         coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt())
+
+    private fun Int.invertSignedInt16(): Int =
+        (-clampSignedInt16()).clampSignedInt16()
 
     private fun Float.toSignedInt16Axis(): Int {
         if (isNaN()) return 0

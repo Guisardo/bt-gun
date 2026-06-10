@@ -47,7 +47,8 @@ private fun macosSmokeRunnerReplaysReceiverBeforeBackendPublish() {
     expectTrue("both fixture datagrams accepted", result.acceptedFixtureSequences.containsAll(listOf(42L, 43L)))
     expectTrue("publish happens after accepted input", result.publishedStates.size >= 2)
     val finalState = result.finalState
-    expectEquals("final x", true, finalState.x)
+    expectEquals("final trigger", true, finalState.trigger)
+    expectEquals("final x", false, finalState.x)
     expectEquals("final stickX", -32768, finalState.stickX)
     expectEquals("final stickY", 32767, finalState.stickY)
     expectEquals("final sequence", 43L, finalState.sourceSequence)
