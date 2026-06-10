@@ -1,5 +1,10 @@
 package com.btgun.desktop.ui
 
+import com.btgun.desktop.backend.BackendLifecycleState
+import com.btgun.desktop.backend.BackendPublishResult
+import com.btgun.desktop.backend.macos.MacosBackendRuntimeDiagnostics
+import com.btgun.desktop.backend.macos.MacosHidHelperStatus
+import com.btgun.desktop.control.HapticSendResult
 import com.btgun.desktop.haptics.HapticResult
 import com.btgun.desktop.haptics.HapticResultStatus
 import com.btgun.desktop.transport.InputStreamLifecycleState
@@ -7,6 +12,7 @@ import com.btgun.desktop.transport.InputStreamLifecycleState
 fun main() {
     pairingWindowExposesOnlyConciseTransportStateLabels()
     pairingWindowExposesHapticSmokeStateWithoutLaunchingSwing()
+    pairingWindowFormatsMacosBackendDiagnostics()
 }
 
 private fun pairingWindowExposesOnlyConciseTransportStateLabels() {
@@ -45,6 +51,51 @@ private fun pairingWindowExposesHapticSmokeStateWithoutLaunchingSwing() {
         ),
         "started: phone pulse started",
     )
+}
+
+private fun pairingWindowFormatsMacosBackendDiagnostics() {
+    expectEquals(
+        "disabled macos status",
+        "disabled",
+        PairingWindow.macosBackendStatusText(diagnostics = null, startupDiagnostic = "disabled"),
+    )
+
+    val status = PairingWindow.macosBackendStatusText(
+        diagnostics = MacosBackendRuntimeDiagnostics(
+            lifecycleState = BackendLifecycleState.STARTED,
+            lastPublishResult = BackendPublishResult.Published,
+            stale = true,
+            lastSourceSequence = 9L,
+            lastHapticSendResult = HapticSendResult.Sent,
+            outputHapticCommandsRouted = 2L,
+            helperStatus = MacosHidHelperStatus(
+                deviceActive = true,
+                osVisible = false,
+                setReportCallbackSeen = true,
+                inputReportsSubmitted = 3L,
+                outputReportsQueued = 1L,
+                malformedInputReports = 0L,
+                malformedOutputReports = 0L,
+            ),
+        ),
+        startupDiagnostic = "enabled",
+    )
+
+    listOf(
+        "lifecycle=started",
+        "lastPublish=published",
+        "stale=true",
+        "lastHapticSend=sent",
+        "routed=2",
+        "helper=active=true",
+        "visible=false",
+        "setReport=true",
+    ).forEach { expected ->
+        expectContains("macos status contains $expected", status, expected)
+    }
+    listOf("QR", "proof", "stream key", "HMAC", "private key", "raw packet", "screenshot").forEach { forbidden ->
+        expectFalse("macos status excludes $forbidden", status.contains(forbidden, ignoreCase = true))
+    }
 }
 
 private fun expectEquals(label: String, expected: Any?, actual: Any?) {
