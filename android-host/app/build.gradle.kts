@@ -48,6 +48,7 @@ tasks.withType<Test>().configureEach {
         listOf(
             "com.btgun.host.permissions.PermissionGateTest",
             "com.btgun.host.permissions.AndroidHidCapabilityTestKt",
+            "com.btgun.host.hid.BtGunHidDescriptorTestKt",
             "com.btgun.host.ble.IpegaPacketParserTestKt",
             "com.btgun.host.ble.IpegaBleGunAdapterTestKt",
             "com.btgun.host.model.NormalizedEventEnvelopeTestKt",
