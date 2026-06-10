@@ -29,6 +29,15 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\Installer\vswhere.exe"
+          if (-not (Test-Path $vswhere)) {
+            throw "vswhere.exe was not found on the GitHub-hosted Windows runner."
+          }
+          $vsInstall = & $vswhere -latest -products * -requires Microsoft.Component.MSBuild -property installationPath
+          if (-not $vsInstall) {
+            throw "Visual Studio with MSBuild was not found on the GitHub-hosted Windows runner."
+          }
+          $wdkToolsetProps = Join-Path $vsInstall "MSBuild\Microsoft\VC\v170\Platforms\x64\PlatformToolsets\WindowsKernelModeDriver10.0\Toolset.props"
           $kitsBin = Join-Path ${env:ProgramFiles(x86)} "Windows Kits\10\bin"
           $kitsInclude = Join-Path ${env:ProgramFiles(x86)} "Windows Kits\10\Include"
           $kitsLib = Join-Path ${env:ProgramFiles(x86)} "Windows Kits\10\Lib"
@@ -40,15 +49,42 @@ jobs:
             Select-Object -First 1
           $ntddk = Get-ChildItem $kitsInclude -Recurse -Filter ntddk.h -ErrorAction SilentlyContinue | Select-Object -First 1
           $vhfHeader = Get-ChildItem $kitsInclude -Recurse -Filter vhf.h -ErrorAction SilentlyContinue | Select-Object -First 1
-          $vhfLib = Get-ChildItem $kitsLib -Recurse -Filter vhfkm.lib -ErrorAction SilentlyContinue | Select-Object -First 1
-          if ($inf2cat -and $signtool -and $ntddk -and $vhfHeader -and $vhfLib) {
+          $vhfLib = Get-ChildItem $kitsLib -Recurse -Filter vhfkm.lib -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -match "\\km\\x64\\vhfkm\.lib$" } |
+            Select-Object -First 1
+          if ($inf2cat -and $signtool -and $ntddk -and $vhfHeader -and $vhfLib -and (Test-Path $wdkToolsetProps)) {
             "WDK tools already available on runner."
             exit 0
           }
-          if (-not (Get-Command choco -ErrorAction SilentlyContinue)) {
-            throw "Chocolatey is required to install windowsdriverkit10 on the GitHub-hosted runner."
+          if ((-not $inf2cat) -or (-not $signtool) -or (-not $ntddk) -or (-not $vhfHeader) -or (-not $vhfLib)) {
+            if (-not (Get-Command choco -ErrorAction SilentlyContinue)) {
+              throw "Chocolatey is required to install windowsdriverkit10 on the GitHub-hosted runner."
+            }
+            choco install windowsdriverkit10 -y --no-progress
           }
-          choco install windowsdriverkit10 -y --no-progress
+          if (-not (Test-Path $wdkToolsetProps)) {
+            $wdkVsixRoot = Join-Path ${env:ProgramFiles(x86)} "Windows Kits\10\Vsix\VS2022"
+            $wdkVsix = Get-ChildItem $wdkVsixRoot -Recurse -Filter WDK.vsix -ErrorAction SilentlyContinue |
+              Sort-Object FullName -Descending |
+              Select-Object -First 1
+            if (-not $wdkVsix) {
+              throw "WDK.vsix was not found under $wdkVsixRoot."
+            }
+            $vsixInstaller = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\Installer\resources\app\ServiceHub\Services\Microsoft.VisualStudio.Setup.Service\VSIXInstaller.exe"
+            if (-not (Test-Path $vsixInstaller)) {
+              $vsixInstaller = Join-Path $vsInstall "Common7\IDE\VSIXInstaller.exe"
+            }
+            if (-not (Test-Path $vsixInstaller)) {
+              throw "VSIXInstaller.exe was not found for WDK Visual Studio integration."
+            }
+            & $vsixInstaller /quiet /admin $wdkVsix.FullName
+            if ($LASTEXITCODE -ne 0) {
+              throw "WDK Visual Studio extension install failed with exit code $LASTEXITCODE."
+            }
+          }
+          if (-not (Test-Path $wdkToolsetProps)) {
+            throw "WindowsKernelModeDriver10.0 MSBuild toolset was not found after WDK Visual Studio extension install."
+          }
 
       - name: Locate MSBuild and WDK tools
         id: toolchain
@@ -86,8 +122,10 @@ jobs:
             Sort-Object FullName -Descending |
             Select-Object -First 1
           $vhfLib = Get-ChildItem $kitsLib -Recurse -Filter vhfkm.lib -ErrorAction SilentlyContinue |
-            Sort-Object @{ Expression = { if ($_.FullName -match "\\x64\\") { 0 } else { 1 } } }, FullName -Descending |
+            Where-Object { $_.FullName -match "\\km\\x64\\vhfkm\.lib$" } |
+            Sort-Object FullName -Descending |
             Select-Object -First 1
+          $wdkToolsetProps = Join-Path $vsInstall "MSBuild\Microsoft\VC\v170\Platforms\x64\PlatformToolsets\WindowsKernelModeDriver10.0\Toolset.props"
           if (-not $inf2cat) {
             throw "inf2cat was not found. GitHub runner must include Windows Kits/WDK tooling."
           }
@@ -103,6 +141,11 @@ jobs:
           if (-not $vhfLib) {
             throw "vhfkm.lib was not found. GitHub runner must include Windows Driver Kit VHF libraries."
           }
+          if (-not (Test-Path $wdkToolsetProps)) {
+            throw "WindowsKernelModeDriver10.0 MSBuild toolset was not found. GitHub runner must include WDK Visual Studio integration."
+          }
+          $kernelIncludeRoot = Split-Path $ntddk.DirectoryName -Parent
+          $windowsKitVersion = Split-Path $kernelIncludeRoot -Leaf
 
           "MSBUILD=$msbuild" | Out-File -FilePath $env:GITHUB_ENV -Append
           "VSDEVCMD=$vsDevCmd" | Out-File -FilePath $env:GITHUB_ENV -Append
@@ -113,6 +156,8 @@ jobs:
           "WDK_NTDDK_HEADER=$($ntddk.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append
           "WDK_VHF_HEADER=$($vhfHeader.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append
           "WDK_VHFKM_LIB=$($vhfLib.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "WDK_TOOLSET_PROPS=$wdkToolsetProps" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "WINDOWS_KIT_VERSION=$windowsKitVersion" | Out-File -FilePath $env:GITHUB_ENV -Append
 
       - name: Decode test-signing certificate
         shell: pwsh
@@ -143,6 +188,7 @@ jobs:
             /p:Configuration=$env:BUILD_CONFIGURATION `
             /p:Platform=$env:BUILD_PLATFORM `
             /p:PlatformToolset=WindowsKernelModeDriver10.0 `
+            /p:WindowsTargetPlatformVersion=$env:WINDOWS_KIT_VERSION `
             /p:OutDir="$driverOut\"
 
       - name: Build user-mode helper tools
