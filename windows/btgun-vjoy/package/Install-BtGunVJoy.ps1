@@ -87,16 +87,27 @@ Invoke-ApprovedCommand `
         & pnputil /add-driver $infPath /install
     }
 
-$devgen = Join-Path (Split-Path -Parent $driverRoot) "tools\devgen.exe"
-if (Test-Path $devgen -PathType Leaf) {
+$artifactRoot = Split-Path -Parent $driverRoot
+$devnodeTool = Join-Path $artifactRoot "tools\btgun-devnode.exe"
+if (Test-Path $devnodeTool -PathType Leaf) {
     Invoke-ApprovedCommand `
-        -Message "Create or verify Root\BTGunVJoy devnode with packaged devgen.exe." `
+        -Message "Create or verify Root\BTGunVJoy devnode with packaged btgun-devnode.exe, then ask PnP to rescan devices." `
         -Approved $ApproveDevnode.IsPresent `
         -Command {
-            & $devgen /add /bus ROOT /hardwareid "Root\BTGunVJoy"
+            & $devnodeTool --inf $infPath --hardware-id "Root\BTGunVJoy" --device-name "BT Gun VJoy"
+            if ($LASTEXITCODE -ne 0) {
+                throw "btgun-devnode.exe failed with exit code $LASTEXITCODE."
+            }
+            & pnputil /scan-devices
+            if ($LASTEXITCODE -ne 0) {
+                throw "pnputil /scan-devices failed with exit code $LASTEXITCODE."
+            }
         }
 } else {
-    Write-Host "No packaged devgen.exe found. If pnputil did not bind an existing Root\BTGunVJoy devnode, create it with an approved packaged tool before final proof."
+    if ($ApproveDevnode.IsPresent) {
+        throw "Missing packaged tool: $devnodeTool. Rebuild/download the CI artifact before devnode proof."
+    }
+    Write-Host "No packaged btgun-devnode.exe found. If pnputil did not bind an existing Root\BTGunVJoy devnode, rebuild/download the CI artifact before final proof."
 }
 
 Write-Host "Proof commands:"

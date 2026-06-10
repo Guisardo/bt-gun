@@ -52,6 +52,7 @@ Copy-RequiredFile (Join-Path $driverRoot "btgunvjoy.cat") (Join-Path $driverOut 
 Copy-RequiredFile (Join-Path $repo "windows\btgun-vjoy\include\BtGunVJoyIoctl.h") (Join-Path $includeOut "BtGunVJoyIoctl.h")
 Copy-RequiredFile (Join-Path $toolsRoot "btgun-driver-bridge.exe") (Join-Path $toolsOut "btgun-driver-bridge.exe")
 Copy-RequiredFile (Join-Path $toolsRoot "btgun-hid-output-sender.exe") (Join-Path $toolsOut "btgun-hid-output-sender.exe")
+Copy-RequiredFile (Join-Path $toolsRoot "btgun-devnode.exe") (Join-Path $toolsOut "btgun-devnode.exe")
 Copy-RequiredFile (Join-Path $repo "windows\btgun-vjoy\package\Install-BtGunVJoy.ps1") (Join-Path $scriptsOut "Install-BtGunVJoy.ps1")
 Copy-RequiredFile (Join-Path $repo "windows\btgun-vjoy\package\Rollback-BtGunVJoy.ps1") (Join-Path $scriptsOut "Rollback-BtGunVJoy.ps1")
 
@@ -78,6 +79,7 @@ $metadata = [ordered]@{
     driverProject = "windows/btgun-vjoy/driver/BtGunVJoy.vcxproj"
     inf = "driver/btgunvjoy.inf"
     hardwareId = "Root\BTGunVJoy"
+    devnodeTool = "tools/btgun-devnode.exe"
     reportIds = @{
         input = 1
         output = 2

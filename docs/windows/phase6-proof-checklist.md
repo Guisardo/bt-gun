@@ -14,7 +14,7 @@ USER APPROVAL REQUIRED before any command below runs on `192.168.1.100`.
 | `Restart-Computer -Force` | Reboots target after approved test-signing change if Windows requires it. | No direct reversal; reconnect after boot, then disable test signing with approved rollback if proof ends. |
 | `.\scripts\Install-BtGunVJoy.ps1 -PublicCertificatePath .\certs\btgun-test-signing.cer -ApproveCertificateImport` | Imports public test certificate into `LocalMachine\Root` and `LocalMachine\TrustedPublisher`. | Remove the imported certificate by thumbprint from both stores after separate approval. |
 | `.\scripts\Install-BtGunVJoy.ps1 -ApproveDriverInstall` | Runs `pnputil /add-driver <artifact>\driver\btgunvjoy.inf /install`. | `.\scripts\Rollback-BtGunVJoy.ps1 -ApproveDriverDelete`. |
-| `.\scripts\Install-BtGunVJoy.ps1 -ApproveDevnode` | Creates or verifies `Root\BTGunVJoy` with packaged `devgen.exe` if needed. | `.\scripts\Rollback-BtGunVJoy.ps1 -ApproveDeviceRemoval`. |
+| `.\scripts\Install-BtGunVJoy.ps1 -ApproveDevnode` | Creates or verifies `Root\BTGunVJoy` with packaged `btgun-devnode.exe` if needed. | `.\scripts\Rollback-BtGunVJoy.ps1 -ApproveDeviceRemoval`. |
 | `control joy.cpl` | Opens Windows Game Controllers GUI to prove `BT Gun VJoy` is visible. | Close the window; no persistent target change. |
 | `.\tools\btgun-hid-output-sender.exe --strength 192 --duration-ms 120 --ttl-ms 500` | Sends a real HID output report only if `joy.cpl` cannot initiate output/rumble; expected Android phone haptic via driver callback. | Wait for duration/TTL to expire; stop process if it hangs. |
 | `.\scripts\Rollback-BtGunVJoy.ps1 -ApproveDeviceRemoval` | Removes `ROOT\BTGUNVJOY\*` device instance. | Re-run approved install/devnode command. |

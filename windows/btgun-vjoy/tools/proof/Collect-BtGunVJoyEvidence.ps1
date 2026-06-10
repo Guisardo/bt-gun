@@ -101,7 +101,7 @@ $captures += Invoke-Capture -Name "signed-driver-btgun" -Command {
 $packageFiles = @()
 if (-not [string]::IsNullOrWhiteSpace($PackageRoot) -and (Test-Path $PackageRoot)) {
     $resolvedPackageRoot = (Resolve-Path $PackageRoot).Path
-    foreach ($name in @("BtGunVJoy.sys", "btgunvjoy.inf", "btgunvjoy.cat", "BtGunVJoyIoctl.h", "btgun-driver-bridge.exe", "btgun-hid-output-sender.exe", "build-metadata.json")) {
+    foreach ($name in @("BtGunVJoy.sys", "btgunvjoy.inf", "btgunvjoy.cat", "BtGunVJoyIoctl.h", "btgun-driver-bridge.exe", "btgun-hid-output-sender.exe", "btgun-devnode.exe", "build-metadata.json")) {
         $match = Get-ChildItem -Path $resolvedPackageRoot -Recurse -File -Filter $name -ErrorAction SilentlyContinue | Select-Object -First 1
         if ($null -ne $match) {
             $packageFiles += Get-FileHashRecord -Path $match.FullName
