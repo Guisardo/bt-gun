@@ -1,6 +1,8 @@
 package com.btgun.desktop
 
 import com.btgun.desktop.control.ControlServer
+import com.btgun.desktop.backend.macos.MacosBackendRuntime
+import com.btgun.desktop.backend.macos.MacosBackendRuntimeConfig
 import com.btgun.desktop.backend.windows.WindowsBackendRuntime
 import com.btgun.desktop.backend.windows.WindowsBackendRuntimeConfig
 import com.btgun.desktop.pairing.PairingSessionRegistry
@@ -19,11 +21,14 @@ private fun createPairingWindow(): PairingWindow {
     val registry = PairingSessionRegistry(identityStore = identityStore)
     val controlServer = ControlServer(registry = registry)
     val windowsBackendLaunch = createWindowsBackendLaunch()
+    val macosBackendLaunch = createMacosBackendLaunch()
     return PairingWindow(
         registry = registry,
         controlServer = controlServer,
         windowsBackendRuntime = windowsBackendLaunch.runtime,
         windowsBackendStartupDiagnostic = windowsBackendLaunch.diagnostic,
+        macosBackendRuntime = macosBackendLaunch.runtime,
+        macosBackendStartupDiagnostic = macosBackendLaunch.diagnostic,
     )
 }
 
@@ -45,10 +50,35 @@ private fun createWindowsBackendLaunch(): WindowsBackendLaunch {
     )
 }
 
+private fun createMacosBackendLaunch(): MacosBackendLaunch {
+    val enabled = System.getProperty(MACOS_HID_ENABLED_PROPERTY).equals("true", ignoreCase = true)
+    if (!enabled) {
+        return MacosBackendLaunch(runtime = null, diagnostic = "disabled")
+    }
+    val helperPath = System.getProperty(MACOS_HID_HELPER_PATH_PROPERTY)?.trim().orEmpty()
+    if (helperPath.isBlank()) {
+        return MacosBackendLaunch(
+            runtime = null,
+            diagnostic = "enabled but btgun.macos.hid.helper.path is missing",
+        )
+    }
+    return MacosBackendLaunch(
+        runtime = MacosBackendRuntime(MacosBackendRuntimeConfig(helperPath = helperPath)),
+        diagnostic = "enabled",
+    )
+}
+
 private data class WindowsBackendLaunch(
     val runtime: WindowsBackendRuntime?,
     val diagnostic: String,
 )
 
+private data class MacosBackendLaunch(
+    val runtime: MacosBackendRuntime?,
+    val diagnostic: String,
+)
+
 private const val WINDOWS_DRIVER_ENABLED_PROPERTY = "btgun.windows.driver.enabled"
 private const val WINDOWS_DRIVER_BRIDGE_PATH_PROPERTY = "btgun.windows.driver.bridge.path"
+private const val MACOS_HID_ENABLED_PROPERTY = "btgun.macos.hid.enabled"
+private const val MACOS_HID_HELPER_PATH_PROPERTY = "btgun.macos.hid.helper.path"

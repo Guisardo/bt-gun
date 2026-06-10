@@ -5,6 +5,8 @@ import com.btgun.desktop.control.ControlServerSessionState
 import com.btgun.desktop.control.HapticSendResult
 import com.btgun.desktop.backend.BackendLifecycleState
 import com.btgun.desktop.backend.BackendPublishResult
+import com.btgun.desktop.backend.macos.MacosBackendRuntime
+import com.btgun.desktop.backend.macos.MacosBackendRuntimeDiagnostics
 import com.btgun.desktop.backend.windows.WindowsBackendRuntime
 import com.btgun.desktop.backend.windows.WindowsBackendRuntimeDiagnostics
 import com.btgun.desktop.haptics.HapticCommand
@@ -40,6 +42,8 @@ class PairingWindow(
     private val controlServer: ControlServer = ControlServer(registry),
     private val windowsBackendRuntime: WindowsBackendRuntime? = null,
     private val windowsBackendStartupDiagnostic: String = "disabled",
+    private val macosBackendRuntime: MacosBackendRuntime? = null,
+    private val macosBackendStartupDiagnostic: String = "disabled",
 ) {
     private val frame = JFrame("BT Gun Desktop")
     private val title = JLabel("BT Gun Desktop")
@@ -58,6 +62,7 @@ class PairingWindow(
     private var lastControlError: String? = null
     private var lastHapticStatus: String = "inactive"
     private var windowsBackendDiagnostics: WindowsBackendRuntimeDiagnostics? = windowsBackendRuntime?.diagnostics()
+    private var macosBackendDiagnostics: MacosBackendRuntimeDiagnostics? = macosBackendRuntime?.diagnostics()
 
     init {
         title.font = title.font.deriveFont(Font.BOLD, 22f)
@@ -98,6 +103,13 @@ class PairingWindow(
             }
         }
         windowsBackendRuntime?.attach(controlServer)
+        macosBackendRuntime?.onDiagnosticsChanged = { backendDiagnostics ->
+            SwingUtilities.invokeLater {
+                macosBackendDiagnostics = backendDiagnostics
+                updateDiagnostics()
+            }
+        }
+        macosBackendRuntime?.attach(controlServer)
 
         action.addActionListener {
             startPairing()
@@ -112,6 +124,7 @@ class PairingWindow(
         frame.addWindowListener(
             object : WindowAdapter() {
                 override fun windowClosing(event: WindowEvent) {
+                    macosBackendRuntime?.close()
                     windowsBackendRuntime?.close()
                     controlServer.stop()
                 }
@@ -254,6 +267,10 @@ class PairingWindow(
                 diagnostics = windowsBackendDiagnostics,
                 startupDiagnostic = windowsBackendStartupDiagnostic,
             ),
+            macosBackendStatus = macosBackendStatusText(
+                diagnostics = macosBackendDiagnostics,
+                startupDiagnostic = macosBackendStartupDiagnostic,
+            ),
         )
     }
 
@@ -326,6 +343,21 @@ class PairingWindow(
                 "routed=${diagnostics.outputHapticCommandsRouted}"
         }
 
+        internal fun macosBackendStatusText(
+            diagnostics: MacosBackendRuntimeDiagnostics?,
+            startupDiagnostic: String,
+        ): String {
+            if (diagnostics == null) {
+                return startupDiagnostic
+            }
+            return "lifecycle=${diagnostics.lifecycleState.label()}, " +
+                "lastPublish=${diagnostics.lastPublishResult.label()}, " +
+                "stale=${diagnostics.stale}, " +
+                "lastHapticSend=${diagnostics.lastHapticSendResult.label()}, " +
+                "routed=${diagnostics.outputHapticCommandsRouted}, " +
+                "helper=${diagnostics.helperStatus.helperLabel()}"
+        }
+
         internal fun endpointText(endpoint: LocalEndpoint): String =
             "Endpoint: ${endpoint.host}:${endpoint.port}"
 
@@ -356,6 +388,7 @@ class PairingWindow(
             lastControlError: String?,
             lastHapticStatus: String = "inactive",
             windowsBackendStatus: String = "disabled",
+            macosBackendStatus: String = "disabled",
         ): String {
             val safeError = SecretRedactor.redact(lastControlError ?: "none")
             return """
@@ -364,6 +397,7 @@ class PairingWindow(
                 <p><b>Session:</b> ${state.label}</p>
                 <p>Packet stream: ${packetState.label}</p>
                 <p><b>Windows backend:</b> ${escapeHtml(windowsBackendStatus)}</p>
+                <p><b>macOS backend:</b> ${escapeHtml(macosBackendStatus)}</p>
                 <p><b>Last control error:</b> ${escapeHtml(safeError)}</p>
                 <p><b>Phone haptic:</b> ${escapeHtml(lastHapticStatus)}</p>
                 </body>
@@ -389,6 +423,11 @@ class PairingWindow(
                 is HapticSendResult.Rejected -> "rejected"
                 is HapticSendResult.Failed -> "failed"
             }
+
+        private fun com.btgun.desktop.backend.macos.MacosHidHelperStatus.helperLabel(): String =
+            "active=$deviceActive, visible=$osVisible, setReport=$setReportCallbackSeen, " +
+                "submitted=$inputReportsSubmitted, queued=$outputReportsQueued, " +
+                "malformedIn=$malformedInputReports, malformedOut=$malformedOutputReports"
 
         private fun escapeHtml(value: String): String =
             value
