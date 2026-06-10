@@ -71,6 +71,7 @@ tasks.withType<Test>().configureEach {
             "com.btgun.desktop.backend.macos.MacosHidReportPackerTestKt",
             "com.btgun.desktop.backend.macos.MacosOutputReportMapperTestKt",
             "com.btgun.desktop.backend.macos.MacosVirtualControllerBackendTestKt",
+            "com.btgun.desktop.backend.macos.MacosBackendRuntimeTestKt",
             "com.btgun.desktop.smoke.BackendSmokeRunnerTestKt",
         ).forEach { testClass ->
             providers.exec {
