@@ -130,6 +130,8 @@ Checkpoint decision on 2026-06-10: the local proof found no stock, software-only
 
 Until later proof rows pass, do not claim DESK-03 or DESK-06 production support from this CoreHID result. Treat the CoreHID path as `corehid-runtime-blocked` and the next work as lab-only fallback exploration.
 
+Plan 07-05 gate result: the real `smokeDesktopBackendMacosCoreHid` command and `BtGunMacosHidOutputProbe` were added, but the CoreHID helper was killed before enumeration on normal macOS after SwiftPM build and ad-hoc codesign embedded `com.apple.developer.hid.virtual.device`. The smoke XML was written at `desktop-companion/build/test-results/btgun-smoke/macos-corehid/TEST-btgun-macos-corehid.xml` with `corehid-runtime-blocked` helper startup/publish failures and `corehid-visibility-failed` enumeration failures. The separate output probe returned `BT Gun Virtual Joystick 0x1209:0xB707 not found`, so no OS/HID-origin set-report callback proof exists. Plan 07-06 DriverKit fallback remains mandatory; no SIP, system extension developer mode, install, activation, removal, rollback, reboot, or OS security-state command was run.
+
 Manual launch command:
 
 ```bash
