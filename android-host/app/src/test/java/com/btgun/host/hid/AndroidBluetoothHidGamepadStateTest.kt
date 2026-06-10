@@ -21,7 +21,7 @@ private fun doesNotSendBeforeProxyRegistrationAndHostConnection() {
 
     expectEquals("no proxy send", BtGunHidInputSendResult.NO_PROXY, gamepad.sendInput(state(), motion(), stale = false))
     gamepad.startGamepadMode()
-    expectEquals("not registered send", BtGunHidInputSendResult.NOT_REGISTERED, gamepad.sendInput(state(), motion(), stale = false))
+    expectEquals("pending proxy send", BtGunHidInputSendResult.NO_PROXY, gamepad.sendInput(state(), motion(), stale = false))
     connector.callback.onProxyAvailable(connector.proxy)
     expectEquals("registered command requested", 1, connector.proxy.registeredSettings.size)
     expectEquals("registered callback captured", true, connector.proxy.callback != null)
@@ -84,7 +84,7 @@ private fun callbacksUpdateStatusAndHandleValidOutputReports() {
         outputPayload(strength = 64, durationMs = 50, ttlMs = 300),
     )
 
-    expectEquals("get report callback", BtGunHidOutputCallbackKind.GET_REPORT, gamepad.status.lastOutputCallback.kind)
+    expectEquals("latest output callback", BtGunHidOutputCallbackKind.INTERRUPT_DATA, gamepad.status.lastOutputCallback.kind)
     expectEquals("reply report count", 1, connector.proxy.replyReports.size)
     expectEquals("set plus interrupt haptics", 2, haptics.size)
     expectEquals("set command id", "hid-output-command", haptics.first().commandId)
