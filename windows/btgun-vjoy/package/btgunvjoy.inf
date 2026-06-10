@@ -7,7 +7,7 @@ Signature="$WINDOWS NT$"
 Class=HIDClass
 ClassGuid={745A17A0-74D3-11D0-B6FE-00A0C90F57DA}
 Provider=%ManufacturerName%
-DriverVer=06/10/2026,0.6.2.1
+DriverVer=06/10/2026,0.6.2.2
 CatalogFile=btgunvjoy.cat
 PnpLockdown=1
 
@@ -32,6 +32,7 @@ BtGunVJoy.sys
 
 [BtGunVJoy_AddReg]
 HKR,,FriendlyName,,%BtGunVJoy.DeviceDesc%
+HKLM,%BtGunVJoy.DirectInputOemKey%,OEMName,,%BtGunVJoy.DeviceDesc%
 
 [BtGunVJoy_VhfFilter_AddReg]
 HKR,,"LowerFilters",0x00010008,"Vhf"
@@ -62,4 +63,5 @@ BtGunVJoy.sys=1
 ManufacturerName="BT Gun"
 BtGunVJoy.DeviceDesc="BT Gun VJoy"
 BtGunVJoy.ServiceDesc="BT Gun VJoy KMDF/VHF virtual HID bridge"
+BtGunVJoy.DirectInputOemKey="SYSTEM\CurrentControlSet\Control\MediaProperties\PrivateProperties\Joystick\OEM\VID_1209&PID_B706"
 DiskName="BT Gun VJoy Driver Package"

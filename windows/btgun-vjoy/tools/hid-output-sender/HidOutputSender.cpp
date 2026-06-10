@@ -48,10 +48,16 @@ void putUInt16Le(uint8_t* bytes, size_t offset, unsigned long value) {
 
 bool productMatches(HANDLE handle) {
     wchar_t product[128] = {};
-    if (!HidD_GetProductString(handle, product, sizeof(product))) {
-        return false;
+    if (HidD_GetProductString(handle, product, sizeof(product)) &&
+        wcsstr(product, BTGVJOY_DEVICE_NAME_W) != nullptr) {
+        return true;
     }
-    return wcsstr(product, BTGVJOY_DEVICE_NAME_W) != nullptr;
+
+    HIDD_ATTRIBUTES attributes = {};
+    attributes.Size = sizeof(attributes);
+    return HidD_GetAttributes(handle, &attributes) &&
+        attributes.VendorID == BTGVJOY_VENDOR_ID &&
+        attributes.ProductID == BTGVJOY_PRODUCT_ID;
 }
 
 HANDLE openByPath(const std::wstring& path) {

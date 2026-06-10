@@ -89,6 +89,9 @@ BtGunVJoyCreateDevice(
         WdfDeviceWdmGetDeviceObject(device),
         BtGunVJoyReportDescriptorLength,
         (PUCHAR)BtGunVJoyReportDescriptor);
+    vhfConfig.VendorID = BTGVJOY_VENDOR_ID;
+    vhfConfig.ProductID = BTGVJOY_PRODUCT_ID;
+    vhfConfig.VersionNumber = BTGVJOY_VERSION_NUMBER;
     vhfConfig.EvtVhfAsyncOperationWriteReport = BtGunVJoyHandleWriteReport;
     vhfConfig.VhfClientContext = context;
 

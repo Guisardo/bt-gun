@@ -21,6 +21,8 @@ The driver is intentionally small. It owns VHF lifecycle, the `Root\BTGunVJoy` H
 
 - Device: `BT Gun VJoy`
 - Hardware id: `Root\BTGunVJoy`
+- VHF HID identity: `VID_1209&PID_B706`, version `0x0602`
+- Legacy game-controller display name: `BT Gun VJoy` via DirectInput OEM registry data
 - Top-level collection: regular gamepad-style virtual joystick
 - Input report: report ID 1, 10 bytes
 - Output report: report ID 2, 9 bytes
