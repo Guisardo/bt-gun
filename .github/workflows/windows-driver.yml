@@ -200,14 +200,24 @@ jobs:
           New-Item -ItemType Directory -Force -Path $toolsOut | Out-Null
           $driverBridge = Join-Path $toolsOut "btgun-driver-bridge.exe"
           $outputSender = Join-Path $toolsOut "btgun-hid-output-sender.exe"
+          $cmdPath = Join-Path $env:RUNNER_TEMP "build-btgun-tools.cmd"
           $cmd = @"
+          @echo on
           call "$env:VSDEVCMD" -arch=amd64 -host_arch=amd64
           cl /nologo /EHsc /std:c++17 /W4 /WX windows\btgun-vjoy\tools\driver-bridge\DriverBridge.cpp /Fe:"$driverBridge" setupapi.lib
+          if errorlevel 1 exit /b %errorlevel%
           cl /nologo /EHsc /std:c++17 /W4 /WX windows\btgun-vjoy\tools\hid-output-sender\HidOutputSender.cpp /Fe:"$outputSender" setupapi.lib hid.lib
+          if errorlevel 1 exit /b %errorlevel%
           "@
-          cmd.exe /c $cmd
+          Set-Content -Path $cmdPath -Value $cmd -Encoding ASCII
+          cmd.exe /c "`"$cmdPath`""
           if ($LASTEXITCODE -ne 0) {
             throw "helper tool build failed with exit code $LASTEXITCODE"
+          }
+          foreach ($tool in @($driverBridge, $outputSender)) {
+            if (-not (Test-Path $tool)) {
+              throw "helper tool build did not produce $tool"
+            }
           }
           "BTGUN_TOOLS_OUT=$toolsOut" | Out-File -FilePath $env:GITHUB_ENV -Append
 
