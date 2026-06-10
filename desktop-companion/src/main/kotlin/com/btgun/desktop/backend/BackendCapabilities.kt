@@ -72,6 +72,54 @@ object BackendCapabilityPresets {
             limitations = emptyList(),
         )
 
+    fun macosCoreHid(
+        status: com.btgun.desktop.backend.macos.MacosHidHelperStatus = com.btgun.desktop.backend.macos.MacosHidHelperStatus(),
+    ): BackendCapabilities {
+        val outputReportProven = status.osVisible && status.setReportCallbackSeen
+        return BackendCapabilities(
+            platform = "macos-corehid",
+            buttons = btGunV1Descriptor.buttons,
+            axes = btGunV1Descriptor.axes,
+            haptics = HapticEffectCapability(
+                strength = true,
+                duration = true,
+                pattern = false,
+                phoneHaptic = true,
+                outputReport = outputReportProven,
+                unsupported = buildList {
+                    add(
+                        UnsupportedReason(
+                            platform = "macos-corehid",
+                            feature = "pattern",
+                            detail = "macOS CoreHID output reports support phone haptic strength and duration only; pattern output is unsupported in v1.",
+                        ),
+                    )
+                    if (!outputReportProven) {
+                        add(
+                            UnsupportedReason(
+                                platform = "macos-corehid",
+                                feature = "output-report",
+                                detail = "macOS output report support requires an OS-visible device and a helper set-report callback proof before support is claimed.",
+                            ),
+                        )
+                    }
+                },
+            ),
+            lifecycle = listOf(BackendLifecycleState.STOPPED, BackendLifecycleState.STARTED),
+            limitations = buildList {
+                if (!status.osVisible) {
+                    add(
+                        UnsupportedReason(
+                            platform = "macos-corehid",
+                            feature = "os-visible-device",
+                            detail = "CoreHID helper has not reported an OS-visible BT Gun virtual joystick.",
+                        ),
+                    )
+                }
+            },
+        )
+    }
+
     private fun stub(platform: String, deviceDetail: String): BackendCapabilities =
         BackendCapabilities(
             platform = platform,
