@@ -241,7 +241,7 @@ Plans:
   2. macOS virtual joystick receives desktop rumble or output requests where supported, or clearly reports the platform output limitation while preserving v1 phone haptic support.
   3. Repository documents the selected macOS virtual HID strategy, entitlement requirements, and development setup.
 
-**Plans:** 4/7 plans executed
+**Plans:** 5/7 plans executed
 Plans:
 
 **Wave 1**
@@ -262,7 +262,7 @@ Plans:
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
-- [ ] 07-05-PLAN.md — CoreHID OS-visible smoke and OS-origin output probe gate.
+- [x] 07-05-PLAN.md — CoreHID OS-visible smoke and OS-origin output probe gate. Real smoke/probe exist; gate recorded `corehid-runtime-blocked`, so Plan 07-06 DriverKit fallback remains mandatory.
 
 **Wave 6** *(blocked on Wave 5 completion)*
 

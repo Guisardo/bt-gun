@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 07-04-PLAN.md
-last_updated: "2026-06-10T16:51:34.042Z"
-last_activity: 2026-06-10 -- Phase 07 Plan 04 completed macOS runtime wiring, launch gate, and UI diagnostics
+stopped_at: Completed 07-05-PLAN.md
+last_updated: "2026-06-10T17:06:46Z"
+last_activity: 2026-06-10 -- Phase 07 Plan 05 recorded CoreHID runtime block and mandatory DriverKit fallback gate
 progress:
   total_phases: 10
   completed_phases: 6
   total_plans: 43
-  completed_plans: 40
-  percent: 93
+  completed_plans: 41
+  percent: 95
 ---
 
 # Project State
@@ -26,12 +26,12 @@ See: .planning/PROJECT.md (updated 2026-06-09)
 ## Current Position
 
 Phase: 07 (macos-virtual-joystick-path) — EXECUTING
-Plan: 5 of 7
+Plan: 6 of 7
 Next phase: 07 (macOS Virtual Joystick Path) execution
-Status: Plan 07-04 complete; executing Phase 07
-Last activity: 2026-06-10 -- Phase 07 Plan 04 completed macOS runtime wiring, launch gate, and UI diagnostics
+Status: Plan 07-05 complete; executing Phase 07
+Last activity: 2026-06-10 -- Phase 07 Plan 05 recorded CoreHID runtime block and mandatory DriverKit fallback gate
 
-Progress: [█████████░] 40/43 planned plans complete. Phase 06 has 6/6 plans complete; Phase 07 has 4/7 plans executed.
+Progress: [█████████░] 41/43 planned plans complete. Phase 06 has 6/6 plans complete; Phase 07 has 5/7 plans executed.
 
 ## Performance Metrics
 
@@ -50,11 +50,11 @@ Progress: [█████████░] 40/43 planned plans complete. Phase 0
 | 04 | 6 | - | - |
 | 05 | 5 | hardware-interactive | hardware-interactive |
 | 06 | 6 | hardware-interactive | hardware-interactive |
-| 07 | 7 | active | Plans 01-04 complete; remaining plans pending |
+| 07 | 7 | active | Plans 01-05 complete; remaining plans pending |
 
 **Recent Trend:**
 
-- Recent completed execution plans: 06-P01, 06-P02, 06-P03, 06-P05, 06-P04, 06-P06, 07-P01, 07-P02, 07-P03, and 07-P04 complete.
+- Recent completed execution plans: 06-P02, 06-P03, 06-P05, 06-P04, 06-P06, 07-P01, 07-P02, 07-P03, 07-P04, and 07-P05 complete.
 - Trend: Phase 07 plan sequence covers CoreHID feasibility, report packing, helper/backend/runtime wiring, OS-output proof, conditional DriverKit fallback, and final live macOS proof.
 
 *Updated after each plan completion*
@@ -98,6 +98,7 @@ Progress: [█████████░] 40/43 planned plans complete. Phase 0
 | Phase 07 P02 | 5 min | 2 TDD tasks | 5 files |
 | Phase 07 P03 | 10 min | 3 tasks | 7 files |
 | Phase 07 P04 | 8 min | 3 tasks | 7 files |
+| Phase 07 P05 | 12 min | 3 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -187,6 +188,7 @@ Recent decisions affecting current work:
 - [Phase 07]: MacosBackendRuntime attaches only to the trusted ControlServer UDP callback chain and preserves prior callbacks. — LAN/session/security/UDP validation stay in ControlServer and UdpControllerStateAdapter.
 - [Phase 07]: macOS backend launch is disabled by default and requires explicit btgun.macos.hid.helper.path. — Missing helper path fails closed with visible startup diagnostic.
 - [Phase 07]: macOS helper-origin output reports route only through authenticated ControlServer.sendHapticCommand. — No direct haptic bypass or Android session ownership was added.
+- [Phase 07]: CoreHID real smoke and separate IOHIDDeviceSetReport probe recorded corehid-runtime-blocked on normal macOS. — Helper built and signed but was killed before enumeration; Plan 07-06 DriverKit fallback is mandatory unless entitlement-capable CoreHID proof replaces the gate.
 
 ### Pending Todos
 
@@ -194,7 +196,7 @@ None.
 
 ### Blockers/Concerns
 
-- [Phase 7]: Production macOS virtual HID/output support remains unproven until CoreHID passes or the selected local-dev-only DriverKit fallback produces accepted proof rows.
+- [Phase 7]: Production macOS virtual HID/output support remains unproven; Plan 07-05 recorded `corehid-runtime-blocked`, so Plan 07-06 must execute the selected local-dev-only DriverKit fallback branch unless entitlement-capable CoreHID proof replaces the gate.
 
 ### Quick Tasks Completed
 
@@ -212,6 +214,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-10T16:51:33.844Z
-Stopped at: Completed 07-04-PLAN.md
+Last session: 2026-06-10T17:06:46Z
+Stopped at: Completed 07-05-PLAN.md
 Resume file: None
