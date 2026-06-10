@@ -25,6 +25,26 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Ensure Windows Driver Kit tools
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $kitsBin = Join-Path ${env:ProgramFiles(x86)} "Windows Kits\10\bin"
+          $inf2cat = Get-ChildItem $kitsBin -Recurse -Filter inf2cat.exe -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -match "\\x64\\inf2cat.exe$" } |
+            Select-Object -First 1
+          $signtool = Get-ChildItem $kitsBin -Recurse -Filter signtool.exe -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -match "\\x64\\signtool.exe$" } |
+            Select-Object -First 1
+          if ($inf2cat -and $signtool) {
+            "WDK tools already available on runner."
+            exit 0
+          }
+          if (-not (Get-Command choco -ErrorAction SilentlyContinue)) {
+            throw "Chocolatey is required to install windowsdriverkit10 on the GitHub-hosted runner."
+          }
+          choco install windowsdriverkit10 -y --no-progress
+
       - name: Locate MSBuild and WDK tools
         id: toolchain
         shell: pwsh
