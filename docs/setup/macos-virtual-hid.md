@@ -51,6 +51,45 @@ The helper returns only `OK`, `ERR <safe-token>`, `OUTPUT <hex>`, or:
 
 `STATUS` is prefixed with `STATUS `. `osVisible` remains false until a later proof command records CLI/UI visibility.
 
+## Separate OS/HID Output Probe
+
+`BtGunMacosHidOutputProbe` is a separate macOS HID client. It is the deterministic D-07/D-08 proof path for OS/HID-origin output reports because it opens the enumerated `BT Gun Virtual Joystick` by VID `0x1209`, PID `0xB707`, checks usage/descriptor metadata where available, and calls `IOHIDDeviceSetReport` with output report ID `0x02`.
+
+Build the helper and probe:
+
+```bash
+swift build --package-path native/macos-hid-helper -c debug --product BtGunMacosHidHelper
+swift build --package-path native/macos-hid-helper -c debug --product BtGunMacosHidOutputProbe
+```
+
+Run the helper in one shell:
+
+```bash
+native/macos-hid-helper/.build/debug/BtGunMacosHidHelper
+```
+
+Run the OS/HID-origin output probe in another shell:
+
+```bash
+native/macos-hid-helper/.build/debug/BtGunMacosHidOutputProbe --strength 180 --duration-ms 120 --ttl-ms 500
+```
+
+Expected probe bytes are report ID `0x02`, version `0x01`, strength byte, duration uint16 little-endian, TTL uint16 little-endian, zero flags, and zero reserved. For the command above, the report is:
+
+```text
+0201b47800f4010000
+```
+
+Expected helper proof after the probe:
+
+```text
+STATUS {"version":1,"deviceActive":true,"osVisible":false,"setReportCallbackSeen":true,...}
+READ_OUTPUT
+OUTPUT 0201b47800f4010000
+```
+
+The helper delegate method `receivedSetReportRequestOfType` receives this report, then the Kotlin backend drains it through `READ_OUTPUT` and `MacosOutputReportMapper`. Direct `simulateOutputReport` calls and direct `ControlServer.sendHapticCommand` calls are mapper/control-path tests only; they do not satisfy deterministic OS/HID-origin output proof.
+
 Build and run the helper proof:
 
 ```bash
