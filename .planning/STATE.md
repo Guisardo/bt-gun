@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 07-02-PLAN.md
-last_updated: "2026-06-10T22:57:23.538Z"
+stopped_at: Completed 07-03-PLAN.md
+last_updated: "2026-06-10T23:13:09.611Z"
 last_activity: 2026-06-10 -- Phase 07 execution started
 progress:
   total_phases: 10
   completed_phases: 6
   total_plans: 42
-  completed_plans: 38
-  percent: 90
+  completed_plans: 39
+  percent: 93
 ---
 
 # Project State
@@ -26,12 +26,12 @@ See: .planning/PROJECT.md (updated 2026-06-09)
 ## Current Position
 
 Phase: 07 (macos-virtual-joystick-path) — EXECUTING
-Plan: 3 of 6
+Plan: 4 of 6
 Next phase: Execute Phase 07 Android Bluetooth HID gamepad path
 Status: Ready to execute
 Last activity: 2026-06-10 -- Phase 07 execution started
 
-Progress: [█████████░] 38/42 active planned plans complete. Phase 06 has 6/6 plans complete; Phase 07 has 2/6 active Android Bluetooth HID plans executed after the reroute.
+Progress: [█████████░] 39/42 active planned plans complete. Phase 06 has 6/6 plans complete; Phase 07 has 3/6 active Android Bluetooth HID plans executed after the reroute.
 
 ## Performance Metrics
 
@@ -97,6 +97,7 @@ Progress: [█████████░] 38/42 active planned plans complete. 
 | Phase 07 legacy P01-P05 | archived | CoreHID/DriverKit evidence | fallback only |
 | Phase 07 P01 | 8min | 3 tasks | 7 files |
 | Phase 07 P02 | 19min | 2 tasks | 5 files |
+| Phase 07 P03 | 10min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -195,6 +196,9 @@ Recent decisions affecting current work:
 - [Phase 07]: Android HID descriptor and report packing stay Android-owned; tests copy semantic parity values instead of importing desktop production code.
 - [Phase 07]: Stick Y is inverted in the Android Bluetooth HID payload, matching the existing v1 HID axis convention.
 - [Phase 07]: Input reports use payload bytes only, with report ID 1 carried separately for Android BluetoothHidDevice.sendReport.
+- [Phase 07]: Android HID output reports use report ID 2 as callback metadata and an 8-byte payload before DesktopHapticCommand mapping.
+- [Phase 07]: AndroidBluetoothHidGamepad hides BluetoothHidDevice calls behind injectable connector/proxy interfaces for unit-tested lifecycle and callbacks.
+- [Phase 07]: DESK-06 remains a live evidence gate; Plan 07-03 adds Android callback/status foundation but makes no macOS output-report claim.
 
 ### Pending Todos
 
@@ -221,6 +225,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-10T22:57:23.297Z
-Stopped at: Completed 07-02-PLAN.md
+Last session: 2026-06-10T23:13:00.847Z
+Stopped at: Completed 07-03-PLAN.md
 Resume file: None
