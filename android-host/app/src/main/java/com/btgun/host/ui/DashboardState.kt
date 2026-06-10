@@ -4,7 +4,17 @@ import com.btgun.host.HostSessionPhase
 import com.btgun.host.HostSessionState
 import com.btgun.host.ble.BleGunConnectionPhase
 import com.btgun.host.ble.BleGunConnectionState
+import com.btgun.host.haptics.HapticResultStatus
 import com.btgun.host.haptics.PhoneHapticStatus
+import com.btgun.host.hid.BtGunHidHostConnectionState
+import com.btgun.host.hid.BtGunHidInputReportStatus
+import com.btgun.host.hid.BtGunHidOutputCallbackKind
+import com.btgun.host.hid.BtGunHidOutputCallbackStatus
+import com.btgun.host.hid.BtGunHidOutputValidationState
+import com.btgun.host.hid.BtGunHidOutputValidationStatus
+import com.btgun.host.hid.BtGunHidPairingWindowStatus
+import com.btgun.host.hid.BtGunHidRegistrationState
+import com.btgun.host.hid.BtGunHidStatus
 import com.btgun.host.model.GunEvent
 import com.btgun.host.model.GunInputState
 import com.btgun.host.model.LiveEnvelope
@@ -73,6 +83,19 @@ data class DashboardPhoneHaptic(
     val lastLocalTest: String,
 )
 
+data class DashboardHidGamepad(
+    val role: String,
+    val roleCapability: DashboardField,
+    val registration: DashboardField,
+    val pairingWindow: DashboardField,
+    val hostConnection: DashboardField,
+    val lastInputReport: DashboardField,
+    val outputCallback: DashboardField,
+    val outputValidation: DashboardField,
+    val outputHaptic: DashboardField,
+    val fallback: DashboardField,
+)
+
 data class PlaceholderSurface(
     val title: String,
     val body: String,
@@ -131,6 +154,7 @@ data class DashboardState(
     val currentError: DashboardField,
     val placeholders: DashboardPlaceholders,
     val phoneHaptic: DashboardPhoneHaptic,
+    val hidGamepad: DashboardHidGamepad,
     val debugPanels: DashboardDebugPanels,
 ) {
     override fun toString(): String =
@@ -195,6 +219,10 @@ data class DashboardState(
                     capability = phoneHapticStatus.capability,
                     lastLocalTest = phoneHapticStatus.lastLocalTest,
                 ),
+                hidGamepad = formatHidGamepad(
+                    hidRole = permissionGateState.bluetoothHidRole,
+                    status = hostSessionState.hidGamepadStatus,
+                ),
                 debugPanels = DashboardDebugPanels(
                     bleProvenance = DebugPanel(
                         title = "BLE provenance",
@@ -228,6 +256,7 @@ data class DashboardState(
                     state.motionSensors,
                     state.lanNetwork,
                     state.vibration,
+                    state.bluetoothHidRole,
                 ).joinToString("\n") { "${it.label}: ${it.detail}" },
             )
 
@@ -383,7 +412,85 @@ data class DashboardState(
                 "motion=${state.motionSensors.label}",
                 "lan=${state.lanNetwork.label}",
                 "vibration=${state.vibration.label}",
+                "bluetooth_hid=${state.bluetoothHidRole.label}",
             ).joinToString("\n")
+
+        private fun formatHidGamepad(
+            hidRole: com.btgun.host.permissions.CapabilityStatus,
+            status: BtGunHidStatus,
+        ): DashboardHidGamepad =
+            DashboardHidGamepad(
+                role = "Bluetooth gamepad",
+                roleCapability = DashboardField(hidRole.label, hidRole.detail),
+                registration = DashboardField("Bluetooth gamepad registration", formatRegistration(status.registration)),
+                pairingWindow = DashboardField("Bluetooth gamepad pairing", formatPairingWindow(status.pairingWindow)),
+                hostConnection = DashboardField("Bluetooth gamepad host", formatHostConnection(status.hostConnection)),
+                lastInputReport = DashboardField("Last HID input report", formatInputReport(status.lastInputReport)),
+                outputCallback = DashboardField("HID output callback", formatOutputCallback(status.lastOutputCallback)),
+                outputValidation = DashboardField("HID output validation", formatOutputValidation(status.lastOutputValidation)),
+                outputHaptic = DashboardField("HID output phone haptic", formatOutputHaptic(status)),
+                fallback = DashboardField("HID fallback", formatHidFallback(status)),
+            )
+
+        private fun formatRegistration(state: BtGunHidRegistrationState): String =
+            when (state) {
+                BtGunHidRegistrationState.NOT_REGISTERED -> "not_registered"
+                BtGunHidRegistrationState.REGISTERING -> "registering"
+                BtGunHidRegistrationState.REGISTERED -> "registered"
+                BtGunHidRegistrationState.FAILED -> "failed"
+            }
+
+        private fun formatPairingWindow(status: BtGunHidPairingWindowStatus): String =
+            if (status.open) {
+                "open for ${status.durationSeconds}s | ${status.detail}"
+            } else {
+                "closed | ${status.detail}"
+            }
+
+        private fun formatHostConnection(state: BtGunHidHostConnectionState): String =
+            when (state) {
+                BtGunHidHostConnectionState.NOT_CONNECTED -> "not_connected"
+                BtGunHidHostConnectionState.CONNECTED -> "connected"
+                BtGunHidHostConnectionState.DISCONNECTED -> "disconnected"
+            }
+
+        private fun formatInputReport(status: BtGunHidInputReportStatus): String {
+            val result = status.result?.name?.lowercase() ?: "not_sent"
+            return "$result | report=${status.reportId ?: "none"} payload=${status.payloadLength} " +
+                "aim=${status.aimSource ?: "none"} stale=${status.stale}"
+        }
+
+        private fun formatOutputCallback(status: BtGunHidOutputCallbackStatus): String {
+            val kind = when (status.kind) {
+                BtGunHidOutputCallbackKind.NONE -> "not_seen"
+                BtGunHidOutputCallbackKind.GET_REPORT -> "get_report"
+                BtGunHidOutputCallbackKind.SET_REPORT -> "set_report"
+                BtGunHidOutputCallbackKind.INTERRUPT_DATA -> "interrupt_data"
+                BtGunHidOutputCallbackKind.VIRTUAL_CABLE_UNPLUG -> "virtual_cable_unplug"
+            }
+            return "$kind | type=${status.reportType ?: "none"} report=${status.reportId ?: "none"} " +
+                "payload=${status.payloadLength}"
+        }
+
+        private fun formatOutputValidation(status: BtGunHidOutputValidationStatus): String {
+            val state = when (status.state) {
+                BtGunHidOutputValidationState.NONE -> "not_seen"
+                BtGunHidOutputValidationState.VALID -> "valid"
+                BtGunHidOutputValidationState.INVALID -> "invalid"
+                BtGunHidOutputValidationState.UNSUPPORTED -> "unsupported"
+            }
+            return "$state | ${status.detail}"
+        }
+
+        private fun formatOutputHaptic(status: BtGunHidStatus): String =
+            status.lastHapticResult?.let { result ->
+                "${result.status.wireName} | ${result.detail}"
+            } ?: "${HapticResultStatus.UNSUPPORTED.wireName} | HID output phone haptic not seen"
+
+        private fun formatHidFallback(status: BtGunHidStatus): String {
+            val unsupported = status.unsupportedReason ?: "No HID output limitation recorded."
+            return "$unsupported | LAN haptics are diagnostics/fallback only; Windows VHF remains fallback."
+        }
 
         private fun formatDesktopLink(state: DesktopLinkState): PlaceholderSurface =
             PlaceholderSurface(
