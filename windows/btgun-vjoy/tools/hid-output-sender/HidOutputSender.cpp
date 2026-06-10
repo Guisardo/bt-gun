@@ -1,5 +1,6 @@
 #include <windows.h>
 #include <setupapi.h>
+#include <initguid.h>
 #include <hidsdi.h>
 #include <hidclass.h>
 
