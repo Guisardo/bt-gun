@@ -1,8 +1,8 @@
-# Phase 07: macos-virtual-joystick-path - Research
+# Phase 07: Android Bluetooth HID Gamepad Path - Research
 
 **Researched:** 2026-06-10
-**Domain:** macOS virtual HID gamepad backend, CoreHID, IOHIDUserDevice, HIDDriverKit fallback
-**Confidence:** MEDIUM
+**Domain:** Android `BluetoothHidDevice` peripheral gamepad path for macOS-visible controller proof
+**Confidence:** MEDIUM - Android API surface is verified, but phone OEM support and macOS output-report behavior need live proof.
 
 <user_constraints>
 ## User Constraints (from CONTEXT.md)
@@ -11,43 +11,46 @@
 
 ### Locked Decisions
 
-### macOS HID Path
-- **D-01:** Phase 7 targets CoreHID `HIDVirtualDevice` first for the macOS virtual joystick proof.
-- **D-02:** CoreHID fallback is research-gated. Switch away from CoreHID only if official documentation or local compile/runtime proof shows CoreHID cannot create an OS-visible gamepad-style device that satisfies Phase 7.
-- **D-03:** If CoreHID cannot receive macOS-origin output/rumble reports, HIDDriverKit/system extension becomes the mandatory fallback path for Phase 7 output proof.
+### HID Role Gate
+- **D-01:** Android uses a startup capability gate plus an explicit user-controlled "Start Bluetooth gamepad" action. The app probes Bluetooth state, permissions, and HID device profile support before the user starts HID mode.
+- **D-02:** Android must show a full blocked-state matrix: Bluetooth off, missing Bluetooth permission, HID_DEVICE proxy unavailable, HID app registration failed, no host connected, and host disconnected.
+- **D-03:** Android Bluetooth HID is the primary macOS input path for Phase 7. LAN streaming and the desktop companion remain optional diagnostics/fallback scaffolding, not required for macOS success.
+- **D-04:** If the current Android phone lacks HID peripheral support, test an alternate Android phone before declaring Phase 7 blocked and falling back to Windows VHF.
 
-### macOS Proof Target
-- **D-04:** Phase 7 pass condition is layered proof: CLI HID enumeration, macOS-visible game controller/gamepad UI or tester evidence, and agent/user visual confirmation.
-- **D-05:** Final input proof must use a live paired Android/gun stream moving macOS-visible joystick axes/buttons. Replay fixtures are allowed for automated tests, CI, and debugging only.
-- **D-06:** Final visual proof requires both agent-captured evidence and user confirmation that the virtual device/input is visible in a Mac UI or tester.
+### HID Report Shape
+- **D-05:** The Android Bluetooth HID descriptor mirrors the existing v1 backend contract exactly: six buttons plus four axes for trigger, reload, X/Y/A/B, stickX/stickY, and aimX/aimY.
+- **D-06:** Android owns the Bluetooth HID report packer. It maps `GunInputState` plus the latest `MotionSample` into HID report bytes. Do not move code into a shared module during Phase 7 just to share constants.
+- **D-07:** HID aim axes use calibrated Android `aimX`/`aimY` when available. If calibrated aim is unavailable, fall back to normalized raw aim values.
+- **D-08:** Tests must pin golden descriptor bytes and golden report vectors, including button bit order, axis endian/range, stale/center behavior, and parity with `btGunV1Descriptor`.
 
-### Output Haptic Proof
-- **D-07:** Phase 7 cannot pass unless macOS OS-origin output/rumble maps to Android phone haptic.
-- **D-08:** The existing desktop companion phone-haptic command path remains the v1 haptic transport, but it is not enough by itself unless it is triggered by macOS-origin output/rumble.
-- **D-09:** If CoreHID cannot expose the required output/rumble path, planners must include HIDDriverKit fallback work rather than documenting output as unsupported.
+### Pairing and Proof
+- **D-09:** Phase 7 pairing proof requires both macOS Bluetooth connection evidence and Game Controller/tester evidence that macOS sees buttons and axes.
+- **D-10:** Android exposes an explicit pairing-mode control. Starting it registers HID mode and opens a discoverable/connectable pairing window with visible countdown and status.
+- **D-11:** The desktop companion is diagnostics only during Android HID proof. It may show instructions, evidence checklist, and fallback status, but it must not be in the macOS input path.
+- **D-12:** Final Phase 7 input proof requires user confirmation that macOS Bluetooth sees the controller and a tester/Game Controller surface shows real gun controls and phone motion moving buttons/axes.
 
-### Packaging and Development Setup
-- **D-10:** Phase 7 targets a development proof package: local macOS app/tool with documented launch, signing, permission, and fallback steps.
-- **D-11:** The proof target is the current development Mac unless planning discovers a blocker: macOS 26.2 build 25C56 on arm64.
-- **D-12:** Use ad-hoc/local development signing first where CoreHID permits. Do not require Developer ID signing for Phase 7 unless the selected fallback path requires it.
-- **D-13:** Document exact commands, permission prompts, minimum observed OS requirement, and DriverKit entitlement fallback notes.
+### Output Haptics
+- **D-13:** Phase 7 must attempt host-origin Bluetooth HID output/rumble report handling, but honest unsupported status is acceptable if macOS sends no output reports for this descriptor.
+- **D-14:** Android validates output reports strictly. Only known report id, length, version, and reserved-byte shape can trigger phone haptics; malformed or unknown reports return `reportError` and surface last error/status.
+- **D-15:** The authenticated LAN desktop-to-Android phone haptic path remains diagnostic/fallback only for Phase 7. It can support tests and the Windows fallback path, but it is not equivalent to Android HID output for macOS proof.
+- **D-16:** Final haptic evidence captures capability plus actual result rows: host-output callback seen/not seen, report validation result, phone vibration result, and macOS unsupported reason when no output arrives.
 
-### Live Stream Cutover
-- **D-14:** The macOS runtime mirrors the Windows runtime shape: `MacosBackendRuntime` attaches to `ControlServer.onUdpInputReceived`, preserves any previous callback, maps `UdpReceivedInput` to `SemanticControllerState`, publishes to the macOS backend, and exposes diagnostics.
-- **D-15:** Stale-stream behavior must match Phase 4 and Windows: clear active buttons, keep last aim axes, and expose stale diagnostic state.
-- **D-16:** A native Swift or Objective-C helper is allowed if needed for CoreHID. The Kotlin/JVM desktop companion must keep ownership of LAN pairing, session security, UDP input validation, semantic state mapping, and phone-haptic routing.
+### Legacy macOS Virtual HID Work
+- **D-17:** CoreHID/DriverKit work from earlier Phase 7 plans remains retained evidence/fallback scaffolding. It is not the primary no-subscription macOS v1 path.
+- **D-18:** SIP changes, system extension developer mode, install, activation, removal, rollback, reboot, or other OS security-state changes still require explicit later approval.
+- **D-19:** Completed Windows VHF work remains the working OS-visible fallback if Android Bluetooth HID cannot be proven after testing an alternate Android phone.
 
 ### the agent's Discretion
-- Choose exact CoreHID report descriptor bytes, vendor/product ids, report ids, helper process protocol, Swift/Objective-C project layout, local IPC mechanism, CLI enumeration commands, and macOS tester/tooling, as long as the decisions above hold.
-- Choose exact DriverKit fallback design during planning if CoreHID cannot satisfy OS-visible device or OS-origin output proof.
-- Choose exact evidence artifact names and redaction format, provided no pairing material, session secrets, keys, or private signing material are committed.
+- Choose exact Android class/package names, HID descriptor byte layout that preserves the v1 contract, report ids, SDP settings, status model names, tester command names, evidence artifact names, and redaction format.
+- Choose exact macOS Game Controller tester implementation and Bluetooth evidence collection commands, provided final proof still includes user confirmation and does not commit secrets or sensitive device identifiers.
 
 ### Deferred Ideas (OUT OF SCOPE)
-- Production notarized installer, release signing/distribution polish, and paid Developer ID flow are deferred beyond Phase 7 unless required by the selected fallback proof path.
-- Profile storage, configurable aim mapping, sensitivity, inversion, dead zone, smoothing, and remapping remain Phase 8.
-- Visualizer UI, latency dashboard, packet-loss dashboard, and recenter display remain Phase 9.
-- Replay diagnostics beyond platform smoke remain Phase 10.
+- Phase 8 owns profile storage, configurable aim mapping, sensitivity, inversion, dead zone, smoothing, and remapping.
+- Phase 9 owns visualizer UI, latency dashboard, packet-loss dashboard, and recenter display.
+- Phase 10 owns broader replay diagnostics and packaging documentation beyond Phase 7 proof docs.
+- Direct desktop-to-gun Bluetooth remains v2/deferred.
 - Physical gun motor rumble remains v2/deferred.
+- Production notarized macOS virtual HID driver flow remains out of scope unless a later phase explicitly revives DriverKit as product path.
 </user_constraints>
 
 <phase_requirements>
@@ -55,421 +58,392 @@
 
 | ID | Description | Research Support |
 |----|-------------|------------------|
-| DESK-03 | Desktop companion can expose a regular gamepad-style virtual joystick on macOS Apple Silicon. [VERIFIED: `.planning/REQUIREMENTS.md`] | CoreHID `HIDVirtualDevice` is the primary path because Apple documents virtual HID emulation and the local SDK exposes `HIDVirtualDevice` with descriptor-backed properties and `dispatchInputReport`. [CITED: https://developer.apple.com/documentation/corehid/hidvirtualdevice; VERIFIED: local SDK `CoreHID.swiftinterface` lines 121-142] |
-| DESK-06 | macOS virtual joystick path can receive desktop rumble/output requests or clearly report the platform limitation while preserving v1 phone haptic support. [VERIFIED: `.planning/REQUIREMENTS.md`] | CoreHID delegate and IOHIDUserDevice both expose set-report callbacks; Phase 7 must prove a separate OS/HID client can trigger them and route bytes to the existing Kotlin haptic command path. [VERIFIED: local SDK `CoreHID.swiftinterface` lines 166-168; VERIFIED: local SDK `IOHIDUserDevice.h` lines 168-187] |
-| PACK-03 | Repository documents selected macOS virtual HID strategy, entitlement requirements, and development setup. [VERIFIED: `.planning/REQUIREMENTS.md`] | Apple docs and local headers show virtual HID and DriverKit entitlement surfaces; local environment audit shows missing full Xcode/signing and a Swift SDK/toolchain mismatch that setup docs must address. [CITED: https://developer.apple.com/documentation/bundleresources/entitlements/com.apple.developer.hid.virtual.device; VERIFIED: local commands `xcodebuild -version`, `swift -e`, `security find-identity`] |
+| ANDR-09 | Android host app can register or advertise as a Bluetooth HID gamepad using the phone's supported HID peripheral role, with blocked state when unsupported. [VERIFIED: `.planning/REQUIREMENTS.md`] | Use `BluetoothAdapter.getProfileProxy(..., BluetoothProfile.HID_DEVICE)` and `BluetoothHidDevice.registerApp(...)`; API methods and `HID_DEVICE` profile are present in local Android 35 SDK and documented by Android. [VERIFIED: Android SDK `android.jar` via `javap`; CITED: https://developer.android.com/reference/android/bluetooth/BluetoothHidDevice; CITED: https://developer.android.com/reference/kotlin/android/bluetooth/BluetoothProfile] |
+| ANDR-10 | Android maps normalized gun controls and Android motion aim into regular gamepad-style HID input reports without a macOS virtual HID driver. [VERIFIED: `.planning/REQUIREMENTS.md`] | Descriptor/report bytes must mirror `btGunV1Descriptor`: six buttons, four axes, digital trigger; use Android `sendReport(device, reportId, data)` for input reports. [VERIFIED: `VirtualControllerDescriptor.kt`; VERIFIED: `WindowsHidReportPacker.kt`; CITED: https://developer.android.com/reference/android/bluetooth/BluetoothHidDevice] |
+| ANDR-11 | Android receives Bluetooth HID output or rumble reports and maps valid output to phone haptics, or reports limitation clearly. [VERIFIED: `.planning/REQUIREMENTS.md`] | Implement `BluetoothHidDevice.Callback.onSetReport`, `onGetReport`, and `onInterruptData`; use `replyReport` for GET_REPORT and `reportError` for invalid SET_REPORT shape. [VERIFIED: Android SDK `android.jar` via `javap`; CITED: https://developer.android.com/reference/kotlin/android/bluetooth/BluetoothHidDevice.Callback; CITED: https://developer.android.com/reference/android/bluetooth/BluetoothHidDevice] |
+| DESK-03 | macOS Apple Silicon can see Android phone as regular Bluetooth HID gamepad-style joystick. [VERIFIED: `.planning/REQUIREMENTS.md`] | Pair Android as Bluetooth controller, then prove via macOS Bluetooth UI plus a Game Controller API/tester app reading `GCController.extendedGamepad`. [CITED: https://support.apple.com/guide/games/connect-a-game-controller-devf8cec167c/mac; CITED: https://developer.apple.com/documentation/gamecontroller/gccontroller; CITED: https://developer.apple.com/documentation/gamecontroller/gccontroller/extendedgamepad] |
+| DESK-06 | macOS Bluetooth HID gamepad path can receive OS output/rumble reports and route them to phone haptics, or clearly report limitation while preserving v1 phone haptics. [VERIFIED: `.planning/REQUIREMENTS.md`] | Android callback proof is mandatory; macOS may expose Game Controller haptics only for devices/profile types it recognizes, so no output callback seen is an acceptable documented limitation only after live probe. [CITED: https://developer.apple.com/documentation/gamecontroller/gccontroller/haptics; VERIFIED: `.planning/phases/07.../07-CONTEXT.md`; ASSUMED: generic descriptor may not trigger macOS rumble] |
+| PACK-03 | Document selected macOS strategy: Android Bluetooth HID primary, CoreHID/DriverKit retained only as blocked/fallback evidence. [VERIFIED: `.planning/REQUIREMENTS.md`] | Docs must name Android HID as primary path and refer to `corehid-runtime-blocked` evidence only as fallback context. [VERIFIED: `.planning/quick/260610-m2r.../SUMMARY.md`; VERIFIED: `docs/evidence/manifests/phase7-macos-virtual-hid.jsonl`] |
+| PACK-06 | Document Android Bluetooth HID setup, phone compatibility, pairing, descriptors, output behavior, and Windows VHF fallback. [VERIFIED: `.planning/REQUIREMENTS.md`] | Setup docs must include permission/profile gate, pairing-mode countdown, descriptor/report bytes, macOS tester procedure, redaction rules, and Windows fallback decision gate. [VERIFIED: `.planning/phases/07.../07-CONTEXT.md`; VERIFIED: Phase 6 context] |
 </phase_requirements>
 
 ## Summary
 
-Use CoreHID `HIDVirtualDevice` first, but make Wave 0 a real feasibility gate rather than assuming it works. Apple documents CoreHID virtual devices, and the current local macOS 26.2 SDK exposes `HIDVirtualDevice.Properties`, `activate(delegate:)`, `dispatchInputReport`, and delegate set/get report callbacks. [CITED: https://developer.apple.com/documentation/corehid/creatingvirtualdevices; VERIFIED: local SDK `CoreHID.swiftinterface` lines 121-168] The same local target currently cannot compile a Swift CoreHID probe because only Command Line Tools are selected, no full Xcode app is installed, no valid code-signing identities are present, and the Swift compiler rejects the CLT SDK as a toolchain mismatch. [VERIFIED: local commands `xcodebuild -version`, `find /Applications -name Xcode*.app`, `security find-identity`, `swift -e`]
+Primary Phase 7 plan should use Android `BluetoothHidDevice` as a Bluetooth Classic HID Device/peripheral role, not macOS CoreHID/DriverKit. [VERIFIED: `.planning/ROADMAP.md`; VERIFIED: `.planning/phases/07.../07-CONTEXT.md`] Android exposes the needed public API surface: `BluetoothProfile.HID_DEVICE`, `BluetoothHidDevice.registerApp`, `sendReport`, `replyReport`, `reportError`, and `BluetoothHidDevice.Callback` methods for app status, connection state, get/set reports, interrupt data, and virtual-cable unplug. [VERIFIED: Android SDK `android.jar` via `javap`; CITED: https://developer.android.com/reference/android/bluetooth/BluetoothHidDevice; CITED: https://developer.android.com/reference/kotlin/android/bluetooth/BluetoothHidDevice.Callback]
 
-CoreHID appears capable of receiving OS-origin output reports at the API level: `HIDVirtualDeviceDelegate` has `receivedSetReportRequestOfType`, and the lower-level `IOHIDUserDevice` API has set-report callbacks. [VERIFIED: local SDK `CoreHID.swiftinterface` lines 166-168; VERIFIED: local SDK `IOHIDUserDevice.h` lines 168-187] That is not yet proof that a macOS game/controller tester will generate rumble for this virtual gamepad descriptor, so the plan must include a separate OS/HID output probe that opens the enumerated virtual device and calls `IOHIDDeviceSetReport` against output report ID 2, then requires the delegate path to route a phone haptic command. [ASSUMED]
+Hardest unknown is compatibility, not API shape. [ASSUMED] Some Android builds may not expose the HID Device profile proxy or may fail `registerApp`, so the plan needs explicit blocked-state rows and an alternate-phone checkpoint before falling back to Windows VHF. [VERIFIED: context D-02/D-04/D-19; CITED: https://developer.android.com/reference/android/bluetooth/BluetoothHidDevice] macOS input proof must be user-visible: Bluetooth pairing plus Game Controller/tester evidence that buttons and axes move from real gun controls and Android motion. [VERIFIED: context D-09/D-12; CITED: https://support.apple.com/guide/games/connect-a-game-controller-devf8cec167c/mac; CITED: https://developer.apple.com/documentation/gamecontroller/gccontroller]
 
-**Primary recommendation:** Plan a CoreHID user-space helper first, with an immediate output-report proof; if either OS-visible enumeration or set-report-to-phone-haptic proof fails after setup is fixed, switch to a HIDDriverKit system-extension fallback in the same phase. [VERIFIED: `.planning/phases/07-macos-virtual-joystick-path/07-CONTEXT.md`; VERIFIED: local SDK `IOHIDDevice.iig` lines 89-107]
+**Primary recommendation:** Replan remaining Phase 7 as Android HID adapter + report packer + live macOS pairing proof + output-report probe + fallback gate; keep desktop companion only for docs/evidence/fallback status, not in primary macOS input path. [VERIFIED: context D-03/D-11/D-19]
 
 ## Architectural Responsibility Map
 
 | Capability | Primary Tier | Secondary Tier | Rationale |
 |------------|--------------|----------------|-----------|
-| LAN pairing/session security | Desktop companion Kotlin/JVM | Android host | Existing `ControlServer` and session code own trust, WSS control, UDP validation, and haptic transport; native HID helper must not receive secrets. [VERIFIED: `.planning/phases/07-macos-virtual-joystick-path/07-CONTEXT.md`; VERIFIED: codebase grep] |
-| UDP input to semantic state | Desktop companion Kotlin/JVM | - | Existing `UdpControllerStateAdapter` maps `UdpReceivedInput` to `SemanticControllerState`; Phase 7 must reuse it. [VERIFIED: `desktop-companion/src/main/kotlin/com/btgun/desktop/backend/UdpControllerStateAdapter.kt`] |
-| macOS HID report packing | Desktop companion Kotlin/JVM | Native helper | Kotlin tests can prove deterministic report bytes like the Windows packer; helper should only publish bytes to CoreHID and return output bytes. [VERIFIED: `desktop-companion/src/main/kotlin/com/btgun/desktop/backend/windows/WindowsHidReportPacker.kt`; ASSUMED] |
-| OS-visible virtual device | Native macOS helper | Desktop companion Kotlin/JVM | CoreHID and IOHIDUserDevice are native Apple APIs; Kotlin/JVM should call a helper boundary instead of embedding platform HID API details. [VERIFIED: local SDK `CoreHID.swiftinterface`; VERIFIED: local SDK `IOHIDUserDevice.h`] |
-| OS-origin output/rumble receive | Native macOS helper | Desktop companion Kotlin/JVM | Helper receives `SetReport`; Kotlin maps the report bytes to `HapticCommand` and sends through authenticated control channel. [VERIFIED: local SDK `CoreHID.swiftinterface` lines 166-168; VERIFIED: `WindowsVirtualControllerBackend.kt`] |
-| DriverKit fallback | macOS system extension | Desktop companion Kotlin/JVM | HIDDriverKit `IOHIDDevice` provides `handleReport`, `getReport`, and `setReport`; packaging and approval live in System Extensions, while Kotlin keeps app/session logic. [VERIFIED: local SDK `IOHIDDevice.iig` lines 45-107; CITED: https://developer.apple.com/documentation/hiddriverkit] |
-| Development setup documentation | Repository docs | Native helper build scripts | PACK-03 requires documenting strategy, entitlements, commands, prompts, and fallback notes. [VERIFIED: `.planning/REQUIREMENTS.md`] |
+| HID role capability gate | Android host app | Android framework Bluetooth service | Existing `HostCapabilityProbe` owns capability reporting; Android framework owns actual `HID_DEVICE` proxy availability. [VERIFIED: `HostCapabilityProbe.kt`; VERIFIED: Android SDK `BluetoothProfile.HID_DEVICE`] |
+| Bluetooth HID registration/advertising | Android host app | Android Bluetooth stack | App must call `getProfileProxy` then `registerApp` with SDP settings and descriptor; Android framework adds SDP record during registration. [CITED: https://developer.android.com/reference/android/bluetooth/BluetoothHidDevice; CITED: https://developer.android.com/reference/android/bluetooth/BluetoothHidDeviceAppSdpSettings] |
+| Input report packing | Android host app | Tests | Phase 7 decision says Android owns packer; source inputs are `GunInputState` and `MotionSample`. [VERIFIED: context D-06; VERIFIED: `NormalizedEvents.kt`] |
+| macOS controller visibility | macOS host OS | Android host app | macOS must pair to Android and expose controller through Bluetooth/Game Controller surfaces; desktop companion is not in input path. [VERIFIED: context D-09/D-11; CITED: https://developer.apple.com/documentation/gamecontroller/gccontroller] |
+| HID output/rumble receive | Android `BluetoothHidDevice.Callback` | Phone haptic executor | Host-origin `SET_REPORT`/interrupt data must be validated on Android then mapped through existing bounded phone haptic command rules. [VERIFIED: Android SDK callback methods; VERIFIED: `DesktopHapticCommand.kt`; VERIFIED: `PhoneHaptics.kt`] |
+| Fallback decision | Planning/evidence docs | Windows VHF path | If current and alternate Android phones cannot prove HID peripheral/macOS input, completed Phase 6 Windows VHF remains OS-visible fallback. [VERIFIED: context D-04/D-19; VERIFIED: Phase 6 context] |
 
 ## Project Constraints (from AGENTS.md)
 
-- Use GSD workflow for project edits; this research is part of the Phase 7 GSD flow. [VERIFIED: `AGENTS.md`]
-- New user-facing branches use `feature/<short-kebab-slug>`; do not use `codex/`, `codex-`, or agent-name prefixes unless explicitly requested. [VERIFIED: `AGENTS.md`]
-- Before creating or pushing a branch, state the exact branch name. [VERIFIED: `AGENTS.md`]
-- Keep v1 support for Windows 11 x64 and macOS Apple Silicon; protocol and virtual-controller code must not assume one platform. [VERIFIED: `AGENTS.md`; VERIFIED: `.planning/PROJECT.md`]
-- Transport remains Android-to-desktop Wi-Fi/LAN in v1; no direct desktop-to-gun Bluetooth in Phase 7. [VERIFIED: `AGENTS.md`; VERIFIED: `.planning/REQUIREMENTS.md`]
-- Desktop profile/mapping owns aim mapping; Android sends normalized gyro/raw aim data. [VERIFIED: `AGENTS.md`; VERIFIED: `.planning/research/ARCHITECTURE.md`]
-- HID shape must be a normal gamepad-style joystick, not a custom HID gun report. [VERIFIED: `AGENTS.md`; VERIFIED: `VirtualControllerDescriptor.kt`]
-- Do not commit pairing material, session secrets, keys, private signing material, or sensitive raw logs in evidence. [VERIFIED: `.planning/phases/07-macos-virtual-joystick-path/07-CONTEXT.md`; VERIFIED: prior evidence manifests]
+- Use GSD workflow for project edits unless user says bypass. [VERIFIED: `AGENTS.md`]
+- New user-facing branches must use `feature/<short-kebab-slug>`; do not use `codex/`, `codex-`, or agent-name prefixes unless explicit. [VERIFIED: `AGENTS.md`]
+- Before creating or pushing a branch, state exact branch name. [VERIFIED: `AGENTS.md`]
+- Desktop support remains Windows 11 x64 plus macOS Apple Silicon for v1. [VERIFIED: `AGENTS.md`; VERIFIED: `.planning/PROJECT.md`]
+- Android-to-desktop v1 transport remains Wi-Fi/LAN, but Phase 7 primary macOS path is Android-to-macOS Bluetooth HID and desktop companion is diagnostics/fallback only. [VERIFIED: `.planning/ROADMAP.md`; VERIFIED: `07-CONTEXT.md`]
+- HID shape must be normal gamepad-style joystick, not custom gun report. [VERIFIED: `AGENTS.md`; VERIFIED: `VirtualControllerDescriptor.kt`]
+- Desktop profiles own final aim mapping; Phase 7 only maps current normalized/default aim values into fixed HID axes. [VERIFIED: `.planning/PROJECT.md`; VERIFIED: `07-CONTEXT.md`]
+- Evidence must not commit pairing material, session secrets, stream keys, HMAC keys, private keys, Bluetooth addresses, device identifiers, screenshots with sensitive data, or signing material. [VERIFIED: `07-CONTEXT.md`; VERIFIED: prior evidence manifest patterns]
 
 ## Standard Stack
 
 ### Core
 
-| Technology | Version | Purpose | Why Standard |
-|------------|---------|---------|--------------|
-| Kotlin/JVM desktop companion | Kotlin plugin 2.0.21, JVM 17 [VERIFIED: `desktop-companion/build.gradle.kts`; `java -version`] | Preserve existing LAN/session/security, semantic state, backend contract, and haptic control path. | Existing desktop companion is Kotlin/JVM, and Windows runtime already demonstrates the platform backend boundary. [VERIFIED: `WindowsBackendRuntime.kt`] |
-| CoreHID `HIDVirtualDevice` | macOS 15+ API, local SDK target macOS 26.5 interface [VERIFIED: local SDK `CoreHID.swiftinterface` lines 1-3, 121-142] | Primary user-space virtual gamepad-style joystick device. | Apple documents virtual HID emulation; local SDK exposes descriptor-backed properties and input dispatch. [CITED: https://developer.apple.com/documentation/corehid/hidvirtualdevice; VERIFIED: local SDK] |
-| CoreHID `HIDVirtualDeviceDelegate` | macOS 15+ API [VERIFIED: local SDK `CoreHID.swiftinterface` lines 165-168] | Receive OS/HID set/get report requests for output/haptic proof. | It is the direct CoreHID callback surface for incoming reports. [VERIFIED: local SDK] |
-| IOKit `IOHIDUserDevice` | macOS 10.15+ API [VERIFIED: local SDK `IOHIDUserDevice.h` lines 113-143] | Legacy/alternate native user-space virtual HID implementation or diagnostic shim. | Header documents virtual `IOHIDDevice` creation, required report descriptor property, entitlement requirement, report dispatch, and set-report callbacks. [VERIFIED: local SDK `IOHIDUserDevice.h` lines 113-187, 350-375] |
-| HIDDriverKit `IOHIDDevice` | DriverKit 19.0+ API [VERIFIED: local SDK `IOHIDDevice.iig` lines 45-107] | Mandatory fallback if user-space CoreHID/IOHIDUserDevice cannot satisfy OS-visible or OS-origin output proof. | HIDDriverKit exposes provider-side `handleReport`, `getReport`, and `setReport` methods. [VERIFIED: local SDK; CITED: https://developer.apple.com/documentation/hiddriverkit] |
-| System Extensions framework | Current macOS API [CITED: https://developer.apple.com/documentation/systemextensions/installing-system-extensions-and-drivers] | Install/activate HIDDriverKit fallback driver if needed. | Apple documents shipping system extensions inside an app bundle and activating them from the app. [CITED: https://developer.apple.com/documentation/systemextensions/installing-system-extensions-and-drivers] |
+| Library/API | Version | Purpose | Why Standard |
+|-------------|---------|---------|--------------|
+| Android native app, Kotlin | Existing Android Gradle plugin 8.7.3, Kotlin 2.0.21, compileSdk 35. [VERIFIED: `android-host/build.gradle.kts`; `app/build.gradle.kts`] | Implement HID adapter/report packer inside existing host app. | Existing Android app already owns gun BLE, motion, recenter, foreground session, and phone haptics. [VERIFIED: `HostSessionService.kt`] |
+| `android.bluetooth.BluetoothHidDevice` | Added API 28; present in local Android 35 SDK. [VERIFIED: Android SDK `android.jar` via `javap`; CITED: https://developer.android.com/reference/android/bluetooth/BluetoothHidDevice] | Register Android as HID device, send input reports, reply to host requests, report invalid output. | Official Android API for HID Device profile. [CITED: https://developer.android.com/reference/android/bluetooth/BluetoothHidDevice] |
+| `BluetoothHidDevice.Callback` | Present in local Android 35 SDK. [VERIFIED: `javap`] | Observe app registration, host connection, GET_REPORT, SET_REPORT, interrupt data, virtual cable unplug. | Required callback surface for registration/connection/output proof. [CITED: https://developer.android.com/reference/kotlin/android/bluetooth/BluetoothHidDevice.Callback] |
+| `BluetoothHidDeviceAppSdpSettings` | Present in local Android 35 SDK. [VERIFIED: `javap`; CITED: https://developer.android.com/reference/android/bluetooth/BluetoothHidDeviceAppSdpSettings] | Name/description/provider/subclass/report descriptor for SDP registration. | Android framework uses it to add SDP record during app registration. [CITED: https://developer.android.com/reference/android/bluetooth/BluetoothHidDeviceAppSdpSettings] |
+| Android `BLUETOOTH_CONNECT` permission | Runtime permission on Android 12+. [CITED: https://developer.android.com/develop/connectivity/bluetooth/bt-permissions] | Register/connect/send reports on targetSdk 35 app. | Android docs require user approval for Nearby Devices permissions before Bluetooth communication/discoverability. [CITED: https://developer.android.com/develop/connectivity/bluetooth/bt-permissions] |
+| Apple Game Controller framework | Current macOS framework. [CITED: https://developer.apple.com/documentation/gamecontroller] | Build/use tester that reads `GCController` and `extendedGamepad`. | Apple-documented controller visibility/input surface for macOS proof. [CITED: https://developer.apple.com/documentation/gamecontroller/gccontroller; CITED: https://developer.apple.com/documentation/gamecontroller/gccontroller/extendedgamepad] |
+| Windows VHF path | Completed Phase 6. [VERIFIED: `.planning/STATE.md`; VERIFIED: `06-CONTEXT.md`] | Fallback if Android HID phone/macOS proof blocks. | Accepted OS-visible Windows controller path already exists. [VERIFIED: `.planning/STATE.md`] |
 
 ### Supporting
 
 | Tool/API | Version | Purpose | When to Use |
 |----------|---------|---------|-------------|
-| `hidutil list` | macOS 26.2 local tool [VERIFIED: local `hidutil list -h`] | CLI enumeration of HID services/devices by vendor/product/usage. | Automated proof that the virtual device is OS-visible after helper launch. [VERIFIED: local command output] |
-| `ioreg -r -c IOHIDDevice -l -w 0` | macOS 26.2 local tool [VERIFIED: local `ioreg -h`] | IORegistry proof of HID properties, report descriptor, max report sizes, and matching. | Secondary enumeration evidence and debugging descriptor/entitlement behavior. [VERIFIED: local command output] |
-| `IOHIDDeviceSetReport` via separate probe process | IOKit user-space HID client [VERIFIED: Apple IOKit docs page exists; VERIFIED: local IOKit headers expose report APIs] | Generate OS/HID-origin output report against the virtual device. | Required before claiming DESK-06 output proof; simulated backend output is not enough. [ASSUMED] |
-| `codesign` with entitlements plist | macOS local tool [VERIFIED: local `codesign` command exists] | Sign helper/app with virtual HID entitlement where allowed. | CoreHID/IOHIDUserDevice proof and DriverKit fallback setup docs. [VERIFIED: local SDK `IOHIDUserDevice.h` lines 119-121] |
-| `systemextensionsctl` | macOS local tool [VERIFIED: `command -v systemextensionsctl`] | Inspect DriverKit/system-extension fallback installation state. | Fallback proof and PACK-03 docs if CoreHID cannot pass. [CITED: https://developer.apple.com/documentation/systemextensions/ossystemextensionmanager] |
+| `BluetoothAdapter.getProfileProxy` | Present in Android SDK. [VERIFIED: `javap`; CITED: https://developer.android.com/reference/android/bluetooth/BluetoothHidDevice] | Obtain `BluetoothHidDevice` proxy using `BluetoothProfile.HID_DEVICE`. | Start HID mode and detect proxy unavailable blocked state. [VERIFIED: context D-02] |
+| `BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE` | Android platform API. [ASSUMED] | Open user-approved discoverable/connectable pairing window. | Pairing-mode countdown after explicit Start Bluetooth gamepad action. [VERIFIED: context D-10; ASSUMED: exact discoverability API use] |
+| macOS Bluetooth Settings / Apple Games app | macOS user UI. [CITED: https://support.apple.com/guide/games/connect-a-game-controller-devf8cec167c/mac] | Pair Android phone and confirm connected controller. | Manual proof row for DESK-03. [VERIFIED: context D-09/D-12] |
+| Local Game Controller tester app/command | To be added or documented. [ASSUMED] | Enumerate `GCController.controllers()`, read `extendedGamepad`, display/log redacted axes/buttons. | Manual proof row for live controls and motion. [CITED: https://developer.apple.com/documentation/gamecontroller/gccontroller] |
+| Existing `PhoneHaptics` and `DesktopHapticCommandExecutor` | Current repo code. [VERIFIED: `PhoneHaptics.kt`; `DesktopHapticCommand.kt`] | Execute bounded haptic pulses from valid HID output reports. | Reuse validation/status semantics rather than inventing haptic safety logic. [VERIFIED: Phase 4 context] |
 
 ### Alternatives Considered
 
 | Instead of | Could Use | Tradeoff |
 |------------|-----------|----------|
-| CoreHID Swift helper | Objective-C/C helper using `IOHIDUserDeviceCreateWithProperties` | More verbose but avoids current Swift SDK/toolchain mismatch; still requires the virtual HID entitlement and must pass the same OS-visible/output proof. [VERIFIED: local SDK `IOHIDUserDevice.h`; VERIFIED: local ObjC syntax probe] |
-| User-space CoreHID/IOHIDUserDevice | HIDDriverKit system extension | Heavier setup, entitlements, user approval, and full Xcode packaging, but required if user-space path cannot satisfy output proof. [VERIFIED: `.planning/phases/07.../07-CONTEXT.md`; CITED: https://developer.apple.com/documentation/driverkit/requesting-entitlements-for-driverkit-development] |
-| Length-prefixed child-process IPC | Loopback TCP/WebSocket to helper | Child-process IPC avoids exposing another local network service and keeps LAN/session secrets entirely in Kotlin. [ASSUMED] |
-| Output proof through a game only | Separate `IOHIDDeviceSetReport` output probe first | Game/controller testers may not generate generic HID rumble consistently; an explicit HID set-report probe gives deterministic proof that the OS/HID stack reaches the helper. [ASSUMED] |
+| Android Bluetooth HID primary | Revive CoreHID/DriverKit | CoreHID was blocked by entitlement/runtime evidence and DriverKit needs approval-gated OS security/system-extension work; keep only as fallback evidence. [VERIFIED: `.planning/quick/260610-m2r.../SUMMARY.md`; VERIFIED: `phase7-macos-virtual-hid.jsonl`] |
+| Bluetooth HID output report proof | LAN desktop-to-Android haptic command | LAN haptics are already proven but do not prove macOS HID host output behavior. [VERIFIED: context D-15; VERIFIED: Phase 4 evidence] |
+| Current phone only | Alternate Android phone checkpoint | OEM support risk means one phone failure cannot prove API path impossible. [VERIFIED: context D-04; ASSUMED: OEM variance risk] |
+| Game-only proof | Game Controller/tester proof first | Games can obscure mapping; tester exposes raw controller profile state and is more debuggable. [CITED: https://developer.apple.com/documentation/gamecontroller/gccontroller; ASSUMED: tester better debug surface] |
 
 **Installation:**
 
-No new external packages should be installed for Phase 7 unless planning discovers an unavoidable tester dependency. [VERIFIED: current stack uses platform APIs; ASSUMED for tester tooling]
+No new external package install is recommended for Phase 7. [VERIFIED: current stack uses platform APIs]
 
 ```bash
-# Existing project validation, from desktop-companion/
-GRADLE_USER_HOME=/private/tmp/btgun-gradle gradle test
-GRADLE_USER_HOME=/private/tmp/btgun-gradle gradle smokeDesktopBackendMacosStub
+# Android unit tests after HID code is added
+cd android-host
+gradle test
 
-# Phase 7 should add commands like:
-GRADLE_USER_HOME=/private/tmp/btgun-gradle gradle smokeDesktopBackendMacosCoreHid
-hidutil list --matching '{"VendorID":0x1209,"ProductID":0xB707}'
-ioreg -r -c IOHIDDevice -l -w 0 | rg 'BT Gun|VendorID|ProductID|PrimaryUsage|MaxOutputReportSize'
+# Existing desktop/fallback tests if docs/status touch desktop companion
+cd desktop-companion
+gradle test
 ```
 
-**Version verification:** No npm/PyPI/crates packages are recommended. [VERIFIED: package audit not triggered] Apple framework availability was verified against the local macOS SDK and official Apple documentation. [VERIFIED: local SDK paths; CITED: https://developer.apple.com/documentation/corehid]
+**Version verification:** Android API existence was verified with local `android.jar` API 35 using `javap`; official Android docs were used for API behavior and permission claims. [VERIFIED: local command output; CITED: https://developer.android.com/reference/android/bluetooth/BluetoothHidDevice]
 
 ## Package Legitimacy Audit
 
-No external package installation is recommended for Phase 7 research. [VERIFIED: Standard Stack above]
+No new npm/PyPI/crates/Maven package is recommended by this research. [VERIFIED: Standard Stack]
 
 | Package | Registry | Age | Downloads | Source Repo | slopcheck | Disposition |
 |---------|----------|-----|-----------|-------------|-----------|-------------|
-| none | n/a | n/a | n/a | n/a | n/a | No audit required because Phase 7 should use Apple platform APIs and existing Gradle/Kotlin dependencies. [VERIFIED: codebase grep; ASSUMED for tester tooling] |
+| none | n/a | n/a | n/a | n/a | n/a | No external package install required. [VERIFIED: Standard Stack] |
 
-**Packages removed due to slopcheck [SLOP] verdict:** none. [VERIFIED: no external packages recommended]
-**Packages flagged as suspicious [SUS]:** none. [VERIFIED: no external packages recommended]
+**Packages removed due to slopcheck [SLOP] verdict:** none. [VERIFIED: no packages recommended]
+**Packages flagged as suspicious [SUS]:** none. [VERIFIED: no packages recommended]
 
 ## Architecture Patterns
 
 ### System Architecture Diagram
 
 ```text
---------------------+        authenticated UDP/WSS        +---------------------------+
-| Android host/gun   | ----------------------------------> | Kotlin desktop companion  |
-| controls + motion  |                                    | ControlServer             |
-+--------------------+                                    | UdpControllerStateAdapter |
-                                                          | MacosBackendRuntime       |
-                                                          +-------------+-------------+
-                                                                        |
-                                                                        | length-prefixed local frames
-                                                                        | no session secrets
-                                                                        v
-                                                          +---------------------------+
-                                                          | Native macOS HID helper   |
-                                                          | CoreHID HIDVirtualDevice  |
-                                                          | or IOHIDUserDevice shim   |
-                                                          +------+------+-------------+
-                                                                 |      ^
-                                                     input report|      |set/get output report
-                                                                 v      |
-                                                          +---------------------------+
-                                                          | macOS HID stack           |
-                                                          | hidutil/ioreg/tester/game |
-                                                          +-------------+-------------+
-                                                                        |
-                                                                        | output bytes returned
-                                                                        v
-                                                          +---------------------------+
-                                                          | Kotlin output mapper      |
-                                                          | ControlServer haptic cmd  |
-                                                          +-------------+-------------+
-                                                                        |
-                                                                        v
-                                                          Android phone vibration
+Physical iPega gun + Android motion sensors
+  -> existing BLE gun adapter + SensorManager capture
+  -> GunInputState + latest MotionSample
+  -> Android HID gamepad report packer
+  -> BluetoothHidDevice.registerApp(SDP descriptor)
+  -> sendReport(reportId=1, payload)
+  -> macOS Bluetooth host
+  -> Game Controller/tester reads buttons + axes
+
+macOS host output path, if any:
+macOS Bluetooth HID host
+  -> BluetoothHidDevice.Callback.onSetReport/onInterruptData
+  -> strict output report validator (reportId=2, version=1, reserved=0)
+  -> DesktopHapticCommandExecutor + PhoneHaptics
+  -> phone vibration result/status
+
+Failure branch:
+HID_DEVICE proxy unavailable OR registerApp failed OR macOS cannot pair/input after alternate phone
+  -> record blocked evidence
+  -> keep completed Windows VHF path as OS-visible fallback
 ```
 
 ### Recommended Project Structure
 
 ```text
-desktop-companion/
-  src/main/kotlin/com/btgun/desktop/backend/macos/
-    MacosHidReportPacker.kt          # semantic state -> macOS input report bytes [ASSUMED]
-    MacosOutputReportMapper.kt       # output report bytes -> HapticCommand [ASSUMED]
-    MacosVirtualControllerBackend.kt # Kotlin backend contract adapter [ASSUMED]
-    MacosBackendRuntime.kt           # ControlServer callback attachment [VERIFIED: Windows pattern]
-    MacosHidHelperClient.kt          # child process IPC client [ASSUMED]
-  src/main/kotlin/com/btgun/desktop/smoke/
-    MacosCoreHidBackendSmokeMain.kt  # replay smoke plus optional OS output probe [ASSUMED]
-  native/macos-hid-helper/
-    Sources/                         # Swift CoreHID helper or ObjC IOHIDUserDevice shim [ASSUMED]
-    Entitlements.plist               # virtual HID entitlement where allowed [VERIFIED: local SDK]
+android-host/app/src/main/java/com/btgun/host/hid/
+  AndroidBluetoothHidGamepad.kt       # profile proxy, register/unregister, sendReport [ASSUMED]
+  AndroidHidCapability.kt             # HID role/proxy/registration blocked-state model [ASSUMED]
+  BtGunHidDescriptor.kt               # golden descriptor bytes + constants [ASSUMED]
+  BtGunHidReportPacker.kt             # GunInputState + MotionSample -> report payload [ASSUMED]
+  BtGunHidOutputReportMapper.kt       # host report bytes -> DesktopHapticCommand [ASSUMED]
+  BtGunHidStatus.kt                   # registration/host/output status for dashboard [ASSUMED]
+
+android-host/app/src/test/java/com/btgun/host/hid/
+  BtGunHidDescriptorTest.kt
+  BtGunHidReportPackerTest.kt
+  BtGunHidOutputReportMapperTest.kt
+  AndroidBluetoothHidGamepadStateTest.kt
+
 docs/setup/
-  macos-virtual-hid.md               # PACK-03 strategy/setup/fallback proof docs [VERIFIED: requirement]
+  android-bluetooth-hid-gamepad.md    # setup, pairing, compatibility, fallback docs [ASSUMED]
+
 docs/evidence/manifests/
-  phase7-macos-virtual-hid.jsonl     # sanitized proof manifest [ASSUMED]
+  phase7-android-bluetooth-hid.jsonl  # sanitized proof rows [ASSUMED]
 ```
 
-### Pattern 1: CoreHID Helper as a Thin Native HID Bridge
+### Pattern 1: HID Profile Proxy and Registration Boundary
 
-**What:** Keep CoreHID/IOHIDUserDevice creation, activation, and report dispatch inside a signed native helper; pass only descriptor metadata, input report bytes, and output report events over local IPC. [VERIFIED: local SDK APIs; ASSUMED for IPC]
+**What:** Add one Android HID component behind `HostSessionService`; it owns proxy lifecycle, registration, host connection, and report send/error calls. [VERIFIED: existing service boundary; ASSUMED: new class name]
 
-**When to use:** Use for the Phase 7 primary path after Wave 0 fixes local Xcode/Swift/signing setup. [VERIFIED: context D-01/D-16]
-
-**Example:**
-
-```swift
-// Source: local SDK CoreHID.swiftinterface lines 121-168 [VERIFIED: local SDK]
-import CoreHID
-import Foundation
-
-final class OutputDelegate: HIDVirtualDeviceDelegate {
-    func hidVirtualDevice(
-        _ device: HIDVirtualDevice,
-        receivedSetReportRequestOfType type: HIDReportType,
-        id: HIDReportID?,
-        data: Data
-    ) async throws {
-        // Forward type, report id, and bytes to Kotlin over local IPC.
-    }
-
-    func hidVirtualDevice(
-        _ device: HIDVirtualDevice,
-        receivedGetReportRequestOfType type: HIDReportType,
-        id: HIDReportID?,
-        maxSize: Int
-    ) async throws -> Data {
-        Data()
-    }
-}
-```
-
-### Pattern 2: Kotlin Owns Runtime Attachment and Diagnostics
-
-**What:** Mirror `WindowsBackendRuntime`: preserve previous UDP callback, publish semantic state to backend, drain output haptics, send through `ControlServer`, and expose diagnostics. [VERIFIED: `WindowsBackendRuntime.kt`]
-
-**When to use:** Always for live stream cutover in Phase 7. [VERIFIED: context D-14/D-15]
-
-**Example:**
+**When to use:** Start only after explicit user action and capability gate success. [VERIFIED: context D-01/D-10]
 
 ```kotlin
-// Source: WindowsBackendRuntime pattern [VERIFIED: codebase grep]
-val callback: (UdpReceivedInput) -> Unit = { input ->
-    previousUdpCallback?.invoke(input)
-    val state = UdpControllerStateAdapter.toState(input)
-    val publishResult = backend.publish(state)
-    val hapticResults = backend.drainOutputHaptics(System.nanoTime()).map { command ->
-        controlServer.sendHapticCommand(command, nowElapsedNanos = System.nanoTime())
+// Source: Android BluetoothHidDevice docs + local SDK javap [CITED: https://developer.android.com/reference/android/bluetooth/BluetoothHidDevice]
+val listener = object : BluetoothProfile.ServiceListener {
+    override fun onServiceConnected(profile: Int, proxy: BluetoothProfile) {
+        if (profile != BluetoothProfile.HID_DEVICE || proxy !is BluetoothHidDevice) {
+            setBlocked("HID_DEVICE proxy unavailable")
+            return
+        }
+        val sdp = BluetoothHidDeviceAppSdpSettings(
+            "BT Gun Gamepad",
+            "BT Gun Android HID Gamepad",
+            "BT Gun",
+            (BluetoothHidDevice.SUBCLASS1_COMBO.toInt() or BluetoothHidDevice.SUBCLASS2_GAMEPAD.toInt()).toByte(),
+            BtGunHidDescriptor.bytes,
+        )
+        val accepted = proxy.registerApp(sdp, null, null, mainExecutor, callback)
+        if (!accepted) setBlocked("HID app registration command rejected")
     }
-    // Update macOS diagnostics: lifecycle, publish result, stale, sequence, haptic result.
+
+    override fun onServiceDisconnected(profile: Int) {
+        if (profile == BluetoothProfile.HID_DEVICE) setBlocked("HID_DEVICE proxy disconnected")
+    }
 }
 ```
 
-### Pattern 3: Separate OS Output Probe from Simulated Output
+### Pattern 2: Android-Owned Report Packer
 
-**What:** Add a process outside the helper that finds the virtual device by vendor/product and sends output report ID 2 through the macOS HID API; require the helper delegate to receive it and Kotlin to route phone haptic. [ASSUMED]
+**What:** Pack report ID 1 payload from `GunInputState` plus latest `MotionSample`; keep byte contract in Android tests and compare semantic shape to `btGunV1Descriptor`. [VERIFIED: context D-05/D-08; VERIFIED: `VirtualControllerDescriptor.kt`]
 
-**When to use:** Required before claiming DESK-06 output proof. [VERIFIED: context D-07/D-08/D-09]
+**When to use:** Every gun control edge and throttled motion snapshot while host is connected. [ASSUMED]
 
-**Example:**
+```kotlin
+// Source: mirrors existing Windows report semantics, but Android owns implementation. [VERIFIED: WindowsHidReportPacker.kt; VERIFIED: context D-06]
+data class BtGunHidInputPayload(val bytes: ByteArray)
 
-```text
-macos-hid-output-probe
-  -> IOHIDManager match VendorID/ProductID
-  -> IOHIDDeviceSetReport(kIOHIDReportTypeOutput, reportID=2, bytes)
-  -> CoreHID delegate receives SetReport
-  -> Kotlin MacosOutputReportMapper creates HapticCommand
-  -> ControlServer sends authenticated phone haptic command
+object BtGunHidReportPacker {
+    const val INPUT_REPORT_ID: Int = 0x01
+    const val INPUT_PAYLOAD_LENGTH_BYTES: Int = 9
+
+    fun pack(state: GunInputState, motion: MotionSample?, stale: Boolean): BtGunHidInputPayload {
+        val payload = ByteArray(INPUT_PAYLOAD_LENGTH_BYTES)
+        payload[0] = if (stale) 0 else buttonBits(state).toByte()
+        payload.writeInt16Le(1, if (stale) 0 else axis16(state.stickAxisX))
+        payload.writeInt16Le(3, if (stale) 0 else axis16(-state.stickAxisY))
+        payload.writeInt16Le(5, axis16((motion?.aimX ?: motion?.rawAimX ?: 0f)))
+        payload.writeInt16Le(7, axis16((motion?.aimY ?: motion?.rawAimY ?: 0f)))
+        return BtGunHidInputPayload(payload)
+    }
+}
+```
+
+### Pattern 3: Strict Output Report Mapping
+
+**What:** Treat host output as untrusted input; only report ID 2, version 1, valid strength/duration/TTL, and zero reserved bytes can start phone vibration. [VERIFIED: context D-14; VERIFIED: `WindowsOutputReportMapper.kt`]
+
+**When to use:** In `onSetReport` for output reports and `onInterruptData` if host sends output over interrupt channel. [VERIFIED: Android SDK callback methods; ASSUMED: host may choose either callback]
+
+```kotlin
+// Source: Android callback surface + existing Windows output shape. [VERIFIED: Android SDK javap; VERIFIED: WindowsOutputReportMapper.kt]
+override fun onSetReport(device: BluetoothDevice, type: Byte, id: Byte, data: ByteArray) {
+    if (type != BluetoothHidDevice.REPORT_TYPE_OUTPUT || id.toInt() != 0x02) {
+        hid.reportError(device, BluetoothHidDevice.ERROR_RSP_INVALID_RPT_ID)
+        return
+    }
+    val command = BtGunHidOutputReportMapper.toDesktopHapticCommand(data, "hid-output-${SystemClock.elapsedRealtimeNanos()}")
+    if (command == null) {
+        hid.reportError(device, BluetoothHidDevice.ERROR_RSP_INVALID_PARAM)
+        return
+    }
+    val result = desktopHapticExecutor.handle(command, SystemClock.elapsedRealtimeNanos())
+    recordHidOutputResult(result)
+}
 ```
 
 ### Anti-Patterns to Avoid
 
-- **Counting `simulateOutputReport` as DESK-06:** Simulated reports prove mapper logic only; Phase 7 requires OS-origin output/rumble. [VERIFIED: context D-07/D-08]
-- **Putting LAN/session keys in the native helper:** The helper should not own pairing, WSS, UDP auth, or haptic transport. [VERIFIED: context D-16]
-- **Skipping environment setup proof:** Current local Swift/Xcode/signing state is not ready for CoreHID execution; planning must gate implementation on fixing that. [VERIFIED: local commands]
-- **Treating "gamepad UI sees axes" as enough:** D-04 through D-07 require CLI enumeration, tester/UI evidence, live Android input, and OS-origin output-to-phone-haptic proof. [VERIFIED: context]
-- **Jumping to DriverKit before CoreHID proof:** D-01/D-02 lock CoreHID first unless official docs or local proof show it cannot satisfy the phase. [VERIFIED: context]
+- **Auto-advertise HID at app startup:** Violates explicit user-controlled Start Bluetooth gamepad decision and can confuse normal gun-host session state. [VERIFIED: context D-01/D-10]
+- **Claim support when `getProfileProxy` returns no HID_DEVICE proxy:** That is the core phone compatibility gate and must be surfaced as blocked. [VERIFIED: context D-02]
+- **Use LAN haptic as macOS HID output proof:** LAN haptics are useful fallback diagnostics but cannot satisfy DESK-06. [VERIFIED: context D-15]
+- **Move packer into shared module for parity:** Phase 7 decision says Android owns HID report packing and tests prove parity. [VERIFIED: context D-06/D-08]
+- **Commit raw Bluetooth MACs or screenshots with device names:** Evidence must be sanitized. [VERIFIED: context code_context evidence rule]
 
 ## Don't Hand-Roll
 
 | Problem | Don't Build | Use Instead | Why |
 |---------|-------------|-------------|-----|
-| Virtual HID device registration | Custom kernel extension or raw IORegistry manipulation | CoreHID `HIDVirtualDevice` first; IOHIDUserDevice shim if Swift wrapper is blocked; HIDDriverKit fallback if output proof fails. | Apple platform APIs own HID registration, report delivery, entitlement checks, and OS matching. [CITED: https://developer.apple.com/documentation/corehid/hidvirtualdevice; VERIFIED: local SDK] |
-| Driver/system-extension install flow | Shell scripts copying drivers into system locations | System Extensions framework activation from an app if DriverKit fallback is needed. | Apple documents app-bundled system extension activation and user approval flow. [CITED: https://developer.apple.com/documentation/systemextensions/installing-system-extensions-and-drivers] |
-| Session security in native helper | New local auth protocol or helper-side LAN stack | Existing Kotlin `ControlServer` and UDP receiver. | Existing code already validates and routes authenticated session traffic. [VERIFIED: codebase grep] |
-| Output/rumble haptic mapping | Freeform strings or platform-specific ad hoc events | Versioned output report bytes mapped by `MacosOutputReportMapper` to existing `HapticCommand`. | Windows path already uses a report mapper and preserves haptic TTL/duration validation. [VERIFIED: `WindowsOutputReportMapper.kt`] |
-| Evidence storage | Raw logs/screenshots with secrets | Sanitized JSONL manifest and redacted setup notes. | Prior phases explicitly avoid committed secrets, device ids, proof values, and raw sensitive logs. [VERIFIED: `.planning/STATE.md`; `docs/evidence/manifests/phase5-desktop-backend-smoke.jsonl`] |
+| Bluetooth HID Device profile | Custom RFCOMM/L2CAP HID server | Android `BluetoothHidDevice` | Android framework owns HID Device service, SDP registration, host connection, and report channels. [CITED: https://developer.android.com/reference/android/bluetooth/BluetoothHidDevice] |
+| macOS controller recognition | Custom macOS driver as primary path | Bluetooth pairing + Game Controller proof | Reroute explicitly avoids CoreHID/DriverKit entitlement path for primary macOS support. [VERIFIED: reroute summary; CITED: https://developer.apple.com/documentation/gamecontroller] |
+| Haptic validation | New unbounded vibrator path | Existing `DesktopHapticCommandExecutor` and `PhoneHaptics` | Existing code enforces strength/duration/TTL/status limits. [VERIFIED: `DesktopHapticCommand.kt`; `PhoneHaptics.kt`] |
+| Compatibility decision | Silent fallback or one-device conclusion | Blocked matrix + alternate-phone checkpoint + Windows VHF fallback gate | Context requires clear blocked states and alternate phone before fallback. [VERIFIED: context D-02/D-04/D-19] |
+| Descriptor/report correctness | Ad hoc byte edits without tests | Golden descriptor/report vectors | Context requires golden descriptor and report vector tests. [VERIFIED: context D-08] |
 
-**Key insight:** The hard part is not HID byte packing; it is proving macOS policy, entitlement, enumeration, and OS-origin output behavior on the actual target. [VERIFIED: local environment audit; VERIFIED: context D-02/D-03/D-07]
+**Key insight:** Phase 7 risk is not writing bytes; risk is proving that real Android firmware exposes HID Device role and real macOS treats the descriptor as a usable controller. [VERIFIED: Android APIs exist locally; ASSUMED: compatibility is main risk]
 
 ## Common Pitfalls
 
-### Pitfall 1: CoreHID Exists but Local Tooling Cannot Build It
+### Pitfall 1: Treating API presence as phone support
+**What goes wrong:** Code compiles but `getProfileProxy(...HID_DEVICE)` never yields usable proxy or `registerApp` fails. [ASSUMED; VERIFIED: context requires blocked state]  
+**Why it happens:** Android framework API exists at SDK level, but device/OEM Bluetooth stack may not expose HID Device service reliably. [ASSUMED]  
+**How to avoid:** Add startup probe, explicit Start Bluetooth gamepad action, register callback status, alternate-phone checkpoint. [VERIFIED: context D-01/D-04]  
+**Warning signs:** `HID_DEVICE proxy unavailable`, `onServiceDisconnected`, `onAppStatusChanged registered=false`, no host connection after pairing window. [VERIFIED: Android callback surface]
 
-**What goes wrong:** The plan assumes Swift/CoreHID can build immediately, but this host currently has only CLT selected and Swift reports an SDK/toolchain mismatch. [VERIFIED: local `xcodebuild -version`; local `swift -e`]
+### Pitfall 2: Missing Android 12+ Bluetooth runtime permission
+**What goes wrong:** HID register/connect/report operations throw `SecurityException` or fail on targetSdk 35. [CITED: https://developer.android.com/develop/connectivity/bluetooth/bt-permissions]  
+**Why it happens:** Android 12+ Nearby Devices permissions are runtime permissions, and existing manifest already targets Android 35 with `BLUETOOTH_CONNECT`. [CITED: Android Bluetooth permissions docs; VERIFIED: `AndroidManifest.xml`; `app/build.gradle.kts`]  
+**How to avoid:** Extend `HostCapabilityProbe` and `PermissionGate` so HID mode blocks on missing `BLUETOOTH_CONNECT`. [VERIFIED: `HostCapabilityProbe.kt`; ASSUMED: implementation]  
+**Warning signs:** Permission state says live session can start but HID mode still fails. [ASSUMED]
 
-**Why it happens:** CoreHID is present in the SDK, but Swift module compilation depends on a matching Apple toolchain/SDK pair. [VERIFIED: local Swift error]
+### Pitfall 3: Putting report ID in wrong byte location
+**What goes wrong:** macOS ignores input or maps axes incorrectly. [ASSUMED]  
+**Why it happens:** Android `sendReport(device, id, data)` separates report id from payload, while existing Windows report byte array includes report ID at byte 0. [CITED: Android `sendReport` docs; VERIFIED: `WindowsHidReportPacker.kt`]  
+**How to avoid:** Define Android HID payload bytes separately from Windows helper byte arrays; golden tests must pin whether Android payload excludes report ID. [VERIFIED: context D-08; ASSUMED: Android payload excludes ID based on API signature]  
+**Warning signs:** Android logs `sendReport=true` but Game Controller tester shows no movement. [ASSUMED]
 
-**How to avoid:** Plan Wave 0 setup: install/select full matching Xcode or matching CLT, configure module cache under writable project/temp paths, and compile a minimal CoreHID helper before backend work. [ASSUMED]
+### Pitfall 4: Output callback never arrives
+**What goes wrong:** Input proof passes but DESK-06 haptic proof stalls. [VERIFIED: context D-13/D-16]  
+**Why it happens:** macOS Game Controller haptics may not send generic HID output reports for a custom gamepad descriptor. [CITED: https://developer.apple.com/documentation/gamecontroller/gccontroller/haptics; ASSUMED: generic descriptor behavior]  
+**How to avoid:** Implement callbacks, output report descriptor, explicit status rows: callback seen/not seen, report validation result, phone vibration result, unsupported reason. [VERIFIED: context D-13/D-16]  
+**Warning signs:** macOS sees controller input but Android `onSetReport`/`onInterruptData` counters stay zero. [VERIFIED: callback surface; ASSUMED: diagnostic counter]
 
-**Warning signs:** `swift -e 'import CoreHID'` fails, `xcodebuild -version` reports CLT-only, or `security find-identity` has no signing identities. [VERIFIED: local commands]
-
-### Pitfall 2: Entitlement Confusion Between User-Space Virtual HID and DriverKit
-
-**What goes wrong:** The helper creates no device because virtual HID entitlement is missing, or the plan requests DriverKit entitlements unnecessarily. [VERIFIED: local `IOHIDUserDevice.h` lines 119-121; CITED: https://developer.apple.com/documentation/bundleresources/entitlements/com.apple.developer.hid.virtual.device]
-
-**Why it happens:** IOHIDUserDevice explicitly requires `com.apple.developer.hid.virtual.device`; DriverKit has separate entitlements such as `com.apple.developer.driverkit`, `com.apple.developer.driverkit.family.hid.device`, and `com.apple.developer.driverkit.transport.hid` in local headers. [VERIFIED: local SDK `IOHIDUserDevice.h`; VERIFIED: local SDK `IOKitKeys.h` lines 121-150]
-
-**How to avoid:** Document two entitlement paths: CoreHID/IOHIDUserDevice user-space virtual HID first, HIDDriverKit/system-extension fallback only if needed. [VERIFIED: context D-01/D-03]
-
-**Warning signs:** Device construction returns nil, helper runs unsigned, `hidutil list` has no matching device, or System Settings asks for extension approval when the plan expected a user-space helper only. [ASSUMED]
-
-### Pitfall 3: Output Report API Exists but Rumble Is Not Proven
-
-**What goes wrong:** The backend declares output-report support after unit tests pass, but no OS/HID client has triggered the actual CoreHID set-report callback. [VERIFIED: context D-07/D-08]
-
-**Why it happens:** CoreHID delegate supports SetReport at API level, but generic macOS rumble behavior for a custom gamepad descriptor still needs target proof. [VERIFIED: local SDK; ASSUMED for generic rumble behavior]
-
-**How to avoid:** Add an output probe process and require phone vibration from a live paired Android session before setting `outputReport=true` in capabilities. [VERIFIED: context D-07; ASSUMED for probe design]
-
-**Warning signs:** Only `simulateOutputReport` works, `MaxOutputReportSize` is 0 in IORegistry, or the delegate never receives SetReport. [VERIFIED: local `ioreg` output shape; ASSUMED for failure modes]
-
-### Pitfall 4: Native Helper Becomes a Second Desktop Companion
-
-**What goes wrong:** Native code starts owning session security, profile mapping, transport, or haptic command transport. [VERIFIED: context D-16]
-
-**Why it happens:** It is tempting to put all "macOS backend" behavior in the native helper. [ASSUMED]
-
-**How to avoid:** Helper protocol accepts only report bytes/device control and emits output report bytes/status; Kotlin owns all semantic mapping, session security, diagnostics, and haptic routing. [VERIFIED: context D-16; ASSUMED for protocol]
-
-**Warning signs:** Helper code imports networking libraries, sees session ids/secrets, or constructs `HapticCommand` directly. [ASSUMED]
-
-### Pitfall 5: DriverKit Fallback Underplanned
-
-**What goes wrong:** CoreHID output fails late, but Phase 7 has no tasks for Xcode, system extension packaging, entitlements, activation, or user approval. [VERIFIED: context D-03/D-09]
-
-**Why it happens:** DriverKit is much heavier than user-space CoreHID and needs app-bundled system extension flow. [CITED: https://developer.apple.com/documentation/hiddriverkit; CITED: https://developer.apple.com/documentation/systemextensions/installing-system-extensions-and-drivers]
-
-**How to avoid:** Add a fallback branch in the plan that starts only after a documented CoreHID failure gate, with explicit setup and entitlement checkpoints. [VERIFIED: context D-03]
-
-**Warning signs:** Plan says "document unsupported" after CoreHID output failure; that contradicts D-07/D-09. [VERIFIED: context]
+### Pitfall 5: Leaking device identifiers in evidence
+**What goes wrong:** Bluetooth addresses, phone names, or unique macOS controller ids get committed. [VERIFIED: context evidence rule]  
+**Why it happens:** Pairing screenshots/logs often include identifiers. [ASSUMED]  
+**How to avoid:** Evidence manifest stores only redacted host labels, suffixes/hashes when needed, pass/fail, timestamps, and user confirmation text. [VERIFIED: existing evidence manifest style]  
+**Warning signs:** `rg` finds MAC-address patterns, QR/session secrets, stream keys, or private keys in docs/evidence. [VERIFIED: prior validation style]
 
 ## Code Examples
 
-### IOHIDUserDevice User-Space Shim Shape
+### Capability Probe Shape
 
-```objective-c
-// Source: IOHIDUserDevice.h lines 113-187 and 350-375 [VERIFIED: local SDK]
-IOHIDUserDeviceRef device =
-    IOHIDUserDeviceCreateWithProperties(kCFAllocatorDefault, properties, 0);
-
-IOHIDUserDeviceRegisterSetReportCallback(
-    device,
-    set_report_callback,
-    context
-);
-
-IOHIDUserDeviceHandleReportWithTimeStamp(
-    device,
-    mach_absolute_time(),
-    report_bytes,
-    report_length
-);
+```kotlin
+// Source: existing HostCapabilityProbe pattern + Android Bluetooth docs. [VERIFIED: HostCapabilityProbe.kt; CITED: https://developer.android.com/reference/android/bluetooth/BluetoothHidDevice]
+data class HidCapabilityState(
+    val bluetoothEnabled: CapabilityStatus,
+    val bluetoothConnect: CapabilityStatus,
+    val hidProfileProxy: CapabilityStatus,
+    val appRegistration: CapabilityStatus,
+    val hostConnection: CapabilityStatus,
+)
 ```
 
-### DriverKit Fallback Surface
+### Report Send
 
-```cpp
-// Source: HIDDriverKit/IOHIDDevice.iig lines 60-107 [VERIFIED: local SDK]
-kern_return_t MyHidDevice::handleReport(
-    uint64_t timestamp,
-    IOMemoryDescriptor *report,
-    uint32_t reportLength,
-    IOHIDReportType reportType,
-    IOOptionBits options
-);
-
-kern_return_t MyHidDevice::setReport(
-    IOMemoryDescriptor *report,
-    IOHIDReportType reportType,
-    IOOptionBits options,
-    uint32_t completionTimeout,
-    OSAction *action
-);
+```kotlin
+// Source: Android BluetoothHidDevice.sendReport docs. [CITED: https://developer.android.com/reference/android/bluetooth/BluetoothHidDevice]
+fun publishInput(hid: BluetoothHidDevice, host: BluetoothDevice, state: GunInputState, motion: MotionSample?) {
+    val payload = BtGunHidReportPacker.pack(state, motion, stale = false)
+    val accepted = hid.sendReport(host, BtGunHidReportPacker.INPUT_REPORT_ID, payload.bytes)
+    if (!accepted) recordHidStatus("send_report_rejected")
+}
 ```
 
-### CLI Evidence Commands
+### GET_REPORT Reply
 
-```bash
-# Source: local hidutil/ioreg help [VERIFIED: local commands]
-hidutil list --matching '{"VendorID":0x1209,"ProductID":0xB707}'
-ioreg -r -c IOHIDDevice -l -w 0 | rg 'BT Gun|VendorID|ProductID|PrimaryUsage|MaxOutputReportSize'
+```kotlin
+// Source: Android BluetoothHidDevice.replyReport docs. [CITED: https://developer.android.com/reference/android/bluetooth/BluetoothHidDevice]
+override fun onGetReport(device: BluetoothDevice, type: Byte, id: Byte, bufferSize: Int) {
+    val payload = when {
+        type == BluetoothHidDevice.REPORT_TYPE_INPUT && id.toInt() == 0x01 -> latestInputPayload()
+        type == BluetoothHidDevice.REPORT_TYPE_OUTPUT && id.toInt() == 0x02 -> lastOutputPayload()
+        else -> null
+    }
+    if (payload == null) {
+        hid.reportError(device, BluetoothHidDevice.ERROR_RSP_INVALID_RPT_ID)
+    } else {
+        hid.replyReport(device, type, id, payload)
+    }
+}
 ```
 
 ## State of the Art
 
 | Old Approach | Current Approach | When Changed | Impact |
 |--------------|------------------|--------------|--------|
-| Kernel extensions for virtual HID | User-space CoreHID/IOHIDUserDevice first where entitlement permits; HIDDriverKit system extension as fallback | CoreHID `HIDVirtualDevice` is documented as macOS 15+ and local SDK exposes it. [CITED: https://developer.apple.com/documentation/corehid/hidvirtualdevice; VERIFIED: local SDK] | Phase 7 should not start with DriverKit unless CoreHID proof fails. [VERIFIED: context D-01/D-02] |
-| Driver installed by copying system files | App-bundled System Extensions activation for DriverKit fallback | Apple System Extensions docs describe app-bundled install/activation. [CITED: https://developer.apple.com/documentation/systemextensions/installing-system-extensions-and-drivers] | Fallback docs must include app bundle, activation request, user approval, and possible reboot/result handling. [CITED: https://developer.apple.com/documentation/systemextensions/ossystemextensionrequest] |
-| Stub macOS smoke | Real OS-visible CoreHID smoke plus live Android/gun proof | Phase 7 context tightens proof target after Phase 5 stubs. [VERIFIED: `07-CONTEXT.md`] | Existing `MacosBackendSmokeMain` must be evolved or superseded; stub smoke cannot pass DESK-03/DESK-06. [VERIFIED: `MacosBackendSmokeMain.kt`] |
+| macOS CoreHID/DriverKit virtual joystick as Phase 7 primary | Android phone as Bluetooth HID gamepad primary | 2026-06-10 reroute. [VERIFIED: quick summary] | Avoids paid Apple virtual HID entitlement path for primary macOS proof; moves implementation to Android HID role. [VERIFIED: ROADMAP; quick summary] |
+| LAN desktop companion in macOS input path | macOS pairs directly to Android phone HID | 2026-06-10 reroute. [VERIFIED: `07-CONTEXT.md`] | Desktop companion becomes diagnostics/fallback status only for Phase 7. [VERIFIED: context D-11] |
+| macOS output proof required OS-origin CoreHID/DriverKit set-report | Android HID output callback attempted; unsupported status acceptable if macOS sends none | 2026-06-10 reroute. [VERIFIED: context D-13/D-16] | DESK-06 can close with honest platform limitation after callbacks/probes are implemented and observed. [VERIFIED: context D-13/D-16] |
+| Windows VHF as one of two desktop virtual HID paths | Windows VHF as fallback if Android HID blocked | 2026-06-10 reroute. [VERIFIED: quick summary; STATE] | Do not discard Phase 6; use as decision gate fallback. [VERIFIED: context D-19] |
 
 **Deprecated/outdated:**
-- Treating Phase 5 macOS stub capabilities as product support is invalid for Phase 7. [VERIFIED: `BackendCapabilityPresets.macosStub`; VERIFIED: context D-04/D-07]
-- Documenting macOS output as unsupported after CoreHID failure is invalid under the locked Phase 7 context; DriverKit fallback work is required. [VERIFIED: context D-03/D-09]
+- CoreHID/DriverKit primary-path framing: outdated for Phase 7 planning after reroute; retain only as blocked/fallback evidence. [VERIFIED: quick summary; `07-CONTEXT.md`]
+- Treating simulated output haptics as DESK-06 proof: invalid; HID output callback or clear unsupported status is required. [VERIFIED: context D-13/D-16]
 
 ## Assumptions Log
 
 | # | Claim | Section | Risk if Wrong |
 |---|-------|---------|---------------|
-| A1 | Use a child-process length-prefixed local helper protocol instead of loopback TCP. | Standard Stack, Architecture Patterns | Planner may need to choose a different IPC if helper lifetime or buffering behaves poorly. |
-| A2 | Kotlin should pack macOS input reports and map output bytes, while native helper only publishes/receives HID bytes. | Responsibility Map, Project Structure | Planner may move packing into Swift/ObjC if CoreHID descriptor/report coupling is easier there. |
-| A3 | A separate `IOHIDDeviceSetReport` probe is acceptable evidence of OS/HID-origin output before game-specific rumble proof. | Patterns, Pitfalls | User may require a macOS game/controller UI that generates rumble instead of a HID API probe. |
-| A4 | No third-party macOS controller tester package is needed. | Package Audit, Environment | Planner may add a human-verified tester dependency if built-in CLI/UI evidence is insufficient. |
+| A1 | OEM Android builds may expose API but not usable HID Device profile. | Summary, Pitfalls | Planner may over-focus on code and under-plan alternate-phone/fallback evidence. |
+| A2 | Android `sendReport(device, id, data)` payload should exclude report ID because ID is separate param. | Pitfall 3, Code Examples | Wrong report payload shape could break macOS input proof. Planner should add live/golden tests. |
+| A3 | macOS may not send generic rumble/output reports for this custom gamepad descriptor. | DESK-06, Pitfall 4 | Haptic proof may end as documented unsupported rather than phone vibration from Bluetooth HID. |
+| A4 | A local tester app is better than game-only proof. | Alternatives | Planner may need to add tester implementation if no existing macOS controller tester is available. |
+| A5 | `ACTION_REQUEST_DISCOVERABLE` is the right user-approved pairing-window mechanism. | Supporting, Pattern 1 | Planner may need to adjust to Android HID registration/pairing behavior on real phone. |
 
-## Open Questions (RESOLVED)
+## Open Questions
 
-1. **Can the current developer machine obtain/use `com.apple.developer.hid.virtual.device` for a local proof?**
-   - What we know: Local headers say IOHIDUserDevice virtual device creation requires this entitlement. [VERIFIED: local SDK `IOHIDUserDevice.h` lines 119-121]
-   - RESOLVED: Treat entitlement availability as a Wave 1 execution gate, not an unresolved planning question. Plan `07-01` must compile/sign/run a minimal helper and record exact entitlement/signing result before backend support can be claimed.
-   - RESOLVED: If ad-hoc/local signing cannot use the entitlement, execution must either use an approved local signing/provisioning path or record a blocker. Do not weaken DESK-03/DESK-06 or claim CoreHID support from docs alone.
+1. **Does current Android phone expose usable `BluetoothProfile.HID_DEVICE`?**  
+   - What we know: API exists in Android SDK; context requires blocked-state matrix. [VERIFIED: Android SDK; `07-CONTEXT.md`]  
+   - What's unclear: Current physical phone/OEM stack behavior. [ASSUMED]  
+   - Recommendation: Plan first hardware checkpoint before report-packer integration is considered done. [VERIFIED: context D-04]
 
-2. **Will generic macOS game/controller UI generate rumble/output for this custom gamepad descriptor?**
-   - What we know: CoreHID and IOHIDUserDevice expose set-report callbacks. [VERIFIED: local SDK]
-   - RESOLVED: Generic game/controller UI rumble is not required as the deterministic Phase 7 output proof. Plan `07-05` must use a separate macOS HID client/probe that calls `IOHIDDeviceSetReport` for output report ID `0x02`, and final Plan `07-07` must prove that OS/HID-origin output reaches Android phone haptics.
-   - RESOLVED: UI/tester evidence remains required for visible input per D-04/D-06, but it cannot replace the separate OS-origin output probe for DESK-06.
+2. **Will macOS Game Controller map this descriptor as `extendedGamepad`?**  
+   - What we know: Apple supports Bluetooth game controllers and `GCController.extendedGamepad`. [CITED: Apple Support; Apple Developer docs]  
+   - What's unclear: Mapping behavior for Android-advertised custom HID gamepad descriptor. [ASSUMED]  
+   - Recommendation: Plan live tester proof with raw HID/Bluetooth connection evidence plus Game Controller evidence. [VERIFIED: context D-09/D-12]
 
-3. **Is Swift CoreHID viable after toolchain repair, or should the helper use Objective-C IOHIDUserDevice?**
-   - What we know: Current `swift -e import CoreHID` fails because the SDK and compiler build ids differ. [VERIFIED: local command]
-   - RESOLVED: Plan `07-01` attempts Swift CoreHID first because D-01 locks CoreHID as the first path. If Swift remains blocked by toolchain mismatch after setup, the same plan may use Objective-C `IOHIDUserDevice` as a user-space virtual HID shim without switching to DriverKit.
-   - RESOLVED: DriverKit fallback is reserved for recorded user-space visibility/output/runtime failure after CoreHID/IOHIDUserDevice proof attempts, per D-02/D-03/D-09.
+3. **Will macOS send output/rumble report ID 2?**  
+   - What we know: Android can receive set/interrupt callbacks and Game Controller has haptics APIs for supported controllers. [VERIFIED: Android SDK; CITED: Apple Game Controller haptics docs]  
+   - What's unclear: Generic descriptor output behavior from macOS. [ASSUMED]  
+   - Recommendation: Implement callback counters and report unsupported if no callback after documented probe. [VERIFIED: context D-13/D-16]
 
 ## Environment Availability
 
 | Dependency | Required By | Available | Version | Fallback |
 |------------|-------------|-----------|---------|----------|
-| macOS target | DESK-03 live proof | yes | macOS 26.2 build 25C56, arm64 [VERIFIED: `sw_vers`, `uname -m`] | none |
-| Command Line Tools SDK | CoreHID/IOKit header research | yes | `/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk` [VERIFIED: `xcrun --show-sdk-path`] | Full Xcode |
-| Full Xcode app | Swift helper/DriverKit/system extension build | no | `xcodebuild` reports CLT-only; no `/Applications/Xcode*.app` found [VERIFIED: local commands] | Install/select matching Xcode |
-| Swift compiler | CoreHID Swift helper | blocked | Swift 6.3.2, target arm64 macOS 26.0; `import CoreHID` fails due SDK/toolchain mismatch [VERIFIED: `swift --version`; `swift -e`] | Use matching Xcode/CLT or ObjC IOHIDUserDevice shim |
-| Apple clang | ObjC IOHIDUserDevice shim | yes | Apple clang 21.0.0 [VERIFIED: `/usr/bin/clang --version`] | Full Xcode clang |
-| ObjC IOKit syntax probe | IOHIDUserDevice shim | yes | `IOHIDUserDeviceCreateWithProperties` syntax-only compile passes [VERIFIED: local `/usr/bin/clang -fsyntax-only`] | none |
-| Code signing identities | Entitled helper/package | no | `0 valid identities found` [VERIFIED: `security find-identity -v -p codesigning`] | Ad-hoc signing if entitlement permits; otherwise developer certificate/provisioning |
-| `hidutil` | CLI enumeration | yes | local macOS tool [VERIFIED: `hidutil list -h`] | `ioreg` |
-| `ioreg` | CLI enumeration/debug | yes | local macOS tool [VERIFIED: `ioreg -h`] | `hidutil` |
-| `systemextensionsctl` | DriverKit fallback inspection | yes | path exists [VERIFIED: `command -v systemextensionsctl`] | System Settings UI plus logs |
-| Java | Kotlin desktop tests | yes | OpenJDK 17.0.19 [VERIFIED: `java -version`] | configured JDK 17 |
-| Gradle | Kotlin desktop tests | partially blocked | Homebrew Gradle present, but sandbox run failed on native services/socket lock [VERIFIED: local `gradle --version` attempt] | Existing project workaround uses `GRADLE_USER_HOME=/private/tmp/btgun-gradle`; may need unsandboxed run |
-| Android live device/session | Final proof | required, not audited here | Existing phases have Android/gun path approved. [VERIFIED: `.planning/STATE.md`] | Replay fixtures for smoke only |
+| Java 17 | Android/desktop Gradle tests | Yes [VERIFIED: `java -version`] | OpenJDK 17.0.19 | none |
+| Android SDK platform API 35 | Compile/probe Android Bluetooth HID APIs | Yes [VERIFIED: `android.jar` path and `javap`] | API 35 | none |
+| `adb` | Physical Android proof | Yes [VERIFIED: `adb version`] | 36.0.0-13206524 | manual device UI only |
+| Gradle wrapper | Repeatable local test commands | No [VERIFIED: `find . -name gradlew`] | n/a | Use installed `gradle` only after local Gradle startup is repaired, or run tests in CI. [VERIFIED: `gradle --version` failed locally] |
+| Installed Gradle CLI | Android/desktop local tests | Broken [VERIFIED: `gradle --version`] | command present, startup fails with `Failed to load native library 'libnative-platform.dylib' for Mac OS X aarch64` | Planner must add environment repair/checkpoint before relying on local Gradle tests. [VERIFIED: local command output] |
+| Xcode `simctl` | Optional macOS tester/dev tooling | No [VERIFIED: `xcrun simctl` error] | n/a | Swift/AppKit tester can be manual or use existing tools; not blocker for Android HID code. [ASSUMED] |
+| Local Bluetooth controller visibility | macOS Bluetooth pairing proof | Unclear [VERIFIED: `system_profiler SPBluetoothDataType` returned controllerInfo nil] | n/a | Use System Settings/manual proof; if local Bluetooth broken, need another Mac or hardware fix. [ASSUMED] |
+| Android HID-capable phone | ANDR-09/DESK-03 proof | Unknown [VERIFIED: not probed in this research] | n/a | Test alternate Android phone before Windows VHF fallback. [VERIFIED: context D-04/D-19] |
 
 **Missing dependencies with no fallback:**
-- Full Xcode or matching CLT/toolchain for Swift CoreHID and DriverKit planning/build. [VERIFIED: local commands]
-- Valid signing/provisioning path for restricted virtual HID entitlement is unresolved. [VERIFIED: local signing identity audit; ASSUMED entitlement access]
+- Live Android phone that exposes HID Device role is required for primary Phase 7 pass. [VERIFIED: requirements ANDR-09/DESK-03]
+- macOS Bluetooth pairing/tester proof is required for DESK-03. [VERIFIED: context D-09/D-12]
+- A working Android/desktop Gradle test runner is required for automated validation; local installed `gradle` is currently broken and no wrapper exists. [VERIFIED: local commands]
 
 **Missing dependencies with fallback:**
-- Swift CoreHID compile is blocked; Objective-C `IOHIDUserDevice` syntax probe works as a user-space shim candidate, but it still needs runtime entitlement proof. [VERIFIED: local commands]
-- Gradle task listing failed in sandbox; planner can use known `desktop-companion/build.gradle.kts` tasks and run Gradle with the established `/private/tmp` Gradle home or approval if needed. [VERIFIED: codebase; VERIFIED: local command]
+- If Android HID proof fails after alternate phone, use completed Windows VHF path as fallback. [VERIFIED: context D-19]
 
 ## Validation Architecture
 
@@ -477,36 +451,54 @@ ioreg -r -c IOHIDDevice -l -w 0 | rg 'BT Gun|VendorID|ProductID|PrimaryUsage|Max
 
 | Property | Value |
 |----------|-------|
-| Framework | Kotlin/JVM main-style tests invoked by Gradle `Test` task, Kotlin plugin 2.0.21, JDK 17 [VERIFIED: `desktop-companion/build.gradle.kts`; `java -version`] |
-| Config file | `desktop-companion/build.gradle.kts`, `desktop-companion/settings.gradle.kts` [VERIFIED: codebase grep] |
-| Quick run command | `cd desktop-companion && GRADLE_USER_HOME=/private/tmp/btgun-gradle gradle test --tests '*Macos*'` [ASSUMED; current build uses main-style tests rather than pure JUnit selectors] |
-| Full suite command | `cd desktop-companion && GRADLE_USER_HOME=/private/tmp/btgun-gradle gradle test` [VERIFIED: build file task exists; local sandbox run blocked] |
+| Framework | Android/JVM main-function unit tests executed from Gradle `test`; no JUnit framework dependency observed. [VERIFIED: `android-host/app/build.gradle.kts`] |
+| Config file | `android-host/app/build.gradle.kts` explicit test class runner list. [VERIFIED: file read] |
+| Quick run command | `cd android-host && gradle test` after Gradle startup repair; currently blocked locally by `libnative-platform.dylib` load failure. [VERIFIED: local command output] |
+| Full suite command | `cd android-host && gradle test && cd ../desktop-companion && gradle test` after Gradle startup repair. [VERIFIED: local Gradle currently broken; ASSUMED: commands match existing project layout] |
 
 ### Phase Requirements -> Test Map
 
 | Req ID | Behavior | Test Type | Automated Command | File Exists? |
 |--------|----------|-----------|-------------------|--------------|
-| DESK-03 | macOS backend packs semantic state into descriptor-compatible input reports and publishes them to helper. | unit/integration | `cd desktop-companion && GRADLE_USER_HOME=/private/tmp/btgun-gradle gradle test --tests '*MacosHidReportPacker*'` [ASSUMED] | no - Wave 0 |
-| DESK-03 | Helper creates OS-visible HID device enumerated by `hidutil`/`ioreg`. | live smoke | `gradle smokeDesktopBackendMacosCoreHid` plus `hidutil list --matching ...` [ASSUMED] | no - Wave 0 |
-| DESK-03 | Live paired Android/gun stream moves OS-visible joystick axes/buttons. | manual/live proof | `MacosBackendRuntime` attached to live `ControlServer`, plus user/agent tester evidence. [VERIFIED: context D-05/D-06] | no - later wave |
-| DESK-06 | Output report bytes map to `HapticCommand` with strength/duration/TTL constraints. | unit | `gradle test --tests '*MacosOutputReportMapper*'` [ASSUMED] | no - Wave 0 |
-| DESK-06 | OS/HID set-report probe reaches helper and routes phone haptic command. | integration/live | `smokeDesktopBackendMacosCoreHid -Pbtgun.smoke.haptic=true` plus output probe [ASSUMED] | no - later wave |
-| PACK-03 | Setup docs cover strategy, entitlements, commands, permission prompts, and fallback. | docs/static | `test -f docs/setup/macos-virtual-hid.md && rg -n 'CoreHID|HIDVirtualDevice|com.apple.developer.hid.virtual.device|HIDDriverKit|system extension|hidutil|ioreg' docs/setup/macos-virtual-hid.md` [ASSUMED] | no - later wave |
+| ANDR-09 | Capability gate distinguishes Bluetooth off, missing `BLUETOOTH_CONNECT`, HID proxy unavailable, registration failed, no host, host disconnected. [VERIFIED: context D-02] | unit | `cd android-host && gradle test` | No - Wave 0 add `AndroidBluetoothHidGamepadStateTest.kt` and extend `PermissionGateTest`. |
+| ANDR-09 | `getProfileProxy`/`registerApp` callbacks update status without crashing when unavailable. [VERIFIED: Android callback surface] | unit with fake adapter/proxy | `cd android-host && gradle test` | No - Wave 0 add adapter seam test. |
+| ANDR-10 | HID descriptor bytes declare gamepad/joystick-style input with six buttons and four axes. [VERIFIED: context D-05/D-08] | unit/golden | `cd android-host && gradle test` | No - Wave 0 add `BtGunHidDescriptorTest.kt`. |
+| ANDR-10 | Report packer maps trigger/reload/X/Y/A/B bits, stickX/stickY, aimX/aimY, stale/center behavior. [VERIFIED: context D-08] | unit/golden | `cd android-host && gradle test` | No - Wave 0 add `BtGunHidReportPackerTest.kt`. |
+| ANDR-10 | Packer uses calibrated `aimX`/`aimY` first, raw aim fallback second. [VERIFIED: context D-07] | unit | `cd android-host && gradle test` | No - Wave 0 add in packer test. |
+| ANDR-11 | Output report validator accepts only report ID 2/version 1/valid strength-duration-TTL/reserved zero. [VERIFIED: context D-14; Windows mapper precedent] | unit | `cd android-host && gradle test` | No - Wave 0 add `BtGunHidOutputReportMapperTest.kt`. |
+| ANDR-11 | Invalid output reports call/report `reportError` and do not vibrate. [VERIFIED: context D-14] | unit with fake HID + fake phone | `cd android-host && gradle test` | No - Wave 0 add callback behavior test. |
+| DESK-03 | macOS Bluetooth pairs to Android and sees OS-visible gamepad. [VERIFIED: context D-09/D-12] | manual/live | Evidence row in `docs/evidence/manifests/phase7-android-bluetooth-hid.jsonl` | No - Wave 0 add evidence schema/doc. |
+| DESK-03 | Game Controller/tester shows live gun buttons and phone motion axes. [VERIFIED: context D-12] | manual/live | Tester output + user confirmation row | No - Wave 0 add tester/proof guide. |
+| DESK-06 | Android callback records host output seen/not seen and phone haptic result or unsupported reason. [VERIFIED: context D-16] | manual/live + unit validator | `cd android-host && gradle test`; evidence row | No - Wave 0 add mapper test + proof doc. |
+| PACK-03 | Docs frame Android HID as primary and CoreHID/DriverKit as fallback evidence only. [VERIFIED: requirements; quick summary] | docs/static | `rg -n 'Android Bluetooth HID|corehid-runtime-blocked|fallback' docs/setup/android-bluetooth-hid-gamepad.md` | No - add docs. |
+| PACK-06 | Docs include setup, compatibility checks, pairing, descriptor/report bytes, output behavior, Windows fallback. [VERIFIED: requirements] | docs/static | `rg -n 'HID_DEVICE|registerApp|sendReport|onSetReport|Windows VHF fallback|redaction' docs/setup/android-bluetooth-hid-gamepad.md` | No - add docs. |
+
+### Manual Proof Rows
+
+| Proof ID | Required Evidence | Redaction |
+|----------|-------------------|-----------|
+| phase7-android-hid-proxy | Phone model class redacted, Android SDK/version bucket, proxy available/unavailable, registration accepted/failed. [VERIFIED: context D-02/D-04] | No Bluetooth MAC, phone serial, account name, raw device id. [VERIFIED: context evidence rule] |
+| phase7-macos-bluetooth-paired | macOS Bluetooth UI/System Settings confirms connected controller label, sanitized. [VERIFIED: context D-09] | Redact Bluetooth address, exact phone name if personal, screenshots with nearby devices. [VERIFIED: context evidence rule] |
+| phase7-gamecontroller-input | Tester shows trigger/reload/X/Y/A/B and four axes move from real gun/phone motion. [VERIFIED: context D-12] | Store sanitized text rows, not raw screenshots unless scrubbed. [VERIFIED: context evidence rule] |
+| phase7-hid-output-callback | Android status shows `onSetReport`/`onInterruptData` seen or not seen, validation result, phone vibration result or unsupported reason. [VERIFIED: context D-16] | No raw host device ids; output bytes allowed only if non-secret descriptor/test bytes. [ASSUMED] |
+| phase7-windows-fallback-gate | If blocked, records current phone + alternate phone attempt and cites Phase 6 Windows VHF fallback. [VERIFIED: context D-04/D-19] | No target host IPs or unique device ids unless redacted. [VERIFIED: evidence rule] |
 
 ### Sampling Rate
 
-- **Per task commit:** `cd desktop-companion && GRADLE_USER_HOME=/private/tmp/btgun-gradle gradle test --tests '*Macos*'` plus native helper syntax/build command for touched helper language. [ASSUMED]
-- **Per wave merge:** `cd desktop-companion && GRADLE_USER_HOME=/private/tmp/btgun-gradle gradle test` and relevant `smokeDesktopBackendMacos*` command. [VERIFIED: existing Gradle pattern; ASSUMED new task names]
-- **Phase gate:** Full desktop tests, CoreHID or fallback live smoke, CLI enumeration artifact, OS-output-to-phone-haptic proof, live Android/gun stream visual proof, and PACK-03 docs complete. [VERIFIED: context D-04 through D-13]
+- **Per task commit:** `cd android-host && gradle test` for Android HID logic after Gradle startup repair. [VERIFIED: local Gradle currently broken]
+- **Per wave merge:** Android tests plus relevant docs/static `rg` checks after Gradle startup repair. [ASSUMED]
+- **Phase gate:** Unit tests green, macOS Bluetooth/Game Controller live proof complete, output proof or unsupported row complete, redaction scan clean. [VERIFIED: context D-09/D-16]
 
 ### Wave 0 Gaps
 
-- [ ] `desktop-companion/src/test/kotlin/com/btgun/desktop/backend/macos/MacosHidReportPackerTest.kt` - covers DESK-03 report bytes. [ASSUMED]
-- [ ] `desktop-companion/src/test/kotlin/com/btgun/desktop/backend/macos/MacosOutputReportMapperTest.kt` - covers DESK-06 mapper constraints. [ASSUMED]
-- [ ] `desktop-companion/src/test/kotlin/com/btgun/desktop/backend/macos/MacosVirtualControllerBackendTest.kt` - covers lifecycle/capabilities without OS-visible claim until helper proof. [ASSUMED]
-- [ ] `desktop-companion/src/test/kotlin/com/btgun/desktop/backend/macos/MacosBackendRuntimeTest.kt` - covers callback preservation, stale behavior, diagnostics, and output haptic routing. [ASSUMED]
-- [ ] Native helper minimal build/proof command - covers CoreHID/IOHIDUserDevice compile, signing, entitlement, launch, and enumeration. [ASSUMED]
-- [ ] `docs/setup/macos-virtual-hid.md` - covers PACK-03. [ASSUMED]
+- [ ] `android-host/app/src/test/java/com/btgun/host/hid/BtGunHidDescriptorTest.kt` - covers ANDR-10 descriptor bytes. [ASSUMED]
+- [ ] `android-host/app/src/test/java/com/btgun/host/hid/BtGunHidReportPackerTest.kt` - covers ANDR-10 report vectors. [ASSUMED]
+- [ ] `android-host/app/src/test/java/com/btgun/host/hid/BtGunHidOutputReportMapperTest.kt` - covers ANDR-11 validation. [ASSUMED]
+- [ ] `android-host/app/src/test/java/com/btgun/host/hid/AndroidBluetoothHidGamepadStateTest.kt` - covers ANDR-09 status transitions. [ASSUMED]
+- [ ] Extend `PermissionGateTest.java` / `DashboardStateTest.kt` for HID capability rows. [VERIFIED: existing tests]
+- [ ] `docs/setup/android-bluetooth-hid-gamepad.md` - covers PACK-03/PACK-06. [ASSUMED]
+- [ ] `docs/evidence/manifests/phase7-android-bluetooth-hid.jsonl` - sanitized evidence rows. [ASSUMED]
+- [ ] Redaction scan command: `rg -n '([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}|qr_secret|stream key|HMAC key|private key|device[_ -]?id|serial' docs .planning/phases/07-macos-virtual-joystick-path`. [ASSUMED]
 
 ## Security Domain
 
@@ -514,53 +506,54 @@ ioreg -r -c IOHIDDevice -l -w 0 | rg 'BT Gun|VendorID|ProductID|PrimaryUsage|Max
 
 | ASVS Category | Applies | Standard Control |
 |---------------|---------|------------------|
-| V2 Authentication | yes | Preserve existing paired desktop/session authentication in Kotlin `ControlServer`; native helper receives no pairing/session material. [VERIFIED: context D-16; VERIFIED: codebase grep] |
-| V3 Session Management | yes | Keep one active trusted session and existing haptic command TTL/ack behavior; helper is local process only. [VERIFIED: `.planning/STATE.md`; VERIFIED: `WindowsBackendRuntime.kt`] |
-| V4 Access Control | yes | DriverKit fallback user-client access must be scoped by DriverKit entitlements and app bundle identifiers. [VERIFIED: local SDK `IOKitKeys.h` lines 121-150; CITED: https://developer.apple.com/documentation/driverkit/requesting-entitlements-for-driverkit-development] |
-| V5 Input Validation | yes | Validate helper frames, report lengths, report IDs, reserved bytes, duration, TTL, and state ranges before publishing/haptic routing. [VERIFIED: Windows mapper pattern; ASSUMED for macOS mapper] |
-| V6 Cryptography | yes | Do not add crypto in native helper; reuse existing authenticated LAN session path. [VERIFIED: context D-16; VERIFIED: `.planning/STATE.md`] |
+| V2 Authentication | no for Bluetooth HID input path; yes for retained LAN fallback. [VERIFIED: Phase 7 context; Phase 3/4 context] | Do not alter existing LAN pairing/auth; Bluetooth pairing handled by OS. [VERIFIED: existing architecture] |
+| V3 Session Management | yes for HID mode lifecycle. [ASSUMED] | Explicit Start/Stop Bluetooth gamepad state, host connected/disconnected state, unregister on stop. [VERIFIED: context D-01/D-02] |
+| V4 Access Control | yes. [ASSUMED] | Only connected HID host can receive reports; Android Bluetooth stack enforces paired host, app enforces one active host status. [CITED: Android BluetoothHidDevice docs; ASSUMED: one active host policy] |
+| V5 Input Validation | yes. [VERIFIED: context D-14] | Strict output report parser; invalid shape triggers `reportError` and no haptic. [VERIFIED: context D-14; Android SDK `reportError`] |
+| V6 Cryptography | no new crypto in primary Bluetooth HID path. [ASSUMED] | Do not add custom crypto; preserve existing LAN crypto separately. [VERIFIED: prior phase contexts] |
+| V9 Communications | yes. [ASSUMED] | Use OS Bluetooth pairing/HID stack; do not build custom Bluetooth transport. [CITED: Android BluetoothHidDevice docs] |
+| V14 Configuration | yes. [ASSUMED] | Capability matrix, blocked states, evidence redaction, no secrets/device ids in logs. [VERIFIED: context evidence rule] |
 
-### Known Threat Patterns for macOS Helper Boundary
+### Known Threat Patterns for Android HID Path
 
 | Pattern | STRIDE | Standard Mitigation |
 |---------|--------|---------------------|
-| Local helper spoofing or stale helper binary | Spoofing/Tampering | Kotlin launches explicit helper path, checks version/capabilities handshake, and fails closed on mismatch. [ASSUMED] |
-| Malformed output report triggers arbitrary haptic command | Tampering | `MacosOutputReportMapper` validates report ID/version/length/reserved bytes/duration/TTL before creating `HapticCommand`. [VERIFIED: Windows mapper pattern; ASSUMED] |
-| Session secret leakage into helper logs | Information Disclosure | Helper protocol excludes session ids, keys, QR/manual codes, proof values, and raw LAN payloads. [VERIFIED: context D-16; ASSUMED] |
-| Over-broad DriverKit user client | Elevation of Privilege | If fallback is used, require explicit user-client entitlement/access design and document it in PACK-03. [VERIFIED: local SDK `IOKitKeys.h`; ASSUMED fallback design] |
-| Output/haptic replay after disconnect | Tampering | Kotlin keeps haptic TTL and trusted-session routing; helper output bytes alone cannot vibrate phone. [VERIFIED: existing haptic transport decisions in `.planning/STATE.md`] |
+| Malformed HID output triggers unbounded vibration | Tampering/DoS | Validate report id/type/version/length/ranges/reserved bytes; cap duration/TTL via existing haptic executor. [VERIFIED: context D-14; `DesktopHapticCommand.kt`] |
+| Accidental pairing to wrong Mac | Spoofing | Show connected host status, manual proof step, and user-visible pairing window only after explicit action. [VERIFIED: context D-01/D-10; ASSUMED: host display detail available] |
+| Sensitive device ids in evidence | Information Disclosure | Redaction scan and manifest-only sanitized rows. [VERIFIED: context evidence rule] |
+| HID mode left advertised after session | Elevation/DoS | Stop/unregister HID app on Stop session/timeout/service destroy. [ASSUMED; VERIFIED: existing service stop pattern] |
+| Desktop companion secretly remains in input path | Boundary violation | Validation must prove macOS Bluetooth/Game Controller input without desktop companion. [VERIFIED: context D-03/D-11] |
 
 ## Sources
 
 ### Primary (HIGH confidence)
 
-- Apple CoreHID `HIDVirtualDevice` documentation - virtual HID device concept and API surface. [CITED: https://developer.apple.com/documentation/corehid/hidvirtualdevice]
-- Apple CoreHID "Creating virtual devices" documentation - virtual device creation/testing context. [CITED: https://developer.apple.com/documentation/corehid/creatingvirtualdevices]
-- Apple CoreHID entitlement page `com.apple.developer.hid.virtual.device` - virtual HID entitlement reference. [CITED: https://developer.apple.com/documentation/bundleresources/entitlements/com.apple.developer.hid.virtual.device]
-- Apple HIDDriverKit documentation - HID DriverKit framework and system-extension packaging context. [CITED: https://developer.apple.com/documentation/hiddriverkit]
-- Apple DriverKit entitlement request documentation - entitlement request process for DriverKit development. [CITED: https://developer.apple.com/documentation/driverkit/requesting-entitlements-for-driverkit-development]
-- Apple System Extensions install documentation - app-bundled system extension activation model. [CITED: https://developer.apple.com/documentation/systemextensions/installing-system-extensions-and-drivers]
-- Local SDK `CoreHID.swiftinterface` - `HIDVirtualDevice`, `dispatchInputReport`, delegate set/get report, macOS availability. [VERIFIED: local SDK `/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/CoreHID.framework/.../arm64e-apple-macos.swiftinterface`]
-- Local SDK `IOHIDUserDevice.h` - virtual device creation, entitlement requirement, report descriptor requirement, set-report callbacks, report dispatch. [VERIFIED: local SDK]
-- Local SDK `HIDDriverKit/IOHIDDevice.iig` and `DriverKit/IOKitKeys.h` - DriverKit HID report methods and entitlement constants. [VERIFIED: local SDK]
-- Project code files under `desktop-companion/src/main/kotlin/com/btgun/desktop/backend/` and Phase 7 context. [VERIFIED: codebase grep]
+- Local repo: `AGENTS.md`, `.planning/STATE.md`, `.planning/PROJECT.md`, `.planning/ROADMAP.md`, `.planning/REQUIREMENTS.md`, `07-CONTEXT.md`, quick reroute summary, Phase 2/4/5/6 contexts. [VERIFIED: codebase grep]
+- Local repo code: `AndroidManifest.xml`, `HostCapabilityProbe.kt`, `PermissionGate.kt`, `HostSessionService.kt`, `NormalizedEvents.kt`, `DesktopHapticCommand.kt`, `PhoneHaptics.kt`, `VirtualControllerDescriptor.kt`, `WindowsHidReportPacker.kt`, `WindowsOutputReportMapper.kt`. [VERIFIED: codebase grep]
+- Local Android SDK API 35 `android.jar` inspected with `javap`: `BluetoothHidDevice`, `BluetoothHidDevice.Callback`, `BluetoothHidDeviceAppSdpSettings`, `BluetoothProfile`, `BluetoothAdapter`, `PackageManager`. [VERIFIED: local SDK]
+- Android `BluetoothHidDevice` docs: https://developer.android.com/reference/android/bluetooth/BluetoothHidDevice [CITED]
+- Android `BluetoothHidDevice.Callback` docs: https://developer.android.com/reference/kotlin/android/bluetooth/BluetoothHidDevice.Callback [CITED]
+- Android `BluetoothHidDeviceAppSdpSettings` docs: https://developer.android.com/reference/android/bluetooth/BluetoothHidDeviceAppSdpSettings [CITED]
+- Android Bluetooth permissions docs: https://developer.android.com/develop/connectivity/bluetooth/bt-permissions [CITED]
+- Apple Game Controller docs: https://developer.apple.com/documentation/gamecontroller/gccontroller and https://developer.apple.com/documentation/gamecontroller/gccontroller/extendedgamepad [CITED]
+- Apple Support macOS controller pairing: https://support.apple.com/guide/games/connect-a-game-controller-devf8cec167c/mac [CITED]
 
 ### Secondary (MEDIUM confidence)
 
-- USB-IF HID Usage Tables 1.7 - generic HID usage source for gamepad/joystick descriptor semantics. [CITED: https://www.usb.org/document-library/hid-usage-tables-17]
-- Apple docs search snippets for CoreHID virtual game controller language and System Extensions approval behavior. [CITED: https://developer.apple.com/documentation/corehid; CITED: https://developer.apple.com/documentation/systemextensions/ossystemextensionrequest]
+- Apple Game Controller haptics docs: https://developer.apple.com/documentation/gamecontroller/gccontroller/haptics [CITED]
+- USB-IF HID Usage Tables for gamepad/joystick recognition: https://www.usb.org/sites/default/files/hut1_6.pdf [CITED]
 
 ### Tertiary (LOW confidence)
 
-- Assumed helper IPC and probe design choices in this research. [ASSUMED]
-- Assumed availability of a macOS tester/game UI that can produce useful visual and rumble evidence. [ASSUMED]
+- Community reports imply Android HID Device support can vary by device/OEM; this is treated as [ASSUMED] and gated by live phone proof, not as authoritative. [ASSUMED]
 
 ## Metadata
 
 **Confidence breakdown:**
-- Standard stack: MEDIUM - CoreHID/IOHIDUserDevice/DriverKit APIs are verified from Apple docs and local SDK, but local Swift/signing/runtime proof is blocked. [VERIFIED: sources above]
-- Architecture: HIGH - Existing Kotlin backend/runtime boundaries and user decisions are explicit in code and context. [VERIFIED: codebase grep; VERIFIED: context]
-- Pitfalls: MEDIUM - Entitlement/output behavior risks are verified at API/setup level, but live CoreHID behavior still needs target proof. [VERIFIED: local SDK; ASSUMED runtime behavior]
+- Standard stack: HIGH - Android API surface, existing code, and official docs are verified. [VERIFIED: local SDK; official docs]
+- Architecture: HIGH - Phase 7 context locks Android HID primary path and desktop diagnostic-only boundary. [VERIFIED: `07-CONTEXT.md`]
+- Compatibility proof: MEDIUM - phone HID role and macOS output behavior need live device evidence. [ASSUMED; VERIFIED: context requires proof]
+- Pitfalls: MEDIUM - API/permission pitfalls are verified; OEM/macOS behavior is live-proof dependent. [VERIFIED: Android docs; ASSUMED: compatibility variance]
 
 **Research date:** 2026-06-10
-**Valid until:** 2026-06-17 for Apple/macOS tooling findings; 2026-07-10 for repository architecture findings. [ASSUMED]
+**Valid until:** 2026-07-10 for API docs; 2026-06-17 for compatibility conclusions because phone/macOS behavior must be measured on real devices. [ASSUMED]
