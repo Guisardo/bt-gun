@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 07-05-PLAN.md
-last_updated: "2026-06-10T17:06:46Z"
+stopped_at: "Checkpoint 07-06 Task 3: DriverKit approval required"
+last_updated: "2026-06-10T17:18:17.640Z"
 last_activity: 2026-06-10 -- Phase 07 Plan 05 recorded CoreHID runtime block and mandatory DriverKit fallback gate
 progress:
   total_phases: 10
@@ -214,6 +214,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-10T17:06:46Z
-Stopped at: Completed 07-05-PLAN.md
-Resume file: None
+Last session: 2026-06-10T17:18:17.631Z
+Stopped at: Checkpoint 07-06 Task 3: DriverKit approval required
+Resume file: .planning/phases/07-macos-virtual-joystick-path/07-06-SUMMARY.md
