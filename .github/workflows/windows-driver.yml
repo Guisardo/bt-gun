@@ -189,6 +189,7 @@ jobs:
             /p:Platform=$env:BUILD_PLATFORM `
             /p:PlatformToolset=WindowsKernelModeDriver10.0 `
             /p:WindowsTargetPlatformVersion=$env:WINDOWS_KIT_VERSION `
+            /p:SignMode=Off `
             /p:OutDir="$driverOut\"
 
       - name: Build user-mode helper tools
