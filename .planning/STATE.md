@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
-stopped_at: "Phase 07 Android Bluetooth HID context gathered"
-last_updated: "2026-06-10T21:36:48.669Z"
-last_activity: 2026-06-10 -- Phase 07 Android Bluetooth HID context gathered
+status: planning
+stopped_at: Phase 07 Android Bluetooth HID plans ready
+last_updated: "2026-06-10T22:13:15.352Z"
+last_activity: 2026-06-10 -- Phase 07 Android Bluetooth HID plans created
 progress:
   total_phases: 10
   completed_phases: 6
-  total_plans: 43
-  completed_plans: 41
-  percent: 95
+  total_plans: 42
+  completed_plans: 36
+  percent: 86
 ---
 
 # Project State
@@ -25,13 +25,13 @@ See: .planning/PROJECT.md (updated 2026-06-09)
 
 ## Current Position
 
-Phase: 07 (android-bluetooth-hid-gamepad-path) — NEEDS REPLAN
-Plan: Replan remaining Phase 07 work around Android phone Bluetooth HID gamepad
-Next phase: 07 Android Bluetooth HID gamepad planning/execution
-Status: Android Bluetooth HID context captured; Phase 07 is ready for replanning around the phone HID gamepad path.
-Last activity: 2026-06-10 -- Phase 07 Android Bluetooth HID context gathered
+Phase: 07 (android-bluetooth-hid-gamepad-path) — READY TO EXECUTE
+Plan: 6 active Android Bluetooth HID gamepad plans ready
+Next phase: Execute Phase 07 Android Bluetooth HID gamepad path
+Status: Phase 07 was replanned around Android phone Bluetooth HID gamepad. Legacy CoreHID/DriverKit plans and summaries are archived under `legacy-macos-virtual-hid/` and no longer active execution inputs.
+Last activity: 2026-06-10 -- Phase 07 Android Bluetooth HID plans created
 
-Progress: [█████████░] 41/43 planned plans complete. Phase 06 has 6/6 plans complete; Phase 07 has 5/7 legacy macOS-driver plans executed before reroute and now needs Android HID replanning.
+Progress: [████████░░] 36/42 active planned plans complete. Phase 06 has 6/6 plans complete; Phase 07 has 0/6 active Android Bluetooth HID plans executed after the reroute.
 
 ## Performance Metrics
 
@@ -50,12 +50,12 @@ Progress: [█████████░] 41/43 planned plans complete. Phase 0
 | 04 | 6 | - | - |
 | 05 | 5 | hardware-interactive | hardware-interactive |
 | 06 | 6 | hardware-interactive | hardware-interactive |
-| 07 | 7 | active | Plans 01-05 complete; remaining plans pending |
+| 07 | 6 | active | Android Bluetooth HID plans 01-06 ready to execute |
 
 **Recent Trend:**
 
-- Recent completed execution plans: 06-P02, 06-P03, 06-P05, 06-P04, 06-P06, 07-P01, 07-P02, 07-P03, 07-P04, and 07-P05 complete.
-- Trend: CoreHID and DriverKit are no longer primary for macOS because no-subscription virtual HID is blocked. Phase 07 now targets Android phone Bluetooth HID gamepad proof, with Windows VHF retained as fallback.
+- Recent completed execution plans: 05-P05, 06-P01, 06-P02, 06-P03, 06-P05, 06-P04, and 06-P06 complete.
+- Trend: CoreHID and DriverKit are no longer primary for macOS because no-subscription virtual HID is blocked. Phase 07 active plans now target Android phone Bluetooth HID gamepad proof, with Windows VHF retained as fallback.
 
 *Updated after each plan completion*
 | Phase 01 P01 | 10 min | 3 tasks | 6 files |
@@ -94,11 +94,7 @@ Progress: [█████████░] 41/43 planned plans complete. Phase 0
 | Phase 06 P04 | 11 min | 3 tasks | 6 files |
 | Phase 06 P05 | hardware-interactive | CI build/sign/package | approved |
 | Phase 06 P06 | hardware-interactive | Windows target proof | approved |
-| Phase 07 P01 | checkpointed; closeout complete | 3 tasks | 6 files |
-| Phase 07 P02 | 5 min | 2 TDD tasks | 5 files |
-| Phase 07 P03 | 10 min | 3 tasks | 7 files |
-| Phase 07 P04 | 8 min | 3 tasks | 7 files |
-| Phase 07 P05 | 12 min | 3 tasks | 7 files |
+| Phase 07 legacy P01-P05 | archived | CoreHID/DriverKit evidence | fallback only |
 
 ## Accumulated Context
 
@@ -217,6 +213,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-10T21:36:48.663Z
-Stopped at: Phase 07 Android Bluetooth HID context gathered
-Resume file: .planning/phases/07-macos-virtual-joystick-path/07-CONTEXT.md
+Last session: 2026-06-10T22:13:15.352Z
+Stopped at: Phase 07 Android Bluetooth HID plans ready
+Resume file: .planning/phases/07-macos-virtual-joystick-path/07-01-PLAN.md

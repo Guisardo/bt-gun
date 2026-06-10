@@ -243,38 +243,34 @@ Plans:
   4. Bluetooth HID output or rumble reports route to Android phone haptics when supported, or the app reports the limitation clearly.
   5. Repository documents Android Bluetooth HID setup, macOS pairing, output-report behavior, compatibility risks, and the fallback to the completed Windows virtual joystick path.
 
-**Plans:** 5/7 legacy macOS-driver plans executed before reroute; Android Bluetooth HID plan set needs replanning.
+**Plans:** 0/6 active Android Bluetooth HID plans executed after reroute. Legacy macOS-driver plans and summaries are archived under `.planning/phases/07-macos-virtual-joystick-path/legacy-macos-virtual-hid/`.
 Plans:
 
-**Reroute note (2026-06-10):** CoreHID and DriverKit virtual HID paths require Apple entitlement/signing or local security relaxation and do not satisfy the no-subscription primary path. Keep the work below as evidence/fallback scaffolding, but replan the remaining Phase 7 work around Android Bluetooth HID gamepad mode.
+**Reroute note (2026-06-10):** CoreHID and DriverKit virtual HID paths require Apple entitlement/signing or local security relaxation and do not satisfy the no-subscription primary path. Legacy work is retained only as evidence/fallback scaffolding. The active Phase 7 plan set below is Android Bluetooth HID gamepad work.
 
 **Wave 1**
 
-- [x] 07-01-PLAN.md — Legacy macOS CoreHID feasibility, entitlement gate, and PACK-03 setup foundation. CoreHID recorded `corehid-runtime-blocked`; selected local-development-only DriverKit fallback route with no DESK-03/DESK-06 production support claim yet.
+- [ ] 07-01-PLAN.md — Gradle startup gate, Android HID capability/status model, and sanitized evidence scaffold.
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [x] 07-02-PLAN.md — Legacy macOS HID report packing and output haptic mapping. Pure Kotlin report contracts complete; DESK-03/DESK-06 OS proof remains pending.
+- [ ] 07-02-PLAN.md — Android Bluetooth HID descriptor and deterministic input report packer.
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [x] 07-03-PLAN.md — Legacy macOS helper client, backend lifecycle, and honest capabilities.
+- [ ] 07-03-PLAN.md — Android `BluetoothHidDevice` adapter seam and strict output-report mapper.
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [x] 07-04-PLAN.md — Legacy live companion runtime wiring and authenticated haptic routing.
+- [ ] 07-04-PLAN.md — HostSessionService, dashboard, and Activity integration for explicit Bluetooth gamepad mode.
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
-- [x] 07-05-PLAN.md — Legacy CoreHID OS-visible smoke and OS-origin output probe gate. Real smoke/probe exist; gate recorded `corehid-runtime-blocked`.
+- [ ] 07-05-PLAN.md — Live Android phone plus macOS Bluetooth/Game Controller proof checkpoints.
 
-**Paused legacy Wave 6**
+**Wave 6** *(blocked on Wave 5 completion)*
 
-- [ ] 07-06-PLAN.md — Local-development-only HIDDriverKit fallback scaffold. Retain as fallback evidence only; do not use as primary no-subscription macOS path.
-
-**Replacement planning target**
-
-- [ ] Replan Phase 7 around Android Bluetooth HID gamepad proof: phone HID role detection, HID descriptor/report sender, macOS pairing proof, output-report-to-phone-haptic proof, and Windows fallback decision gate.
+- [ ] 07-06-PLAN.md — Android Bluetooth HID setup docs, redaction, alternate-phone gate, and Windows VHF fallback decision.
 
 ### Phase 8: Desktop Profiles and Mapping
 
