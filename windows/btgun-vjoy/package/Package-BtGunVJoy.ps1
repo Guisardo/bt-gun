@@ -43,6 +43,7 @@ New-Item -ItemType Directory -Force -Path $PackageOutputRoot | Out-Null
 $packageRoot = (Resolve-Path $PackageOutputRoot).Path
 $driverOut = Join-Path $packageRoot "driver"
 $toolsOut = Join-Path $packageRoot "tools"
+$proofOut = Join-Path $toolsOut "proof"
 $scriptsOut = Join-Path $packageRoot "scripts"
 $includeOut = Join-Path $packageRoot "include"
 
@@ -53,6 +54,8 @@ Copy-RequiredFile (Join-Path $repo "windows\btgun-vjoy\include\BtGunVJoyIoctl.h"
 Copy-RequiredFile (Join-Path $toolsRoot "btgun-driver-bridge.exe") (Join-Path $toolsOut "btgun-driver-bridge.exe")
 Copy-RequiredFile (Join-Path $toolsRoot "btgun-hid-output-sender.exe") (Join-Path $toolsOut "btgun-hid-output-sender.exe")
 Copy-RequiredFile (Join-Path $toolsRoot "btgun-devnode.exe") (Join-Path $toolsOut "btgun-devnode.exe")
+Copy-RequiredFile (Join-Path $repo "windows\btgun-vjoy\tools\proof\Collect-BtGunVJoyEvidence.ps1") (Join-Path $proofOut "Collect-BtGunVJoyEvidence.ps1")
+Copy-RequiredFile (Join-Path $repo "windows\btgun-vjoy\tools\proof\Redact-BtGunVJoyEvidence.ps1") (Join-Path $proofOut "Redact-BtGunVJoyEvidence.ps1")
 Copy-RequiredFile (Join-Path $repo "windows\btgun-vjoy\package\Install-BtGunVJoy.ps1") (Join-Path $scriptsOut "Install-BtGunVJoy.ps1")
 Copy-RequiredFile (Join-Path $repo "windows\btgun-vjoy\package\Rollback-BtGunVJoy.ps1") (Join-Path $scriptsOut "Rollback-BtGunVJoy.ps1")
 
@@ -80,6 +83,7 @@ $metadata = [ordered]@{
     inf = "driver/btgunvjoy.inf"
     hardwareId = "Root\BTGunVJoy"
     devnodeTool = "tools/btgun-devnode.exe"
+    proofCollector = "tools/proof/Collect-BtGunVJoyEvidence.ps1"
     reportIds = @{
         input = 1
         output = 2
