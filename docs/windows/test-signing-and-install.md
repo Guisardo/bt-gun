@@ -48,7 +48,7 @@ Install the driver package:
 .\scripts\Install-BtGunVJoy.ps1 -ApproveDriverInstall
 ```
 
-If the root devnode is not created by install, use an approved packaged tool only:
+If the root devnode is not created by install, use the packaged `btgun-devnode.exe` through the approval-gated install script:
 
 ```powershell
 # USER APPROVAL REQUIRED

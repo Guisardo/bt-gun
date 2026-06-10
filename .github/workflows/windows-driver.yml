@@ -200,6 +200,7 @@ jobs:
           New-Item -ItemType Directory -Force -Path $toolsOut | Out-Null
           $driverBridge = Join-Path $toolsOut "btgun-driver-bridge.exe"
           $outputSender = Join-Path $toolsOut "btgun-hid-output-sender.exe"
+          $devnodeTool = Join-Path $toolsOut "btgun-devnode.exe"
           $cmdPath = Join-Path $env:RUNNER_TEMP "build-btgun-tools.cmd"
           $cmd = @"
           @echo on
@@ -208,13 +209,15 @@ jobs:
           if errorlevel 1 exit /b %errorlevel%
           cl /nologo /EHsc /std:c++17 /W4 /WX windows\btgun-vjoy\tools\hid-output-sender\HidOutputSender.cpp /Fe:"$outputSender" setupapi.lib hid.lib
           if errorlevel 1 exit /b %errorlevel%
+          cl /nologo /EHsc /std:c++17 /W4 /WX windows\btgun-vjoy\tools\devnode\Devnode.cpp /Fe:"$devnodeTool" setupapi.lib
+          if errorlevel 1 exit /b %errorlevel%
           "@
           Set-Content -Path $cmdPath -Value $cmd -Encoding ASCII
           cmd.exe /c "`"$cmdPath`""
           if ($LASTEXITCODE -ne 0) {
             throw "helper tool build failed with exit code $LASTEXITCODE"
           }
-          foreach ($tool in @($driverBridge, $outputSender)) {
+          foreach ($tool in @($driverBridge, $outputSender, $devnodeTool)) {
             if (-not (Test-Path $tool)) {
               throw "helper tool build did not produce $tool"
             }
@@ -245,7 +248,8 @@ jobs:
             (Join-Path $stage "BtGunVJoy.sys"),
             (Join-Path $stage "btgunvjoy.cat"),
             (Join-Path $env:BTGUN_TOOLS_OUT "btgun-driver-bridge.exe"),
-            (Join-Path $env:BTGUN_TOOLS_OUT "btgun-hid-output-sender.exe")
+            (Join-Path $env:BTGUN_TOOLS_OUT "btgun-hid-output-sender.exe"),
+            (Join-Path $env:BTGUN_TOOLS_OUT "btgun-devnode.exe")
           )
           foreach ($file in $filesToSign) {
             & $env:SIGNTOOL sign /fd SHA256 /f $env:BTGUN_TEST_CERT_PFX /p $env:BTGUN_WINDOWS_TEST_CERT_PASSWORD $file
@@ -284,6 +288,7 @@ jobs:
             "BtGunVJoyIoctl.h",
             "btgun-driver-bridge.exe",
             "btgun-hid-output-sender.exe",
+            "btgun-devnode.exe",
             "Install-BtGunVJoy.ps1",
             "Rollback-BtGunVJoy.ps1",
             "build-metadata.json"
