@@ -54,7 +54,7 @@ The desktop companion converts valid output reports to `HapticCommand` and sends
 GitHub Actions workflow `windows-driver` builds and packages the driver on a Windows runner:
 
 1. Checkout repo with first-party `actions/checkout@v4`.
-2. Install the WDK on the GitHub-hosted runner when needed, then locate MSBuild, Windows Kits, kernel headers (`ntddk.h`/`vhf.h`), `vhfkm.lib`, `inf2cat`, and `signtool`, preferring x64 tools when the kit provides them.
+2. Install the WDK and WDK Visual Studio integration on the GitHub-hosted runner when needed, then locate MSBuild, Windows Kits, kernel headers (`ntddk.h`/`vhf.h`), `vhfkm.lib`, `inf2cat`, and `signtool`, preferring x64 tools when the kit provides them.
 3. Build `windows/btgun-vjoy/driver/BtGunVJoy.vcxproj`.
 4. Build `btgun-driver-bridge.exe` and `btgun-hid-output-sender.exe`.
 5. Decode test certificate from `BTGUN_WINDOWS_TEST_CERT_PFX_BASE64`.
