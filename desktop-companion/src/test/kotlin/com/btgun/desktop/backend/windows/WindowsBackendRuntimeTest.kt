@@ -28,7 +28,7 @@ fun main() {
 }
 
 private fun runtimePublishesTrustedUdpCallbackThroughWindowsBackend() {
-    val bridge = FakeWindowsDriverBridge()
+    val bridge = RuntimeFakeWindowsDriverBridge()
     val backend = WindowsVirtualControllerBackend(bridge = bridge)
     val runtime = WindowsBackendRuntime(
         config = WindowsBackendRuntimeConfig(bridgePath = "/tmp/btgun-driver-bridge.exe"),
@@ -57,7 +57,7 @@ private fun runtimePublishesTrustedUdpCallbackThroughWindowsBackend() {
 }
 
 private fun runtimePreservesExistingUdpCallbackWhenAttached() {
-    val bridge = FakeWindowsDriverBridge()
+    val bridge = RuntimeFakeWindowsDriverBridge()
     val runtime = WindowsBackendRuntime(
         config = WindowsBackendRuntimeConfig(bridgePath = "/tmp/btgun-driver-bridge.exe"),
         backend = WindowsVirtualControllerBackend(bridge = bridge),
@@ -76,7 +76,7 @@ private fun runtimePreservesExistingUdpCallbackWhenAttached() {
 }
 
 private fun staleInputPublishClearsButtonsAndStickButKeepsAim() {
-    val bridge = FakeWindowsDriverBridge()
+    val bridge = RuntimeFakeWindowsDriverBridge()
     val runtime = WindowsBackendRuntime(
         config = WindowsBackendRuntimeConfig(bridgePath = "/tmp/btgun-driver-bridge.exe"),
         backend = WindowsVirtualControllerBackend(bridge = bridge),
@@ -106,7 +106,7 @@ private fun staleInputPublishClearsButtonsAndStickButKeepsAim() {
 }
 
 private fun backendOutputReportRoutesToAuthenticatedPhoneHaptic() {
-    val bridge = FakeWindowsDriverBridge()
+    val bridge = RuntimeFakeWindowsDriverBridge()
     bridge.outputReports.add(outputReport(strength = 192, durationMs = 150, ttlMs = 600))
     val runtime = WindowsBackendRuntime(
         config = WindowsBackendRuntimeConfig(bridgePath = "/tmp/btgun-driver-bridge.exe"),
@@ -135,7 +135,7 @@ private fun backendOutputReportRoutesToAuthenticatedPhoneHaptic() {
 }
 
 private fun outputReportWithoutActiveAndroidSessionRecordsNoSession() {
-    val bridge = FakeWindowsDriverBridge()
+    val bridge = RuntimeFakeWindowsDriverBridge()
     bridge.outputReports.add(outputReport(strength = 64, durationMs = 75, ttlMs = 250))
     val runtime = WindowsBackendRuntime(
         config = WindowsBackendRuntimeConfig(bridgePath = "/tmp/btgun-driver-bridge.exe"),
@@ -150,7 +150,7 @@ private fun outputReportWithoutActiveAndroidSessionRecordsNoSession() {
     expectEquals("no session recorded", HapticSendResult.NoActiveSession, runtime.diagnostics().lastHapticSendResult)
 }
 
-private class FakeWindowsDriverBridge : WindowsDriverBridgeClient {
+private class RuntimeFakeWindowsDriverBridge : WindowsDriverBridgeClient {
     val submitted = mutableListOf<WindowsInputReport>()
     val outputReports = ArrayDeque<ByteArray>()
 

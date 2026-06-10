@@ -3,6 +3,10 @@ package com.btgun.desktop.ui
 import com.btgun.desktop.control.ControlServer
 import com.btgun.desktop.control.ControlServerSessionState
 import com.btgun.desktop.control.HapticSendResult
+import com.btgun.desktop.backend.BackendLifecycleState
+import com.btgun.desktop.backend.BackendPublishResult
+import com.btgun.desktop.backend.windows.WindowsBackendRuntime
+import com.btgun.desktop.backend.windows.WindowsBackendRuntimeDiagnostics
 import com.btgun.desktop.haptics.HapticCommand
 import com.btgun.desktop.haptics.HapticResult
 import com.btgun.desktop.pairing.LocalEndpoint
@@ -34,6 +38,8 @@ import javax.swing.Timer
 class PairingWindow(
     private val registry: PairingSessionRegistry = PairingSessionRegistry(),
     private val controlServer: ControlServer = ControlServer(registry),
+    private val windowsBackendRuntime: WindowsBackendRuntime? = null,
+    private val windowsBackendStartupDiagnostic: String = "disabled",
 ) {
     private val frame = JFrame("BT Gun Desktop")
     private val title = JLabel("BT Gun Desktop")
@@ -51,6 +57,7 @@ class PairingWindow(
     private var packetStreamState = InputStreamLifecycleState.STOPPED
     private var lastControlError: String? = null
     private var lastHapticStatus: String = "inactive"
+    private var windowsBackendDiagnostics: WindowsBackendRuntimeDiagnostics? = windowsBackendRuntime?.diagnostics()
 
     init {
         title.font = title.font.deriveFont(Font.BOLD, 22f)
@@ -84,6 +91,13 @@ class PairingWindow(
                 updateDiagnostics()
             }
         }
+        windowsBackendRuntime?.onDiagnosticsChanged = { backendDiagnostics ->
+            SwingUtilities.invokeLater {
+                windowsBackendDiagnostics = backendDiagnostics
+                updateDiagnostics()
+            }
+        }
+        windowsBackendRuntime?.attach(controlServer)
 
         action.addActionListener {
             startPairing()
@@ -98,6 +112,7 @@ class PairingWindow(
         frame.addWindowListener(
             object : WindowAdapter() {
                 override fun windowClosing(event: WindowEvent) {
+                    windowsBackendRuntime?.close()
                     controlServer.stop()
                 }
             },
@@ -235,6 +250,10 @@ class PairingWindow(
             packetState = packetStreamState,
             lastControlError = lastControlError,
             lastHapticStatus = lastHapticStatus,
+            windowsBackendStatus = windowsBackendStatusText(
+                diagnostics = windowsBackendDiagnostics,
+                startupDiagnostic = windowsBackendStartupDiagnostic,
+            ),
         )
     }
 
@@ -293,6 +312,20 @@ class PairingWindow(
         internal fun hapticStatusText(result: HapticResult): String =
             "${result.status.wireName}: ${result.detail}"
 
+        internal fun windowsBackendStatusText(
+            diagnostics: WindowsBackendRuntimeDiagnostics?,
+            startupDiagnostic: String,
+        ): String {
+            if (diagnostics == null) {
+                return startupDiagnostic
+            }
+            return "lifecycle=${diagnostics.lifecycleState.label()}, " +
+                "lastPublish=${diagnostics.lastPublishResult.label()}, " +
+                "stale=${diagnostics.stale}, " +
+                "lastHapticSend=${diagnostics.lastHapticSendResult.label()}, " +
+                "routed=${diagnostics.outputHapticCommandsRouted}"
+        }
+
         internal fun endpointText(endpoint: LocalEndpoint): String =
             "Endpoint: ${endpoint.host}:${endpoint.port}"
 
@@ -322,6 +355,7 @@ class PairingWindow(
             packetState: InputStreamLifecycleState = InputStreamLifecycleState.STOPPED,
             lastControlError: String?,
             lastHapticStatus: String = "inactive",
+            windowsBackendStatus: String = "disabled",
         ): String {
             val safeError = SecretRedactor.redact(lastControlError ?: "none")
             return """
@@ -329,12 +363,32 @@ class PairingWindow(
                 <body>
                 <p><b>Session:</b> ${state.label}</p>
                 <p>Packet stream: ${packetState.label}</p>
+                <p><b>Windows backend:</b> ${escapeHtml(windowsBackendStatus)}</p>
                 <p><b>Last control error:</b> ${escapeHtml(safeError)}</p>
                 <p><b>Phone haptic:</b> ${escapeHtml(lastHapticStatus)}</p>
                 </body>
                 </html>
             """.trimIndent()
         }
+
+        private fun BackendLifecycleState.label(): String =
+            name.lowercase()
+
+        private fun BackendPublishResult?.label(): String =
+            when (this) {
+                null -> "none"
+                BackendPublishResult.Published -> "published"
+                is BackendPublishResult.Rejected -> "rejected"
+            }
+
+        private fun HapticSendResult?.label(): String =
+            when (this) {
+                null -> "none"
+                HapticSendResult.Sent -> "sent"
+                HapticSendResult.NoActiveSession -> "no-session"
+                is HapticSendResult.Rejected -> "rejected"
+                is HapticSendResult.Failed -> "failed"
+            }
 
         private fun escapeHtml(value: String): String =
             value
