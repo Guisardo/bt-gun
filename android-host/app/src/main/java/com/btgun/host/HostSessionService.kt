@@ -4,6 +4,8 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
+import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
@@ -44,6 +46,11 @@ import com.btgun.host.motion.fallbackAim
 import com.btgun.host.motion.SelectedMotionProvider
 import com.btgun.host.haptics.DesktopHapticCommandExecutor
 import com.btgun.host.haptics.PhoneHaptics
+import com.btgun.host.hid.AndroidBluetoothHidGamepad
+import com.btgun.host.hid.AndroidBtGunHidProfileConnector
+import com.btgun.host.hid.BtGunHidHostConnectionState
+import com.btgun.host.hid.BtGunHidInputSendResult
+import com.btgun.host.hid.BtGunHidStatus
 import com.btgun.host.permissions.HostCapabilityProbe
 import com.btgun.host.permissions.PermissionGateState
 import com.btgun.host.recenter.ReloadHoldRecenter
@@ -93,6 +100,106 @@ internal fun hostPacketStreamStateAfterControlDisconnect(
         else -> InputStreamLifecycleState.GRACE
     }
 
+internal interface HostHidGamepadDriver : AutoCloseable {
+    var status: BtGunHidStatus
+    fun startGamepadMode()
+    fun stopGamepadMode()
+    fun openPairingWindow(durationSeconds: Int): Boolean
+    fun sendInput(state: GunInputState, motion: MotionSample?, stale: Boolean): BtGunHidInputSendResult
+    override fun close()
+}
+
+internal class HostSessionHidController(
+    private val driverFactory: () -> HostHidGamepadDriver,
+    private val pairingWindowSeconds: Int = DEFAULT_PAIRING_WINDOW_SECONDS,
+) : AutoCloseable {
+    private var driver: HostHidGamepadDriver? = null
+
+    fun startBluetoothGamepad(state: HostSessionState): HostSessionState {
+        val activeDriver = driver ?: driverFactory().also { driver = it }
+        activeDriver.startGamepadMode()
+        return refreshStatus(state)
+    }
+
+    fun openPairingWindow(state: HostSessionState): HostSessionState {
+        val activeDriver = driver ?: driverFactory().also { driver = it }
+        activeDriver.startGamepadMode()
+        activeDriver.openPairingWindow(pairingWindowSeconds)
+        return refreshStatus(state)
+    }
+
+    fun stopBluetoothGamepad(state: HostSessionState): HostSessionState {
+        val activeDriver = driver ?: return state.copy(hidGamepadStatus = BtGunHidStatus())
+        activeDriver.stopGamepadMode()
+        return refreshStatus(state)
+    }
+
+    fun fanOutLiveInput(state: HostSessionState): HostSessionState {
+        val activeDriver = driver ?: return state
+        if (activeDriver.status.hostConnection != BtGunHidHostConnectionState.CONNECTED) {
+            return refreshStatus(state)
+        }
+        activeDriver.sendInput(
+            state = state.gunInputState,
+            motion = state.lastMotionSample?.payload,
+            stale = false,
+        )
+        return refreshStatus(state)
+    }
+
+    fun refreshStatus(state: HostSessionState): HostSessionState =
+        state.copy(hidGamepadStatus = driver?.status ?: state.hidGamepadStatus)
+
+    override fun close() {
+        val activeDriver = driver ?: return
+        activeDriver.stopGamepadMode()
+        activeDriver.close()
+        driver = null
+    }
+
+    private companion object {
+        const val DEFAULT_PAIRING_WINDOW_SECONDS = 120
+    }
+}
+
+internal class AndroidHostHidGamepadDriver(
+    private val gamepad: AndroidBluetoothHidGamepad,
+) : HostHidGamepadDriver {
+    override var status: BtGunHidStatus
+        get() = gamepad.status
+        set(value) = Unit
+
+    override fun startGamepadMode() {
+        gamepad.startGamepadMode()
+    }
+
+    override fun stopGamepadMode() {
+        gamepad.stopGamepadMode()
+    }
+
+    override fun openPairingWindow(durationSeconds: Int): Boolean =
+        gamepad.openPairingWindow(durationSeconds)
+
+    override fun sendInput(state: GunInputState, motion: MotionSample?, stale: Boolean): BtGunHidInputSendResult =
+        gamepad.sendInput(state, motion, stale)
+
+    override fun close() {
+        gamepad.close()
+    }
+}
+
+private class UnavailableHostHidGamepadDriver(reason: String) : HostHidGamepadDriver {
+    override var status: BtGunHidStatus = BtGunHidStatus(unsupportedReason = reason)
+
+    override fun startGamepadMode() = Unit
+    override fun stopGamepadMode() = Unit
+    override fun openPairingWindow(durationSeconds: Int): Boolean = false
+    override fun sendInput(state: GunInputState, motion: MotionSample?, stale: Boolean): BtGunHidInputSendResult =
+        BtGunHidInputSendResult.NO_PROXY
+
+    override fun close() = Unit
+}
+
 class HostSessionService : Service() {
     private var adapter: IpegaBleGunAdapter? = null
     private val handler = Handler(Looper.getMainLooper())
@@ -123,6 +230,9 @@ class HostSessionService : Service() {
     }
     private val desktopLivenessCoordinator = DesktopLivenessCoordinator()
     private val nonceRandom = SecureRandom()
+    private val hidSessionController: HostSessionHidController by lazy {
+        HostSessionHidController(driverFactory = { createBluetoothHidDriver() })
+    }
 
     @Volatile
     private var currentState: HostSessionState = HostSessionState()
@@ -188,6 +298,7 @@ class HostSessionService : Service() {
                 aimBaseline = currentAimBaseline,
                 aimCalibrationState = aimCalibrationSession.state,
             )
+            currentState = hidSessionController.fanOutLiveInput(currentState)
             sendUdpSnapshot(throttled = true)
         }
 
@@ -199,6 +310,9 @@ class HostSessionService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_STOP_SESSION -> stopSession()
+            ACTION_START_BLUETOOTH_GAMEPAD -> startBluetoothGamepad()
+            ACTION_STOP_BLUETOOTH_GAMEPAD -> stopBluetoothGamepad()
+            ACTION_START_HID_PAIRING_WINDOW -> startBluetoothGamepad(openPairingWindow = true)
             ACTION_CONNECT_DESKTOP_QR -> connectDesktopFromQr(intent.getStringExtra(EXTRA_QR_PAYLOAD).orEmpty())
             ACTION_CONNECT_TRUSTED_DESKTOP -> connectTrustedDesktop(intent.getStringExtra(EXTRA_DESKTOP_FINGERPRINT))
             ACTION_CONNECT_MANUAL_DESKTOP -> connectManualDesktop(intent)
@@ -209,6 +323,7 @@ class HostSessionService : Service() {
     }
 
     override fun onDestroy() {
+        hidSessionController.close()
         stopSession()
         super.onDestroy()
     }
@@ -278,6 +393,7 @@ class HostSessionService : Service() {
 
     private fun stopSession() {
         currentState = currentState.copy(phase = HostSessionPhase.STOPPING)
+        hidSessionController.close()
         stopDesktopControl()
         stopUdpInput()
         stopMotionCapture()
@@ -288,6 +404,27 @@ class HostSessionService : Service() {
         currentState = HostSessionState(phase = HostSessionPhase.STOPPED)
         stopForegroundCompat()
         stopSelf()
+    }
+
+    private fun startBluetoothGamepad(openPairingWindow: Boolean = false) {
+        if (!ensureForegroundForHidMode()) {
+            return
+        }
+        currentState = if (openPairingWindow) {
+            hidSessionController.openPairingWindow(currentState)
+        } else {
+            hidSessionController.startBluetoothGamepad(currentState)
+        }
+    }
+
+    private fun stopBluetoothGamepad() {
+        currentState = hidSessionController.stopBluetoothGamepad(currentState)
+        hidSessionController.close()
+        currentState = currentState.copy(hidGamepadStatus = BtGunHidStatus())
+        if (!currentState.isActive && currentState.desktopLinkState.phase == DesktopLinkPhase.IDLE) {
+            stopForegroundCompat()
+            stopSelf()
+        }
     }
 
     private fun connectDesktopFromQr(rawPayload: String) {
@@ -751,6 +888,42 @@ class HostSessionService : Service() {
         }
     }
 
+    private fun ensureForegroundForHidMode(): Boolean {
+        if (currentState.foregroundActive) {
+            return true
+        }
+        return if (startHostForegroundSafely()) {
+            true
+        } else {
+            stopSelf()
+            false
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun createBluetoothHidDriver(): HostHidGamepadDriver {
+        val adapter = try {
+            (getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager)?.adapter
+                ?: BluetoothAdapter.getDefaultAdapter()
+        } catch (_: RuntimeException) {
+            null
+        }
+        val gamepad = AndroidBluetoothHidGamepad(
+            connector = AndroidBtGunHidProfileConnector(
+                context = applicationContext,
+                adapter = adapter ?: return UnavailableHostHidGamepadDriver("Bluetooth adapter unavailable"),
+                executor = { runnable -> handler.post(runnable) },
+            ),
+            hapticHandler = { command ->
+                desktopHapticExecutor.handle(command, SystemClock.elapsedRealtimeNanos())
+            },
+            onStatusChanged = { status ->
+                currentState = currentState.copy(hidGamepadStatus = status)
+            },
+        )
+        return AndroidHostHidGamepadDriver(gamepad)
+    }
+
     private fun trustProblemState(stored: TrustedDesktopMetadata, presentedFingerprint: String): DesktopLinkState =
         DesktopLinkState(
             phase = DesktopLinkPhase.TRUST_PROBLEM,
@@ -1087,6 +1260,7 @@ class HostSessionService : Service() {
                 gunInputState = gunInputState,
                 aimCalibrationState = aimCalibrationSession.state,
             )
+            currentState = hidSessionController.fanOutLiveInput(currentState)
             sendUdpEdge(envelope, gunInputState)
             return
         }
@@ -1109,6 +1283,7 @@ class HostSessionService : Service() {
             reloadHoldState = recenter.state,
             aimCalibrationState = aimCalibrationSession.state,
         )
+        currentState = hidSessionController.fanOutLiveInput(currentState)
         sendUdpEdge(envelope, gunInputState)
     }
 
@@ -1123,6 +1298,9 @@ class HostSessionService : Service() {
     companion object {
         const val ACTION_START_SESSION: String = "com.btgun.host.action.START_SESSION"
         const val ACTION_STOP_SESSION: String = "com.btgun.host.action.STOP_SESSION"
+        const val ACTION_START_BLUETOOTH_GAMEPAD: String = "com.btgun.host.action.START_BLUETOOTH_GAMEPAD"
+        const val ACTION_STOP_BLUETOOTH_GAMEPAD: String = "com.btgun.host.action.STOP_BLUETOOTH_GAMEPAD"
+        const val ACTION_START_HID_PAIRING_WINDOW: String = "com.btgun.host.action.START_HID_PAIRING_WINDOW"
         const val ACTION_CONNECT_DESKTOP_QR: String = "com.btgun.host.action.CONNECT_DESKTOP_QR"
         const val ACTION_CONNECT_TRUSTED_DESKTOP: String = "com.btgun.host.action.CONNECT_TRUSTED_DESKTOP"
         const val ACTION_CONNECT_MANUAL_DESKTOP: String = "com.btgun.host.action.CONNECT_MANUAL_DESKTOP"
@@ -1172,6 +1350,7 @@ data class HostSessionState(
     val aimCalibrationState: AimCalibrationState = AimCalibrationState(),
     val desktopLinkState: DesktopLinkState = DesktopLinkState(),
     val packetStreamState: InputStreamLifecycleState = InputStreamLifecycleState.STOPPED,
+    val hidGamepadStatus: BtGunHidStatus = BtGunHidStatus(),
 ) {
     val wireState: String = phase.wireName
     val isActive: Boolean =
