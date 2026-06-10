@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: planning
+status: executing
 stopped_at: Phase 07 Android Bluetooth HID plans ready
-last_updated: "2026-06-10T22:13:15.352Z"
-last_activity: 2026-06-10 -- Phase 07 Android Bluetooth HID plans created
+last_updated: "2026-06-10T22:19:12.070Z"
+last_activity: 2026-06-10 -- Phase 07 execution started
 progress:
   total_phases: 10
   completed_phases: 6
   total_plans: 42
   completed_plans: 36
-  percent: 86
+  percent: 60
 ---
 
 # Project State
@@ -21,15 +21,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-09)
 
 **Core value:** Make the discontinued iPega AR gun usable as a normal wireless joystick gun on modern macOS and Windows with responsive motion aiming and v1 phone haptic feedback.
-**Current focus:** Phase 07 — Android Bluetooth HID Gamepad Path
+**Current focus:** Phase 07 — macos-virtual-joystick-path
 
 ## Current Position
 
-Phase: 07 (android-bluetooth-hid-gamepad-path) — READY TO EXECUTE
-Plan: 6 active Android Bluetooth HID gamepad plans ready
+Phase: 07 (macos-virtual-joystick-path) — EXECUTING
+Plan: 1 of 6
 Next phase: Execute Phase 07 Android Bluetooth HID gamepad path
-Status: Phase 07 was replanned around Android phone Bluetooth HID gamepad. Legacy CoreHID/DriverKit plans and summaries are archived under `legacy-macos-virtual-hid/` and no longer active execution inputs.
-Last activity: 2026-06-10 -- Phase 07 Android Bluetooth HID plans created
+Status: Executing Phase 07
+Last activity: 2026-06-10 -- Phase 07 execution started
 
 Progress: [████████░░] 36/42 active planned plans complete. Phase 06 has 6/6 plans complete; Phase 07 has 0/6 active Android Bluetooth HID plans executed after the reroute.
 
