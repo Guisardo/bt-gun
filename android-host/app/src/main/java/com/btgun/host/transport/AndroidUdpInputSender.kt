@@ -1,5 +1,6 @@
 package com.btgun.host.transport
 
+import android.util.Log
 import com.btgun.host.model.GunEvent
 import com.btgun.host.model.GunInputState
 import com.btgun.host.model.LiveEnvelope
@@ -9,6 +10,9 @@ import com.btgun.host.motion.MotionCapabilityFlags
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
+import java.util.concurrent.RejectedExecutionException
 import kotlin.math.roundToInt
 
 fun interface AndroidUdpDatagramSink {
@@ -21,27 +25,86 @@ enum class AndroidUdpInputSendResult {
     FAILED,
 }
 
-class AndroidUdpSocketSink : AndroidUdpDatagramSink {
-    override fun send(host: String, port: Int, payload: ByteArray): Boolean =
-        runCatching {
-            DatagramSocket().use { socket ->
-                socket.send(
-                    DatagramPacket(
-                        payload,
-                        payload.size,
-                        InetAddress.getByName(host),
-                        port,
-                    ),
-                )
+class AndroidUdpSocketSink : AndroidUdpDatagramSink, AutoCloseable {
+    private val lock = Any()
+    private val executor: ExecutorService = Executors.newSingleThreadExecutor { runnable ->
+        Thread(runnable, "bt-gun-udp-sender").apply { isDaemon = true }
+    }
+    private var socket: DatagramSocket? = null
+    private var closed: Boolean = false
+    private var lastFailureLogNanos: Long = 0L
+
+    override fun send(host: String, port: Int, payload: ByteArray): Boolean {
+        val packetPayload = payload.copyOf()
+        synchronized(lock) {
+            if (closed) return false
+        }
+        return try {
+            executor.execute {
+                sendOnWorker(host = host, port = port, payload = packetPayload)
             }
-        }.isSuccess
+            true
+        } catch (_: RejectedExecutionException) {
+            false
+        }
+    }
+
+    private fun sendOnWorker(host: String, port: Int, payload: ByteArray) {
+        val activeSocket = synchronized(lock) {
+            if (closed) return
+            socket ?: DatagramSocket().also { socket = it }
+        }
+        runCatching {
+            activeSocket.send(
+                DatagramPacket(
+                    payload,
+                    payload.size,
+                    InetAddress.getByName(host),
+                    port,
+                ),
+            )
+        }.onFailure { error ->
+            closeSocket(activeSocket)
+            logFailure(error)
+        }
+    }
+
+    override fun close() {
+        synchronized(lock) {
+            closed = true
+            socket?.close()
+            socket = null
+        }
+        executor.shutdownNow()
+    }
+
+    private fun closeSocket(activeSocket: DatagramSocket) {
+        synchronized(lock) {
+            if (socket === activeSocket) {
+                socket = null
+            }
+        }
+        activeSocket.close()
+    }
+
+    private fun logFailure(error: Throwable) {
+        val now = System.nanoTime()
+        if (now - lastFailureLogNanos < FAILURE_LOG_INTERVAL_NANOS) return
+        lastFailureLogNanos = now
+        Log.w(TAG, "UDP input send failed", error)
+    }
+
+    private companion object {
+        const val TAG = "BtGunUdp"
+        const val FAILURE_LOG_INTERVAL_NANOS = 1_000_000_000L
+    }
 }
 
 class AndroidUdpInputSender(
     private val datagramSink: AndroidUdpDatagramSink = AndroidUdpSocketSink(),
     private val elapsedRealtimeNanos: () -> Long,
     private val sequencer: InputStreamSequencer = InputStreamSequencer(),
-) {
+) : AutoCloseable {
     private var activeConfig: InputStreamConfig? = null
     private var controlDisconnectedAtNanos: Long? = null
     var lifecycleState: InputStreamLifecycleState = InputStreamLifecycleState.STOPPED
@@ -59,6 +122,11 @@ class AndroidUdpInputSender(
         activeConfig = null
         controlDisconnectedAtNanos = null
         lifecycleState = InputStreamLifecycleState.STOPPED
+    }
+
+    override fun close() {
+        stop("closed")
+        (datagramSink as? AutoCloseable)?.close()
     }
 
     fun onControlDisconnected(nowElapsedNanos: Long) {

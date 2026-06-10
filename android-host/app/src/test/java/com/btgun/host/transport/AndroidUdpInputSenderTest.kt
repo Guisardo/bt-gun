@@ -15,6 +15,7 @@ fun main() {
     snapshotUsesCurrentStateMotionAndAuthenticatedConfig()
     snapshotUsesFreshCaptureTimeForOldMotionSample()
     edgeUsesSharedMonotonicSequenceAndImmediateSend()
+    senderCloseClosesDatagramSink()
     senderSourceExcludesPreviewAimAndProductMapping()
 }
 
@@ -152,6 +153,20 @@ private fun edgeUsesSharedMonotonicSequenceAndImmediateSend() {
     expectEquals("edge bitmask", AndroidUdpInputSender.BUTTON_TRIGGER or AndroidUdpInputSender.EDGE_CONTROL_CHANGED, edge.buttonBitmask)
 }
 
+private fun senderCloseClosesDatagramSink() {
+    val sink = CloseRecordingDatagramSink()
+    val sender = AndroidUdpInputSender(
+        datagramSink = sink,
+        elapsedRealtimeNanos = { 3_000_000_000L },
+    )
+
+    sender.start(fixtureConfig())
+    sender.close()
+
+    expectEquals("sender stopped", InputStreamLifecycleState.STOPPED, sender.lifecycleState)
+    expectTrue("sink closed", sink.closed)
+}
+
 private fun senderSourceExcludesPreviewAimAndProductMapping() {
     val source = File("app/src/main/java/com/btgun/host/transport/AndroidUdpInputSender.kt")
     val text = if (source.exists()) source.readText() else ""
@@ -217,12 +232,21 @@ private fun gunEnvelope(
         payload = event,
     )
 
-private class RecordingDatagramSink : AndroidUdpDatagramSink {
+private open class RecordingDatagramSink : AndroidUdpDatagramSink {
     val datagrams = mutableListOf<RecordedDatagram>()
 
     override fun send(host: String, port: Int, payload: ByteArray): Boolean {
         datagrams += RecordedDatagram(host = host, port = port, payload = payload.copyOf())
         return true
+    }
+}
+
+private class CloseRecordingDatagramSink : RecordingDatagramSink(), AutoCloseable {
+    var closed: Boolean = false
+        private set
+
+    override fun close() {
+        closed = true
     }
 }
 
