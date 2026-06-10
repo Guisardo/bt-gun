@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 06 Plan 06 CLI/PnP and joy.cpl proof passing; live/haptic proof gates remain
-last_updated: "2026-06-10T04:08:15.000Z"
-last_activity: 2026-06-10 -- Phase 06 Plan 06 target CLI/PnP and joy.cpl proof passing
+stopped_at: Phase 06 approved; ready for Phase 07 macOS virtual joystick path
+last_updated: "2026-06-10T05:44:31.000Z"
+last_activity: 2026-06-10 -- Phase 06 approved after Windows target proof
 progress:
   total_phases: 10
-  completed_phases: 5
+  completed_phases: 6
   total_plans: 36
-  completed_plans: 35
-  percent: 97
+  completed_plans: 36
+  percent: 100
 ---
 
 # Project State
@@ -21,23 +21,23 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-09)
 
 **Core value:** Make the discontinued iPega AR gun usable as a normal wireless joystick gun on modern macOS and Windows with responsive motion aiming and v1 phone haptic feedback.
-**Current focus:** Phase 06 — windows-virtual-joystick-path
+**Current focus:** Phase 07 — macos-virtual-joystick-path
 
 ## Current Position
 
-Phase: 06 (windows-virtual-joystick-path) — EXECUTING
-Plan: 6 of 6
-Next phase: 06 (Windows Virtual Joystick Path)
-Status: Awaiting live Android/gun input and output haptic proof
-Last activity: 2026-06-10 -- Phase 06 Plan 06 target CLI/PnP and joy.cpl proof passing
+Phase: 07 (macos-virtual-joystick-path) — READY
+Plan: TBD
+Next phase: 07 (macOS Virtual Joystick Path)
+Status: Phase 06 approved; ready to plan the macOS virtual joystick path
+Last activity: 2026-06-10 -- Phase 06 approved after Windows target proof
 
-Progress: [██████████] 97% by planned plans. Phase 06 has 5/6 plans executed; Plan 06 CLI/PnP and joy.cpl sub-proof pass.
+Progress: [██████████] 100% by planned plans. Phase 06 has 6/6 plans complete; Phase 07 plans are not generated yet.
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 35
+- Total plans completed: 36
 - Average duration: not tracked for hardware-interactive plans
 - Total execution time: not tracked after Plan 02
 
@@ -49,11 +49,12 @@ Progress: [██████████] 97% by planned plans. Phase 06 has 5/
 | 02 | 6 | hardware-interactive | hardware-interactive |
 | 04 | 6 | - | - |
 | 05 | 5 | hardware-interactive | hardware-interactive |
+| 06 | 6 | hardware-interactive | hardware-interactive |
 
 **Recent Trend:**
 
-- Recent completed execution plans: 06-P01, 06-P02, 06-P03, 06-P05, 06-P04 complete; 06-P06 CLI/PnP and joy.cpl proof passing.
-- Trend: Phase 06 Windows backend path has HID packing, driver bridge, CI artifact proof, live companion runtime wiring, real VHF smoke entrypoint, target CLI/PnP proof, and joy.cpl proof complete.
+- Recent completed execution plans: 06-P01, 06-P02, 06-P03, 06-P05, 06-P04, and 06-P06 complete.
+- Trend: Phase 06 Windows backend path has HID packing, driver bridge, CI artifact proof, live companion runtime wiring, real VHF smoke entrypoint, target CLI/PnP proof, joy.cpl proof, and user approval complete.
 
 *Updated after each plan completion*
 | Phase 01 P01 | 10 min | 3 tasks | 6 files |
@@ -90,6 +91,8 @@ Progress: [██████████] 97% by planned plans. Phase 06 has 5/
 | Phase 06 P02 | 8 min | 3 tasks | 10 files |
 | Phase 06 P03 | 6min | 2 tasks | 5 files |
 | Phase 06 P04 | 11 min | 3 tasks | 6 files |
+| Phase 06 P05 | hardware-interactive | CI build/sign/package | approved |
+| Phase 06 P06 | hardware-interactive | Windows target proof | approved |
 
 ## Accumulated Context
 
@@ -168,11 +171,11 @@ Recent decisions affecting current work:
 - [Phase 06]: WindowsBackendRuntime attaches only to ControlServer.onUdpInputReceived, preserving existing callbacks and keeping LAN/session/auth ownership in ControlServer.
 - [Phase 06]: The real windows-vhf smoke command requires a Plan 05 btgun-driver-bridge.exe artifact path and never falls back to Phase 5 stubs.
 - [Phase 06]: Desktop launch enables the real Windows backend only when btgun.windows.driver.enabled=true and an explicit bridge path is provided.
+- [Phase 06 approved]: Windows virtual joystick path is accepted for Phase 7 handoff. — User confirmed Phase 6 approval on 2026-06-10 after the 0.6.2.2 VHF identity/package update, latest CI artifact install, joy.cpl axis verification, and target validation.
 
 ### Pending Todos
 
-- [Phase 06 P06]: Run live Android/gun input proof through the real Windows backend.
-- [Phase 06 P06]: Run real HID output-to-phone-haptic proof, trying `joy.cpl` output first.
+None.
 
 ### Blockers/Concerns
 
@@ -195,5 +198,5 @@ Items acknowledged and carried forward from previous milestone close:
 ## Session Continuity
 
 Last session: 2026-06-10T04:08:15.000Z
-Stopped at: Phase 06 Plan 06 CLI/PnP and joy.cpl proof passing; live/haptic proof pending
+Stopped at: Phase 06 approved; ready for Phase 07 macOS virtual joystick path
 Resume file: None

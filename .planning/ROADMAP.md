@@ -18,7 +18,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 3: LAN Pairing and Secure Session** - Android and desktop can establish an authenticated local session by QR or pairing code. (completed 2026-06-08)
 - [x] **Phase 4: Input Stream and Haptic Transport** - Versioned UDP input and reliable control messages carry input, diagnostics, and phone haptic commands safely. (physical smoke plan added 2026-06-09) (completed 2026-06-09)
 - [x] **Phase 5: Desktop Backend Contract and Smoke Harness** - Shared desktop backend contract and fake-input smoke tests work before real OS driver work. (completed 2026-06-09)
-- [ ] **Phase 6: Windows Virtual Joystick Path** - Windows 11 x64 exposes the gun stream as a regular gamepad-style joystick with output-to-phone-haptic forwarding.
+- [x] **Phase 6: Windows Virtual Joystick Path** - Windows 11 x64 exposes the gun stream as a regular gamepad-style joystick with output-to-phone-haptic forwarding. (completed 2026-06-10)
 - [ ] **Phase 7: macOS Virtual Joystick Path** - macOS Apple Silicon exposes the gun stream as a regular gamepad-style joystick and reports output limits clearly.
 - [ ] **Phase 8: Desktop Profiles and Mapping** - Users can configure aim and button mapping on desktop without Android rebuilds.
 - [ ] **Phase 9: Visualizer Acceptance Path** - The simple visualizer proves controls, aim, recentering, latency, packet loss, and phone haptic round trip.
@@ -205,7 +205,7 @@ Plans:
   2. Windows virtual joystick receives desktop rumble or output requests and maps them to v1 phone haptic commands.
   3. Repository documents the selected Windows virtual HID strategy, driver signing requirements, and development setup.
 
-**Plans:** 5/6 plans executed
+**Plans:** 6/6 plans complete
 Plans:
 
 **Wave 1**
@@ -227,7 +227,7 @@ Plans:
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
-- [ ] 06-06-PLAN.md — Approval-gated Windows target proof with `joy.cpl`, live input, and real output haptic.
+- [x] 06-06-PLAN.md — Approval-gated Windows target proof with `joy.cpl`, live input, and real output haptic.
 
 ### Phase 7: macOS Virtual Joystick Path
 
@@ -304,7 +304,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 | 3. LAN Pairing and Secure Session | 8/8 | Complete   | 2026-06-08 |
 | 4. Input Stream and Haptic Transport | 6/6 | Complete    | 2026-06-09 |
 | 5. Desktop Backend Contract and Smoke Harness | 5/5 | Complete | 2026-06-09 |
-| 6. Windows Virtual Joystick Path | 5/6 | In Progress|  |
+| 6. Windows Virtual Joystick Path | 6/6 | Complete | 2026-06-10 |
 | 7. macOS Virtual Joystick Path | 0/TBD | Not started | - |
 | 8. Desktop Profiles and Mapping | 0/TBD | Not started | - |
 | 9. Visualizer Acceptance Path | 0/TBD | Not started | - |
