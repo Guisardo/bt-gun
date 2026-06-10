@@ -9,10 +9,14 @@ let package = Package(
     ],
     products: [
         .executable(name: "BtGunMacosHidHelper", targets: ["BtGunMacosHidHelper"]),
+        .executable(name: "BtGunMacosHidOutputProbe", targets: ["BtGunMacosHidOutputProbe"]),
     ],
     targets: [
         .executableTarget(
             name: "BtGunMacosHidHelper"
+        ),
+        .executableTarget(
+            name: "BtGunMacosHidOutputProbe"
         ),
     ]
 )
