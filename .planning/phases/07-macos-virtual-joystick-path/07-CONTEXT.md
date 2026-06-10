@@ -1,50 +1,52 @@
-# Phase 7: macOS Virtual Joystick Path - Context
+# Phase 7: Android Bluetooth HID Gamepad Path - Context
 
-**Gathered:** 2026-06-10T12:22:36Z
-**Status:** Ready for planning
+**Gathered:** 2026-06-10T21:33:48Z
+**Status:** Ready for replanning
 
 <domain>
 ## Phase Boundary
 
-Phase 7 builds and proves the macOS Apple Silicon virtual joystick path. macOS must see the live Android gun stream as a regular gamepad-style joystick, and macOS-origin output/rumble must map back to Android phone haptics.
+Phase 7 builds and proves the Android phone Bluetooth HID gamepad path. The Android host app must detect whether the phone can act as a Bluetooth HID gamepad peripheral, expose the live iPega gun controls and Android motion aim as a normal gamepad-style HID report, and pair with macOS Apple Silicon so macOS sees an OS-visible controller without paid CoreHID/HIDDriverKit virtual HID entitlements.
 
-This phase does not build Phase 8 profile editing, sensitivity/inversion/dead-zone/smoothing controls, Phase 9 visualizer UI, game-specific presets, direct desktop-to-gun Bluetooth, physical gun motor rumble, or a production notarized installer.
+This phase does not build Phase 8 desktop profile editing, sensitivity/inversion/dead-zone/smoothing controls, Phase 9 visualizer UI, game-specific presets, direct desktop-to-gun Bluetooth, physical gun motor rumble, or a production notarized macOS virtual HID driver. Existing CoreHID/DriverKit and Windows VHF work remain fallback evidence/scaffolding only.
 
 </domain>
 
 <decisions>
 ## Implementation Decisions
 
-### macOS HID Path
-- **D-01:** Phase 7 targets CoreHID `HIDVirtualDevice` first for the macOS virtual joystick proof.
-- **D-02:** CoreHID fallback is research-gated. Switch away from CoreHID only if official documentation or local compile/runtime proof shows CoreHID cannot create an OS-visible gamepad-style device that satisfies Phase 7.
-- **D-03:** If CoreHID cannot receive macOS-origin output/rumble reports, HIDDriverKit/system extension becomes the mandatory fallback path for Phase 7 output proof.
+### HID Role Gate
+- **D-01:** Android uses a startup capability gate plus an explicit user-controlled "Start Bluetooth gamepad" action. The app probes Bluetooth state, permissions, and HID device profile support before the user starts HID mode.
+- **D-02:** Android must show a full blocked-state matrix: Bluetooth off, missing Bluetooth permission, HID_DEVICE proxy unavailable, HID app registration failed, no host connected, and host disconnected.
+- **D-03:** Android Bluetooth HID is the primary macOS input path for Phase 7. LAN streaming and the desktop companion remain optional diagnostics/fallback scaffolding, not required for macOS success.
+- **D-04:** If the current Android phone lacks HID peripheral support, test an alternate Android phone before declaring Phase 7 blocked and falling back to Windows VHF.
 
-### macOS Proof Target
-- **D-04:** Phase 7 pass condition is layered proof: CLI HID enumeration, macOS-visible game controller/gamepad UI or tester evidence, and agent/user visual confirmation.
-- **D-05:** Final input proof must use a live paired Android/gun stream moving macOS-visible joystick axes/buttons. Replay fixtures are allowed for automated tests, CI, and debugging only.
-- **D-06:** Final visual proof requires both agent-captured evidence and user confirmation that the virtual device/input is visible in a Mac UI or tester.
+### HID Report Shape
+- **D-05:** The Android Bluetooth HID descriptor mirrors the existing v1 backend contract exactly: six buttons plus four axes for trigger, reload, X/Y/A/B, stickX/stickY, and aimX/aimY.
+- **D-06:** Android owns the Bluetooth HID report packer. It maps `GunInputState` plus the latest `MotionSample` into HID report bytes. Do not move code into a shared module during Phase 7 just to share constants.
+- **D-07:** HID aim axes use calibrated Android `aimX`/`aimY` when available. If calibrated aim is unavailable, fall back to normalized raw aim values.
+- **D-08:** Tests must pin golden descriptor bytes and golden report vectors, including button bit order, axis endian/range, stale/center behavior, and parity with `btGunV1Descriptor`.
 
-### Output Haptic Proof
-- **D-07:** Phase 7 cannot pass unless macOS OS-origin output/rumble maps to Android phone haptic.
-- **D-08:** The existing desktop companion phone-haptic command path remains the v1 haptic transport, but it is not enough by itself unless it is triggered by macOS-origin output/rumble.
-- **D-09:** If CoreHID cannot expose the required output/rumble path, planners must include HIDDriverKit fallback work rather than documenting output as unsupported.
+### Pairing and Proof
+- **D-09:** Phase 7 pairing proof requires both macOS Bluetooth connection evidence and Game Controller/tester evidence that macOS sees buttons and axes.
+- **D-10:** Android exposes an explicit pairing-mode control. Starting it registers HID mode and opens a discoverable/connectable pairing window with visible countdown and status.
+- **D-11:** The desktop companion is diagnostics only during Android HID proof. It may show instructions, evidence checklist, and fallback status, but it must not be in the macOS input path.
+- **D-12:** Final Phase 7 input proof requires user confirmation that macOS Bluetooth sees the controller and a tester/Game Controller surface shows real gun controls and phone motion moving buttons/axes.
 
-### Packaging and Development Setup
-- **D-10:** Phase 7 targets a development proof package: local macOS app/tool with documented launch, signing, permission, and fallback steps.
-- **D-11:** The proof target is the current development Mac unless planning discovers a blocker: macOS 26.2 build 25C56 on arm64.
-- **D-12:** Use ad-hoc/local development signing first where CoreHID permits. Do not require Developer ID signing for Phase 7 unless the selected fallback path requires it.
-- **D-13:** Document exact commands, permission prompts, minimum observed OS requirement, and DriverKit entitlement fallback notes.
+### Output Haptics
+- **D-13:** Phase 7 must attempt host-origin Bluetooth HID output/rumble report handling, but honest unsupported status is acceptable if macOS sends no output reports for this descriptor.
+- **D-14:** Android validates output reports strictly. Only known report id, length, version, and reserved-byte shape can trigger phone haptics; malformed or unknown reports return `reportError` and surface last error/status.
+- **D-15:** The authenticated LAN desktop-to-Android phone haptic path remains diagnostic/fallback only for Phase 7. It can support tests and the Windows fallback path, but it is not equivalent to Android HID output for macOS proof.
+- **D-16:** Final haptic evidence captures capability plus actual result rows: host-output callback seen/not seen, report validation result, phone vibration result, and macOS unsupported reason when no output arrives.
 
-### Live Stream Cutover
-- **D-14:** The macOS runtime mirrors the Windows runtime shape: `MacosBackendRuntime` attaches to `ControlServer.onUdpInputReceived`, preserves any previous callback, maps `UdpReceivedInput` to `SemanticControllerState`, publishes to the macOS backend, and exposes diagnostics.
-- **D-15:** Stale-stream behavior must match Phase 4 and Windows: clear active buttons, keep last aim axes, and expose stale diagnostic state.
-- **D-16:** A native Swift or Objective-C helper is allowed if needed for CoreHID. The Kotlin/JVM desktop companion must keep ownership of LAN pairing, session security, UDP input validation, semantic state mapping, and phone-haptic routing.
+### Legacy macOS Virtual HID Work
+- **D-17:** CoreHID/DriverKit work from earlier Phase 7 plans remains retained evidence/fallback scaffolding. It is not the primary no-subscription macOS v1 path.
+- **D-18:** SIP changes, system extension developer mode, install, activation, removal, rollback, reboot, or other OS security-state changes still require explicit later approval.
+- **D-19:** Completed Windows VHF work remains the working OS-visible fallback if Android Bluetooth HID cannot be proven after testing an alternate Android phone.
 
 ### the agent's Discretion
-- Choose exact CoreHID report descriptor bytes, vendor/product ids, report ids, helper process protocol, Swift/Objective-C project layout, local IPC mechanism, CLI enumeration commands, and macOS tester/tooling, as long as the decisions above hold.
-- Choose exact DriverKit fallback design during planning if CoreHID cannot satisfy OS-visible device or OS-origin output proof.
-- Choose exact evidence artifact names and redaction format, provided no pairing material, session secrets, keys, or private signing material are committed.
+- Choose exact Android class/package names, HID descriptor byte layout that preserves the v1 contract, report ids, SDP settings, status model names, tester command names, evidence artifact names, and redaction format.
+- Choose exact macOS Game Controller tester implementation and Bluetooth evidence collection commands, provided final proof still includes user confirmation and does not commit secrets or sensitive device identifiers.
 
 </decisions>
 
@@ -54,39 +56,44 @@ This phase does not build Phase 8 profile editing, sensitivity/inversion/dead-zo
 **Downstream agents MUST read these before planning or implementing.**
 
 ### Phase Definition
-- `.planning/ROADMAP.md` - Phase 7 goal, dependency, `DESK-03`, `DESK-06`, `PACK-03`, and success criteria.
-- `.planning/REQUIREMENTS.md` - macOS virtual joystick, output-to-phone-haptic, smoke, profile, visualizer, and packaging boundaries.
-- `.planning/PROJECT.md` - v1 Windows/macOS constraints, regular gamepad-style HID shape, desktop-owned mapping, and v1 phone-haptic decision.
-- `.planning/STATE.md` - current state after Phase 6 and carried macOS entitlement/output concern.
-
-### Research Context
-- `.planning/research/STACK.md` - macOS CoreHID/HIDDriverKit direction, entitlement risk, and virtual joystick sequencing.
-- `.planning/research/ARCHITECTURE.md` - virtual HID backend boundary, desktop companion split, profile mapper boundary, and haptic return flow.
-- `.planning/research/PITFALLS.md` - platform driver packaging/signing risk and warning against prototype-only virtual controllers.
-- `.planning/research/FEATURES.md` - macOS virtual gamepad priority and regular gamepad/joystick descriptor decision.
+- `.planning/ROADMAP.md` - Phase 7 rerouted goal, Android Bluetooth HID success criteria, legacy CoreHID/DriverKit fallback note, and Windows fallback boundary.
+- `.planning/REQUIREMENTS.md` - `ANDR-09`, `ANDR-10`, `ANDR-11`, `DESK-03`, `DESK-06`, `PACK-03`, and `PACK-06`.
+- `.planning/PROJECT.md` - v1 Windows/macOS constraints, gamepad-style HID shape, desktop-owned profile mapping boundary, and phone-haptic decision.
+- `.planning/STATE.md` - current state after Phase 7 reroute and retained fallback decisions.
+- `.planning/quick/260610-m2r-update-requirements-and-roadmap-to-use-a/SUMMARY.md` - quick-task record of the Android Bluetooth HID reroute.
 
 ### Prior Phase Context
-- `.planning/phases/06-windows-virtual-joystick-path/06-CONTEXT.md` - Windows runtime split, live proof bar, output haptic proof, default mapping, and driver boundary.
-- `.planning/phases/05-desktop-backend-contract-and-smoke-harness/05-CONTEXT.md` - backend contract, descriptor, capabilities, UDP handoff, smoke harness, and haptic boundary.
-- `.planning/phases/04-input-stream-and-haptic-transport/04-CONTEXT.md` - UDP receiver, stale-stream handling, haptic command/result transport, and raw-motion-only input.
+- `.planning/phases/02-android-host-live-input/02-CONTEXT.md` - Android host BLE, motion, recenter, foreground service, and local phone haptic boundaries.
+- `.planning/phases/04-input-stream-and-haptic-transport/04-CONTEXT.md` - LAN/haptic transport retained for diagnostics and Windows fallback.
+- `.planning/phases/05-desktop-backend-contract-and-smoke-harness/05-CONTEXT.md` - `btGunV1Descriptor`, semantic controller state, backend capabilities, and smoke harness boundaries.
+- `.planning/phases/06-windows-virtual-joystick-path/06-CONTEXT.md` - Windows VHF fallback proof bar, OS-visible controller evidence, and output-to-phone-haptic precedent.
 
-### Desktop Backend Code
-- `desktop-companion/src/main/kotlin/com/btgun/desktop/backend/VirtualControllerBackend.kt` - backend lifecycle/publish/output surface that macOS adapter must satisfy.
-- `desktop-companion/src/main/kotlin/com/btgun/desktop/backend/BackendCapabilities.kt` - capability and limitation model to update from macOS stub to real macOS backend.
+### Legacy Phase 7 Evidence
+- `.planning/phases/07-macos-virtual-joystick-path/07-05-SUMMARY.md` - CoreHID gate recorded `corehid-runtime-blocked`; do not use CoreHID as primary no-subscription path.
+- `.planning/phases/07-macos-virtual-joystick-path/07-06-SUMMARY.md` - HIDDriverKit fallback stopped before OS security-state changes and remains approval-gated.
+- `docs/setup/macos-virtual-hid.md` - legacy CoreHID setup/proof notes retained as fallback evidence.
+- `docs/setup/macos-driverkit-fallback.md` - lab-only DriverKit fallback notes; no activation without explicit approval.
+- `docs/evidence/manifests/phase7-macos-virtual-hid.jsonl` - legacy CoreHID/DriverKit evidence rows.
+
+### Android Host Code
+- `android-host/app/src/main/AndroidManifest.xml` - current Bluetooth, network, foreground service, and vibration permission surface to extend for HID mode.
+- `android-host/app/src/main/java/com/btgun/host/permissions/HostCapabilityProbe.kt` - existing capability gate pattern to extend with Bluetooth HID device-role status.
+- `android-host/app/src/main/java/com/btgun/host/HostSessionService.kt` - foreground session owner for BLE gun, motion samples, recenter, UDP diagnostics, and haptics.
+- `android-host/app/src/main/java/com/btgun/host/model/NormalizedEvents.kt` - `GunInputState` and `MotionSample` inputs for the Android HID report packer.
+- `android-host/app/src/main/java/com/btgun/host/haptics/DesktopHapticCommand.kt` - phone haptic validation/result model to reuse for HID output report execution.
+- `android-host/app/src/main/java/com/btgun/host/haptics/PhoneHaptics.kt` - Android phone vibration actuator.
+
+### Desktop/Fallback Code
 - `desktop-companion/src/main/kotlin/com/btgun/desktop/backend/VirtualControllerDescriptor.kt` - locked v1 gamepad-like joystick descriptor contract.
-- `desktop-companion/src/main/kotlin/com/btgun/desktop/backend/SemanticControllerState.kt` - semantic state fields to publish into macOS reports.
-- `desktop-companion/src/main/kotlin/com/btgun/desktop/backend/UdpControllerStateAdapter.kt` - current UDP-to-semantic mapping and stale-state behavior.
-- `desktop-companion/src/main/kotlin/com/btgun/desktop/backend/StubVirtualControllerBackend.kt` - Phase 5 macOS stub reference only; not sufficient for Phase 7 pass.
-- `desktop-companion/src/main/kotlin/com/btgun/desktop/backend/windows/WindowsVirtualControllerBackend.kt` - real backend pattern for lifecycle, report publishing, and output-to-haptic mapping.
-- `desktop-companion/src/main/kotlin/com/btgun/desktop/backend/windows/WindowsBackendRuntime.kt` - runtime attachment pattern that macOS should mirror.
-- `desktop-companion/src/main/kotlin/com/btgun/desktop/smoke/MacosBackendSmokeMain.kt` - existing macOS stub smoke entrypoint to evolve or supersede.
-- `desktop-companion/src/main/kotlin/com/btgun/desktop/smoke/BackendSmokeRunner.kt` - replay smoke reference for tests/debug, not final pass.
-- `desktop-companion/build.gradle.kts` - current desktop companion test and smoke task wiring.
+- `desktop-companion/src/main/kotlin/com/btgun/desktop/backend/BackendCapabilities.kt` - capability/limitation model useful for diagnostics and fallback status.
+- `desktop-companion/src/main/kotlin/com/btgun/desktop/backend/windows/WindowsHidReportPacker.kt` - Windows report packing precedent for bit order, axis scaling, and output parity.
+- `desktop-companion/src/main/kotlin/com/btgun/desktop/backend/macos/MacosHidReportPacker.kt` - legacy macOS packer precedent only; Android owns the new HID packer.
 
-### Platform Reference Docs
-- Apple CoreHID `HIDVirtualDevice` documentation - refresh during research; use as primary CoreHID source.
-- Apple HIDDriverKit and DriverKit entitlement documentation - refresh during research; use for mandatory fallback if CoreHID cannot satisfy output proof.
-- Apple IOKit `IOHIDUserDeviceCreateWithProperties` documentation - refresh during research as a legacy/alternate user-space virtual HID reference if CoreHID is blocked.
+### Platform API References To Refresh During Research
+- Official Android `BluetoothHidDevice` documentation - required for profile proxy, registration, `sendReport`, `replyReport`, and permission behavior.
+- Official Android `BluetoothHidDevice.Callback` documentation - required for `onAppStatusChanged`, `onConnectionStateChanged`, `onGetReport`, `onSetReport`, `onInterruptData`, and `reportError` handling.
+- Official Android `BluetoothHidDeviceAppSdpSettings` documentation - required for HID app SDP/descriptor registration.
+- Apple macOS Bluetooth controller setup and Game Controller documentation - required for macOS pairing and `GCController` proof.
 
 </canonical_refs>
 
@@ -94,52 +101,52 @@ This phase does not build Phase 8 profile editing, sensitivity/inversion/dead-zo
 ## Existing Code Insights
 
 ### Reusable Assets
-- `VirtualControllerBackend` already defines lifecycle, semantic state publish, capabilities, current state, last publish result, and simulated output surface.
-- `btGunV1Descriptor` locks the v1 regular gamepad-like joystick: trigger/reload/X/Y/A/B, stickX/stickY/aimX/aimY, digital trigger.
-- `SemanticControllerState` is platform-neutral and should feed the macOS HID report path.
-- `UdpControllerStateAdapter` already maps trusted UDP receiver output into semantic state and handles NaN aim values.
-- `WindowsVirtualControllerBackend` and `WindowsBackendRuntime` provide the closest implementation pattern for real backend lifecycle, runtime attachment, and OS-output-to-phone-haptic routing.
-- `MacosBackendSmokeMain` and `BackendSmokeRunner` provide the current macOS stub smoke baseline but cannot satisfy Phase 7's real OS-visible proof bar.
+- `HostCapabilityProbe` already centralizes Android permission/capability evaluation; extend it rather than scattering HID support checks through UI/service code.
+- `HostSessionService` already owns foreground lifecycle, BLE gun events, motion samples, recenter, UDP diagnostics, and haptic executor. It is the natural integration point for explicit HID mode start/stop.
+- `GunInputState` and `MotionSample` already carry button/stick and aim inputs needed by Android HID report packing.
+- `PhoneHaptics` and `DesktopHapticCommandExecutor` already validate and execute bounded phone vibration commands; use the same safety rules for HID output reports.
+- `btGunV1Descriptor` locks the product shape that Android HID must mirror.
 
 ### Established Patterns
-- Desktop companion is Kotlin/JVM with plain Kotlin test/smoke entrypoints and Swing UI.
-- LAN pairing, session auth, UDP input validation, profile metadata, and phone haptics stay in user-mode companion code.
-- Platform-specific backends publish from semantic controller state and must not own LAN networking, pairing, authentication, profile mapping, or Android session lifecycle.
-- Replay fixtures and stubs are allowed as development/test harnesses, but final platform phases require live device proof when the phase says so.
-- Existing docs and evidence avoid committing secrets, pairing material, stream authentication material, private keys, or raw sensitive logs.
+- Hardware/platform-specific protocol details stay behind adapter boundaries and surface normalized events/status.
+- Product UI must show honest blocked/unavailable states instead of silently retrying or claiming support early.
+- Android local aim mapping exists for preview/calibration, while desktop profile editing remains Phase 8.
+- Replay/golden fixtures are allowed for automated tests, but final Phase 7 input proof requires live gun/phone motion and user confirmation.
+- Evidence must avoid pairing material, session secrets, stream keys, HMAC keys, private keys, Bluetooth addresses, device identifiers, screenshots with sensitive data, and signing material.
 
 ### Integration Points
-- Add a real macOS backend beside the existing backend package, preserving the Phase 5 `VirtualControllerBackend` contract.
-- Add `MacosBackendRuntime` beside `WindowsBackendRuntime`, preserving the `ControlServer.onUdpInputReceived` callback chain.
-- Add a native macOS helper only if CoreHID access is not practical from Kotlin/JVM; keep helper protocol local and semantic/report oriented.
-- Add macOS smoke/proof commands that distinguish replay smoke from live Android/gun proof.
-- Update capabilities so the real macOS backend reports OS-visible-device and output-report support only when proven, with explicit limitations otherwise.
-- Add macOS setup/proof documentation for CoreHID launch/signing/permissions, OS visibility, live input, OS-output-to-phone-haptic evidence, and DriverKit fallback requirements.
+- Add an Android Bluetooth HID gamepad adapter/service component behind `HostSessionService`.
+- Extend Android permission/capability state and dashboard rendering with HID role, registration, host connection, output-report, and fallback status.
+- Add Android HID descriptor/report packer tests with golden descriptor/report vectors and parity checks against the v1 descriptor contract.
+- Add a macOS tester/proof command or doc path that verifies both Bluetooth connection and Game Controller/tester button/axis movement.
+- Keep desktop companion involvement limited to diagnostics, evidence checklist, and fallback routing to Windows VHF.
 
 </code_context>
 
 <specifics>
 ## Specific Ideas
 
-- CoreHID is preferred for speed of proof, but output/rumble support is a hard gate. If CoreHID cannot receive output reports, DriverKit fallback is required in Phase 7.
-- The final macOS proof should be as strict as the Windows proof: live Android/gun stream, normal OS-visible controller surface, and user confirmation.
-- The local proof target during discussion was macOS 26.2 build 25C56 on arm64.
-- Discussion-time external research found Apple docs for CoreHID `HIDVirtualDevice`, HIDDriverKit, DriverKit entitlements, and IOKit `IOHIDUserDeviceCreateWithProperties`; downstream research must refresh official Apple docs before planning.
+- User wants an explicit Android "Start Bluetooth gamepad" control rather than always-on advertising.
+- Pairing mode should show a visible countdown/status while Android is discoverable/connectable.
+- If the current Android phone cannot provide HID peripheral mode, planners must try an alternate Android phone before declaring the path blocked.
+- The final macOS proof must be user-visible: Bluetooth connection plus a tester/Game Controller surface showing live real inputs.
+- DESK-06 can be honest unsupported for macOS output reports if Android implements the callback/probe path and records that macOS did not send usable output.
 
 </specifics>
 
 <deferred>
 ## Deferred Ideas
 
-- Production notarized installer, release signing/distribution polish, and paid Developer ID flow are deferred beyond Phase 7 unless required by the selected fallback proof path.
-- Profile storage, configurable aim mapping, sensitivity, inversion, dead zone, smoothing, and remapping remain Phase 8.
-- Visualizer UI, latency dashboard, packet-loss dashboard, and recenter display remain Phase 9.
-- Replay diagnostics beyond platform smoke remain Phase 10.
+- Phase 8 owns profile storage, configurable aim mapping, sensitivity, inversion, dead zone, smoothing, and remapping.
+- Phase 9 owns visualizer UI, latency dashboard, packet-loss dashboard, and recenter display.
+- Phase 10 owns broader replay diagnostics and packaging documentation beyond Phase 7 proof docs.
+- Direct desktop-to-gun Bluetooth remains v2/deferred.
 - Physical gun motor rumble remains v2/deferred.
+- Production notarized macOS virtual HID driver flow remains out of scope unless a later phase explicitly revives DriverKit as product path.
 
 </deferred>
 
 ---
 
-*Phase: 7-macOS Virtual Joystick Path*
-*Context gathered: 2026-06-10T12:22:36Z*
+*Phase: 7-Android Bluetooth HID Gamepad Path*
+*Context gathered: 2026-06-10T21:33:48Z*
