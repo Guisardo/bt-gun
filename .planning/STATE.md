@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: "Checkpoint 07-06 Task 3: DriverKit approval required"
-last_updated: "2026-06-10T17:18:17.640Z"
-last_activity: 2026-06-10 -- Phase 07 Plan 05 recorded CoreHID runtime block and mandatory DriverKit fallback gate
+stopped_at: "Phase 07 rerouted to Android Bluetooth HID gamepad path"
+last_updated: "2026-06-10T18:53:43.550Z"
+last_activity: 2026-06-10 -- Quick task 260610-m2r rerouted Phase 07 to Android Bluetooth HID gamepad primary path
 progress:
   total_phases: 10
   completed_phases: 6
@@ -21,17 +21,17 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-09)
 
 **Core value:** Make the discontinued iPega AR gun usable as a normal wireless joystick gun on modern macOS and Windows with responsive motion aiming and v1 phone haptic feedback.
-**Current focus:** Phase 07 — macos-virtual-joystick-path
+**Current focus:** Phase 07 — Android Bluetooth HID Gamepad Path
 
 ## Current Position
 
-Phase: 07 (macos-virtual-joystick-path) — EXECUTING
-Plan: 6 of 7
-Next phase: 07 (macOS Virtual Joystick Path) execution
-Status: Plan 07-05 complete; executing Phase 07
-Last activity: 2026-06-10 -- Phase 07 Plan 05 recorded CoreHID runtime block and mandatory DriverKit fallback gate
+Phase: 07 (android-bluetooth-hid-gamepad-path) — NEEDS REPLAN
+Plan: Replan remaining Phase 07 work around Android phone Bluetooth HID gamepad
+Next phase: 07 Android Bluetooth HID gamepad planning/execution
+Status: CoreHID/DriverKit no-subscription macOS path blocked; Phase 07 rerouted to Android Bluetooth HID gamepad primary path. Windows VHF work remains fallback.
+Last activity: 2026-06-10 -- Quick task 260610-m2r rerouted requirements and roadmap to Android Bluetooth HID gamepad primary path
 
-Progress: [█████████░] 41/43 planned plans complete. Phase 06 has 6/6 plans complete; Phase 07 has 5/7 plans executed.
+Progress: [█████████░] 41/43 planned plans complete. Phase 06 has 6/6 plans complete; Phase 07 has 5/7 legacy macOS-driver plans executed before reroute and now needs Android HID replanning.
 
 ## Performance Metrics
 
@@ -55,7 +55,7 @@ Progress: [█████████░] 41/43 planned plans complete. Phase 0
 **Recent Trend:**
 
 - Recent completed execution plans: 06-P02, 06-P03, 06-P05, 06-P04, 06-P06, 07-P01, 07-P02, 07-P03, 07-P04, and 07-P05 complete.
-- Trend: Phase 07 plan sequence covers CoreHID feasibility, report packing, helper/backend/runtime wiring, OS-output proof, conditional DriverKit fallback, and final live macOS proof.
+- Trend: CoreHID and DriverKit are no longer primary for macOS because no-subscription virtual HID is blocked. Phase 07 now targets Android phone Bluetooth HID gamepad proof, with Windows VHF retained as fallback.
 
 *Updated after each plan completion*
 | Phase 01 P01 | 10 min | 3 tasks | 6 files |
@@ -189,6 +189,8 @@ Recent decisions affecting current work:
 - [Phase 07]: macOS backend launch is disabled by default and requires explicit btgun.macos.hid.helper.path. — Missing helper path fails closed with visible startup diagnostic.
 - [Phase 07]: macOS helper-origin output reports route only through authenticated ControlServer.sendHapticCommand. — No direct haptic bypass or Android session ownership was added.
 - [Phase 07]: CoreHID real smoke and separate IOHIDDeviceSetReport probe recorded corehid-runtime-blocked on normal macOS. — Helper built and signed but was killed before enumeration; Plan 07-06 DriverKit fallback is mandatory unless entitlement-capable CoreHID proof replaces the gate.
+- [Phase 07 reroute]: Primary no-subscription macOS path is now Android phone as Bluetooth HID gamepad. — Requirements and roadmap now target Android HID peripheral role, HID report mapping, macOS pairing, and output-report-to-phone-haptic proof.
+- [Phase 07 fallback]: Completed Windows VHF virtual joystick work remains the fallback desktop path if Android Bluetooth HID gamepad integration is blocked on the phone or macOS. — Do not discard Phase 6; use it as the working OS-visible controller path while macOS Bluetooth HID is proven.
 
 ### Pending Todos
 
@@ -196,13 +198,14 @@ None.
 
 ### Blockers/Concerns
 
-- [Phase 7]: Production macOS virtual HID/output support remains unproven; Plan 07-05 recorded `corehid-runtime-blocked`, so Plan 07-06 must execute the selected local-dev-only DriverKit fallback branch unless entitlement-capable CoreHID proof replaces the gate.
+- [Phase 7]: Android Bluetooth HID gamepad support is unproven and must be replanned/tested. Phone OEM support for HID peripheral mode and macOS output-report behavior are the next blockers.
 
 ### Quick Tasks Completed
 
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
 | 260609-pnq | repair stale Phase 5 roadmap/validation status | 2026-06-09 | this commit | [260609-pnq-repair-stale-phase-5-roadmap-validation-](./quick/260609-pnq-repair-stale-phase-5-roadmap-validation-/) |
+| 260610-m2r | reroute Phase 7 requirements and roadmap to Android Bluetooth HID gamepad | 2026-06-10 | this commit | [260610-m2r-update-requirements-and-roadmap-to-use-a](./quick/260610-m2r-update-requirements-and-roadmap-to-use-a/) |
 
 ## Deferred Items
 
@@ -214,6 +217,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-10T17:18:17.631Z
-Stopped at: Checkpoint 07-06 Task 3: DriverKit approval required
-Resume file: .planning/phases/07-macos-virtual-joystick-path/07-06-SUMMARY.md
+Last session: 2026-06-10T18:53:43.550Z
+Stopped at: Phase 07 rerouted to Android Bluetooth HID gamepad path
+Resume file: .planning/ROADMAP.md

@@ -2,7 +2,7 @@
 
 ## Overview
 
-v1 moves from real iPega hardware discovery to a simple end-to-end joystick visualizer. The order reduces the highest uncertainty first: prove the physical gun input protocol, phone motion-aim path, and phone haptic fallback, then lock the Android-to-desktop session contract, then validate Windows and macOS virtual joystick feasibility, and only then complete the first user-visible acceptance path through profiles, visualizer diagnostics, recentering, latency, and phone haptics.
+v1 moves from real iPega hardware discovery to a simple end-to-end joystick visualizer. The order reduces the highest uncertainty first: prove the physical gun input protocol, phone motion-aim path, and phone haptic fallback, then lock transport/control contracts, then validate an OS-visible controller path. As of 2026-06-10, the primary no-subscription macOS path is the Android phone acting as a Bluetooth HID gamepad. The completed Windows virtual joystick work remains the fallback desktop path if Android Bluetooth HID gamepad integration is blocked.
 
 ## Phases
 
@@ -18,8 +18,8 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 3: LAN Pairing and Secure Session** - Android and desktop can establish an authenticated local session by QR or pairing code. (completed 2026-06-08)
 - [x] **Phase 4: Input Stream and Haptic Transport** - Versioned UDP input and reliable control messages carry input, diagnostics, and phone haptic commands safely. (physical smoke plan added 2026-06-09) (completed 2026-06-09)
 - [x] **Phase 5: Desktop Backend Contract and Smoke Harness** - Shared desktop backend contract and fake-input smoke tests work before real OS driver work. (completed 2026-06-09)
-- [x] **Phase 6: Windows Virtual Joystick Path** - Windows 11 x64 exposes the gun stream as a regular gamepad-style joystick with output-to-phone-haptic forwarding. (completed 2026-06-10)
-- [ ] **Phase 7: macOS Virtual Joystick Path** - macOS Apple Silicon exposes the gun stream as a regular gamepad-style joystick and reports output limits clearly.
+- [x] **Phase 6: Windows Virtual Joystick Path** - Windows 11 x64 exposes the gun stream as a regular gamepad-style joystick with output-to-phone-haptic forwarding, retained as fallback if Android Bluetooth HID gamepad integration is blocked. (completed 2026-06-10)
+- [ ] **Phase 7: Android Bluetooth HID Gamepad Path** - Android phone exposes the gun stream directly to macOS as a Bluetooth HID gamepad, with output-report-to-phone-haptic proof or clear compatibility limits.
 - [ ] **Phase 8: Desktop Profiles and Mapping** - Users can configure aim and button mapping on desktop without Android rebuilds.
 - [ ] **Phase 9: Visualizer Acceptance Path** - The simple visualizer proves controls, aim, recentering, latency, packet loss, and phone haptic round trip.
 - [ ] **Phase 10: Diagnostics, Replay, and v1 Docs** - Replay tests, diagnostic logs, setup docs, protocol docs, and known limits make the MVP repeatable.
@@ -195,7 +195,7 @@ Plans:
 
 ### Phase 6: Windows Virtual Joystick Path
 
-**Goal:** Windows 11 x64 can see and use the streamed gun as a regular gamepad-style joystick with output-to-phone-haptic forwarding.
+**Goal:** Windows 11 x64 can see and use the streamed gun as a regular gamepad-style joystick with output-to-phone-haptic forwarding, and this completed path remains the desktop fallback if Android Bluetooth HID gamepad mode is blocked.
 **Mode:** mvp
 **Depends on:** Phase 5
 **Requirements:** DESK-02, DESK-05, PACK-02
@@ -229,54 +229,58 @@ Plans:
 
 - [x] 06-06-PLAN.md — Approval-gated Windows target proof with `joy.cpl`, live input, and real output haptic.
 
-### Phase 7: macOS Virtual Joystick Path
+### Phase 7: Android Bluetooth HID Gamepad Path
 
-**Goal:** macOS Apple Silicon can see and use the streamed gun as a regular gamepad-style joystick with honest output capability reporting.
+**Goal:** Android phone can act as a Bluetooth HID gamepad for the gun stream so macOS Apple Silicon sees a normal OS-visible gamepad-style joystick without paid Apple virtual HID entitlements.
 **Mode:** mvp
-**Depends on:** Phase 5
-**Requirements:** DESK-03, DESK-06, PACK-03
+**Depends on:** Phase 2, Phase 5, with Phase 6 retained as fallback
+**Requirements:** ANDR-09, ANDR-10, ANDR-11, DESK-03, DESK-06, PACK-03, PACK-06
 **Success Criteria** (what must be TRUE):
 
-  1. macOS Apple Silicon sees an OS-visible regular gamepad-style virtual joystick.
-  2. macOS virtual joystick receives desktop rumble or output requests where supported, or clearly reports the platform output limitation while preserving v1 phone haptic support.
-  3. Repository documents the selected macOS virtual HID strategy, entitlement requirements, and development setup.
+  1. Android host app detects whether the phone can act as a Bluetooth HID gamepad peripheral and reports a clear blocked state when unsupported.
+  2. Android host app exposes normalized gun controls and Android motion aim as a regular gamepad-style Bluetooth HID report.
+  3. macOS Apple Silicon pairs to the Android phone and sees an OS-visible gamepad-style joystick without CoreHID/DriverKit virtual HID entitlement work.
+  4. Bluetooth HID output or rumble reports route to Android phone haptics when supported, or the app reports the limitation clearly.
+  5. Repository documents Android Bluetooth HID setup, macOS pairing, output-report behavior, compatibility risks, and the fallback to the completed Windows virtual joystick path.
 
-**Plans:** 5/7 plans executed
+**Plans:** 5/7 legacy macOS-driver plans executed before reroute; Android Bluetooth HID plan set needs replanning.
 Plans:
+
+**Reroute note (2026-06-10):** CoreHID and DriverKit virtual HID paths require Apple entitlement/signing or local security relaxation and do not satisfy the no-subscription primary path. Keep the work below as evidence/fallback scaffolding, but replan the remaining Phase 7 work around Android Bluetooth HID gamepad mode.
 
 **Wave 1**
 
-- [x] 07-01-PLAN.md — Toolchain/CoreHID feasibility, entitlement gate, and PACK-03 setup foundation. CoreHID recorded `corehid-runtime-blocked`; selected local-development-only DriverKit fallback route with no DESK-03/DESK-06 production support claim yet.
+- [x] 07-01-PLAN.md — Legacy macOS CoreHID feasibility, entitlement gate, and PACK-03 setup foundation. CoreHID recorded `corehid-runtime-blocked`; selected local-development-only DriverKit fallback route with no DESK-03/DESK-06 production support claim yet.
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [x] 07-02-PLAN.md — macOS HID report packing and output haptic mapping. Pure Kotlin report contracts complete; DESK-03/DESK-06 OS proof remains pending.
+- [x] 07-02-PLAN.md — Legacy macOS HID report packing and output haptic mapping. Pure Kotlin report contracts complete; DESK-03/DESK-06 OS proof remains pending.
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [x] 07-03-PLAN.md — macOS helper client, backend lifecycle, and honest capabilities.
+- [x] 07-03-PLAN.md — Legacy macOS helper client, backend lifecycle, and honest capabilities.
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [x] 07-04-PLAN.md — Live companion runtime wiring and authenticated haptic routing.
+- [x] 07-04-PLAN.md — Legacy live companion runtime wiring and authenticated haptic routing.
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
-- [x] 07-05-PLAN.md — CoreHID OS-visible smoke and OS-origin output probe gate. Real smoke/probe exist; gate recorded `corehid-runtime-blocked`, so Plan 07-06 DriverKit fallback remains mandatory.
+- [x] 07-05-PLAN.md — Legacy CoreHID OS-visible smoke and OS-origin output probe gate. Real smoke/probe exist; gate recorded `corehid-runtime-blocked`.
 
-**Wave 6** *(blocked on Wave 5 completion)*
+**Paused legacy Wave 6**
 
-- [ ] 07-06-PLAN.md — Conditional HIDDriverKit fallback when CoreHID fails visibility or output proof.
+- [ ] 07-06-PLAN.md — Local-development-only HIDDriverKit fallback scaffold. Retain as fallback evidence only; do not use as primary no-subscription macOS path.
 
-**Wave 7** *(blocked on Wave 6 completion)*
+**Replacement planning target**
 
-- [ ] 07-07-PLAN.md — Final live Android/gun macOS joystick proof and output-to-phone-haptic evidence gate.
+- [ ] Replan Phase 7 around Android Bluetooth HID gamepad proof: phone HID role detection, HID descriptor/report sender, macOS pairing proof, output-report-to-phone-haptic proof, and Windows fallback decision gate.
 
 ### Phase 8: Desktop Profiles and Mapping
 
 **Goal:** User can configure desktop-side profiles that map gun controls and motion aim into virtual joystick behavior.
 **Mode:** mvp
-**Depends on:** Phase 7
+**Depends on:** Phase 7 Android Bluetooth HID gamepad proof or explicit Windows-fallback decision
 **Requirements:** PROF-01, PROF-02, PROF-03, PROF-04, PROF-05, PROF-06
 **Success Criteria** (what must be TRUE):
 
