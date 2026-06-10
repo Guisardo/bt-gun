@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 06-03-PLAN.md
-last_updated: "2026-06-10T00:44:41.059Z"
-last_activity: 2026-06-10 -- Phase 06 Plan 03 complete
+stopped_at: Completed 06-04-PLAN.md
+last_updated: "2026-06-10T02:14:37.769Z"
+last_activity: 2026-06-10 -- Phase 06 Plan 04 complete
 progress:
   total_phases: 10
   completed_phases: 5
   total_plans: 36
-  completed_plans: 33
-  percent: 92
+  completed_plans: 35
+  percent: 97
 ---
 
 # Project State
@@ -26,18 +26,18 @@ See: .planning/PROJECT.md (updated 2026-06-09)
 ## Current Position
 
 Phase: 06 (windows-virtual-joystick-path) — EXECUTING
-Plan: 4 of 6
+Plan: 6 of 6
 Next phase: 06 (Windows Virtual Joystick Path)
 Status: Ready to execute
-Last activity: 2026-06-10 -- Phase 06 Plan 03 complete
+Last activity: 2026-06-10 -- Phase 06 Plan 04 complete
 
-Progress: [█████████░] 92% by planned plans. Phase 06 has 3/6 plans executed.
+Progress: [██████████] 97% by planned plans. Phase 06 has 5/6 plans executed.
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 33
+- Total plans completed: 35
 - Average duration: not tracked for hardware-interactive plans
 - Total execution time: not tracked after Plan 02
 
@@ -52,8 +52,8 @@ Progress: [█████████░] 92% by planned plans. Phase 06 has 3/
 
 **Recent Trend:**
 
-- Recent completed execution plans: 05-P05, 06-P01, 06-P02, 06-P03 complete
-- Trend: Phase 06 Windows backend bridge is underway with deterministic HID packing, output-report haptic mapping, and a Kotlin VHF bridge client complete.
+- Recent completed execution plans: 06-P01, 06-P02, 06-P03, 06-P05, 06-P04 complete
+- Trend: Phase 06 Windows backend path has HID packing, driver bridge, CI artifact proof, live companion runtime wiring, and real VHF smoke entrypoint complete.
 
 *Updated after each plan completion*
 | Phase 01 P01 | 10 min | 3 tasks | 6 files |
@@ -89,6 +89,7 @@ Progress: [█████████░] 92% by planned plans. Phase 06 has 3/
 | Phase 06 P01 | 12 min | 2 tasks | 5 files |
 | Phase 06 P02 | 8 min | 3 tasks | 10 files |
 | Phase 06 P03 | 6min | 2 tasks | 5 files |
+| Phase 06 P04 | 11 min | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -164,6 +165,9 @@ Recent decisions affecting current work:
 - [Phase 06]: WindowsVirtualControllerBackend publishes semantic state only through WindowsHidReportPacker and WindowsDriverBridge.submitInputReport.
 - [Phase 06]: Windows output report bytes drain from the helper bridge and map through WindowsOutputReportMapper with windows-output-report-* command ids.
 - [Phase 06]: windows-vhf capabilities declare real output-report and phone-haptic support while keeping pattern output unsupported.
+- [Phase 06]: WindowsBackendRuntime attaches only to ControlServer.onUdpInputReceived, preserving existing callbacks and keeping LAN/session/auth ownership in ControlServer.
+- [Phase 06]: The real windows-vhf smoke command requires a Plan 05 btgun-driver-bridge.exe artifact path and never falls back to Phase 5 stubs.
+- [Phase 06]: Desktop launch enables the real Windows backend only when btgun.windows.driver.enabled=true and an explicit bridge path is provided.
 
 ### Pending Todos
 
@@ -189,6 +193,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-10T00:44:41.044Z
-Stopped at: Completed 06-03-PLAN.md
+Last session: 2026-06-10T02:12:26.850Z
+Stopped at: Completed 06-04-PLAN.md
 Resume file: None
