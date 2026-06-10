@@ -32,9 +32,9 @@
 - [x] **ANDR-06**: Holding reload for two seconds recenters motion aim without preventing normal reload press/release events.
 - [x] **ANDR-07**: Android host app can receive a haptic command from desktop and vibrate the Android phone.
 - [x] **ANDR-08**: Android host app shows active session status for gun connection, desktop link, packet stream, and haptic feedback.
-- [ ] **ANDR-09**: Android host app can register or advertise as a Bluetooth HID gamepad using the phone's supported HID peripheral role, with a clear blocked state when the device/OEM does not support the role.
+- [x] **ANDR-09**: Android host app can register or advertise as a Bluetooth HID gamepad using the phone's supported HID peripheral role, with a clear blocked state when the device/OEM does not support the role.
 - [x] **ANDR-10**: Android host app maps normalized gun controls and Android motion aim into regular gamepad-style HID input reports without requiring a macOS virtual HID driver.
-- [ ] **ANDR-11**: Android host app can receive Bluetooth HID output or rumble reports from the desktop OS and map valid output to v1 phone haptics, or report the platform limitation clearly.
+- [x] **ANDR-11**: Android host app can receive Bluetooth HID output or rumble reports from the desktop OS and map valid output to v1 phone haptics, or report the platform limitation clearly.
 
 ### LAN Session
 
@@ -171,9 +171,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ANDR-06 | Phase 2 | Complete |
 | ANDR-07 | Phase 4 | Complete |
 | ANDR-08 | Phase 2 | Complete |
-| ANDR-09 | Phase 7 | Pending |
+| ANDR-09 | Phase 7 | Complete |
 | ANDR-10 | Phase 7 | Complete |
-| ANDR-11 | Phase 7 | Pending |
+| ANDR-11 | Phase 7 | Complete |
 | TRAN-01 | Phase 3 | Complete |
 | TRAN-02 | Phase 3 | Complete |
 | TRAN-03 | Phase 3 | Complete |
