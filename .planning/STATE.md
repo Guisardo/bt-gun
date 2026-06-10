@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 06 Plan 06 CLI/PnP proof passing; manual proof gates remain
-last_updated: "2026-06-10T04:00:00.000Z"
-last_activity: 2026-06-10 -- Phase 06 Plan 06 target CLI proof passing
+stopped_at: Phase 06 Plan 06 CLI/PnP and joy.cpl proof passing; live/haptic proof gates remain
+last_updated: "2026-06-10T04:08:15.000Z"
+last_activity: 2026-06-10 -- Phase 06 Plan 06 target CLI/PnP and joy.cpl proof passing
 progress:
   total_phases: 10
   completed_phases: 5
@@ -28,10 +28,10 @@ See: .planning/PROJECT.md (updated 2026-06-09)
 Phase: 06 (windows-virtual-joystick-path) — EXECUTING
 Plan: 6 of 6
 Next phase: 06 (Windows Virtual Joystick Path)
-Status: Awaiting manual joy.cpl, live Android/gun input, and output haptic proof
-Last activity: 2026-06-10 -- Phase 06 Plan 06 target CLI proof passing
+Status: Awaiting live Android/gun input and output haptic proof
+Last activity: 2026-06-10 -- Phase 06 Plan 06 target CLI/PnP and joy.cpl proof passing
 
-Progress: [██████████] 97% by planned plans. Phase 06 has 5/6 plans executed; Plan 06 CLI/PnP sub-proof passes.
+Progress: [██████████] 97% by planned plans. Phase 06 has 5/6 plans executed; Plan 06 CLI/PnP and joy.cpl sub-proof pass.
 
 ## Performance Metrics
 
@@ -52,8 +52,8 @@ Progress: [██████████] 97% by planned plans. Phase 06 has 5/
 
 **Recent Trend:**
 
-- Recent completed execution plans: 06-P01, 06-P02, 06-P03, 06-P05, 06-P04 complete; 06-P06 CLI/PnP proof passing.
-- Trend: Phase 06 Windows backend path has HID packing, driver bridge, CI artifact proof, live companion runtime wiring, real VHF smoke entrypoint, and target CLI/PnP proof complete.
+- Recent completed execution plans: 06-P01, 06-P02, 06-P03, 06-P05, 06-P04 complete; 06-P06 CLI/PnP and joy.cpl proof passing.
+- Trend: Phase 06 Windows backend path has HID packing, driver bridge, CI artifact proof, live companion runtime wiring, real VHF smoke entrypoint, target CLI/PnP proof, and joy.cpl proof complete.
 
 *Updated after each plan completion*
 | Phase 01 P01 | 10 min | 3 tasks | 6 files |
@@ -171,7 +171,6 @@ Recent decisions affecting current work:
 
 ### Pending Todos
 
-- [Phase 06 P06]: Run `control joy.cpl` visual proof and get user confirmation.
 - [Phase 06 P06]: Run live Android/gun input proof through the real Windows backend.
 - [Phase 06 P06]: Run real HID output-to-phone-haptic proof, trying `joy.cpl` output first.
 
@@ -195,6 +194,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-10T04:00:00.000Z
-Stopped at: Phase 06 Plan 06 CLI/PnP proof passing; manual joy.cpl/live/haptic proof pending
+Last session: 2026-06-10T04:08:15.000Z
+Stopped at: Phase 06 Plan 06 CLI/PnP and joy.cpl proof passing; live/haptic proof pending
 Resume file: None
