@@ -29,6 +29,12 @@ val btgunSmokeHapticEnabled = providers.gradleProperty("btgun.smoke.haptic")
 val btgunWindowsDriverBridgePath = providers.systemProperty("btgun.windows.driver.bridge.path")
     .orElse("")
 
+val btgunMacosHidHelperPath = providers.systemProperty("btgun.macos.hid.helper.path")
+    .orElse("")
+
+val btgunMacosOutputProbePath = providers.systemProperty("btgun.macos.output.probe.path")
+    .orElse("")
+
 dependencies {
     implementation("io.ktor:ktor-server-core-jvm:3.5.0")
     implementation("io.ktor:ktor-server-netty-jvm:3.5.0")
@@ -91,6 +97,16 @@ tasks.register<JavaExec>("smokeDesktopBackendMacosStub") {
     description = "Runs the macOS desktop backend stub smoke and writes JUnit-style XML."
     classpath = sourceSets.main.get().runtimeClasspath
     mainClass.set("com.btgun.desktop.smoke.MacosBackendSmokeMainKt")
+    systemProperty("btgun.smoke.haptic", btgunSmokeHapticEnabled.get().toString())
+}
+
+tasks.register<JavaExec>("smokeDesktopBackendMacosCoreHid") {
+    group = "verification"
+    description = "Runs the macOS CoreHID desktop backend smoke against a real helper artifact."
+    classpath = sourceSets.main.get().runtimeClasspath
+    mainClass.set("com.btgun.desktop.smoke.MacosCoreHidBackendSmokeMainKt")
+    systemProperty("btgun.macos.hid.helper.path", btgunMacosHidHelperPath.get())
+    systemProperty("btgun.macos.output.probe.path", btgunMacosOutputProbePath.get())
     systemProperty("btgun.smoke.haptic", btgunSmokeHapticEnabled.get().toString())
 }
 
