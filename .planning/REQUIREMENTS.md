@@ -48,10 +48,10 @@
 ### Desktop Virtual Controller
 
 - [x] **DESK-01**: Desktop companion can receive, validate, decrypt/authenticate, and parse normalized Android input frames.
-- [ ] **DESK-02**: Desktop companion can expose a regular gamepad-style virtual joystick on Windows 11 x64.
+- [x] **DESK-02**: Desktop companion can expose a regular gamepad-style virtual joystick on Windows 11 x64.
 - [ ] **DESK-03**: Desktop companion can expose a regular gamepad-style virtual joystick on macOS Apple Silicon.
 - [x] **DESK-04**: Virtual joystick descriptor exposes trigger, reload, joystick axes, X/Y/A/B buttons, and aim axes.
-- [ ] **DESK-05**: Windows virtual joystick path can receive desktop rumble/output requests and map them to v1 phone haptic commands.
+- [x] **DESK-05**: Windows virtual joystick path can receive desktop rumble/output requests and map them to v1 phone haptic commands.
 - [ ] **DESK-06**: macOS virtual joystick path can receive desktop rumble/output requests or clearly report the platform limitation while preserving v1 phone haptic support.
 - [x] **DESK-07**: Desktop companion exposes backend capability flags for buttons, axes, haptic feedback, output reports, and platform limitations.
 - [x] **DESK-08**: Developer can run a fake-input virtual controller smoke test on both Windows and macOS before using the real Android stream.
@@ -85,7 +85,7 @@
 ### Packaging and Documentation
 
 - [ ] **PACK-01**: Repository documents the selected Android build toolchain and device testing workflow.
-- [ ] **PACK-02**: Repository documents the selected Windows virtual HID strategy, driver signing requirements, and development setup.
+- [x] **PACK-02**: Repository documents the selected Windows virtual HID strategy, driver signing requirements, and development setup.
 - [ ] **PACK-03**: Repository documents the selected macOS virtual HID strategy, entitlement requirements, and development setup.
 - [ ] **PACK-04**: Repository documents the LAN session protocol, packet schemas, pairing flow, and security model.
 - [ ] **PACK-05**: Repository documents known limitations, including unsupported direct desktop Bluetooth and lack of game-specific presets in v1.
@@ -174,10 +174,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | TRAN-08 | Phase 4 | Complete |
 | TRAN-09 | Phase 4 | Complete |
 | DESK-01 | Phase 4 | Complete |
-| DESK-02 | Phase 6 | Pending |
+| DESK-02 | Phase 6 | Complete |
 | DESK-03 | Phase 7 | Pending |
 | DESK-04 | Phase 5 | Complete |
-| DESK-05 | Phase 6 | Pending |
+| DESK-05 | Phase 6 | Complete |
 | DESK-06 | Phase 7 | Pending |
 | DESK-07 | Phase 5 | Complete |
 | DESK-08 | Phase 5 | Complete |
@@ -199,7 +199,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PERF-04 | Phase 10 | Pending |
 | PERF-05 | Phase 10 | Pending |
 | PACK-01 | Phase 10 | Pending |
-| PACK-02 | Phase 6 | Pending |
+| PACK-02 | Phase 6 | Complete |
 | PACK-03 | Phase 7 | Pending |
 | PACK-04 | Phase 10 | Pending |
 | PACK-05 | Phase 10 | Pending |
