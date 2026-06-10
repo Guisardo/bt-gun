@@ -35,6 +35,22 @@ The primary helper path creates `BT Gun Virtual Joystick` through CoreHID `HIDVi
 - Output report ID: `0x02`
 - Entitlement: `com.apple.developer.hid.virtual.device`
 
+The Kotlin desktop backend runs the helper as a local stdin/stdout byte bridge. The helper accepts:
+
+- `HELLO 1`
+- `SUBMIT_INPUT <hex>` for a 10-byte report ID `0x01` payload
+- `READ_OUTPUT`
+- `STATUS`
+- `QUIT`
+
+The helper returns only `OK`, `ERR <safe-token>`, `OUTPUT <hex>`, or:
+
+```json
+{"version":1,"deviceActive":true,"osVisible":false,"setReportCallbackSeen":false,"inputReportsSubmitted":0,"outputReportsQueued":0,"malformedInputReports":0,"malformedOutputReports":0}
+```
+
+`STATUS` is prefixed with `STATUS `. `osVisible` remains false until a later proof command records CLI/UI visibility.
+
 Build and run the helper proof:
 
 ```bash

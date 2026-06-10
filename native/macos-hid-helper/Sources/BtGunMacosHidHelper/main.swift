@@ -7,16 +7,84 @@ private let btGunProductID: UInt32 = 0xB707
 private let inputReportID: UInt8 = 0x01
 private let outputReportID: UInt8 = 0x02
 private let inputReportLength = 10
+private let outputReportLength = 9
+private let protocolVersion = 1
+
+@available(macOS 15.0, *)
+private final class HelperState: @unchecked Sendable {
+    private let lock = NSLock()
+    private var outputReports: [[UInt8]] = []
+    private(set) var inputReportsSubmitted: UInt64 = 0
+    private(set) var malformedInputReports: UInt64 = 0
+    private(set) var malformedOutputReports: UInt64 = 0
+    private(set) var setReportCallbackSeen = false
+
+    func recordSubmittedInput() {
+        lock.withLock {
+            inputReportsSubmitted += 1
+        }
+    }
+
+    func recordMalformedInput() {
+        lock.withLock {
+            malformedInputReports += 1
+        }
+    }
+
+    func enqueueOutputReport(type: HIDReportType, id: HIDReportID?, data: Data) {
+        lock.withLock {
+            guard type == .output else {
+                malformedOutputReports += 1
+                return
+            }
+            let raw = [UInt8](data)
+            let report: [UInt8]
+            if raw.count == outputReportLength && raw.first == outputReportID {
+                report = raw
+            } else if id?.rawValue == outputReportID && raw.count == outputReportLength - 1 {
+                report = [outputReportID] + raw
+            } else {
+                malformedOutputReports += 1
+                return
+            }
+            setReportCallbackSeen = true
+            outputReports.append(report)
+        }
+    }
+
+    func dequeueOutputReport() -> [UInt8]? {
+        lock.withLock {
+            guard !outputReports.isEmpty else {
+                return nil
+            }
+            return outputReports.removeFirst()
+        }
+    }
+
+    func status(deviceActive: Bool) -> String {
+        lock.withLock {
+            """
+            STATUS {"version":\(protocolVersion),"deviceActive":\(deviceActive),"osVisible":false,"setReportCallbackSeen":\(setReportCallbackSeen),"inputReportsSubmitted":\(inputReportsSubmitted),"outputReportsQueued":\(outputReports.count),"malformedInputReports":\(malformedInputReports),"malformedOutputReports":\(malformedOutputReports)}
+            """
+        }
+    }
+}
 
 @available(macOS 15.0, *)
 private final class BtGunVirtualDeviceDelegate: HIDVirtualDeviceDelegate {
+    private let state: HelperState
+
+    init(state: HelperState) {
+        self.state = state
+    }
+
     func hidVirtualDevice(
         _ device: HIDVirtualDevice,
         receivedSetReportRequestOfType type: HIDReportType,
         id: HIDReportID?,
         data: Data
     ) async throws {
-        print("OUTPUT_REPORT type=\(type) id=\(id?.rawValue ?? 0) length=\(data.count)")
+        state.enqueueOutputReport(type: type, id: id, data: data)
     }
 
     func hidVirtualDevice(
@@ -25,8 +93,7 @@ private final class BtGunVirtualDeviceDelegate: HIDVirtualDeviceDelegate {
         id: HIDReportID?,
         maxSize: Int
     ) async throws -> Data {
-        print("GET_REPORT type=\(type) id=\(id?.rawValue ?? 0) maxSize=\(maxSize)")
-        if id?.rawValue == outputReportID {
+        if type == .output && id?.rawValue == outputReportID {
             return Data([outputReportID, 0x01, 0x00, 0x64, 0x00, 0xF4, 0x01, 0x00, 0x00])
         }
         return Data()
@@ -37,7 +104,7 @@ private final class BtGunVirtualDeviceDelegate: HIDVirtualDeviceDelegate {
 private struct BtGunMacosHidHelper {
     static func main() async {
         guard #available(macOS 15.0, *) else {
-            fputs("ERR macOS 15 or newer required for CoreHID HIDVirtualDevice\n", stderr)
+            fputs("ERR unsupported-macos\n", stderr)
             exit(78)
         }
 
@@ -54,7 +121,23 @@ private struct BtGunMacosHidHelper {
         let arguments = CommandLine.arguments.dropFirst()
         let probeMode = arguments.contains("--probe")
         let holdSeconds = parseHoldSeconds(arguments: Array(arguments)) ?? (probeMode ? 5 : 0)
+        let runtime = try await createRuntime()
 
+        if probeMode {
+            try await runtime.device.dispatchInputReport(data: neutralInputReport(), timestamp: SuspendingClock().now)
+            print("READY name=\"BT Gun Virtual Joystick\" vendor=0x1209 product=0xB707 inputReport=0x01 outputReport=0x02")
+            fflush(stdout)
+            if holdSeconds > 0 {
+                try await Task.sleep(nanoseconds: UInt64(holdSeconds) * 1_000_000_000)
+            }
+            return
+        }
+
+        runLineProtocol(runtime: runtime)
+    }
+
+    @available(macOS 15.0, *)
+    private static func createRuntime() async throws -> HelperRuntime {
         let properties = HIDVirtualDevice.Properties(
             descriptor: Data(btGunGamepadDescriptor),
             vendorID: btGunVendorID,
@@ -62,9 +145,9 @@ private struct BtGunMacosHidHelper {
             transport: .usb,
             product: "BT Gun Virtual Joystick",
             manufacturer: "BT Gun",
-            modelNumber: "BTGUN-MACOS-COREHID-PROBE",
+            modelNumber: "BTGUN-MACOS-COREHID-PROTOCOL",
             versionNumber: 1,
-            serialNumber: "BTGUN-PHASE7-PROBE",
+            serialNumber: "BTGUN-PHASE7-PROTOCOL",
             uniqueID: "BTGUN-PHASE7-COREHID",
             locationID: 1
         )
@@ -73,15 +156,75 @@ private struct BtGunMacosHidHelper {
             throw HelperError.virtualDeviceCreateFailed
         }
 
-        let delegate = BtGunVirtualDeviceDelegate()
+        let state = HelperState()
+        let delegate = BtGunVirtualDeviceDelegate(state: state)
         await device.activate(delegate: delegate)
-        try await device.dispatchInputReport(data: neutralInputReport(), timestamp: SuspendingClock().now)
-        print("READY name=\"BT Gun Virtual Joystick\" vendor=0x1209 product=0xB707 inputReport=0x01 outputReport=0x02")
+        return HelperRuntime(device: device, delegate: delegate, state: state)
+    }
 
-        if holdSeconds > 0 {
-            try await Task.sleep(nanoseconds: UInt64(holdSeconds) * 1_000_000_000)
+    @available(macOS 15.0, *)
+    private static func runLineProtocol(runtime: HelperRuntime) {
+        while let line = readLine(strippingNewline: true) {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty {
+                print("ERR empty-command")
+                fflush(stdout)
+                continue
+            }
+
+            if trimmed == "HELLO 1" {
+                print("OK")
+            } else if trimmed.hasPrefix("SUBMIT_INPUT ") {
+                handleSubmitInput(trimmed, runtime: runtime)
+            } else if trimmed == "READ_OUTPUT" {
+                if let report = runtime.state.dequeueOutputReport() {
+                    print("OUTPUT \(report.toHex())")
+                } else {
+                    print("OK")
+                }
+            } else if trimmed == "STATUS" {
+                print(runtime.state.status(deviceActive: true))
+            } else if trimmed == "QUIT" {
+                print("OK")
+                fflush(stdout)
+                return
+            } else {
+                print("ERR unknown-command")
+            }
+            fflush(stdout)
         }
     }
+
+    @available(macOS 15.0, *)
+    private static func handleSubmitInput(_ command: String, runtime: HelperRuntime) {
+        let payload = String(command.dropFirst("SUBMIT_INPUT ".count))
+        guard let bytes = payload.hexToBytes(),
+              bytes.count == inputReportLength,
+              bytes.first == inputReportID else {
+            runtime.state.recordMalformedInput()
+            print("ERR bad-input")
+            return
+        }
+
+        Task {
+            do {
+                try await runtime.device.dispatchInputReport(data: Data(bytes), timestamp: SuspendingClock().now)
+                runtime.state.recordSubmittedInput()
+                print("OK")
+            } catch {
+                runtime.state.recordMalformedInput()
+                print("ERR dispatch-failed")
+            }
+            fflush(stdout)
+        }
+    }
+}
+
+@available(macOS 15.0, *)
+private struct HelperRuntime {
+    let device: HIDVirtualDevice
+    let delegate: BtGunVirtualDeviceDelegate
+    let state: HelperState
 }
 
 private enum HelperError: Error {
@@ -90,17 +233,23 @@ private enum HelperError: Error {
 
 private func sanitized(error: Error) -> String {
     let text = String(describing: error)
-    return text
+    let token = text
         .replacingOccurrences(
             of: #"[A-Fa-f0-9]{40}"#,
-            with: "<redacted-signing-identity-hash>",
+            with: "redacted",
             options: .regularExpression
         )
         .replacingOccurrences(
             of: #"/Users/[^ ]+"#,
-            with: "<redacted-user-path>",
+            with: "redacted",
             options: .regularExpression
         )
+        .replacingOccurrences(
+            of: #"[^A-Za-z0-9_.:-]"#,
+            with: "-",
+            options: .regularExpression
+        )
+    return token.isEmpty ? "helper-error" : token
 }
 
 private func parseHoldSeconds(arguments: [String]) -> Int? {
@@ -118,6 +267,41 @@ private func neutralInputReport() -> Data {
     var report = Data(repeating: 0, count: inputReportLength)
     report[0] = inputReportID
     return report
+}
+
+private extension NSLock {
+    func withLock<T>(_ body: () -> T) -> T {
+        lock()
+        defer { unlock() }
+        return body()
+    }
+}
+
+private extension Array where Element == UInt8 {
+    func toHex() -> String {
+        map { String(format: "%02x", $0) }.joined()
+    }
+}
+
+private extension String {
+    func hexToBytes() -> [UInt8]? {
+        let compact = filter { !$0.isWhitespace }
+        guard compact.count % 2 == 0 else {
+            return nil
+        }
+        var bytes: [UInt8] = []
+        bytes.reserveCapacity(compact.count / 2)
+        var index = compact.startIndex
+        while index < compact.endIndex {
+            let next = compact.index(index, offsetBy: 2)
+            guard let byte = UInt8(compact[index..<next], radix: 16) else {
+                return nil
+            }
+            bytes.append(byte)
+            index = next
+        }
+        return bytes
+    }
 }
 
 private let btGunGamepadDescriptor: [UInt8] = [
