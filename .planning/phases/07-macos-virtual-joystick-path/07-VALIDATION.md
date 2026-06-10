@@ -1,92 +1,82 @@
 ---
 phase: 07
-slug: macos-virtual-joystick-path
+slug: android-bluetooth-hid-gamepad-path
 status: draft
 nyquist_compliant: true
 wave_0_complete: false
 created: 2026-06-10
 ---
 
-# Phase 07 — Validation Strategy
+# Phase 07 - Validation Strategy
 
-> Per-phase validation contract for macOS virtual joystick execution.
-
----
+Per-phase validation contract after the Android Bluetooth HID gamepad reroute. CoreHID and DriverKit rows are retained only through historical summaries and fallback docs; they are not the Phase 7 primary-path validation target.
 
 ## Test Infrastructure
 
 | Property | Value |
 |----------|-------|
-| **Framework** | Kotlin/JVM tests through `desktop-companion/build.gradle.kts`, plus native macOS helper smoke/proof commands |
-| **Config file** | `desktop-companion/build.gradle.kts`, `desktop-companion/settings.gradle.kts`, native helper build files created during Phase 07 |
-| **Quick run command** | `cd desktop-companion && GRADLE_USER_HOME=/private/tmp/btgun-gradle gradle test --tests '*Macos*'` |
-| **Full suite command** | `cd desktop-companion && GRADLE_USER_HOME=/private/tmp/btgun-gradle gradle test` |
-| **Estimated runtime** | ~60-180 seconds for Kotlin tests; live CoreHID/proof commands are hardware/manual gated |
-
----
+| Framework | Android/JVM main-function tests from existing Gradle `test` tasks |
+| Config file | `android-host/app/build.gradle.kts`; `desktop-companion/build.gradle.kts` only when fallback docs/status touch desktop companion |
+| Quick run command | `cd android-host && gradle test` after local Gradle startup repair |
+| Full suite command | `cd android-host && gradle test && cd ../desktop-companion && gradle test` after local Gradle startup repair |
+| Estimated runtime | hardware-independent tests under 2 min after Gradle repair; live Bluetooth proof is manual |
 
 ## Sampling Rate
 
-- **After every task commit:** Run `cd desktop-companion && GRADLE_USER_HOME=/private/tmp/btgun-gradle gradle test --tests '*Macos*'` when macOS/backend code exists.
-- **After every plan wave:** Run `cd desktop-companion && GRADLE_USER_HOME=/private/tmp/btgun-gradle gradle test` and the relevant `smokeDesktopBackendMacos*` task.
-- **Before `$gsd-verify-work`:** Full desktop tests, CoreHID or fallback live smoke, CLI enumeration artifact, OS-output-to-phone-haptic proof, live Android/gun stream visual proof, and PACK-03 docs complete.
-- **Max feedback latency:** 3 minutes for automated tests; manual/live proof recorded as explicit checkpoint evidence.
-
----
+- **After every task commit:** run the plan's Android unit/static checks, or record the local Gradle blocker if `libnative-platform.dylib` still prevents startup.
+- **After every plan wave:** run Android tests plus docs/static evidence checks touched by that wave.
+- **Before `$gsd-verify-work`:** Android HID unit tests green, live macOS Bluetooth/Game Controller proof captured, output-report proof or unsupported row captured, and redaction scan clean.
+- **Max feedback latency:** one task commit without automated proof unless the task is explicitly manual/live.
 
 ## Per-Task Verification Map
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 07-01-01 | 01 | 1 | PACK-03 | T-07-01 / T-07-02 | Local helper setup documents exact toolchain, signing, entitlement, and fallback gates without committing secrets | docs/static | `rg -n 'CoreHID|HIDVirtualDevice|com.apple.developer.hid.virtual.device|HIDDriverKit|system extension|hidutil|ioreg' docs/setup/macos-virtual-hid.md` | no W0 | pending |
-| 07-01-02 | 01 | 1 | DESK-03 | T-07-01 / T-07-02 | Minimal native helper creates or fails closed before backend claims OS-visible support | native smoke | helper build plus `hidutil list --matching '{"VendorID":0x1209,"ProductID":0xB707}'` | no W0 | pending |
-| 07-02-01 | 02 | 2 | DESK-03 | T-07-03 | Semantic state maps to descriptor-compatible macOS input report bytes with bounded axis/button values | unit | `cd desktop-companion && GRADLE_USER_HOME=/private/tmp/btgun-gradle gradle test --tests '*MacosHidReportPacker*'` | no W0 | pending |
-| 07-02-02 | 02 | 2 | DESK-06 | T-07-04 / T-07-05 | Output report bytes validate report id, version, length, reserved bytes, duration, TTL, and strength before haptic command creation | unit | `cd desktop-companion && GRADLE_USER_HOME=/private/tmp/btgun-gradle gradle test --tests '*MacosOutputReportMapper*'` | no W0 | pending |
-| 07-03-01 | 03 | 3 | DESK-03 | T-07-01 / T-07-03 | Backend lifecycle publishes only through the local helper boundary and reports capabilities honestly | integration | `cd desktop-companion && GRADLE_USER_HOME=/private/tmp/btgun-gradle gradle test --tests '*MacosVirtualControllerBackend*'` | no W0 | pending |
-| 07-03-02 | 03 | 3 | DESK-06 | T-07-04 / T-07-05 | Simulated output remains mapper-only and cannot be counted as OS-origin proof | integration | `cd desktop-companion && GRADLE_USER_HOME=/private/tmp/btgun-gradle gradle test --tests '*Macos*'` | no W0 | pending |
-| 07-04-01 | 04 | 4 | DESK-03 | T-07-03 | Runtime preserves existing UDP callback, applies stale behavior, and exposes diagnostics | integration | `cd desktop-companion && GRADLE_USER_HOME=/private/tmp/btgun-gradle gradle test --tests '*MacosBackendRuntime*'` | no W0 | pending |
-| 07-04-02 | 04 | 4 | DESK-06 | T-07-04 / T-07-05 | OS/HID-origin output report routes to existing authenticated phone haptic command path | live/integration | `cd desktop-companion && GRADLE_USER_HOME=/private/tmp/btgun-gradle gradle smokeDesktopBackendMacosCoreHid -Pbtgun.smoke.haptic=true` | no W0 | pending |
-| 07-05-01 | 05 | 5 | DESK-03 | T-07-01 / T-07-03 | Live Android/gun stream moves macOS-visible joystick axes/buttons and evidence is sanitized | manual/live | `hidutil list --matching '{"VendorID":0x1209,"ProductID":0xB707}'` plus user/agent visual confirmation | no W0 | pending |
-| 07-05-02 | 05 | 5 | DESK-06 | T-07-04 / T-07-05 | Phase does not pass unless macOS-origin output/rumble reaches Android phone haptic or DriverKit fallback proof replaces failed CoreHID path | manual/live | `rg -n 'macos-output-report|phone-haptic|approved' docs/evidence/manifests/phase7-macos-virtual-hid.jsonl` | no W0 | pending |
-| 07-06-01 | 06 | 6 | DESK-03, DESK-06, PACK-03 | T-07-22 / T-07-24 | CoreHID gate unambiguously selects skip or DriverKit fallback; ambiguous gate blocks safely | docs/static | `rg -n 'corehid-' docs/evidence/manifests/phase7-macos-virtual-hid.jsonl .planning/phases/07-macos-virtual-joystick-path/07-06-SUMMARY.md` | no W0 | pending |
-| 07-06-02 | 06 | 6 | DESK-03, DESK-06, PACK-03 | T-07-22 / T-07-23 | DriverKit source/docs exist only when CoreHID fails; CoreHID pass path verifies skip row without source churn | conditional/static | `rg -n 'phase7-driverkit-fallback-skipped-corehid-pass|IOHIDDevice|OSSystemExtensionRequest' docs/evidence/manifests/phase7-macos-virtual-hid.jsonl .planning/phases/07-macos-virtual-joystick-path/07-06-SUMMARY.md native/macos-hid-driverkit docs/setup/macos-driverkit-fallback.md` | no W0 | pending |
-| 07-06-03 | 06 | 6 | DESK-03, DESK-06, PACK-03 | T-07-25 / T-07-26 | DriverKit activation/install only runs after explicit approval; entitlement blockers keep phase inconclusive, not weakened | conditional/manual | `rg -n 'USER APPROVAL REQUIRED|phase7-driverkit-system-extension-approved|phase7-driverkit-cli-enumeration|phase7-driverkit-output-probe|phase7-driverkit-fallback-skipped-corehid-pass' docs/evidence/manifests/phase7-macos-virtual-hid.jsonl docs/setup/macos-driverkit-fallback.md .planning/phases/07-macos-virtual-joystick-path/07-06-SUMMARY.md` | no W0 | pending |
-| 07-07-01 | 07 | 7 | DESK-03, DESK-06, PACK-03 | T-07-27 / T-07-30 | Final checklist and evidence helpers reject replay-only input, direct haptics, unsanitized secrets, and screenshots | docs/static | `rg -n 'phase7-macos-cli-hid-enumeration|phase7-live-android-gun-input|phase7-macos-output-report-phone-haptic|redaction' docs/macos/phase7-proof-checklist.md tools/macos docs/evidence/manifests/phase7-macos-virtual-hid.jsonl` | no W0 | pending |
-| 07-07-02 | 07 | 7 | DESK-03 | T-07-27 / T-07-31 | Physical Android/gun stream drives macOS-visible joystick with CLI/UI evidence and user confirmation | manual/live | `rg -n 'phase7-macos-cli-hid-enumeration|phase7-macos-ui-visible|phase7-live-android-gun-input|user-confirmed' docs/evidence/manifests/phase7-macos-virtual-hid.jsonl .planning/phases/07-macos-virtual-joystick-path/07-07-SUMMARY.md` | no W0 | pending |
-| 07-07-03 | 07 | 7 | DESK-06, PACK-03 | T-07-28 / T-07-29 / T-07-30 | macOS HID API-origin output report maps to authenticated Android phone haptic; redaction and docs rows pass | manual/live | `rg -n 'phase7-macos-output-report-phone-haptic|phase7-user-confirmation|phase7-redaction-scan|phase7-pack03-docs-complete|phone-haptic' docs/evidence/manifests/phase7-macos-virtual-hid.jsonl .planning/phases/07-macos-virtual-joystick-path/07-07-SUMMARY.md` | no W0 | pending |
+| 07-01-01 | 01 | 1 | ANDR-09 | T-07-01 / T-07-02 | Local Gradle startup either works or blocker is recorded before test-dependent work claims pass | tooling | `cd android-host && gradle test` | ❌ W0 | ⬜ pending |
+| 07-01-02 | 01 | 1 | ANDR-09 | T-07-01 / T-07-05 | Capability gate distinguishes Bluetooth off, missing `BLUETOOTH_CONNECT`, HID proxy unavailable, registration failed, no host connected, and host disconnected | unit | `cd android-host && gradle test` | ❌ W0 | ⬜ pending |
+| 07-02-01 | 02 | 2 | ANDR-10 | T-07-03 | HID descriptor exposes six buttons and four axes matching `btGunV1Descriptor` semantics | unit/golden | `cd android-host && gradle test` | ❌ W0 | ⬜ pending |
+| 07-02-02 | 02 | 2 | ANDR-10 | T-07-03 | Input report packer pins button bit order, little-endian signed axes, calibrated aim preference, raw aim fallback, and stale center behavior | unit/golden | `cd android-host && gradle test` | ❌ W0 | ⬜ pending |
+| 07-03-01 | 03 | 3 | ANDR-09, ANDR-10 | T-07-02 / T-07-06 | HID adapter registers/unregisters explicitly and sends reports only when registered with a connected host | unit/fake adapter | `cd android-host && gradle test` | ❌ W0 | ⬜ pending |
+| 07-03-02 | 03 | 3 | ANDR-11 | T-07-04 | Invalid host output reports trigger error/status and do not vibrate the phone | unit/fake adapter | `cd android-host && gradle test` | ❌ W0 | ⬜ pending |
+| 07-04-01 | 04 | 4 | ANDR-09, ANDR-10 | T-07-02 / T-07-06 | `HostSessionService` starts/stops HID mode by explicit action and fans out live gun/motion updates without changing LAN diagnostics | unit/static | `cd android-host && gradle test` | ❌ W0 | ⬜ pending |
+| 07-04-02 | 04 | 4 | ANDR-09, ANDR-11 | T-07-05 | Dashboard exposes HID role, registration, pairing window, host connection, last input report, output callback/result, and fallback status | unit | `cd android-host && gradle test` | ❌ W0 | ⬜ pending |
+| 07-05-01 | 05 | 5 | DESK-03 | T-07-07 / T-07-08 | macOS pairs to Android phone over Bluetooth and sees a gamepad/controller surface without desktop companion in the input path | manual/live | `rg -n 'phase7-macos-bluetooth-paired|phase7-gamecontroller-input' docs/evidence/manifests/phase7-android-bluetooth-hid.jsonl` | ❌ W0 | ⬜ pending |
+| 07-05-02 | 05 | 5 | DESK-06, ANDR-11 | T-07-04 / T-07-09 | HID output callback result is captured as phone haptic pass or honest macOS unsupported result after live probe | manual/live | `rg -n 'phase7-hid-output-callback' docs/evidence/manifests/phase7-android-bluetooth-hid.jsonl` | ❌ W0 | ⬜ pending |
+| 07-06-01 | 06 | 6 | PACK-03, PACK-06 | T-07-10 | Docs name Android Bluetooth HID as primary, CoreHID/DriverKit as retained fallback evidence, and Windows VHF as fallback decision path | docs/static | `rg -n 'Android Bluetooth HID|HID_DEVICE|registerApp|sendReport|onSetReport|Windows VHF fallback|corehid-runtime-blocked' docs/setup/android-bluetooth-hid-gamepad.md` | ❌ W0 | ⬜ pending |
+| 07-06-02 | 06 | 6 | PACK-06 | T-07-10 | Evidence manifest and redaction scan exclude Bluetooth MACs, serials, account names, screenshots, keys, pairing material, and device ids | docs/static | `! rg -n '([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}|qr_secret|stream key|HMAC key|private key|device[_ -]?id|serial|screenshot_path' docs/evidence/manifests/phase7-android-bluetooth-hid.jsonl docs/setup/android-bluetooth-hid-gamepad.md` | ❌ W0 | ⬜ pending |
 
-*Status: pending, green, red, flaky.*
-
----
+*Status: ⬜ pending | ✅ green | ❌ red | ⚠ flaky*
 
 ## Wave 0 Requirements
 
-- [ ] `docs/setup/macos-virtual-hid.md` — records CoreHID, entitlement, signing, CLI proof, and DriverKit fallback setup.
-- [ ] `desktop-companion/src/test/kotlin/com/btgun/desktop/backend/macos/MacosHidReportPackerTest.kt` — covers DESK-03 report packing.
-- [ ] `desktop-companion/src/test/kotlin/com/btgun/desktop/backend/macos/MacosOutputReportMapperTest.kt` — covers DESK-06 output report validation.
-- [ ] `desktop-companion/src/test/kotlin/com/btgun/desktop/backend/macos/MacosVirtualControllerBackendTest.kt` — covers lifecycle/capabilities before OS-visible support is claimed.
-- [ ] `desktop-companion/src/test/kotlin/com/btgun/desktop/backend/macos/MacosBackendRuntimeTest.kt` — covers callback preservation, stale behavior, diagnostics, and output haptic routing.
-- [ ] Native helper minimal build/proof command — covers CoreHID or IOHIDUserDevice compile, signing, entitlement, launch, and enumeration.
-
----
+- [ ] `android-host/app/src/test/java/com/btgun/host/hid/BtGunHidDescriptorTest.kt` - descriptor bytes and semantic parity.
+- [ ] `android-host/app/src/test/java/com/btgun/host/hid/BtGunHidReportPackerTest.kt` - input report golden vectors.
+- [ ] `android-host/app/src/test/java/com/btgun/host/hid/BtGunHidOutputReportMapperTest.kt` - host output report validation.
+- [ ] `android-host/app/src/test/java/com/btgun/host/hid/AndroidBluetoothHidGamepadStateTest.kt` - adapter status transitions with fake proxy/callback seams.
+- [ ] Extend `android-host/app/src/test/java/com/btgun/host/permissions/PermissionGateTest.java` for HID capability rows.
+- [ ] Extend `android-host/app/src/test/java/com/btgun/host/ui/DashboardStateTest.kt` for HID dashboard fields.
+- [ ] `docs/setup/android-bluetooth-hid-gamepad.md` - setup, compatibility, pairing, report, output behavior, and fallback docs.
+- [ ] `docs/evidence/manifests/phase7-android-bluetooth-hid.jsonl` - sanitized proof rows.
 
 ## Manual-Only Verifications
 
 | Behavior | Requirement | Why Manual | Test Instructions |
 |----------|-------------|------------|-------------------|
-| macOS UI/tester shows virtual joystick axes/buttons moving from live Android/gun stream | DESK-03 | Phase 07 pass requires user-visible macOS proof and live physical input | Pair Android/gun to desktop, run macOS backend, open selected macOS tester/UI, move gun controls/aim, capture sanitized evidence and user confirmation. |
-| macOS-origin output/rumble causes Android phone haptic | DESK-06 | OS/HID set-report proof and phone vibration confirmation require target machine plus paired Android session | Run output probe or selected macOS tester, verify helper receives output report, Kotlin routes haptic command, Android phone vibrates, and manifest records sanitized result. |
-| DriverKit fallback approval if CoreHID fails | DESK-03, DESK-06, PACK-03 | System extension approval and entitlement behavior depend on the local macOS/account environment | Only execute if CoreHID gate fails; record Xcode/signing/approval steps, System Settings prompts, and final pass/fail evidence. |
-
----
+| HID profile support on the current phone | ANDR-09 | OEM Bluetooth HID Device support must be observed on real hardware | Start Android host, tap Start Bluetooth gamepad, record proxy/registration status in sanitized manifest row `phase7-android-hid-proxy`. |
+| Alternate-phone check before fallback | ANDR-09, DESK-03 | One phone failure cannot prove the primary path impossible | If current phone lacks HID role or macOS pairing fails, repeat proxy/register/pairing proof on an alternate Android phone before marking fallback. |
+| macOS Bluetooth pairing and controller visibility | DESK-03 | macOS Bluetooth UI/Game Controller surface is host OS behavior | Pair Android phone from macOS, open tester/Game Controller surface, confirm `BT Gun` gamepad/controller is visible without desktop companion in input path. |
+| Live physical gun and phone motion drive controller input | DESK-03 | Requires physical iPega gun and macOS-visible controller surface | Press trigger/reload/X/Y/A/B, move stick, move phone aim, and record sanitized tester evidence plus user confirmation row `phase7-gamecontroller-input`. |
+| HID output or unsupported behavior | DESK-06, ANDR-11 | macOS may or may not send generic output/rumble to this descriptor | Trigger host output probe if available; otherwise record no callback seen with Android status, unsupported reason, and preserved LAN/Windows haptic fallback. |
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or Wave 0 dependencies.
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify.
-- [ ] Wave 0 covers all missing references.
+- [ ] All Android HID logic tasks have automated unit/static verification or a recorded local Gradle blocker.
+- [ ] No three consecutive implementation tasks omit automated verification.
+- [ ] Wave 0 covers all missing test/evidence/doc scaffolds.
 - [ ] No watch-mode flags.
-- [ ] Feedback latency < 3 minutes for automated checks.
-- [x] `nyquist_compliant: true` set in frontmatter.
+- [ ] Live DESK-03 proof uses Bluetooth HID/Game Controller path, not desktop companion LAN input.
+- [ ] DESK-06 pass requires host-origin HID output callback and phone vibration; unsupported status requires live no-callback/no-usable-output evidence.
+- [ ] Redaction scan passes for evidence/docs.
+- [ ] `nyquist_compliant: true` remains set in frontmatter.
 
 **Approval:** pending
