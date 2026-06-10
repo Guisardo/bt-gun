@@ -64,6 +64,7 @@ tasks.withType<Test>().configureEach {
             "com.btgun.desktop.backend.windows.WindowsHidReportPackerTestKt",
             "com.btgun.desktop.backend.windows.WindowsOutputReportMapperTestKt",
             "com.btgun.desktop.backend.windows.WindowsVirtualControllerBackendTestKt",
+            "com.btgun.desktop.backend.windows.WindowsBackendRuntimeTestKt",
             "com.btgun.desktop.smoke.BackendSmokeRunnerTestKt",
         ).forEach { testClass ->
             providers.exec {
