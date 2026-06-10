@@ -90,7 +90,7 @@ completed: 2026-06-10
 - PASS: `rg -n "VHF_CONFIG_INIT|EvtVhfAsyncOperationWriteReport|VhfCreate|VhfStart|VhfReadReportSubmit|IOCTL_BTGVJOY_SUBMIT_INPUT|IOCTL_BTGVJOY_READ_OUTPUT|IOCTL_BTGVJOY_GET_STATUS" windows/btgun-vjoy/driver windows/btgun-vjoy/package`
 - PASS: `rg -n "SUBMIT_INPUT|READ_OUTPUT|STATUS|QUIT|DeviceIoControl|HidD_SetOutputReport|--strength|--duration-ms|--ttl-ms" windows/btgun-vjoy/tools`
 - PASS: `rg -n "TODO|FIXME|placeholder|coming soon|not available|QR|HMAC|pairing proof|stream key|private key|raw QR|secret" windows/btgun-vjoy` returned no matches.
-- SOURCE-ONLY BLOCKED: `powershell -NoProfile -ExecutionPolicy Bypass -Command "msbuild windows\btgun-vjoy\driver\BtGunVJoy.vcxproj /p:Configuration=Release /p:Platform=x64 /m"` could not run on this macOS host because `powershell` is unavailable. This is the plan-defined build gate path; Plan 05 CI must build/sign/package before target proof treats the driver as usable.
+- SOURCE-ONLY SKIPPED: `powershell -NoProfile -ExecutionPolicy Bypass -Command "msbuild windows\btgun-vjoy\driver\BtGunVJoy.vcxproj /p:Configuration=Release /p:Platform=x64 /m"` could not run on this macOS host because `powershell` is unavailable. This is the plan-defined build gate path; Plan 05 CI must build/sign/package before target proof treats the driver as usable.
 
 ## Deviations from Plan
 
