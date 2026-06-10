@@ -428,22 +428,22 @@ ioreg -r -c IOHIDDevice -l -w 0 | rg 'BT Gun|VendorID|ProductID|PrimaryUsage|Max
 | A3 | A separate `IOHIDDeviceSetReport` probe is acceptable evidence of OS/HID-origin output before game-specific rumble proof. | Patterns, Pitfalls | User may require a macOS game/controller UI that generates rumble instead of a HID API probe. |
 | A4 | No third-party macOS controller tester package is needed. | Package Audit, Environment | Planner may add a human-verified tester dependency if built-in CLI/UI evidence is insufficient. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Can the current developer machine obtain/use `com.apple.developer.hid.virtual.device` for a local proof?**
    - What we know: Local headers say IOHIDUserDevice virtual device creation requires this entitlement. [VERIFIED: local SDK `IOHIDUserDevice.h` lines 119-121]
-   - What's unclear: Whether ad-hoc/local signing on this Apple ID/machine can use the entitlement without Developer ID or provisioning. [ASSUMED]
-   - Recommendation: Wave 0 should compile/sign/run a minimal helper and record exact entitlement/signing result before backend implementation. [ASSUMED]
+   - RESOLVED: Treat entitlement availability as a Wave 1 execution gate, not an unresolved planning question. Plan `07-01` must compile/sign/run a minimal helper and record exact entitlement/signing result before backend support can be claimed.
+   - RESOLVED: If ad-hoc/local signing cannot use the entitlement, execution must either use an approved local signing/provisioning path or record a blocker. Do not weaken DESK-03/DESK-06 or claim CoreHID support from docs alone.
 
 2. **Will generic macOS game/controller UI generate rumble/output for this custom gamepad descriptor?**
    - What we know: CoreHID and IOHIDUserDevice expose set-report callbacks. [VERIFIED: local SDK]
-   - What's unclear: Whether a game/controller tester will send output reports for the selected descriptor without custom support. [ASSUMED]
-   - Recommendation: Use `IOHIDDeviceSetReport` probe as deterministic output proof, then add UI/game-controller proof where available. [ASSUMED]
+   - RESOLVED: Generic game/controller UI rumble is not required as the deterministic Phase 7 output proof. Plan `07-05` must use a separate macOS HID client/probe that calls `IOHIDDeviceSetReport` for output report ID `0x02`, and final Plan `07-07` must prove that OS/HID-origin output reaches Android phone haptics.
+   - RESOLVED: UI/tester evidence remains required for visible input per D-04/D-06, but it cannot replace the separate OS-origin output probe for DESK-06.
 
 3. **Is Swift CoreHID viable after toolchain repair, or should the helper use Objective-C IOHIDUserDevice?**
    - What we know: Current `swift -e import CoreHID` fails because the SDK and compiler build ids differ. [VERIFIED: local command]
-   - What's unclear: Whether installing/selecting full Xcode fixes it immediately. [ASSUMED]
-   - Recommendation: Plan CoreHID Swift first, but keep Objective-C IOHIDUserDevice shim as same-wave fallback if only Swift tooling is blocked. [VERIFIED: local ObjC syntax probe; ASSUMED]
+   - RESOLVED: Plan `07-01` attempts Swift CoreHID first because D-01 locks CoreHID as the first path. If Swift remains blocked by toolchain mismatch after setup, the same plan may use Objective-C `IOHIDUserDevice` as a user-space virtual HID shim without switching to DriverKit.
+   - RESOLVED: DriverKit fallback is reserved for recorded user-space visibility/output/runtime failure after CoreHID/IOHIDUserDevice proof attempts, per D-02/D-03/D-09.
 
 ## Environment Availability
 
