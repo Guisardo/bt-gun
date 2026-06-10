@@ -82,6 +82,13 @@ $metadata = [ordered]@{
     driverProject = "windows/btgun-vjoy/driver/BtGunVJoy.vcxproj"
     inf = "driver/btgunvjoy.inf"
     hardwareId = "Root\BTGunVJoy"
+    hidIdentity = @{
+        vendorId = "VID_1209"
+        productId = "PID_B706"
+        versionNumber = "0x0602"
+        directInputOemKey = "HKLM:\SYSTEM\CurrentControlSet\Control\MediaProperties\PrivateProperties\Joystick\OEM\VID_1209&PID_B706"
+        displayName = "BT Gun VJoy"
+    }
     devnodeTool = "tools/btgun-devnode.exe"
     proofCollector = "tools/proof/Collect-BtGunVJoyEvidence.ps1"
     reportIds = @{

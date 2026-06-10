@@ -66,6 +66,13 @@ if ($publishedNames.Count -eq 0) {
 }
 
 Invoke-ApprovedCommand `
+    -Message "Remove BT Gun VJoy DirectInput OEMName registry key." `
+    -Approved $ApproveDriverDelete.IsPresent `
+    -Command {
+        Remove-Item -Path "HKLM:\SYSTEM\CurrentControlSet\Control\MediaProperties\PrivateProperties\Joystick\OEM\VID_1209&PID_B706" -Force -ErrorAction SilentlyContinue
+    }
+
+Invoke-ApprovedCommand `
     -Message "Disable Windows test-signing with 'bcdedit /set testsigning off'. This can require reboot; this script will not reboot." `
     -Approved $ApproveTestSigningOff.IsPresent `
     -Command {
