@@ -650,7 +650,7 @@ class HostSessionService : Service() {
     private fun stopUdpInput() {
         handler.removeCallbacks(udpSnapshotTick)
         handler.removeCallbacks(udpDisconnectGraceStop)
-        udpInputSender?.stop("stream stopped")
+        udpInputSender?.close()
         udpInputSender = null
         udpInputConfig = null
         lastUdpSnapshotSentElapsedNanos = null
@@ -660,7 +660,7 @@ class HostSessionService : Service() {
     private fun markUdpInputStale() {
         handler.removeCallbacks(udpSnapshotTick)
         handler.removeCallbacks(udpDisconnectGraceStop)
-        udpInputSender?.stop("control disconnect grace expired")
+        udpInputSender?.close()
         udpInputSender = null
         udpInputConfig = null
         lastUdpSnapshotSentElapsedNanos = null
@@ -680,7 +680,7 @@ class HostSessionService : Service() {
         ) {
             InputStreamLifecycleState.STOPPED -> {
                 handler.removeCallbacks(udpSnapshotTick)
-                sender?.stop("control disconnected before stream config")
+                sender?.close()
                 udpInputSender = null
                 udpInputConfig = null
                 currentState = currentState.copy(packetStreamState = InputStreamLifecycleState.STOPPED)
