@@ -289,6 +289,8 @@ jobs:
             "btgun-driver-bridge.exe",
             "btgun-hid-output-sender.exe",
             "btgun-devnode.exe",
+            "Collect-BtGunVJoyEvidence.ps1",
+            "Redact-BtGunVJoyEvidence.ps1",
             "Install-BtGunVJoy.ps1",
             "Rollback-BtGunVJoy.ps1",
             "build-metadata.json"
