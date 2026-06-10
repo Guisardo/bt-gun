@@ -24,11 +24,17 @@ DefaultDestDir=13
 CopyFiles=BtGunVJoy_CopyFiles
 AddReg=BtGunVJoy_AddReg
 
+[BtGunVJoy_Install.NT.HW]
+AddReg=BtGunVJoy_VhfFilter_AddReg
+
 [BtGunVJoy_CopyFiles]
 BtGunVJoy.sys
 
 [BtGunVJoy_AddReg]
 HKR,,FriendlyName,,%BtGunVJoy.DeviceDesc%
+
+[BtGunVJoy_VhfFilter_AddReg]
+HKR,,"LowerFilters",0x00010008,"Vhf"
 
 [BtGunVJoy_Install.NT.Services]
 AddService=BtGunVJoy,0x00000002,BtGunVJoy_Service_Install
