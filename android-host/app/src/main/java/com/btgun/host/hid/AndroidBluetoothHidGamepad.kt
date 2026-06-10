@@ -6,6 +6,7 @@ import android.bluetooth.BluetoothHidDevice
 import android.bluetooth.BluetoothHidDeviceAppSdpSettings
 import android.bluetooth.BluetoothProfile
 import android.content.Context
+import android.content.Intent
 import com.btgun.host.haptics.DesktopHapticCommand
 import com.btgun.host.haptics.HapticResult
 import com.btgun.host.model.GunInputState
@@ -369,8 +370,16 @@ class AndroidBtGunHidProfileConnector(
         }
     }
 
-    override fun openPairingWindow(durationSeconds: Int): Boolean =
-        durationSeconds > 0
+    override fun openPairingWindow(durationSeconds: Int): Boolean {
+        if (durationSeconds <= 0 || closed) return false
+        return runCatching {
+            val intent = Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE)
+                .putExtra(BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, durationSeconds)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(intent)
+            true
+        }.getOrDefault(false)
+    }
 
     override fun close() {
         if (closed) return

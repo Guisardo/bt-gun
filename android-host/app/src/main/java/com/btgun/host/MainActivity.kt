@@ -38,6 +38,9 @@ class MainActivity : Activity() {
     private lateinit var root: LinearLayout
     private lateinit var primaryAction: Button
     private lateinit var hapticAction: Button
+    private lateinit var startBluetoothGamepadAction: Button
+    private lateinit var stopBluetoothGamepadAction: Button
+    private lateinit var openHidPairingWindowAction: Button
     private lateinit var permissionAction: Button
     private lateinit var scanDesktopQrAction: Button
     private lateinit var manualDesktopEntryAction: Button
@@ -115,6 +118,15 @@ class MainActivity : Activity() {
             addView(hapticAction)
         })
 
+        root.addView(row().apply {
+            startBluetoothGamepadAction = button("Start Bluetooth gamepad") { startBluetoothGamepad() }
+            stopBluetoothGamepadAction = button("Stop Bluetooth gamepad") { stopBluetoothGamepad() }
+            openHidPairingWindowAction = button("Open pairing window") { openHidPairingWindow() }
+            addView(startBluetoothGamepadAction)
+            addView(stopBluetoothGamepadAction)
+            addView(openHidPairingWindowAction)
+        })
+
         aimGraph = AimGraphView(this)
         root.addView(
             aimGraph,
@@ -135,6 +147,15 @@ class MainActivity : Activity() {
             "preview_aim",
             "aim_calibration",
             "recenter_state",
+            "hid_role",
+            "hid_registration",
+            "hid_pairing",
+            "hid_host",
+            "hid_input",
+            "hid_output_callback",
+            "hid_output_validation",
+            "hid_output_haptic",
+            "hid_fallback",
             "desktop_link",
         ).forEach(::addField)
 
@@ -231,6 +252,15 @@ class MainActivity : Activity() {
         )
         setField("aim_calibration", "${dashboard.aimCalibration.label}: ${dashboard.aimCalibration.value}")
         setField("recenter_state", "${dashboard.recenterState.label}: ${dashboard.recenterState.value}")
+        setField("hid_role", "${dashboard.hidGamepad.role}: ${dashboard.hidGamepad.roleCapability.label}; ${dashboard.hidGamepad.roleCapability.value}")
+        setField("hid_registration", "${dashboard.hidGamepad.registration.label}: ${dashboard.hidGamepad.registration.value}")
+        setField("hid_pairing", "${dashboard.hidGamepad.pairingWindow.label}: ${dashboard.hidGamepad.pairingWindow.value}")
+        setField("hid_host", "${dashboard.hidGamepad.hostConnection.label}: ${dashboard.hidGamepad.hostConnection.value}")
+        setField("hid_input", "${dashboard.hidGamepad.lastInputReport.label}: ${dashboard.hidGamepad.lastInputReport.value}")
+        setField("hid_output_callback", "${dashboard.hidGamepad.outputCallback.label}: ${dashboard.hidGamepad.outputCallback.value}")
+        setField("hid_output_validation", "${dashboard.hidGamepad.outputValidation.label}: ${dashboard.hidGamepad.outputValidation.value}")
+        setField("hid_output_haptic", "${dashboard.hidGamepad.outputHaptic.label}: ${dashboard.hidGamepad.outputHaptic.value}")
+        setField("hid_fallback", "${dashboard.hidGamepad.fallback.label}: ${dashboard.hidGamepad.fallback.value}")
         setField("desktop_link", "${dashboard.placeholders.desktopLink.title}: ${dashboard.placeholders.desktopLink.body}")
         scanDesktopQrAction.text = "Scan desktop QR"
         trustedDesktopAction.visibility = if (firstTrustedDesktop() != null) View.VISIBLE else View.GONE
@@ -279,6 +309,27 @@ class MainActivity : Activity() {
 
     private fun requestHostPermissions() {
         requestPermissions(HostCapabilityProbe.runtimePermissionsForHost(), REQUEST_PERMISSIONS)
+    }
+
+    private fun startBluetoothGamepad() {
+        startServiceAction(
+            Intent(this, HostSessionService::class.java)
+                .setAction(HostSessionService.ACTION_START_BLUETOOTH_GAMEPAD),
+        )
+    }
+
+    private fun stopBluetoothGamepad() {
+        startServiceAction(
+            Intent(this, HostSessionService::class.java)
+                .setAction(HostSessionService.ACTION_STOP_BLUETOOTH_GAMEPAD),
+        )
+    }
+
+    private fun openHidPairingWindow() {
+        startServiceAction(
+            Intent(this, HostSessionService::class.java)
+                .setAction(HostSessionService.ACTION_START_HID_PAIRING_WINDOW),
+        )
     }
 
     private fun scanDesktopQr() {
