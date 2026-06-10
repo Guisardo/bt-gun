@@ -13,7 +13,8 @@ provides:
   - Read-only CLI evidence collector
   - Evidence redaction helper
   - Passing CLI/PnP/HID proof for target host 192.168.1.100
-  - Remaining manual proof gates for joy.cpl, live input, and phone haptic
+  - Passing joy.cpl visual proof for target host 192.168.1.100
+  - Remaining manual proof gates for live input and phone haptic
 affects: [phase-06, windows-target-proof, DESK-02, DESK-05, PACK-02]
 tech-stack:
   added: []
@@ -37,13 +38,13 @@ completed: null
 
 # Phase 06 Plan 06: Windows Target Proof Checkpoint
 
-**CLI/PnP/HID target proof is passing; final Phase 6 proof is blocked on GUI/live/haptic confirmation.**
+**CLI/PnP/HID and joy.cpl target proof are passing; final Phase 6 proof is blocked on live input and haptic confirmation.**
 
 ## Progress
 
-- **Tasks complete:** 2/3 plus Task 3 CLI sub-proof
-- **Current task:** Task 3, final Windows joystick and haptic proof
-- **Status:** blocked on manual/visual proof gates
+- **Tasks complete:** 2/3 plus Task 3 CLI and joy.cpl sub-proof
+- **Current task:** Task 3, final live joystick and haptic proof
+- **Status:** blocked on live Android/gun input and phone haptic proof gates
 - **Target:** `192.168.1.100`
 - **Final proof tooling artifact:** GitHub Actions run `27252079810`, artifact `7526172777`, local download `/private/tmp/btgun-phase6-ci-artifact-download-proof.XjHtDR`
 - **Installed driver package:** `oem44.inf`, `DriverVer=06/10/2026,0.6.2.1`
@@ -65,6 +66,7 @@ completed: null
 - PASS: Target driver package `oem44.inf` is selected and started; `LowerFilters` is `{Vhf}` and PnP problem is `CM_PROB_NONE`.
 - PASS: ASCII bridge probe returned `STATUS` with `driverStarted=true`, `vhfStarted=true`, and accepted `SUBMIT_INPUT`.
 - PASS: Packaged proof collector wrote read-only evidence under `D:\Users\Lucas\btgun-phase6-target-proof.XjHtDR\evidence\phase6-pnp-hid-cli`.
+- PASS: User-provided visual confirmation shows `control joy.cpl` listing the VHF virtual HID game controller as `Aceptar`, with properties axes and buttons visible.
 - NOT RUN: PowerShell script parse/execution. `pwsh`/`powershell` is not installed on this macOS executor.
 
 ## Approval Command List
@@ -107,7 +109,6 @@ Get-PnpDevice -PresentOnly | Where-Object { $_.FriendlyName -like "*BT Gun*" -or
 
 Manual proof gates only:
 
-- `control joy.cpl` visual confirmation that Windows Game Controllers lists `BT Gun VJoy`.
 - Live Android/gun input proof through the real Windows backend.
 - Real HID output-to-phone-haptic proof, using `joy.cpl` first and fallback sender only if the `joy.cpl` limitation is documented.
 
@@ -118,3 +119,4 @@ Manual proof gates only:
 - Found created proof checklist, manifest scaffold, collector, and redactor files.
 - Confirmed GitHub Actions run `27252079810` succeeded and artifact `7526172777` includes `tools/proof/*`.
 - Confirmed target PnP/HID CLI proof passes with `oem44.inf`, `LowerFilters={Vhf}`, `CM_PROB_NONE`, and bridge `STATUS`/`SUBMIT_INPUT` success.
+- Confirmed joy.cpl visual proof passes from user-provided target view.
