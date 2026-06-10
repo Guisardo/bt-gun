@@ -64,7 +64,7 @@ completed: 2026-06-10T01:55:30Z
 - Added approval-gated install and rollback scripts for target-side test-signing, `pnputil`, devnode, rollback, and test-signing reversal operations.
 - Added Windows VHF/KMDF strategy and test-signing/install docs with `joy.cpl`, real HID output report proof, rollback, redaction, and no-target-toolchain rules.
 - Fixed CI-exposed driver/helper build issues: WDK toolset validation, kernel-safe IOCTL header, VHF descriptor length type, disabled MSBuild auto-sign, helper batch execution, and HID sender GUID definition.
-- Triggered and validated successful GitHub Actions run `27247835704` on branch `codex/phase6-windows-ci-artifact`, artifact `7524720768`.
+- Triggered and validated successful GitHub Actions run `27249711691` on branch `codex/phase6-windows-ci-artifact`, artifact `7525354356`, including packaged `btgun-devnode.exe`.
 
 ## Task Commits
 
@@ -84,17 +84,18 @@ completed: 2026-06-10T01:55:30Z
 - `windows/btgun-vjoy/driver/BtGunVJoy.h` and `BtGunVJoyDevice.c` - VHF compile fixes.
 - `windows/btgun-vjoy/include/BtGunVJoyIoctl.h` - Kernel/user-mode safe shared ABI header.
 - `windows/btgun-vjoy/tools/hid-output-sender/HidOutputSender.cpp` - HID interface GUID definition for helper link.
+- `windows/btgun-vjoy/tools/devnode/Devnode.cpp` - SetupAPI helper that creates or verifies the `Root\BTGunVJoy` devnode from the packaged artifact.
 
 ## Verification
 
 - PASS: `rg -n "windows-driver|BTGUN_WINDOWS_TEST_CERT_PFX_BASE64|BTGUN_WINDOWS_TEST_CERT_PASSWORD|btgun-vjoy-windows-x64-testsigned|BtGunVJoy.vcxproj|inf2cat|signtool" .github/workflows/windows-driver.yml windows/btgun-vjoy/package/Package-BtGunVJoy.ps1`
-- PASS: `rg -n "BtGunVJoy\\.sys|btgunvjoy\\.inf|btgunvjoy\\.cat|BtGunVJoyIoctl\\.h|btgun-driver-bridge\\.exe|btgun-hid-output-sender\\.exe|Install-BtGunVJoy\\.ps1|Rollback-BtGunVJoy\\.ps1|build-metadata\\.json" .github/workflows/windows-driver.yml windows/btgun-vjoy/package/Package-BtGunVJoy.ps1`
+- PASS: `rg -n "BtGunVJoy\\.sys|btgunvjoy\\.inf|btgunvjoy\\.cat|BtGunVJoyIoctl\\.h|btgun-driver-bridge\\.exe|btgun-hid-output-sender\\.exe|btgun-devnode\\.exe|Install-BtGunVJoy\\.ps1|Rollback-BtGunVJoy\\.ps1|build-metadata\\.json" .github/workflows/windows-driver.yml windows/btgun-vjoy/package/Package-BtGunVJoy.ps1`
 - PASS: `rg -n "USER APPROVAL REQUIRED|bcdedit|pnputil|Root\\\\BTGunVJoy|Rollback|testsigning" windows/btgun-vjoy/package/Install-BtGunVJoy.ps1 windows/btgun-vjoy/package/Rollback-BtGunVJoy.ps1`
 - PASS: `rg -n "VHF|KMDF|testsigning|GitHub Actions|BTGUN_WINDOWS_TEST_CERT_PFX_BASE64|joy.cpl|pnputil|rollback|Root\\\\BTGunVJoy|real HID output" docs/windows/virtual-hid-strategy.md docs/windows/test-signing-and-install.md`
 - PASS: GitHub REST API `workflow_dispatch` for `windows-driver.yml` on `codex/phase6-windows-ci-artifact`.
-- PASS: GitHub Actions run `27247835704` completed `success`.
-- PASS: GitHub REST API downloaded artifact `btgun-vjoy-windows-x64-testsigned` to `/private/tmp/btgun-phase6-ci-artifact-download`.
-- PASS: artifact assertion found `.sys`, `.inf`, `.cat`, `BtGunVJoyIoctl.h`, `btgun-driver-bridge.exe`, `btgun-hid-output-sender.exe`, install/rollback scripts, and `build-metadata.json`.
+- PASS: GitHub Actions run `27249711691` completed `success`.
+- PASS: GitHub REST API downloaded artifact `btgun-vjoy-windows-x64-testsigned` to `/private/tmp/btgun-phase6-ci-artifact-download-devnode`.
+- PASS: artifact assertion found `.sys`, `.inf`, `.cat`, `BtGunVJoyIoctl.h`, `btgun-driver-bridge.exe`, `btgun-hid-output-sender.exe`, `btgun-devnode.exe`, install/rollback scripts, and `build-metadata.json`.
 - PASS: artifact assertion found no `.pfx`, `.p12`, `.key`, or `id_rsa` private key material.
 
 ## Deviations from Plan
@@ -106,7 +107,7 @@ completed: 2026-06-10T01:55:30Z
 - **Issue:** `gh auth status` was not authenticated, and the user requested GitHub API instead of `gh`.
 - **Fix:** Used `github-guisardo` 1Password token with GitHub REST API for workflow dispatch, run polling, log download, artifact listing, and artifact download.
 - **Files modified:** `.planning/phases/06-windows-virtual-joystick-path/06-05-SUMMARY.md`
-- **Verification:** Run `27247835704` passed and artifact `7524720768` downloaded/validated.
+- **Verification:** Run `27249711691` passed and artifact `7525354356` downloaded/validated.
 - **Committed in:** pending summary commit.
 
 **2. [Rule 3 - Blocking] CI runner had WDK headers but MSBuild was not using driver toolset**
@@ -153,8 +154,8 @@ Ready. Plan 06-04 can wire companion runtime haptic routing, and Plan 06-06 can 
 ## Self-Check: PASSED
 
 - Found created workflow, package scripts, install/rollback scripts, docs, and CI-hardening driver/helper changes on disk.
-- Found successful GitHub Actions run `27247835704`.
-- Found downloaded artifact at `/private/tmp/btgun-phase6-ci-artifact-download`.
+- Found successful GitHub Actions run `27249711691`.
+- Found downloaded artifact at `/private/tmp/btgun-phase6-ci-artifact-download-devnode`.
 - Artifact contents matched the required Plan 05 file set and excluded private key material.
 - Found `.planning/phases/06-windows-virtual-joystick-path/06-05-SUMMARY.md` on disk after replacing checkpoint.
 

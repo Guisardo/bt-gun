@@ -27,7 +27,7 @@ key-files:
     - .planning/phases/06-windows-virtual-joystick-path/06-06-SUMMARY.md
 key-decisions:
   - "Stop before any Windows target boot, signing, reboot, install, devnode, rollback, GUI proof, or haptic proof command."
-  - "Use CI artifact run 27247835704 / artifact 7524720768; do not install build tools on 192.168.1.100."
+  - "Use CI artifact run 27249711691 / artifact 7525354356; do not install build tools on 192.168.1.100."
 requirements-completed: []
 duration: checkpoint
 completed: null
@@ -43,7 +43,7 @@ completed: null
 - **Current task:** Task 2, Approval gate for Windows target changes
 - **Status:** blocked, awaiting explicit approval
 - **Target:** `192.168.1.100`
-- **Artifact:** GitHub Actions run `27247835704`, artifact `7524720768`, local download `/private/tmp/btgun-phase6-ci-artifact-download`
+- **Artifact:** GitHub Actions run `27249711691`, artifact `7525354356`, local download `/private/tmp/btgun-phase6-ci-artifact-download-devnode`
 - **Target commands executed:** none
 
 ## Task Commits

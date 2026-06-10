@@ -1,6 +1,6 @@
 # Phase 6 Windows Proof Checklist
 
-Target: `192.168.1.100` only. Use Administrator PowerShell with the CI artifact `btgun-vjoy-windows-x64-testsigned` from GitHub Actions run `27247835704`, artifact `7524720768`. Local artifact copy: `/private/tmp/btgun-phase6-ci-artifact-download`.
+Target: `192.168.1.100` only. Use Administrator PowerShell with the CI artifact `btgun-vjoy-windows-x64-testsigned` from GitHub Actions run `27249711691`, artifact `7525354356`. Local artifact copy: `/private/tmp/btgun-phase6-ci-artifact-download-devnode`.
 
 Do not install Git, Visual Studio, MSBuild, WDK, `signtool`, `inf2cat`, `devcon`, or build tools on the target.
 
