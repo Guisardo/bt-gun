@@ -30,13 +30,18 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           $kitsBin = Join-Path ${env:ProgramFiles(x86)} "Windows Kits\10\bin"
+          $kitsInclude = Join-Path ${env:ProgramFiles(x86)} "Windows Kits\10\Include"
+          $kitsLib = Join-Path ${env:ProgramFiles(x86)} "Windows Kits\10\Lib"
           $inf2cat = Get-ChildItem $kitsBin -Recurse -Filter inf2cat.exe -ErrorAction SilentlyContinue |
             Sort-Object @{ Expression = { if ($_.FullName -match "\\x64\\") { 0 } else { 1 } } }, FullName |
             Select-Object -First 1
           $signtool = Get-ChildItem $kitsBin -Recurse -Filter signtool.exe -ErrorAction SilentlyContinue |
             Sort-Object @{ Expression = { if ($_.FullName -match "\\x64\\") { 0 } else { 1 } } }, FullName |
             Select-Object -First 1
-          if ($inf2cat -and $signtool) {
+          $ntddk = Get-ChildItem $kitsInclude -Recurse -Filter ntddk.h -ErrorAction SilentlyContinue | Select-Object -First 1
+          $vhfHeader = Get-ChildItem $kitsInclude -Recurse -Filter vhf.h -ErrorAction SilentlyContinue | Select-Object -First 1
+          $vhfLib = Get-ChildItem $kitsLib -Recurse -Filter vhfkm.lib -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($inf2cat -and $signtool -and $ntddk -and $vhfHeader -and $vhfLib) {
             "WDK tools already available on runner."
             exit 0
           }
@@ -66,17 +71,37 @@ jobs:
           }
 
           $kitsBin = Join-Path ${env:ProgramFiles(x86)} "Windows Kits\10\bin"
+          $kitsInclude = Join-Path ${env:ProgramFiles(x86)} "Windows Kits\10\Include"
+          $kitsLib = Join-Path ${env:ProgramFiles(x86)} "Windows Kits\10\Lib"
           $inf2cat = Get-ChildItem $kitsBin -Recurse -Filter inf2cat.exe -ErrorAction SilentlyContinue |
             Sort-Object @{ Expression = { if ($_.FullName -match "\\x64\\") { 0 } else { 1 } } }, FullName |
             Select-Object -First 1
           $signtool = Get-ChildItem $kitsBin -Recurse -Filter signtool.exe -ErrorAction SilentlyContinue |
             Sort-Object @{ Expression = { if ($_.FullName -match "\\x64\\") { 0 } else { 1 } } }, FullName |
             Select-Object -First 1
+          $ntddk = Get-ChildItem $kitsInclude -Recurse -Filter ntddk.h -ErrorAction SilentlyContinue |
+            Sort-Object FullName -Descending |
+            Select-Object -First 1
+          $vhfHeader = Get-ChildItem $kitsInclude -Recurse -Filter vhf.h -ErrorAction SilentlyContinue |
+            Sort-Object FullName -Descending |
+            Select-Object -First 1
+          $vhfLib = Get-ChildItem $kitsLib -Recurse -Filter vhfkm.lib -ErrorAction SilentlyContinue |
+            Sort-Object @{ Expression = { if ($_.FullName -match "\\x64\\") { 0 } else { 1 } } }, FullName -Descending |
+            Select-Object -First 1
           if (-not $inf2cat) {
             throw "inf2cat was not found. GitHub runner must include Windows Kits/WDK tooling."
           }
           if (-not $signtool) {
             throw "signtool was not found. GitHub runner must include Windows Kits/WDK tooling."
+          }
+          if (-not $ntddk) {
+            throw "ntddk.h was not found. GitHub runner must include Windows Driver Kit kernel headers."
+          }
+          if (-not $vhfHeader) {
+            throw "vhf.h was not found. GitHub runner must include Windows Driver Kit VHF headers."
+          }
+          if (-not $vhfLib) {
+            throw "vhfkm.lib was not found. GitHub runner must include Windows Driver Kit VHF libraries."
           }
 
           "MSBUILD=$msbuild" | Out-File -FilePath $env:GITHUB_ENV -Append
@@ -85,6 +110,9 @@ jobs:
           "SIGNTOOL=$($signtool.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append
           "MSBUILD_VERSION=$(& $msbuild -version -nologo)" | Out-File -FilePath $env:GITHUB_ENV -Append
           "WDK_BIN_DIR=$($signtool.Directory.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "WDK_NTDDK_HEADER=$($ntddk.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "WDK_VHF_HEADER=$($vhfHeader.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "WDK_VHFKM_LIB=$($vhfLib.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append
 
       - name: Decode test-signing certificate
         shell: pwsh
@@ -114,6 +142,7 @@ jobs:
             /m `
             /p:Configuration=$env:BUILD_CONFIGURATION `
             /p:Platform=$env:BUILD_PLATFORM `
+            /p:PlatformToolset=WindowsKernelModeDriver10.0 `
             /p:OutDir="$driverOut\"
 
       - name: Build user-mode helper tools
