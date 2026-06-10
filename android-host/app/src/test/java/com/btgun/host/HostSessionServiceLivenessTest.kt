@@ -228,7 +228,7 @@ private class RecordingHostHidGamepadDriver(
         return BtGunHidInputSendResult.SENT
     }
 
-    override fun simulateSetReport(reportType: Int, reportId: Int, payload: ByteArray) {
+    fun simulateSetReport(reportType: Int, reportId: Int, payload: ByteArray) {
         val command = com.btgun.host.hid.BtGunHidOutputReportMapper
             .toHapticCommand(reportId, payload, "hid-output-test")
         if (command is com.btgun.host.hid.BtGunHidOutputReportResult.Valid) {

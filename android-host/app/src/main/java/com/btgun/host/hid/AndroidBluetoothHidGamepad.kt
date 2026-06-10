@@ -57,6 +57,7 @@ class AndroidBluetoothHidGamepad(
     private val connector: BtGunHidProfileConnector,
     private val hapticHandler: (DesktopHapticCommand) -> HapticResult?,
     private val commandIdFactory: () -> String = DefaultCommandIdFactory(),
+    private val onStatusChanged: (BtGunHidStatus) -> Unit = {},
 ) : AutoCloseable {
     private var proxy: BtGunHidDeviceProxy? = null
     private var callback: BtGunHidDeviceCallback? = null
@@ -67,7 +68,10 @@ class AndroidBluetoothHidGamepad(
     private var registered = false
 
     var status: BtGunHidStatus = BtGunHidStatus()
-        private set
+        private set(value) {
+            field = value
+            onStatusChanged(value)
+        }
 
     fun startGamepadMode() {
         if (closed || started) return
