@@ -10,7 +10,7 @@
 #define BTGVJOY_OUTPUT_QUEUE_CAPACITY 16u
 
 extern const UCHAR BtGunVJoyReportDescriptor[];
-extern const ULONG BtGunVJoyReportDescriptorLength;
+extern const USHORT BtGunVJoyReportDescriptorLength;
 
 typedef struct _BTGVJOY_DEVICE_CONTEXT {
     WDFDEVICE Device;

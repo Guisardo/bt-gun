@@ -39,7 +39,7 @@ const UCHAR BtGunVJoyReportDescriptor[] = {
     0xC0              // End Collection
 };
 
-const ULONG BtGunVJoyReportDescriptorLength = sizeof(BtGunVJoyReportDescriptor);
+const USHORT BtGunVJoyReportDescriptorLength = (USHORT)sizeof(BtGunVJoyReportDescriptor);
 
 NTSTATUS
 BtGunVJoyCreateDevice(
