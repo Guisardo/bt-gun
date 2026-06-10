@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 07 Plan 01 complete; ready for Plan 02
-last_updated: "2026-06-10T16:14:46Z"
-last_activity: 2026-06-10 -- Phase 07 Plan 01 checkpoint resolved with local DriverKit fallback decision
+stopped_at: Phase 07 Plan 02 complete; ready for Plan 03
+last_updated: "2026-06-10T16:23:53Z"
+last_activity: 2026-06-10 -- Phase 07 Plan 02 completed macOS report packer and output mapper contracts
 progress:
   total_phases: 10
   completed_phases: 6
   total_plans: 43
-  completed_plans: 37
+  completed_plans: 38
   percent: 60
 ---
 
@@ -26,18 +26,18 @@ See: .planning/PROJECT.md (updated 2026-06-09)
 ## Current Position
 
 Phase: 07 (macos-virtual-joystick-path) — EXECUTING
-Plan: 2 of 7
+Plan: 3 of 7
 Next phase: 07 (macOS Virtual Joystick Path) execution
-Status: Plan 07-01 complete; executing Phase 07
-Last activity: 2026-06-10 -- Phase 07 Plan 01 checkpoint resolved with local DriverKit fallback decision
+Status: Plan 07-02 complete; executing Phase 07
+Last activity: 2026-06-10 -- Phase 07 Plan 02 completed macOS report packer and output mapper contracts
 
-Progress: [████████░░] 37/43 planned plans complete. Phase 06 has 6/6 plans complete; Phase 07 has 1/7 plans executed.
+Progress: [████████░░] 38/43 planned plans complete. Phase 06 has 6/6 plans complete; Phase 07 has 2/7 plans executed.
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 36
+- Total plans completed: 38
 - Average duration: not tracked for hardware-interactive plans
 - Total execution time: not tracked after Plan 02
 
@@ -50,11 +50,11 @@ Progress: [████████░░] 37/43 planned plans complete. Phase 0
 | 04 | 6 | - | - |
 | 05 | 5 | hardware-interactive | hardware-interactive |
 | 06 | 6 | hardware-interactive | hardware-interactive |
-| 07 | 7 | active | Plan 01 complete; remaining plans pending |
+| 07 | 7 | active | Plans 01-02 complete; remaining plans pending |
 
 **Recent Trend:**
 
-- Recent completed execution plans: 06-P01, 06-P02, 06-P03, 06-P05, 06-P04, and 06-P06 complete; Phase 07 now planned.
+- Recent completed execution plans: 06-P01, 06-P02, 06-P03, 06-P05, 06-P04, 06-P06, 07-P01, and 07-P02 complete.
 - Trend: Phase 07 plan sequence covers CoreHID feasibility, report packing, helper/backend/runtime wiring, OS-output proof, conditional DriverKit fallback, and final live macOS proof.
 
 *Updated after each plan completion*
@@ -95,6 +95,7 @@ Progress: [████████░░] 37/43 planned plans complete. Phase 0
 | Phase 06 P05 | hardware-interactive | CI build/sign/package | approved |
 | Phase 06 P06 | hardware-interactive | Windows target proof | approved |
 | Phase 07 P01 | checkpointed; closeout complete | 3 tasks | 6 files |
+| Phase 07 P02 | 5 min | 2 TDD tasks | 5 files |
 
 ## Accumulated Context
 
@@ -177,6 +178,7 @@ Recent decisions affecting current work:
 - [Phase 07]: Self-signed, ad-hoc, and named local signing did not satisfy the restricted CoreHID virtual HID entitlement on normal macOS. — Plan 07-01 remains a CoreHID-first proof but records `corehid-runtime-blocked`.
 - [Phase 07]: No USB bridge is available, so the no-subscription lab route is local-development-only HIDDriverKit/system-extension fallback exploration. — Do not claim DESK-03 or DESK-06 production support until later proof rows pass.
 - [Phase 07]: SIP changes, system extension developer mode, install, activation, removal, rollback, reboot, or other OS security-state changes require explicit later approval. — Plan 07-01 documented future commands/risks only and did not run them.
+- [Phase 07]: macOS report ID 1 and output report ID 2 byte contracts now mirror the Windows shape in pure Kotlin. — Plan 07-02 covers deterministic report packing and mapper validation only; OS-visible joystick and OS-origin output proof remain pending.
 
 ### Pending Todos
 
@@ -202,6 +204,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-10T16:14:46Z
-Stopped at: Phase 07 Plan 01 complete; ready for Plan 02
-Resume file: .planning/phases/07-macos-virtual-joystick-path/07-02-PLAN.md
+Last session: 2026-06-10T16:23:53Z
+Stopped at: Phase 07 Plan 02 complete; ready for Plan 03
+Resume file: .planning/phases/07-macos-virtual-joystick-path/07-03-PLAN.md
