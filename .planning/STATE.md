@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 07 Plan 03 complete; ready for Plan 04
-last_updated: "2026-06-10T16:38:47.267Z"
-last_activity: 2026-06-10 -- Phase 07 Plan 03 completed macOS helper client, backend bridge, and native line protocol
+stopped_at: Completed 07-04-PLAN.md
+last_updated: "2026-06-10T16:51:34.042Z"
+last_activity: 2026-06-10 -- Phase 07 Plan 04 completed macOS runtime wiring, launch gate, and UI diagnostics
 progress:
   total_phases: 10
   completed_phases: 6
   total_plans: 43
-  completed_plans: 39
-  percent: 91
+  completed_plans: 40
+  percent: 93
 ---
 
 # Project State
@@ -26,18 +26,18 @@ See: .planning/PROJECT.md (updated 2026-06-09)
 ## Current Position
 
 Phase: 07 (macos-virtual-joystick-path) — EXECUTING
-Plan: 4 of 7
+Plan: 5 of 7
 Next phase: 07 (macOS Virtual Joystick Path) execution
-Status: Plan 07-03 complete; executing Phase 07
-Last activity: 2026-06-10 -- Phase 07 Plan 03 completed macOS helper client, backend bridge, and native line protocol
+Status: Plan 07-04 complete; executing Phase 07
+Last activity: 2026-06-10 -- Phase 07 Plan 04 completed macOS runtime wiring, launch gate, and UI diagnostics
 
-Progress: [█████████░] 39/43 planned plans complete. Phase 06 has 6/6 plans complete; Phase 07 has 3/7 plans executed.
+Progress: [█████████░] 40/43 planned plans complete. Phase 06 has 6/6 plans complete; Phase 07 has 4/7 plans executed.
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 39
+- Total plans completed: 40
 - Average duration: not tracked for hardware-interactive plans
 - Total execution time: not tracked after Plan 02
 
@@ -50,11 +50,11 @@ Progress: [█████████░] 39/43 planned plans complete. Phase 0
 | 04 | 6 | - | - |
 | 05 | 5 | hardware-interactive | hardware-interactive |
 | 06 | 6 | hardware-interactive | hardware-interactive |
-| 07 | 7 | active | Plans 01-03 complete; remaining plans pending |
+| 07 | 7 | active | Plans 01-04 complete; remaining plans pending |
 
 **Recent Trend:**
 
-- Recent completed execution plans: 06-P01, 06-P02, 06-P03, 06-P05, 06-P04, 06-P06, 07-P01, 07-P02, and 07-P03 complete.
+- Recent completed execution plans: 06-P01, 06-P02, 06-P03, 06-P05, 06-P04, 06-P06, 07-P01, 07-P02, 07-P03, and 07-P04 complete.
 - Trend: Phase 07 plan sequence covers CoreHID feasibility, report packing, helper/backend/runtime wiring, OS-output proof, conditional DriverKit fallback, and final live macOS proof.
 
 *Updated after each plan completion*
@@ -97,6 +97,7 @@ Progress: [█████████░] 39/43 planned plans complete. Phase 0
 | Phase 07 P01 | checkpointed; closeout complete | 3 tasks | 6 files |
 | Phase 07 P02 | 5 min | 2 TDD tasks | 5 files |
 | Phase 07 P03 | 10 min | 3 tasks | 7 files |
+| Phase 07 P04 | 8 min | 3 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -183,6 +184,9 @@ Recent decisions affecting current work:
 - [Phase 07]: MacosVirtualControllerBackend publishes only packed report bytes through the helper. — LAN/session/security/profile/haptic transport ownership stays outside native code.
 - [Phase 07]: macos-corehid capabilities claim output-report support only after both OS-visible and set-report callback proof status are true. — Simulated output remains mapper-only and cannot satisfy DESK-06 proof.
 - [Phase 07]: Native Swift helper remains a CoreHID byte bridge with HELLO/SUBMIT_INPUT/READ_OUTPUT/STATUS/QUIT only. — No DriverKit activation or OS security-state command was run in Plan 07-03.
+- [Phase 07]: MacosBackendRuntime attaches only to the trusted ControlServer UDP callback chain and preserves prior callbacks. — LAN/session/security/UDP validation stay in ControlServer and UdpControllerStateAdapter.
+- [Phase 07]: macOS backend launch is disabled by default and requires explicit btgun.macos.hid.helper.path. — Missing helper path fails closed with visible startup diagnostic.
+- [Phase 07]: macOS helper-origin output reports route only through authenticated ControlServer.sendHapticCommand. — No direct haptic bypass or Android session ownership was added.
 
 ### Pending Todos
 
@@ -208,6 +212,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-10T16:38:47.261Z
-Stopped at: Phase 07 Plan 03 complete; ready for Plan 04
-Resume file: .planning/phases/07-macos-virtual-joystick-path/07-04-PLAN.md
+Last session: 2026-06-10T16:51:33.844Z
+Stopped at: Completed 07-04-PLAN.md
+Resume file: None
