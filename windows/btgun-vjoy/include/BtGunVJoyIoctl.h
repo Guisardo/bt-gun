@@ -20,7 +20,6 @@ typedef int32_t BTGVJOY_INT32;
 #endif
 
 #if defined(_WIN32) && !defined(BTGVJOY_KERNEL_MODE)
-#include <winioctl.h>
 #include <guiddef.h>
 #endif
 
