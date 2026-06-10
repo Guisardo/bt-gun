@@ -1,8 +1,25 @@
 #pragma once
 
-#include <stdint.h>
+#if defined(_KERNEL_MODE) || defined(_NTDDK_) || defined(_WDMDDK_) || defined(WINNT)
+#define BTGVJOY_KERNEL_MODE 1
+#endif
 
-#ifdef _WIN32
+#ifdef BTGVJOY_KERNEL_MODE
+typedef UINT8 BTGVJOY_UINT8;
+typedef UINT16 BTGVJOY_UINT16;
+typedef UINT32 BTGVJOY_UINT32;
+typedef UINT64 BTGVJOY_UINT64;
+typedef INT32 BTGVJOY_INT32;
+#else
+#include <stdint.h>
+typedef uint8_t BTGVJOY_UINT8;
+typedef uint16_t BTGVJOY_UINT16;
+typedef uint32_t BTGVJOY_UINT32;
+typedef uint64_t BTGVJOY_UINT64;
+typedef int32_t BTGVJOY_INT32;
+#endif
+
+#if defined(_WIN32) && !defined(BTGVJOY_KERNEL_MODE)
 #include <winioctl.h>
 #include <guiddef.h>
 #endif
@@ -79,33 +96,33 @@ DEFINE_GUID(
 #pragma pack(push, 1)
 
 typedef struct _BTGVJOY_INPUT_REPORT {
-    uint16_t Size;
-    uint16_t Version;
-    uint64_t SourceSequence;
-    uint8_t HidReport[BTGVJOY_INPUT_REPORT_LENGTH_BYTES];
+    BTGVJOY_UINT16 Size;
+    BTGVJOY_UINT16 Version;
+    BTGVJOY_UINT64 SourceSequence;
+    BTGVJOY_UINT8 HidReport[BTGVJOY_INPUT_REPORT_LENGTH_BYTES];
 } BTGVJOY_INPUT_REPORT;
 
 typedef struct _BTGVJOY_OUTPUT_REPORT {
-    uint16_t Size;
-    uint16_t Version;
-    uint64_t OutputSequence;
-    uint8_t HidReport[BTGVJOY_OUTPUT_REPORT_LENGTH_BYTES];
+    BTGVJOY_UINT16 Size;
+    BTGVJOY_UINT16 Version;
+    BTGVJOY_UINT64 OutputSequence;
+    BTGVJOY_UINT8 HidReport[BTGVJOY_OUTPUT_REPORT_LENGTH_BYTES];
 } BTGVJOY_OUTPUT_REPORT;
 
 typedef struct _BTGVJOY_STATUS {
-    uint16_t Size;
-    uint16_t Version;
-    uint8_t DriverStarted;
-    uint8_t VhfStarted;
-    uint32_t QueueDepth;
-    uint64_t LastInputSequence;
-    uint64_t LastOutputSequence;
-    uint64_t SubmittedInputReports;
-    uint64_t QueuedOutputReports;
-    uint64_t DroppedOutputReports;
-    uint64_t MalformedInputReports;
-    uint64_t MalformedOutputReports;
-    int32_t LastNtStatus;
+    BTGVJOY_UINT16 Size;
+    BTGVJOY_UINT16 Version;
+    BTGVJOY_UINT8 DriverStarted;
+    BTGVJOY_UINT8 VhfStarted;
+    BTGVJOY_UINT32 QueueDepth;
+    BTGVJOY_UINT64 LastInputSequence;
+    BTGVJOY_UINT64 LastOutputSequence;
+    BTGVJOY_UINT64 SubmittedInputReports;
+    BTGVJOY_UINT64 QueuedOutputReports;
+    BTGVJOY_UINT64 DroppedOutputReports;
+    BTGVJOY_UINT64 MalformedInputReports;
+    BTGVJOY_UINT64 MalformedOutputReports;
+    BTGVJOY_INT32 LastNtStatus;
 } BTGVJOY_STATUS;
 
 #pragma pack(pop)
