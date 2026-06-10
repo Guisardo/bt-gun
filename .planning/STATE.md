@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 07 Android Bluetooth HID plans ready
-last_updated: "2026-06-10T22:19:12.070Z"
+stopped_at: Completed 07-01-PLAN.md
+last_updated: "2026-06-10T22:33:24.980Z"
 last_activity: 2026-06-10 -- Phase 07 execution started
 progress:
   total_phases: 10
   completed_phases: 6
   total_plans: 42
-  completed_plans: 36
-  percent: 60
+  completed_plans: 37
+  percent: 88
 ---
 
 # Project State
@@ -26,18 +26,18 @@ See: .planning/PROJECT.md (updated 2026-06-09)
 ## Current Position
 
 Phase: 07 (macos-virtual-joystick-path) — EXECUTING
-Plan: 1 of 6
+Plan: 2 of 6
 Next phase: Execute Phase 07 Android Bluetooth HID gamepad path
-Status: Executing Phase 07
+Status: Ready to execute
 Last activity: 2026-06-10 -- Phase 07 execution started
 
-Progress: [████████░░] 36/42 active planned plans complete. Phase 06 has 6/6 plans complete; Phase 07 has 0/6 active Android Bluetooth HID plans executed after the reroute.
+Progress: [█████████░] 37/42 active planned plans complete. Phase 06 has 6/6 plans complete; Phase 07 has 1/6 active Android Bluetooth HID plans executed after the reroute.
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 40
+- Total plans completed: 41
 - Average duration: not tracked for hardware-interactive plans
 - Total execution time: not tracked after Plan 02
 
@@ -50,7 +50,7 @@ Progress: [████████░░] 36/42 active planned plans complete. 
 | 04 | 6 | - | - |
 | 05 | 5 | hardware-interactive | hardware-interactive |
 | 06 | 6 | hardware-interactive | hardware-interactive |
-| 07 | 6 | active | Android Bluetooth HID plans 01-06 ready to execute |
+| 07 | 6 | 8min | P01 complete; Android Bluetooth HID plans 02-06 ready to execute |
 
 **Recent Trend:**
 
@@ -95,6 +95,7 @@ Progress: [████████░░] 36/42 active planned plans complete. 
 | Phase 06 P05 | hardware-interactive | CI build/sign/package | approved |
 | Phase 06 P06 | hardware-interactive | Windows target proof | approved |
 | Phase 07 legacy P01-P05 | archived | CoreHID/DriverKit evidence | fallback only |
+| Phase 07 P01 | 8min | 3 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -187,6 +188,9 @@ Recent decisions affecting current work:
 - [Phase 07]: CoreHID real smoke and separate IOHIDDeviceSetReport probe recorded corehid-runtime-blocked on normal macOS. — Helper built and signed but was killed before enumeration; Plan 07-06 DriverKit fallback is mandatory unless entitlement-capable CoreHID proof replaces the gate.
 - [Phase 07 reroute]: Primary no-subscription macOS path is now Android phone as Bluetooth HID gamepad. — Requirements and roadmap now target Android HID peripheral role, HID report mapping, macOS pairing, and output-report-to-phone-haptic proof.
 - [Phase 07 fallback]: Completed Windows VHF virtual joystick work remains the fallback desktop path if Android Bluetooth HID gamepad integration is blocked on the phone or macOS. — Do not discard Phase 6; use it as the working OS-visible controller path while macOS Bluetooth HID is proven.
+- [Phase 07]: Android Bluetooth HID readiness is modeled separately from the BLE gun/LAN session gate. — Plan 07-01 keeps canStartSession unchanged while adding bluetoothHidRole.
+- [Phase 07]: HostCapabilityProbe remains synchronous; async HID_DEVICE proxy, registration, and host connection results are explicit status inputs. — Startup probing must not guess phone/OEM Bluetooth HID support before the later adapter runs.
+- [Phase 07]: Android HID evidence starts as schema and policy only. — Plan 07-01 names later proof rows but claims no current-phone, macOS input, output-report, unsupported-output, or fallback success.
 
 ### Pending Todos
 
@@ -213,6 +217,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-10T22:13:15.352Z
-Stopped at: Phase 07 Android Bluetooth HID plans ready
-Resume file: .planning/phases/07-macos-virtual-joystick-path/07-01-PLAN.md
+Last session: 2026-06-10T22:33:24.973Z
+Stopped at: Completed 07-01-PLAN.md
+Resume file: None
