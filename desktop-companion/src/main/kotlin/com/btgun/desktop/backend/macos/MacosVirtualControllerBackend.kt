@@ -42,6 +42,9 @@ class MacosVirtualControllerBackend(
     override val lastPublishResult: BackendPublishResult?
         get() = synchronized(lock) { lastResult }
 
+    fun helperStatus(): MacosHidHelperStatus =
+        synchronized(lock) { helper.readStatus() }
+
     override fun start(): BackendLifecycleResult =
         synchronized(lock) {
             lifecycle = BackendLifecycleState.STARTED
