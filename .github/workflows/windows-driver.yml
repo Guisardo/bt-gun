@@ -31,10 +31,10 @@ jobs:
           $ErrorActionPreference = "Stop"
           $kitsBin = Join-Path ${env:ProgramFiles(x86)} "Windows Kits\10\bin"
           $inf2cat = Get-ChildItem $kitsBin -Recurse -Filter inf2cat.exe -ErrorAction SilentlyContinue |
-            Where-Object { $_.FullName -match "\\x64\\inf2cat.exe$" } |
+            Sort-Object @{ Expression = { if ($_.FullName -match "\\x64\\") { 0 } else { 1 } } }, FullName |
             Select-Object -First 1
           $signtool = Get-ChildItem $kitsBin -Recurse -Filter signtool.exe -ErrorAction SilentlyContinue |
-            Where-Object { $_.FullName -match "\\x64\\signtool.exe$" } |
+            Sort-Object @{ Expression = { if ($_.FullName -match "\\x64\\") { 0 } else { 1 } } }, FullName |
             Select-Object -First 1
           if ($inf2cat -and $signtool) {
             "WDK tools already available on runner."
@@ -67,12 +67,10 @@ jobs:
 
           $kitsBin = Join-Path ${env:ProgramFiles(x86)} "Windows Kits\10\bin"
           $inf2cat = Get-ChildItem $kitsBin -Recurse -Filter inf2cat.exe -ErrorAction SilentlyContinue |
-            Where-Object { $_.FullName -match "\\x64\\inf2cat.exe$" } |
-            Sort-Object FullName -Descending |
+            Sort-Object @{ Expression = { if ($_.FullName -match "\\x64\\") { 0 } else { 1 } } }, FullName |
             Select-Object -First 1
           $signtool = Get-ChildItem $kitsBin -Recurse -Filter signtool.exe -ErrorAction SilentlyContinue |
-            Where-Object { $_.FullName -match "\\x64\\signtool.exe$" } |
-            Sort-Object FullName -Descending |
+            Sort-Object @{ Expression = { if ($_.FullName -match "\\x64\\") { 0 } else { 1 } } }, FullName |
             Select-Object -First 1
           if (-not $inf2cat) {
             throw "inf2cat was not found. GitHub runner must include Windows Kits/WDK tooling."
