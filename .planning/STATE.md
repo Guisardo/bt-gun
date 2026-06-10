@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: planning
-stopped_at: Phase 07 planned
-last_updated: "2026-06-10T13:10:35.037Z"
-last_activity: 2026-06-10 -- Phase 07 planned with 7 waves
+status: executing
+stopped_at: Phase 07 Plan 01 complete; ready for Plan 02
+last_updated: "2026-06-10T16:14:46Z"
+last_activity: 2026-06-10 -- Phase 07 Plan 01 checkpoint resolved with local DriverKit fallback decision
 progress:
   total_phases: 10
   completed_phases: 6
   total_plans: 43
-  completed_plans: 36
+  completed_plans: 37
   percent: 60
 ---
 
@@ -25,13 +25,13 @@ See: .planning/PROJECT.md (updated 2026-06-09)
 
 ## Current Position
 
-Phase: 07 (macos-virtual-joystick-path) — READY
-Plan: 7 plans ready
+Phase: 07 (macos-virtual-joystick-path) — EXECUTING
+Plan: 2 of 7
 Next phase: 07 (macOS Virtual Joystick Path) execution
-Status: Phase 07 planned; ready to execute the macOS virtual joystick path
-Last activity: 2026-06-10 -- Phase 07 planned with 7 waves
+Status: Plan 07-01 complete; executing Phase 07
+Last activity: 2026-06-10 -- Phase 07 Plan 01 checkpoint resolved with local DriverKit fallback decision
 
-Progress: [████████░░] 36/43 planned plans complete. Phase 06 has 6/6 plans complete; Phase 07 has 0/7 plans executed.
+Progress: [████████░░] 37/43 planned plans complete. Phase 06 has 6/6 plans complete; Phase 07 has 1/7 plans executed.
 
 ## Performance Metrics
 
@@ -50,7 +50,7 @@ Progress: [████████░░] 36/43 planned plans complete. Phase 0
 | 04 | 6 | - | - |
 | 05 | 5 | hardware-interactive | hardware-interactive |
 | 06 | 6 | hardware-interactive | hardware-interactive |
-| 07 | 7 | pending execution | pending execution |
+| 07 | 7 | active | Plan 01 complete; remaining plans pending |
 
 **Recent Trend:**
 
@@ -94,6 +94,7 @@ Progress: [████████░░] 36/43 planned plans complete. Phase 0
 | Phase 06 P04 | 11 min | 3 tasks | 6 files |
 | Phase 06 P05 | hardware-interactive | CI build/sign/package | approved |
 | Phase 06 P06 | hardware-interactive | Windows target proof | approved |
+| Phase 07 P01 | checkpointed; closeout complete | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -173,6 +174,9 @@ Recent decisions affecting current work:
 - [Phase 06]: The real windows-vhf smoke command requires a Plan 05 btgun-driver-bridge.exe artifact path and never falls back to Phase 5 stubs.
 - [Phase 06]: Desktop launch enables the real Windows backend only when btgun.windows.driver.enabled=true and an explicit bridge path is provided.
 - [Phase 06 approved]: Windows virtual joystick path is accepted for Phase 7 handoff. — User confirmed Phase 6 approval on 2026-06-10 after the 0.6.2.2 VHF identity/package update, latest CI artifact install, joy.cpl axis verification, and target validation.
+- [Phase 07]: Self-signed, ad-hoc, and named local signing did not satisfy the restricted CoreHID virtual HID entitlement on normal macOS. — Plan 07-01 remains a CoreHID-first proof but records `corehid-runtime-blocked`.
+- [Phase 07]: No USB bridge is available, so the no-subscription lab route is local-development-only HIDDriverKit/system-extension fallback exploration. — Do not claim DESK-03 or DESK-06 production support until later proof rows pass.
+- [Phase 07]: SIP changes, system extension developer mode, install, activation, removal, rollback, reboot, or other OS security-state changes require explicit later approval. — Plan 07-01 documented future commands/risks only and did not run them.
 
 ### Pending Todos
 
@@ -180,7 +184,7 @@ None.
 
 ### Blockers/Concerns
 
-- [Phase 7]: macOS virtual HID/output path may depend on entitlement and OS support.
+- [Phase 7]: Production macOS virtual HID/output support remains unproven until CoreHID passes or the selected local-dev-only DriverKit fallback produces accepted proof rows.
 
 ### Quick Tasks Completed
 
@@ -198,6 +202,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-10T12:24:45.373Z
-Stopped at: Phase 07 context gathered
-Resume file: .planning/phases/07-macos-virtual-joystick-path/07-CONTEXT.md
+Last session: 2026-06-10T16:14:46Z
+Stopped at: Phase 07 Plan 01 complete; ready for Plan 02
+Resume file: .planning/phases/07-macos-virtual-joystick-path/07-02-PLAN.md

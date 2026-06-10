@@ -241,12 +241,12 @@ Plans:
   2. macOS virtual joystick receives desktop rumble or output requests where supported, or clearly reports the platform output limitation while preserving v1 phone haptic support.
   3. Repository documents the selected macOS virtual HID strategy, entitlement requirements, and development setup.
 
-**Plans:** 0/7 plans complete
+**Plans:** 1/7 plans complete
 Plans:
 
 **Wave 1**
 
-- [ ] 07-01-PLAN.md — Toolchain/CoreHID feasibility, entitlement gate, and PACK-03 setup foundation.
+- [x] 07-01-PLAN.md — Toolchain/CoreHID feasibility, entitlement gate, and PACK-03 setup foundation. CoreHID recorded `corehid-runtime-blocked`; selected local-development-only DriverKit fallback route with no DESK-03/DESK-06 production support claim yet.
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -334,7 +334,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 | 4. Input Stream and Haptic Transport | 6/6 | Complete    | 2026-06-09 |
 | 5. Desktop Backend Contract and Smoke Harness | 5/5 | Complete | 2026-06-09 |
 | 6. Windows Virtual Joystick Path | 6/6 | Complete | 2026-06-10 |
-| 7. macOS Virtual Joystick Path | 0/TBD | Not started | - |
+| 7. macOS Virtual Joystick Path | 1/7 | Executing | - |
 | 8. Desktop Profiles and Mapping | 0/TBD | Not started | - |
 | 9. Visualizer Acceptance Path | 0/TBD | Not started | - |
 | 10. Diagnostics, Replay, and v1 Docs | 0/TBD | Not started | - |
