@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 06-02-PLAN.md
-last_updated: "2026-06-10T00:31:51.646Z"
-last_activity: 2026-06-10 -- Phase 06 Plan 01 complete
+stopped_at: Completed 06-03-PLAN.md
+last_updated: "2026-06-10T00:44:41.059Z"
+last_activity: 2026-06-10 -- Phase 06 Plan 03 complete
 progress:
   total_phases: 10
   completed_phases: 5
   total_plans: 36
-  completed_plans: 32
-  percent: 50
+  completed_plans: 33
+  percent: 92
 ---
 
 # Project State
@@ -26,18 +26,18 @@ See: .planning/PROJECT.md (updated 2026-06-09)
 ## Current Position
 
 Phase: 06 (windows-virtual-joystick-path) — EXECUTING
-Plan: 3 of 6
+Plan: 4 of 6
 Next phase: 06 (Windows Virtual Joystick Path)
 Status: Ready to execute
-Last activity: 2026-06-10 -- Phase 06 Plan 01 complete
+Last activity: 2026-06-10 -- Phase 06 Plan 03 complete
 
-Progress: [█████████░] 86% by planned plans. Phase 06 has 1/6 plans executed.
+Progress: [█████████░] 92% by planned plans. Phase 06 has 3/6 plans executed.
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 31
+- Total plans completed: 33
 - Average duration: not tracked for hardware-interactive plans
 - Total execution time: not tracked after Plan 02
 
@@ -52,8 +52,8 @@ Progress: [█████████░] 86% by planned plans. Phase 06 has 1/
 
 **Recent Trend:**
 
-- Last 5 completed execution plans: 05-P02, 05-P03, 05-P04, 05-P05, 06-P01 complete
-- Trend: Phase 06 Windows report contract is underway with deterministic HID input packing and output-report haptic byte mapping complete.
+- Recent completed execution plans: 05-P05, 06-P01, 06-P02, 06-P03 complete
+- Trend: Phase 06 Windows backend bridge is underway with deterministic HID packing, output-report haptic mapping, and a Kotlin VHF bridge client complete.
 
 *Updated after each plan completion*
 | Phase 01 P01 | 10 min | 3 tasks | 6 files |
@@ -88,6 +88,7 @@ Progress: [█████████░] 86% by planned plans. Phase 06 has 1/
 | Phase 05 P05 | 2h 10m | 3 tasks | 11 files |
 | Phase 06 P01 | 12 min | 2 tasks | 5 files |
 | Phase 06 P02 | 8 min | 3 tasks | 10 files |
+| Phase 06 P03 | 6min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -160,6 +161,9 @@ Recent decisions affecting current work:
 - [Phase 06]: Windows driver ABI uses METHOD_BUFFERED IOCTLs with FILE_WRITE_DATA for input submission and FILE_READ_DATA for output/status reads. — Matches Plan 02 user-mode to kernel tampering mitigation.
 - [Phase 06]: KMDF/VHF kernel code stays a HID report bridge only; LAN/session/security and haptic transport stay in user mode. — Preserves D-11 and D-12 boundaries while reducing kernel attack surface.
 - [Phase 06]: Local macOS execution records the WDK/MSBuild build gate as source-only blocked; Plan 05 CI must validate build/sign/package before target use. — The executor has no Windows WDK/MSBuild toolchain, and Plan 02 build_gate allows source-only closeout.
+- [Phase 06]: WindowsVirtualControllerBackend publishes semantic state only through WindowsHidReportPacker and WindowsDriverBridge.submitInputReport.
+- [Phase 06]: Windows output report bytes drain from the helper bridge and map through WindowsOutputReportMapper with windows-output-report-* command ids.
+- [Phase 06]: windows-vhf capabilities declare real output-report and phone-haptic support while keeping pattern output unsupported.
 
 ### Pending Todos
 
@@ -185,6 +189,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-10T00:31:51.639Z
-Stopped at: Completed 06-02-PLAN.md
+Last session: 2026-06-10T00:44:41.044Z
+Stopped at: Completed 06-03-PLAN.md
 Resume file: None
