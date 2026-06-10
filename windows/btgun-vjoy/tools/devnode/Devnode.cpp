@@ -15,6 +15,8 @@
 
 namespace {
 
+constexpr DWORD kMaxClassNameChars = 64;
+
 std::wstring win32Hex(DWORD code) {
     std::wostringstream out;
     out << L"0x" << std::uppercase << std::hex << std::setw(8) << std::setfill(L'0') << code;
@@ -166,8 +168,8 @@ int createRootDevnode(
     const std::wstring& hardwareId,
     const std::wstring& deviceName) {
     GUID classGuid = {};
-    wchar_t className[MAX_CLASS_NAME_LEN] = {};
-    if (!SetupDiGetINFClassW(infPath.c_str(), &classGuid, className, MAX_CLASS_NAME_LEN, nullptr)) {
+    wchar_t className[kMaxClassNameChars] = {};
+    if (!SetupDiGetINFClassW(infPath.c_str(), &classGuid, className, kMaxClassNameChars, nullptr)) {
         printError(L"SetupDiGetINFClassW", GetLastError());
         return 1;
     }
