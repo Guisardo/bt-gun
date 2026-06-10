@@ -71,6 +71,10 @@ BTGUN_MACOS_HID_SIGN_IDENTITY=keychain-bio-local native/macos-hid-helper/scripts
 
 Current Task 3 retry result: `keychain-bio-local` was visible to `security find-identity` outside the sandbox and `codesign` accepted it, but the helper was still killed before `hidutil` enumeration. Current blocker is `corehid-runtime-blocked`: virtual HID entitlement or macOS runtime policy, not Swift compilation.
 
+Checkpoint decision on 2026-06-10: the local proof found no stock, software-only CoreHID route that satisfies `com.apple.developer.hid.virtual.device` on normal macOS with ad-hoc signing, a self-signed certificate, or the named local `keychain-bio-local` identity. The user also confirmed no USB bridge is available. The selected route is therefore a local-development-only HIDDriverKit/system-extension fallback that may require documented, temporary security-relaxed development mode. This route has no paid Apple Developer subscription requirement for the current lab path, but it is not a shippable or user-facing support claim.
+
+Until later proof rows pass, do not claim DESK-03 or DESK-06 production support from this CoreHID result. Treat the CoreHID path as `corehid-runtime-blocked` and the next work as lab-only fallback exploration.
+
 Manual launch command:
 
 ```bash
@@ -128,13 +132,32 @@ HIDDriverKit/system extension work starts only after a recorded CoreHID non-pass
 - `corehid-visibility-failed`
 - `corehid-output-failed`
 
-DriverKit fallback requires explicit later approval before any system extension activation, install, rollback, entitlement use, or reboot. Expected proof commands for that later path are documented in Plan 07-06, not run in this plan:
+Selected local-dev-only branch: `corehid-runtime-blocked` plus no USB bridge available. This branch may use HIDDriverKit/system extension development workflows with temporarily relaxed local security checks, but only as a lab proof. It must not be packaged, shipped, or advertised as the normal macOS path without proper entitlement/signing proof and later accepted DESK-03/DESK-06 evidence.
+
+DriverKit fallback requires explicit later approval before any SIP change, system extension developer mode change, system extension activation, install, removal, rollback, entitlement use, reboot, or other OS security-state change. Expected proof/status commands for that later path are documented in Plan 07-06, not run in this plan:
 
 ```bash
 systemextensionsctl list
 hidutil list --matching '{"VendorID":0x1209,"ProductID":0xB707}'
 ioreg -r -c IOHIDDevice -l -w 0 | rg 'BT Gun|VendorID|ProductID|MaxOutputReportSize'
 ```
+
+Security-relaxed development commands, if Plan 07-06 later requests them, must be treated as human-approved manual setup only. They are included here as future-risk documentation, not as commands to run during Plan 07-01 closeout:
+
+```bash
+# Recovery environment only; changes system security posture.
+csrutil disable
+
+# Normal boot; enables system extension developer workflow.
+sudo systemextensionsctl developer on
+
+# Reversal after lab proof, subject to current macOS requirements.
+sudo systemextensionsctl developer off
+# Recovery environment only.
+csrutil enable
+```
+
+Risks: these commands can weaken platform protections, require reboot/recovery workflows, and can affect more than this project. They require explicit later approval before use.
 
 ## Manifest Status Values
 
