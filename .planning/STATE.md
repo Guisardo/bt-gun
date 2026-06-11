@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
-stopped_at: Completed 07-05-PLAN.md; macOS haptics deferred
-last_updated: "2026-06-11T13:24:34.669Z"
-last_activity: 2026-06-11 -- Phase 07 macOS Bluetooth HID input accepted; macOS browser haptics deferred
+status: planning
+stopped_at: Completed 07-06-PLAN.md
+last_updated: "2026-06-11T13:44:35Z"
+last_activity: 2026-06-11 -- Phase 07 completed with Android Bluetooth HID input proof and macOS haptics deferred
 progress:
   total_phases: 10
-  completed_phases: 6
+  completed_phases: 7
   total_plans: 42
-  completed_plans: 41
-  percent: 98
+  completed_plans: 42
+  percent: 70
 ---
 
 # Project State
@@ -21,23 +21,23 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-09)
 
 **Core value:** Make the discontinued iPega AR gun usable as a normal wireless joystick gun on modern macOS and Windows with responsive motion aiming and v1 phone haptic feedback.
-**Current focus:** Phase 07 — macos-virtual-joystick-path
+**Current focus:** Phase 08 — desktop-profiles-and-mapping
 
 ## Current Position
 
-Phase: 07 (macos-virtual-joystick-path) — EXECUTING
-Plan: 6 of 6
-Next phase: Execute Phase 07 docs/fallback closeout
-Status: Ready to execute
-Last activity: 2026-06-11 -- Phase 07 macOS Bluetooth HID input accepted; macOS browser haptics deferred
+Phase: 08 (desktop-profiles-and-mapping) — READY
+Plan: TBD
+Next phase: Plan Phase 08 desktop profiles and mapping
+Status: Ready to plan Phase 08
+Last activity: 2026-06-11 -- Phase 07 completed with Android Bluetooth HID input proof and macOS haptics deferred
 
-Progress: [██████████] 41/42 active planned plans complete. Phase 06 has 6/6 plans complete; Phase 07 has 5/6 active Android Bluetooth HID plans executed after the reroute.
+Progress: [██████████] 42/42 active planned plans complete. Phase 06 has 6/6 plans complete; Phase 07 has 6/6 active Android Bluetooth HID plans executed after the reroute.
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 41
+- Total plans completed: 42
 - Average duration: not tracked for hardware-interactive plans
 - Total execution time: not tracked after Plan 02
 
@@ -50,12 +50,12 @@ Progress: [██████████] 41/42 active planned plans complete. 
 | 04 | 6 | - | - |
 | 05 | 5 | hardware-interactive | hardware-interactive |
 | 06 | 6 | hardware-interactive | hardware-interactive |
-| 07 | 6 | hardware-interactive | P01-P05 complete; Android Bluetooth HID plan 06 ready to execute |
+| 07 | 6 | hardware-interactive | complete; Android HID input passed, macOS haptics deferred |
 
 **Recent Trend:**
 
-- Recent completed execution plans: 06-P01, 06-P02, 06-P03, 06-P05, 06-P04, 06-P06, 07-P01, 07-P02, 07-P03, 07-P04, and 07-P05 complete.
-- Trend: CoreHID and DriverKit are no longer primary for macOS because no-subscription virtual HID is blocked. Phase 07 active plans now target Android phone Bluetooth HID gamepad proof, with Windows VHF retained as fallback.
+- Recent completed execution plans: 06-P01, 06-P02, 06-P03, 06-P05, 06-P04, 06-P06, and 07-P01 through 07-P06 complete.
+- Trend: CoreHID and DriverKit are no longer primary for macOS because no-subscription virtual HID is blocked. Phase 07 completed Android phone Bluetooth HID gamepad proof, with Windows VHF retained as fallback and macOS browser/GameController haptics deferred.
 
 *Updated after each plan completion*
 | Phase 01 P01 | 10 min | 3 tasks | 6 files |
@@ -100,6 +100,7 @@ Progress: [██████████] 41/42 active planned plans complete. 
 | Phase 07 P03 | 10min | 2 tasks | 6 files |
 | Phase 07 P04 | 12min | 3 tasks | 6 files |
 | Phase 07 P05 | hardware-interactive | macOS Bluetooth HID input proof | haptics unsupported/deferred |
+| Phase 07 P06 | 8min | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -203,6 +204,7 @@ Recent decisions affecting current work:
 - [Phase 07]: DESK-06 remains a live evidence gate; Plan 07-03 adds Android callback/status foundation but makes no macOS output-report claim.
 - [Phase 07]: Android HID mode starts only through explicit service actions; live BLE/LAN session startup remains separate. — Plan 07-04 keeps Bluetooth HID gamepad proof separate from LAN diagnostics and desktop companion input.
 - [Phase 07]: macOS browser/GameController haptics through Android Bluetooth HID are deferred. — Live gpadtester reported no vibration, Android saw no usable host output callback, and the PID ForceFeedback descriptor experiment stopped macOS from publishing a browser-visible gamepad. Keep the stable input descriptor and use LAN/Windows VHF paths for phone haptics.
+- [Phase 07 complete]: Android Bluetooth HID is documented as the primary no-subscription macOS path, with current-phone DESK-03 input proof accepted and no alternate-phone fallback row required. — CoreHID/DriverKit stay blocked/fallback evidence only; Windows VHF remains fallback if a future Android HID target blocks.
 
 ### Pending Todos
 
@@ -210,7 +212,7 @@ None.
 
 ### Blockers/Concerns
 
-- [Phase 7]: Plan 07-06 docs/fallback closeout remains. macOS browser/GameController haptics are deferred for Android Bluetooth HID; stable input is proven on the current phone.
+None.
 
 ### Quick Tasks Completed
 
@@ -231,6 +233,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-11T13:24:34.669Z
-Stopped at: Completed 07-05-PLAN.md; macOS haptics deferred
+Last session: 2026-06-11T13:44:35Z
+Stopped at: Completed 07-06-PLAN.md
 Resume file: None
