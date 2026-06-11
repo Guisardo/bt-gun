@@ -351,6 +351,7 @@ class AndroidBtGunHidProfileConnector(
     private val executor: Executor,
 ) : BtGunHidProfileConnector {
     private var listener: BluetoothProfile.ServiceListener? = null
+    private var activeProxy: BluetoothHidDevice? = null
     private var closed = false
 
     override fun requestHidDeviceProxy(callback: BtGunHidProfileCallback) {
@@ -361,6 +362,7 @@ class AndroidBtGunHidProfileConnector(
         val serviceListener = object : BluetoothProfile.ServiceListener {
             override fun onServiceConnected(profile: Int, proxy: BluetoothProfile) {
                 if (profile == BluetoothProfile.HID_DEVICE && proxy is BluetoothHidDevice) {
+                    activeProxy = proxy
                     callback.onProxyAvailable(AndroidBtGunHidDeviceProxy(proxy, executor))
                 } else {
                     callback.onProxyUnavailable("HID_DEVICE proxy unavailable")
@@ -393,8 +395,12 @@ class AndroidBtGunHidProfileConnector(
     override fun close() {
         if (closed) return
         closed = true
-        val serviceListener = listener ?: return
-        adapter.closeProfileProxy(BluetoothProfile.HID_DEVICE, null)
+        activeProxy?.let { proxy ->
+            runCatching {
+                adapter.closeProfileProxy(BluetoothProfile.HID_DEVICE, proxy)
+            }
+        }
+        activeProxy = null
         listener = null
     }
 }
