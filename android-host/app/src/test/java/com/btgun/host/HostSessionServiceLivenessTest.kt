@@ -18,11 +18,14 @@ import com.btgun.host.transport.InputStreamLifecycleState
 import com.btgun.host.model.GunInputState
 import com.btgun.host.model.MotionProvider
 import com.btgun.host.model.MotionSample
+import com.btgun.host.permissions.PermissionGate
+import com.btgun.host.permissions.PermissionGateInput
 
 fun main() {
     heartbeatTimeoutClearSchedulesUdpDisconnectGrace()
     controlDisconnectWithoutUdpStreamStaysStopped()
     bluetoothGamepadActionConstantsAreExplicit()
+    bluetoothGamepadStartRequiresConnectPermission()
     bluetoothGamepadStartDoesNotStartLanDesktopControl()
     bluetoothGamepadStartAndPairingWindowAreSeparateActions()
     bluetoothGamepadStopSessionAndDestroyCloseHidMode()
@@ -105,6 +108,32 @@ private fun bluetoothGamepadActionConstantsAreExplicit() {
         "com.btgun.host.action.START_HID_PAIRING_WINDOW",
         HostSessionService.ACTION_START_HID_PAIRING_WINDOW,
     )
+}
+
+private fun bluetoothGamepadStartRequiresConnectPermission() {
+    val gate = PermissionGate.evaluate(
+        PermissionGateInput(
+            sdkInt = 31,
+            grantedPermissions = setOf(PermissionGate.BLUETOOTH_SCAN, PermissionGate.BLUETOOTH_ADVERTISE),
+            bluetoothEnabled = true,
+            locationServiceAvailable = true,
+            hasGyroscope = true,
+            hasRotationVector = true,
+            hasGameRotationVector = false,
+            hasAccelerometer = true,
+            hasGravity = true,
+            hasVibrator = true,
+            hasNetwork = true,
+        ),
+    )
+
+    val blockedStart = hidStartBlockedStatusFor(gate, openPairingWindow = false)
+    val blockedPairing = hidStartBlockedStatusFor(gate, openPairingWindow = true)
+
+    expectEquals("start blocked detail", "Grant Nearby Devices connect permission.", blockedStart?.unsupportedReason)
+    expectEquals("start pairing unchanged", "not opened", blockedStart?.pairingWindow?.detail)
+    expectEquals("pairing blocked detail", "Grant Nearby Devices connect permission.", blockedPairing?.unsupportedReason)
+    expectEquals("pairing status detail", "Grant Nearby Devices connect permission.", blockedPairing?.pairingWindow?.detail)
 }
 
 private fun bluetoothGamepadStartDoesNotStartLanDesktopControl() {

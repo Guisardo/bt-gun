@@ -103,6 +103,37 @@ internal fun hostPacketStreamStateAfterControlDisconnect(
         else -> InputStreamLifecycleState.GRACE
     }
 
+internal fun hidStartBlockedStatusFor(
+    state: PermissionGateState,
+    openPairingWindow: Boolean,
+    currentStatus: BtGunHidStatus = BtGunHidStatus(),
+): BtGunHidStatus? {
+    if (state.bluetoothConnect.state != CapabilityState.AVAILABLE) {
+        val detail = state.bluetoothConnect.detail
+        return currentStatus.copy(
+            pairingWindow = if (openPairingWindow) {
+                BtGunHidPairingWindowStatus(open = false, detail = detail)
+            } else {
+                currentStatus.pairingWindow
+            },
+            unsupportedReason = detail,
+        )
+    }
+
+    if (openPairingWindow && state.bluetoothAdvertise.state != CapabilityState.AVAILABLE) {
+        val detail = state.bluetoothAdvertise.detail
+        return currentStatus.copy(
+            pairingWindow = BtGunHidPairingWindowStatus(
+                open = false,
+                detail = detail,
+            ),
+            unsupportedReason = detail,
+        )
+    }
+
+    return null
+}
+
 internal interface HostHidGamepadDriver : AutoCloseable {
     var status: BtGunHidStatus
     fun startGamepadMode()
@@ -413,18 +444,12 @@ class HostSessionService : Service() {
     private fun startBluetoothGamepad(openPairingWindow: Boolean = false) {
         AndroidLog.i(TAG, "startBluetoothGamepad openPairingWindow=$openPairingWindow foreground=${currentState.foregroundActive}")
         val gate = permissionGateState()
-        if (openPairingWindow && gate.bluetoothAdvertise.state != CapabilityState.AVAILABLE) {
-            val detail = gate.bluetoothAdvertise.detail
+        val blockedStatus = hidStartBlockedStatusFor(gate, openPairingWindow, currentState.hidGamepadStatus)
+        if (blockedStatus != null) {
             currentState = currentState.copy(
-                hidGamepadStatus = currentState.hidGamepadStatus.copy(
-                    pairingWindow = BtGunHidPairingWindowStatus(
-                        open = false,
-                        detail = detail,
-                    ),
-                    unsupportedReason = detail,
-                ),
+                hidGamepadStatus = blockedStatus,
             )
-            AndroidLog.w(TAG, "startBluetoothGamepad pairing blocked: $detail")
+            AndroidLog.w(TAG, "startBluetoothGamepad blocked: ${blockedStatus.unsupportedReason}")
             return
         }
         if (!ensureForegroundForHidMode()) {

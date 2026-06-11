@@ -408,7 +408,13 @@ class AndroidBtGunHidProfileConnector(
             }
         }
         listener = serviceListener
-        if (!adapter.getProfileProxy(context, serviceListener, BluetoothProfile.HID_DEVICE)) {
+        val requested = try {
+            adapter.getProfileProxy(context, serviceListener, BluetoothProfile.HID_DEVICE)
+        } catch (error: SecurityException) {
+            callback.onProxyUnavailable("HID_DEVICE proxy blocked: ${error.javaClass.simpleName}")
+            return
+        }
+        if (!requested) {
             callback.onProxyUnavailable("HID_DEVICE proxy request rejected")
         }
     }
@@ -440,37 +446,54 @@ private class AndroidBtGunHidDeviceProxy(
     private val executor: Executor,
 ) : BtGunHidDeviceProxy {
     override fun registerApp(settings: BtGunHidSdpSettings, callback: BtGunHidDeviceCallback): Boolean =
-        hidDevice.registerApp(
-            BluetoothHidDeviceAppSdpSettings(
-                settings.name,
-                settings.description,
-                settings.provider,
-                settings.subclass,
-                settings.descriptors.copyOf(),
-            ),
-            null,
-            null,
-            executor,
-            AndroidCallback(callback),
-        )
+        runCatchingSecurity {
+            hidDevice.registerApp(
+                BluetoothHidDeviceAppSdpSettings(
+                    settings.name,
+                    settings.description,
+                    settings.provider,
+                    settings.subclass,
+                    settings.descriptors.copyOf(),
+                ),
+                null,
+                null,
+                executor,
+                AndroidCallback(callback),
+            )
+        }
 
     override fun unregisterApp(): Boolean =
-        hidDevice.unregisterApp()
+        runCatchingSecurity {
+            hidDevice.unregisterApp()
+        }
 
     override fun sendReport(host: BtGunHidHost, reportId: Int, payload: ByteArray): Boolean {
         val device = host.bluetoothDeviceOrNull() ?: return false
-        return hidDevice.sendReport(device, reportId, payload.copyOf())
+        return runCatchingSecurity {
+            hidDevice.sendReport(device, reportId, payload.copyOf())
+        }
     }
 
     override fun replyReport(host: BtGunHidHost, reportType: Int, reportId: Int, payload: ByteArray): Boolean {
         val device = host.bluetoothDeviceOrNull() ?: return false
-        return hidDevice.replyReport(device, reportType.toByte(), reportId.toByte(), payload.copyOf())
+        return runCatchingSecurity {
+            hidDevice.replyReport(device, reportType.toByte(), reportId.toByte(), payload.copyOf())
+        }
     }
 
     override fun reportError(host: BtGunHidHost, error: Byte): Boolean {
         val device = host.bluetoothDeviceOrNull() ?: return false
-        return hidDevice.reportError(device, error)
+        return runCatchingSecurity {
+            hidDevice.reportError(device, error)
+        }
     }
+
+    private fun runCatchingSecurity(block: () -> Boolean): Boolean =
+        try {
+            block()
+        } catch (_: SecurityException) {
+            false
+        }
 }
 
 private data class AndroidBtGunHidHost(
