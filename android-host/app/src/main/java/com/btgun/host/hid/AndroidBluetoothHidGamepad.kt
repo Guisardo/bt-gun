@@ -107,13 +107,23 @@ class AndroidBluetoothHidGamepad(
 
     fun openPairingWindow(durationSeconds: Int): Boolean {
         require(durationSeconds > 0) { "durationSeconds must be positive" }
-        val opened = connector.openPairingWindow(durationSeconds)
+        var blockedReason: String? = null
+        val opened = try {
+            connector.openPairingWindow(durationSeconds)
+        } catch (error: SecurityException) {
+            blockedReason = "pairing window blocked: ${error.javaClass.simpleName}"
+            false
+        } catch (error: RuntimeException) {
+            blockedReason = "pairing window failed: ${error.javaClass.simpleName}"
+            false
+        }
         status = status.copy(
             pairingWindow = BtGunHidPairingWindowStatus(
                 open = opened,
                 durationSeconds = durationSeconds,
-                detail = if (opened) "pairing window open" else "pairing window failed",
+                detail = if (opened) "pairing window open" else blockedReason ?: "pairing window failed",
             ),
+            unsupportedReason = blockedReason ?: status.unsupportedReason,
         )
         return opened
     }
@@ -405,13 +415,11 @@ class AndroidBtGunHidProfileConnector(
 
     override fun openPairingWindow(durationSeconds: Int): Boolean {
         if (durationSeconds <= 0 || closed) return false
-        return runCatching {
-            val intent = Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE)
-                .putExtra(BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, durationSeconds)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            context.startActivity(intent)
-            true
-        }.getOrDefault(false)
+        val intent = Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE)
+            .putExtra(BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, durationSeconds)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        context.startActivity(intent)
+        return true
     }
 
     override fun close() {

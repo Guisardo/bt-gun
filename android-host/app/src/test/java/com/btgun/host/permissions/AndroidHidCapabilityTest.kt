@@ -3,6 +3,7 @@ package com.btgun.host.permissions
 fun main() {
     bluetoothOffBlocksHidRole()
     missingConnectPermissionBlocksHidRoleOnAndroid12()
+    missingAdvertisePermissionBlocksPairingPathOnAndroid12()
     notYetProbedRequiresExplicitStartAction()
     proxyUnavailableHasDistinctBlockedRow()
     registrationFailureHasDistinctBlockedRow()
@@ -43,6 +44,26 @@ private fun missingConnectPermissionBlocksHidRoleOnAndroid12() {
         status.hidRole.detail,
     )
     expectFalse("permission cannot start hid", status.canStartBluetoothGamepad)
+}
+
+private fun missingAdvertisePermissionBlocksPairingPathOnAndroid12() {
+    val status = AndroidHidCapability.evaluate(
+        input(
+            sdkInt = 35,
+            bluetoothEnabled = true,
+            connectPermissionGranted = true,
+            advertisePermissionGranted = false,
+        ),
+    )
+
+    expectState("missing advertise permission", CapabilityState.BLOCKED, status.hidRole.state)
+    expectEquals("advertise permission label", "Bluetooth HID advertise permission blocked", status.hidRole.label)
+    expectEquals(
+        "advertise permission detail",
+        "Grant Nearby Devices advertise permission before opening the HID pairing window.",
+        status.hidRole.detail,
+    )
+    expectFalse("advertise permission cannot start hid", status.canStartBluetoothGamepad)
 }
 
 private fun notYetProbedRequiresExplicitStartAction() {
@@ -145,6 +166,7 @@ private fun input(
     sdkInt: Int = 35,
     bluetoothEnabled: Boolean = true,
     connectPermissionGranted: Boolean = true,
+    advertisePermissionGranted: Boolean = true,
     profile: AndroidHidProfileStatus = AndroidHidProfileStatus.NOT_PROBED,
     registration: AndroidHidRegistrationStatus = AndroidHidRegistrationStatus.NOT_REQUESTED,
     host: AndroidHidHostConnectionStatus = AndroidHidHostConnectionStatus.NOT_CONNECTED,
@@ -153,6 +175,7 @@ private fun input(
         sdkInt = sdkInt,
         bluetoothEnabled = bluetoothEnabled,
         bluetoothConnectPermissionGranted = connectPermissionGranted,
+        bluetoothAdvertisePermissionGranted = advertisePermissionGranted,
         profileStatus = profile,
         registrationStatus = registration,
         hostConnectionStatus = host,
