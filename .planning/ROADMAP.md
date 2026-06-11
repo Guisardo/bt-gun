@@ -19,7 +19,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 4: Input Stream and Haptic Transport** - Versioned UDP input and reliable control messages carry input, diagnostics, and phone haptic commands safely. (physical smoke plan added 2026-06-09) (completed 2026-06-09)
 - [x] **Phase 5: Desktop Backend Contract and Smoke Harness** - Shared desktop backend contract and fake-input smoke tests work before real OS driver work. (completed 2026-06-09)
 - [x] **Phase 6: Windows Virtual Joystick Path** - Windows 11 x64 exposes the gun stream as a regular gamepad-style joystick with output-to-phone-haptic forwarding, retained as fallback if Android Bluetooth HID gamepad integration is blocked. (completed 2026-06-10)
-- [ ] **Phase 7: Android Bluetooth HID Gamepad Path** - Android phone exposes the gun stream directly to macOS as a Bluetooth HID gamepad, with output-report-to-phone-haptic proof or clear compatibility limits.
+- [x] **Phase 7: Android Bluetooth HID Gamepad Path** - Android phone exposes the gun stream directly to macOS as a Bluetooth HID gamepad, with output-report-to-phone-haptic proof or clear compatibility limits. (completed 2026-06-11)
 - [ ] **Phase 8: Desktop Profiles and Mapping** - Users can configure aim and button mapping on desktop without Android rebuilds.
 - [ ] **Phase 9: Visualizer Acceptance Path** - The simple visualizer proves controls, aim, recentering, latency, packet loss, and phone haptic round trip.
 - [ ] **Phase 10: Diagnostics, Replay, and v1 Docs** - Replay tests, diagnostic logs, setup docs, protocol docs, and known limits make the MVP repeatable.
@@ -243,7 +243,7 @@ Plans:
   4. Bluetooth HID output or rumble reports route to Android phone haptics when supported, or the app reports the limitation clearly.
   5. Repository documents Android Bluetooth HID setup, macOS pairing, output-report behavior, compatibility risks, and the fallback to the completed Windows virtual joystick path.
 
-**Plans:** 5/6 plans executed
+**Plans:** 6/6 plans executed
 Plans:
 
 **Reroute note (2026-06-10):** CoreHID and DriverKit virtual HID paths require Apple entitlement/signing or local security relaxation and do not satisfy the no-subscription primary path. Legacy work is retained only as evidence/fallback scaffolding. The active Phase 7 plan set below is Android Bluetooth HID gamepad work.
@@ -268,11 +268,11 @@ Plans:
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
-- [ ] 07-05-PLAN.md — Live Android phone plus macOS Bluetooth/Game Controller proof checkpoints.
+- [x] 07-05-PLAN.md — Live Android phone plus macOS Bluetooth/Game Controller proof checkpoints.
 
 **Wave 6** *(blocked on Wave 5 completion)*
 
-- [ ] 07-06-PLAN.md — Android Bluetooth HID setup docs, redaction, alternate-phone gate, and Windows VHF fallback decision.
+- [x] 07-06-PLAN.md — Android Bluetooth HID setup docs, redaction, alternate-phone gate, and Windows VHF fallback decision.
 
 ### Phase 8: Desktop Profiles and Mapping
 
@@ -336,7 +336,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 | 4. Input Stream and Haptic Transport | 6/6 | Complete    | 2026-06-09 |
 | 5. Desktop Backend Contract and Smoke Harness | 5/5 | Complete | 2026-06-09 |
 | 6. Windows Virtual Joystick Path | 6/6 | Complete | 2026-06-10 |
-| 7. macOS Virtual Joystick Path | 4/6 | In Progress|  |
+| 7. Android Bluetooth HID Gamepad Path | 6/6 | Complete | 2026-06-11 |
 | 8. Desktop Profiles and Mapping | 0/TBD | Not started | - |
 | 9. Visualizer Acceptance Path | 0/TBD | Not started | - |
 | 10. Diagnostics, Replay, and v1 Docs | 0/TBD | Not started | - |
