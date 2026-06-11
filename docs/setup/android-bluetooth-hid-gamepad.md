@@ -123,7 +123,7 @@ Do not commit:
 - Bluetooth MAC addresses.
 - Phone serials, Android IDs, stable hardware identifiers, or account names.
 - Personal device names or nearby-device names that identify people or hardware.
-- Pairing material, manual codes, stream secrets, HMAC keys, private keys, proof values, or raw Bluetooth dumps.
+- Pairing credentials, manual pairing codes, transport secrets, cryptographic signing material, transcript secrets, or raw Bluetooth dumps.
 - Screenshots or screenshot paths that may contain sensitive device names.
 
 Use generic labels such as `current-phone-android-hid`, `macos-bluetooth-hid-current-phone`, and local capture IDs.
