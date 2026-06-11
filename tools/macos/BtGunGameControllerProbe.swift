@@ -130,7 +130,7 @@ private final class ProbeState {
         emit(
             event: "probe-summary",
             fields: [
-                "controller_slot": selectedSlot as Any,
+                "controller_slot": optionalInt(selectedSlot),
                 "label_match": selectedLabelMatch,
                 "allow_generic_controller": options.allowGenericController,
                 "observed_controls": observed.sorted(),
@@ -193,7 +193,7 @@ private final class ProbeState {
             emit(
                 event: "controller-visible",
                 fields: [
-                    "controller_slot": selectedSlot as Any,
+                    "controller_slot": optionalInt(selectedSlot),
                     "label_match": selectedLabelMatch,
                     "allow_generic_controller": options.allowGenericController,
                     "product_category_class": "game-controller",
@@ -203,7 +203,7 @@ private final class ProbeState {
             emit(
                 event: "extended-gamepad-available",
                 fields: [
-                    "controller_slot": selectedSlot as Any,
+                    "controller_slot": optionalInt(selectedSlot),
                     "label_match": selectedLabelMatch,
                     "allow_generic_controller": options.allowGenericController,
                     "extended_gamepad": false,
@@ -215,7 +215,7 @@ private final class ProbeState {
                 emit(
                     event: "haptic-output-probe-attempted",
                     fields: [
-                        "controller_slot": selectedSlot as Any,
+                        "controller_slot": optionalInt(selectedSlot),
                         "label_match": selectedLabelMatch,
                         "allow_generic_controller": options.allowGenericController,
                         "haptics_available": false,
@@ -399,7 +399,7 @@ private final class ProbeState {
             emit(
                 event: "haptic-output-probe-attempted",
                 fields: [
-                    "controller_slot": selectedSlot as Any,
+                    "controller_slot": optionalInt(selectedSlot),
                     "label_match": selectedLabelMatch,
                     "haptics_available": false,
                     "status": "unsupported-macos",
@@ -412,7 +412,7 @@ private final class ProbeState {
             emit(
                 event: "haptic-output-probe-attempted",
                 fields: [
-                    "controller_slot": selectedSlot as Any,
+                    "controller_slot": optionalInt(selectedSlot),
                     "label_match": selectedLabelMatch,
                     "haptics_available": false,
                     "status": "no-gamecontroller-haptics",
@@ -425,7 +425,7 @@ private final class ProbeState {
             emit(
                 event: "haptic-output-probe-attempted",
                 fields: [
-                    "controller_slot": selectedSlot as Any,
+                    "controller_slot": optionalInt(selectedSlot),
                     "label_match": selectedLabelMatch,
                     "haptics_available": true,
                     "haptic_engine_created": false,
@@ -451,7 +451,7 @@ private final class ProbeState {
             emit(
                 event: "haptic-output-probe-attempted",
                 fields: [
-                    "controller_slot": selectedSlot as Any,
+                    "controller_slot": optionalInt(selectedSlot),
                     "label_match": selectedLabelMatch,
                     "haptics_available": true,
                     "haptic_engine_created": true,
@@ -462,7 +462,7 @@ private final class ProbeState {
             emit(
                 event: "haptic-output-probe-attempted",
                 fields: [
-                    "controller_slot": selectedSlot as Any,
+                    "controller_slot": optionalInt(selectedSlot),
                     "label_match": selectedLabelMatch,
                     "haptics_available": true,
                     "haptic_engine_created": true,
@@ -514,9 +514,20 @@ private final class ProbeState {
         }
         payload = sanitizePayload(payload)
 
-        if let data = try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]),
-           let line = String(data: data, encoding: .utf8) {
+        guard JSONSerialization.isValidJSONObject(payload) else {
+            writeStderr("probe emit serialization failed: invalid JSON object for event \(event)")
+            return
+        }
+
+        do {
+            let data = try JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys])
+            guard let line = String(data: data, encoding: .utf8) else {
+                writeStderr("probe emit serialization failed: UTF-8 conversion failed for event \(event)")
+                return
+            }
             FileHandle.standardOutput.write(Data((line + "\n").utf8))
+        } catch {
+            writeStderr("probe emit serialization failed: \(sanitizedError(error))")
         }
     }
 }
@@ -529,6 +540,10 @@ extension Optional: OptionalValue {
     var isNil: Bool {
         self == nil
     }
+}
+
+private func optionalInt(_ value: Int?) -> Any {
+    value.map { $0 as Any } ?? NSNull()
 }
 
 private func score(controller: GCController) -> Int {
@@ -680,6 +695,10 @@ private func sanitizePayload(_ payload: [String: Any]) -> [String: Any] {
 
 private func sanitizedError(_ error: Error) -> String {
     sanitizeText(String(describing: error))
+}
+
+private func writeStderr(_ message: String) {
+    FileHandle.standardError.write(Data((sanitizeText(message) + "\n").utf8))
 }
 
 private func sanitizeText(_ text: String) -> String {
