@@ -24,6 +24,7 @@ fun main() {
     controlDisconnectWithoutUdpStreamStaysStopped()
     bluetoothGamepadActionConstantsAreExplicit()
     bluetoothGamepadStartDoesNotStartLanDesktopControl()
+    bluetoothGamepadStartAndPairingWindowAreSeparateActions()
     bluetoothGamepadStopSessionAndDestroyCloseHidMode()
     liveInputFanoutOnlySendsWhenHidHostConnected()
     hidOutputCallbackRoutesThroughPhoneHapticExecutorStatus()
@@ -121,6 +122,18 @@ private fun bluetoothGamepadStartDoesNotStartLanDesktopControl() {
     expectEquals("packet unchanged", InputStreamLifecycleState.STOPPED, after.packetStreamState)
 }
 
+private fun bluetoothGamepadStartAndPairingWindowAreSeparateActions() {
+    val driver = RecordingHostHidGamepadDriver()
+    val controller = HostSessionHidController(driverFactory = { driver })
+
+    controller.startBluetoothGamepad(HostSessionState())
+    expectEquals("start does not open pairing", 0, driver.openPairingCount)
+
+    controller.openPairingWindow(HostSessionState())
+    expectEquals("pairing action starts hid mode", 2, driver.startCount)
+    expectEquals("pairing action opens one window", 1, driver.openPairingCount)
+}
+
 private fun bluetoothGamepadStopSessionAndDestroyCloseHidMode() {
     val driver = RecordingHostHidGamepadDriver()
     val controller = HostSessionHidController(driverFactory = { driver })
@@ -210,6 +223,7 @@ private class RecordingHostHidGamepadDriver(
     var startCount = 0
     var stopCount = 0
     var closeCount = 0
+    var openPairingCount = 0
     val sentInputs = mutableListOf<SentInput>()
 
     override fun startGamepadMode() {
@@ -220,8 +234,10 @@ private class RecordingHostHidGamepadDriver(
         stopCount += 1
     }
 
-    override fun openPairingWindow(durationSeconds: Int): Boolean =
-        true
+    override fun openPairingWindow(durationSeconds: Int): Boolean {
+        openPairingCount += 1
+        return true
+    }
 
     override fun sendInput(state: GunInputState, motion: MotionSample?, stale: Boolean): BtGunHidInputSendResult {
         sentInputs += SentInput(state, motion, stale)
