@@ -70,6 +70,7 @@ import com.btgun.host.session.TrustedDesktopStore
 import com.btgun.host.transport.AndroidUdpInputSender
 import com.btgun.host.transport.InputStreamConfig
 import com.btgun.host.transport.InputStreamLifecycleState
+import com.btgun.host.util.AndroidLog
 import java.security.SecureRandom
 
 internal data class HostDesktopLivenessAction(
@@ -308,6 +309,7 @@ class HostSessionService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        AndroidLog.i(TAG, "onStartCommand action=${intent?.action ?: "null"} startId=$startId")
         when (intent?.action) {
             ACTION_STOP_SESSION -> stopSession()
             ACTION_START_BLUETOOTH_GAMEPAD -> startBluetoothGamepad()
@@ -407,7 +409,9 @@ class HostSessionService : Service() {
     }
 
     private fun startBluetoothGamepad(openPairingWindow: Boolean = false) {
+        AndroidLog.i(TAG, "startBluetoothGamepad openPairingWindow=$openPairingWindow foreground=${currentState.foregroundActive}")
         if (!ensureForegroundForHidMode()) {
+            AndroidLog.w(TAG, "startBluetoothGamepad blocked: foreground start failed")
             return
         }
         currentState = if (openPairingWindow) {
@@ -415,9 +419,11 @@ class HostSessionService : Service() {
         } else {
             hidSessionController.startBluetoothGamepad(currentState)
         }
+        AndroidLog.i(TAG, "hid status after start=${currentState.hidGamepadStatus}")
     }
 
     private fun stopBluetoothGamepad() {
+        AndroidLog.i(TAG, "stopBluetoothGamepad")
         currentState = hidSessionController.stopBluetoothGamepad(currentState)
         hidSessionController.close()
         currentState = currentState.copy(hidGamepadStatus = BtGunHidStatus())
@@ -1317,6 +1323,7 @@ class HostSessionService : Service() {
         private const val NOTIFICATION_ID: Int = 1001
         private const val FINGERPRINT_SUFFIX_LENGTH: Int = 8
         private const val DESKTOP_LIVENESS_POLL_MILLIS: Long = 500L
+        private const val TAG = "BtGunHostSession"
 
         @Volatile
         var latestState: HostSessionState = HostSessionState()

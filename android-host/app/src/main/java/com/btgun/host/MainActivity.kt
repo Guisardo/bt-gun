@@ -17,9 +17,16 @@ import android.widget.ScrollView
 import android.widget.TextView
 import com.btgun.host.haptics.PhoneHapticStatus
 import com.btgun.host.haptics.PhoneHaptics
+import com.btgun.host.hid.BtGunHidHostConnectionState
+import com.btgun.host.hid.BtGunHidProxyState
+import com.btgun.host.hid.BtGunHidRegistrationState
 import com.btgun.host.motion.AimBaseline
 import com.btgun.host.permissions.CapabilityState
 import com.btgun.host.permissions.HostCapabilityProbe
+import com.btgun.host.permissions.AndroidHidHostConnectionStatus
+import com.btgun.host.permissions.AndroidHidProfileStatus
+import com.btgun.host.permissions.AndroidHidRegistrationStatus
+import com.btgun.host.permissions.PermissionGate
 import com.btgun.host.permissions.PermissionGateState
 import com.btgun.host.session.DesktopLinkPhase
 import com.btgun.host.session.DesktopLinkState
@@ -29,6 +36,7 @@ import com.btgun.host.ui.AimGraphView
 import com.btgun.host.ui.DashboardEventMode
 import com.btgun.host.ui.DashboardState
 import com.btgun.host.ui.DebugExpansion
+import com.btgun.host.util.AndroidLog
 import java.lang.reflect.Proxy
 
 class MainActivity : Activity() {
@@ -121,11 +129,11 @@ class MainActivity : Activity() {
         root.addView(row().apply {
             startBluetoothGamepadAction = button("Start Bluetooth gamepad") { startBluetoothGamepad() }
             stopBluetoothGamepadAction = button("Stop Bluetooth gamepad") { stopBluetoothGamepad() }
-            openHidPairingWindowAction = button("Open pairing window") { openHidPairingWindow() }
             addView(startBluetoothGamepadAction)
             addView(stopBluetoothGamepadAction)
-            addView(openHidPairingWindowAction)
         })
+        openHidPairingWindowAction = button("Open pairing window") { openHidPairingWindow() }
+        root.addView(openHidPairingWindowAction)
 
         aimGraph = AimGraphView(this)
         root.addView(
@@ -207,8 +215,8 @@ class MainActivity : Activity() {
     }
 
     private fun renderDashboard() {
-        val permissionGate = permissionGateState()
         val latestServiceState = HostSessionService.latestState
+        val permissionGate = permissionGateState(latestServiceState)
         val serviceState = if (localStartError != null && !latestServiceState.isActive) {
             latestServiceState.copy(phase = HostSessionPhase.ERROR, lastError = localStartError)
         } else {
@@ -312,6 +320,7 @@ class MainActivity : Activity() {
     }
 
     private fun startBluetoothGamepad() {
+        AndroidLog.i(TAG, "Start Bluetooth gamepad tapped")
         startServiceAction(
             Intent(this, HostSessionService::class.java)
                 .setAction(HostSessionService.ACTION_START_BLUETOOTH_GAMEPAD),
@@ -319,6 +328,7 @@ class MainActivity : Activity() {
     }
 
     private fun stopBluetoothGamepad() {
+        AndroidLog.i(TAG, "Stop Bluetooth gamepad tapped")
         startServiceAction(
             Intent(this, HostSessionService::class.java)
                 .setAction(HostSessionService.ACTION_STOP_BLUETOOTH_GAMEPAD),
@@ -326,6 +336,7 @@ class MainActivity : Activity() {
     }
 
     private fun openHidPairingWindow() {
+        AndroidLog.i(TAG, "Open HID pairing window tapped")
         startServiceAction(
             Intent(this, HostSessionService::class.java)
                 .setAction(HostSessionService.ACTION_START_HID_PAIRING_WINDOW),
@@ -460,11 +471,13 @@ class MainActivity : Activity() {
                 startService(intent)
             }
         } catch (error: SecurityException) {
+            AndroidLog.w(TAG, "Service action blocked by security", error)
             desktopLinkState = DesktopLinkState(
                 phase = DesktopLinkPhase.DISCONNECTED,
                 lastControlError = "Desktop session blocked: ${error.javaClass.simpleName}",
             )
         } catch (error: IllegalStateException) {
+            AndroidLog.w(TAG, "Service action blocked by state", error)
             desktopLinkState = DesktopLinkState(
                 phase = DesktopLinkPhase.DISCONNECTED,
                 lastControlError = "Desktop session blocked: ${error.javaClass.simpleName}",
@@ -487,8 +500,45 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun permissionGateState(): PermissionGateState =
-        HostCapabilityProbe.evaluate(this)
+    private fun permissionGateState(
+        serviceState: HostSessionState = HostSessionService.latestState,
+    ): PermissionGateState {
+        val hidStatus = serviceState.hidGamepadStatus
+        return PermissionGate.evaluate(
+            HostCapabilityProbe.input(this).copy(
+                bluetoothHidProfileStatus = hidStatus.proxy.toAndroidHidProfileStatus(),
+                bluetoothHidRegistrationStatus = hidStatus.registration.toAndroidHidRegistrationStatus(),
+                bluetoothHidHostConnectionStatus = hidStatus.hostConnection.toAndroidHidHostConnectionStatus(),
+            ),
+        )
+    }
+
+    private fun BtGunHidProxyState.toAndroidHidProfileStatus(): AndroidHidProfileStatus =
+        when (this) {
+            BtGunHidProxyState.AVAILABLE -> AndroidHidProfileStatus.AVAILABLE
+            BtGunHidProxyState.UNAVAILABLE,
+            BtGunHidProxyState.CLOSED,
+            -> AndroidHidProfileStatus.UNAVAILABLE
+            BtGunHidProxyState.NOT_REQUESTED,
+            BtGunHidProxyState.REQUESTING,
+            -> AndroidHidProfileStatus.NOT_PROBED
+        }
+
+    private fun BtGunHidRegistrationState.toAndroidHidRegistrationStatus(): AndroidHidRegistrationStatus =
+        when (this) {
+            BtGunHidRegistrationState.REGISTERED -> AndroidHidRegistrationStatus.REGISTERED
+            BtGunHidRegistrationState.FAILED -> AndroidHidRegistrationStatus.FAILED
+            BtGunHidRegistrationState.NOT_REGISTERED,
+            BtGunHidRegistrationState.REGISTERING,
+            -> AndroidHidRegistrationStatus.NOT_REQUESTED
+        }
+
+    private fun BtGunHidHostConnectionState.toAndroidHidHostConnectionStatus(): AndroidHidHostConnectionStatus =
+        when (this) {
+            BtGunHidHostConnectionState.CONNECTED -> AndroidHidHostConnectionStatus.CONNECTED
+            BtGunHidHostConnectionState.DISCONNECTED -> AndroidHidHostConnectionStatus.DISCONNECTED
+            BtGunHidHostConnectionState.NOT_CONNECTED -> AndroidHidHostConnectionStatus.NOT_CONNECTED
+        }
 
     private fun blockedStartMessage(state: PermissionGateState): String =
         listOf(state.bluetoothScan, state.bluetoothConnect, state.motionSensors)
@@ -575,6 +625,7 @@ class MainActivity : Activity() {
         (value * resources.displayMetrics.density).toInt()
 
     companion object {
+        private const val TAG = "BtGunMain"
         private const val REFRESH_INTERVAL_MS = 500L
         private const val REQUEST_PERMISSIONS = 2001
     }

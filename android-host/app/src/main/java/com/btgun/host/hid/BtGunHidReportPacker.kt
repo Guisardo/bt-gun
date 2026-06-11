@@ -29,11 +29,11 @@ object BtGunHidReportPacker {
         val report = ByteArray(BtGunHidDescriptor.INPUT_REPORT_PAYLOAD_LENGTH_BYTES)
         val aim = motion.selectAim()
 
-        report[0] = if (stale) 0 else state.buttonBits().toByte()
+        report[0] = if (stale) 0 else state.faceButtonBits().toByte()
         report.writeInt16Le(offset = 1, value = if (stale) 0 else state.stickAxisX.toSignedInt16Axis())
         report.writeInt16Le(offset = 3, value = if (stale) 0 else (-state.stickAxisY).toSignedInt16Axis())
         report.writeInt16Le(offset = 5, value = aim.x.toSignedInt16Axis())
-        report.writeInt16Le(offset = 7, value = aim.y.toSignedInt16Axis())
+        report.writeInt16Le(offset = 7, value = (-aim.y).toSignedInt16Axis())
 
         return BtGunHidInputReport(
             reportId = BtGunHidDescriptor.INPUT_REPORT_ID,
@@ -43,16 +43,16 @@ object BtGunHidReportPacker {
         )
     }
 
-    private fun GunInputState.buttonBits(): Int {
+    private fun GunInputState.faceButtonBits(): Int {
         var bits = 0
         pressedControls.forEach { control ->
             bits = bits or when (control) {
-                "trigger" -> 1 shl 0
-                "reload" -> 1 shl 1
+                "button_a" -> 1 shl 0
+                "button_b" -> 1 shl 1
                 "button_x" -> 1 shl 2
                 "button_y" -> 1 shl 3
-                "button_a" -> 1 shl 4
-                "button_b" -> 1 shl 5
+                "reload" -> 1 shl 6
+                "trigger" -> 1 shl 7
                 else -> 0
             }
         }
@@ -61,8 +61,13 @@ object BtGunHidReportPacker {
 
     private fun MotionSample?.selectAim(): SelectedAim =
         when {
-            this?.aimX != null && aimY != null -> SelectedAim(aimX, aimY, "calibrated")
-            this?.rawAimX != null && rawAimY != null -> SelectedAim(rawAimX, rawAimY, "raw")
+            this?.aimX != null && aimY != null -> {
+                val source = if (aimCalibrated) "calibrated" else "normalized"
+                SelectedAim(aimX, aimY, source)
+            }
+            this?.rawAimX != null && rawAimY != null -> {
+                SelectedAim(rawAimX, rawAimY, "raw")
+            }
             else -> SelectedAim(0f, 0f, "center")
         }
 

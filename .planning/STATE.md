@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 07-04-PLAN.md
-last_updated: "2026-06-10T23:31:25.434Z"
-last_activity: 2026-06-10 -- Phase 07 execution started
+stopped_at: Completed 07-05-PLAN.md; macOS haptics deferred
+last_updated: "2026-06-11T13:24:34.669Z"
+last_activity: 2026-06-11 -- Phase 07 macOS Bluetooth HID input accepted; macOS browser haptics deferred
 progress:
   total_phases: 10
   completed_phases: 6
   total_plans: 42
-  completed_plans: 40
-  percent: 95
+  completed_plans: 41
+  percent: 98
 ---
 
 # Project State
@@ -26,18 +26,18 @@ See: .planning/PROJECT.md (updated 2026-06-09)
 ## Current Position
 
 Phase: 07 (macos-virtual-joystick-path) — EXECUTING
-Plan: 5 of 6
-Next phase: Execute Phase 07 Android Bluetooth HID gamepad path
+Plan: 6 of 6
+Next phase: Execute Phase 07 docs/fallback closeout
 Status: Ready to execute
-Last activity: 2026-06-10 -- Phase 07 execution started
+Last activity: 2026-06-11 -- Phase 07 macOS Bluetooth HID input accepted; macOS browser haptics deferred
 
-Progress: [██████████] 40/42 active planned plans complete. Phase 06 has 6/6 plans complete; Phase 07 has 4/6 active Android Bluetooth HID plans executed after the reroute.
+Progress: [██████████] 41/42 active planned plans complete. Phase 06 has 6/6 plans complete; Phase 07 has 5/6 active Android Bluetooth HID plans executed after the reroute.
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 40
+- Total plans completed: 41
 - Average duration: not tracked for hardware-interactive plans
 - Total execution time: not tracked after Plan 02
 
@@ -50,11 +50,11 @@ Progress: [██████████] 40/42 active planned plans complete. 
 | 04 | 6 | - | - |
 | 05 | 5 | hardware-interactive | hardware-interactive |
 | 06 | 6 | hardware-interactive | hardware-interactive |
-| 07 | 6 | 39min | P01-P04 complete; Android Bluetooth HID plans 05-06 ready to execute |
+| 07 | 6 | hardware-interactive | P01-P05 complete; Android Bluetooth HID plan 06 ready to execute |
 
 **Recent Trend:**
 
-- Recent completed execution plans: 06-P01, 06-P02, 06-P03, 06-P05, 06-P04, 06-P06, 07-P01, and 07-P02 complete.
+- Recent completed execution plans: 06-P01, 06-P02, 06-P03, 06-P05, 06-P04, 06-P06, 07-P01, 07-P02, 07-P03, 07-P04, and 07-P05 complete.
 - Trend: CoreHID and DriverKit are no longer primary for macOS because no-subscription virtual HID is blocked. Phase 07 active plans now target Android phone Bluetooth HID gamepad proof, with Windows VHF retained as fallback.
 
 *Updated after each plan completion*
@@ -99,6 +99,7 @@ Progress: [██████████] 40/42 active planned plans complete. 
 | Phase 07 P02 | 19min | 2 tasks | 5 files |
 | Phase 07 P03 | 10min | 2 tasks | 6 files |
 | Phase 07 P04 | 12min | 3 tasks | 6 files |
+| Phase 07 P05 | hardware-interactive | macOS Bluetooth HID input proof | haptics unsupported/deferred |
 
 ## Accumulated Context
 
@@ -201,6 +202,7 @@ Recent decisions affecting current work:
 - [Phase 07]: AndroidBluetoothHidGamepad hides BluetoothHidDevice calls behind injectable connector/proxy interfaces for unit-tested lifecycle and callbacks.
 - [Phase 07]: DESK-06 remains a live evidence gate; Plan 07-03 adds Android callback/status foundation but makes no macOS output-report claim.
 - [Phase 07]: Android HID mode starts only through explicit service actions; live BLE/LAN session startup remains separate. — Plan 07-04 keeps Bluetooth HID gamepad proof separate from LAN diagnostics and desktop companion input.
+- [Phase 07]: macOS browser/GameController haptics through Android Bluetooth HID are deferred. — Live gpadtester reported no vibration, Android saw no usable host output callback, and the PID ForceFeedback descriptor experiment stopped macOS from publishing a browser-visible gamepad. Keep the stable input descriptor and use LAN/Windows VHF paths for phone haptics.
 
 ### Pending Todos
 
@@ -208,7 +210,7 @@ None.
 
 ### Blockers/Concerns
 
-- [Phase 7]: Android Bluetooth HID gamepad support is unproven and must be replanned/tested. Phone OEM support for HID peripheral mode and macOS output-report behavior are the next blockers.
+- [Phase 7]: Plan 07-06 docs/fallback closeout remains. macOS browser/GameController haptics are deferred for Android Bluetooth HID; stable input is proven on the current phone.
 
 ### Quick Tasks Completed
 
@@ -216,6 +218,7 @@ None.
 |---|-------------|------|--------|-----------|
 | 260609-pnq | repair stale Phase 5 roadmap/validation status | 2026-06-09 | this commit | [260609-pnq-repair-stale-phase-5-roadmap-validation-](./quick/260609-pnq-repair-stale-phase-5-roadmap-validation-/) |
 | 260610-m2r | reroute Phase 7 requirements and roadmap to Android Bluetooth HID gamepad | 2026-06-10 | this commit | [260610-m2r-update-requirements-and-roadmap-to-use-a](./quick/260610-m2r-update-requirements-and-roadmap-to-use-a/) |
+| 260611-egh | defer macOS Bluetooth HID haptics and remove failed PID ForceFeedback experiment | 2026-06-11 | this commit | [260611-egh-defer-haptic-on-macos-clean-up-failed-pi](./quick/260611-egh-defer-haptic-on-macos-clean-up-failed-pi/) |
 
 ## Deferred Items
 
@@ -224,9 +227,10 @@ Items acknowledged and carried forward from previous milestone close:
 | Category | Item | Status | Deferred At |
 |----------|------|--------|-------------|
 | v1 feedback | Physical gun motor rumble | deferred; use Android phone vibration in v1 | 2026-06-06 |
+| macOS Bluetooth HID | Browser/GameController haptics from Android HID | deferred; stable gamepad input stays active, phone haptics continue through LAN/Windows VHF paths | 2026-06-11 |
 
 ## Session Continuity
 
-Last session: 2026-06-10T23:31:01.687Z
-Stopped at: Completed 07-04-PLAN.md
+Last session: 2026-06-11T13:24:34.669Z
+Stopped at: Completed 07-05-PLAN.md; macOS haptics deferred
 Resume file: None

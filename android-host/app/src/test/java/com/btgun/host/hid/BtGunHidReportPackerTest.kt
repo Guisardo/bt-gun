@@ -7,6 +7,7 @@ import java.io.File
 
 fun main() {
     packsButtonsAndAxesIntoPinnedInputPayload()
+    usesNormalizedAimBeforeRawAim()
     clampsAxesAndFallsBackToRawAim()
     centersAimWhenMotionIsMissing()
     staleReportClearsButtonsAndStickButKeepsSelectedAim()
@@ -20,7 +21,7 @@ private fun packsButtonsAndAxesIntoPinnedInputPayload() {
             stickAxisX = 0.5f,
             stickAxisY = -0.25f,
         ),
-        motion = motion(aimX = 0.25f, aimY = -0.5f, rawAimX = 0.75f, rawAimY = 0.75f),
+        motion = motion(aimX = 0.25f, aimY = -0.5f, rawAimX = 11.25f, rawAimY = 22.5f, aimCalibrated = true),
         stale = false,
     )
 
@@ -29,20 +30,33 @@ private fun packsButtonsAndAxesIntoPinnedInputPayload() {
     expectByteArray(
         "golden input payload",
         byteArrayOf(
-            0b0001_0111,
+            0b1100_0101.toByte(),
             0x00, 0x40,
             0x00, 0x20,
             0x00, 0x20,
-            0x00, 0xc0.toByte(),
+            0x00, 0x40,
         ),
         report.bytes,
     )
+    expectEquals("button bits", 0b1100_0101.toByte(), report.bytes[0])
     expectEquals("stickX", 16_384, report.bytes.readInt16Le(1))
     expectEquals("stickY inverted for HID", 8_192, report.bytes.readInt16Le(3))
     expectEquals("aimX calibrated", 8_192, report.bytes.readInt16Le(5))
-    expectEquals("aimY calibrated", -16_384, report.bytes.readInt16Le(7))
+    expectEquals("aimY calibrated inverted for HID", 16_384, report.bytes.readInt16Le(7))
     expectEquals("aim source", "calibrated", report.aimSource)
     expectEquals("stale metadata", false, report.stale)
+}
+
+private fun usesNormalizedAimBeforeRawAim() {
+    val report = BtGunHidReportPacker.packInputReport(
+        state = GunInputState(),
+        motion = motion(aimX = -0.25f, aimY = 0.75f, rawAimX = 1f, rawAimY = -1f),
+        stale = false,
+    )
+
+    expectEquals("normalized aimX preferred", -8_192, report.bytes.readInt16Le(5))
+    expectEquals("normalized aimY preferred and inverted for HID", -24_576, report.bytes.readInt16Le(7))
+    expectEquals("aim source", "normalized", report.aimSource)
 }
 
 private fun clampsAxesAndFallsBackToRawAim() {
@@ -56,11 +70,11 @@ private fun clampsAxesAndFallsBackToRawAim() {
         stale = false,
     )
 
-    expectEquals("button bits ignore unknown", 0b0010_1000.toByte(), report.bytes[0])
+    expectEquals("button bits ignore unknown", 0b0000_1010.toByte(), report.bytes[0])
     expectEquals("stickX clamp", 32_767, report.bytes.readInt16Le(1))
     expectEquals("stickY inverted clamp", 32_767, report.bytes.readInt16Le(3))
     expectEquals("raw aimX clamp", 32_767, report.bytes.readInt16Le(5))
-    expectEquals("raw aimY clamp", -32_768, report.bytes.readInt16Le(7))
+    expectEquals("raw aimY clamp inverted for HID", 32_767, report.bytes.readInt16Le(7))
     expectEquals("aim source", "raw", report.aimSource)
 }
 
@@ -71,7 +85,7 @@ private fun centersAimWhenMotionIsMissing() {
         stale = false,
     )
 
-    expectEquals("button bits", 0b0000_0001.toByte(), report.bytes[0])
+    expectEquals("button bits", 0b1000_0000.toByte(), report.bytes[0])
     expectEquals("stickX min", -32_768, report.bytes.readInt16Le(1))
     expectEquals("stickY inverted min", -32_768, report.bytes.readInt16Le(3))
     expectEquals("aimX center", 0, report.bytes.readInt16Le(5))
@@ -86,7 +100,7 @@ private fun staleReportClearsButtonsAndStickButKeepsSelectedAim() {
             stickAxisX = 0.75f,
             stickAxisY = -0.75f,
         ),
-        motion = motion(aimX = -0.125f, aimY = 0.5f, rawAimX = 1f, rawAimY = -1f),
+        motion = motion(aimX = -0.125f, aimY = 0.5f, rawAimX = 1f, rawAimY = -1f, aimCalibrated = true),
         stale = true,
     )
 
@@ -94,7 +108,7 @@ private fun staleReportClearsButtonsAndStickButKeepsSelectedAim() {
     expectEquals("stale stickX clear", 0, report.bytes.readInt16Le(1))
     expectEquals("stale stickY clear", 0, report.bytes.readInt16Le(3))
     expectEquals("stale aimX preserved", -4_096, report.bytes.readInt16Le(5))
-    expectEquals("stale aimY preserved", 16_384, report.bytes.readInt16Le(7))
+    expectEquals("stale aimY preserved inverted for HID", -16_384, report.bytes.readInt16Le(7))
     expectEquals("aim source", "calibrated", report.aimSource)
     expectEquals("stale metadata", true, report.stale)
 }
@@ -118,6 +132,7 @@ private fun motion(
     aimY: Float?,
     rawAimX: Float?,
     rawAimY: Float?,
+    aimCalibrated: Boolean = false,
 ): MotionSample =
     MotionSample(
         provider = MotionProvider.ROTATION_VECTOR,
@@ -129,6 +144,7 @@ private fun motion(
         rawAimY = rawAimY,
         aimX = aimX,
         aimY = aimY,
+        aimCalibrated = aimCalibrated,
     )
 
 private fun ByteArray.readInt16Le(offset: Int): Int {
