@@ -68,6 +68,7 @@ class AndroidBluetoothHidGamepad(
     private var started = false
     private var closed = false
     private var registered = false
+    private var requestGeneration = 0
 
     var status: BtGunHidStatus = BtGunHidStatus()
         private set(value) {
@@ -79,8 +80,10 @@ class AndroidBluetoothHidGamepad(
         if (closed || started) return
         AndroidLog.i(TAG, "startGamepadMode")
         started = true
+        requestGeneration += 1
+        val generation = requestGeneration
         status = status.copy(proxy = BtGunHidProxyState.REQUESTING, registration = BtGunHidRegistrationState.NOT_REGISTERED)
-        connector.requestHidDeviceProxy(ProfileCallback())
+        connector.requestHidDeviceProxy(ProfileCallback(generation))
     }
 
     fun stopGamepadMode() {
@@ -94,6 +97,7 @@ class AndroidBluetoothHidGamepad(
         callback = null
         connectedHost = null
         started = false
+        requestGeneration += 1
         status = status.copy(
             proxy = if (closed) BtGunHidProxyState.CLOSED else BtGunHidProxyState.NOT_REQUESTED,
             registration = BtGunHidRegistrationState.NOT_REGISTERED,
@@ -141,11 +145,15 @@ class AndroidBluetoothHidGamepad(
         status = status.copy(proxy = BtGunHidProxyState.CLOSED)
     }
 
-    private fun onProxyAvailable(newProxy: BtGunHidDeviceProxy) {
+    private fun onProxyAvailable(newProxy: BtGunHidDeviceProxy, generation: Int) {
+        if (!isActiveGeneration(generation)) {
+            newProxy.unregisterApp()
+            return
+        }
         AndroidLog.i(TAG, "HID_DEVICE proxy available; registering app")
         proxy = newProxy
         status = status.copy(proxy = BtGunHidProxyState.AVAILABLE, registration = BtGunHidRegistrationState.REGISTERING)
-        val newCallback = DeviceCallback()
+        val newCallback = DeviceCallback(generation)
         callback = newCallback
         val accepted = newProxy.registerApp(gamepadSdpSettings(), newCallback)
         AndroidLog.i(TAG, "registerApp accepted=$accepted")
@@ -155,7 +163,8 @@ class AndroidBluetoothHidGamepad(
         }
     }
 
-    private fun onProxyUnavailable(reason: String) {
+    private fun onProxyUnavailable(reason: String, generation: Int) {
+        if (!isActiveGeneration(generation)) return
         AndroidLog.w(TAG, "HID_DEVICE proxy unavailable: $reason")
         proxy = null
         registered = false
@@ -166,7 +175,8 @@ class AndroidBluetoothHidGamepad(
         )
     }
 
-    private fun onAppStatusChanged(registered: Boolean) {
+    private fun onAppStatusChanged(registered: Boolean, generation: Int) {
+        if (!isActiveGeneration(generation)) return
         AndroidLog.i(TAG, "onAppStatusChanged registered=$registered")
         this.registered = registered
         if (!registered) {
@@ -178,7 +188,8 @@ class AndroidBluetoothHidGamepad(
         )
     }
 
-    private fun onConnectionStateChanged(host: BtGunHidHost, state: Int) {
+    private fun onConnectionStateChanged(host: BtGunHidHost, state: Int, generation: Int) {
+        if (!isActiveGeneration(generation)) return
         AndroidLog.i(TAG, "onConnectionStateChanged state=$state host=${host.label}")
         if (state == BtGunHidConnectionStates.CONNECTED) {
             connectedHost = host
@@ -191,7 +202,8 @@ class AndroidBluetoothHidGamepad(
         }
     }
 
-    private fun onGetReport(host: BtGunHidHost, reportType: Int, reportId: Int, bufferSize: Int) {
+    private fun onGetReport(host: BtGunHidHost, reportType: Int, reportId: Int, bufferSize: Int, generation: Int) {
+        if (!isActiveGeneration(generation)) return
         status = status.copy(
             lastOutputCallback = BtGunHidOutputCallbackStatus(
                 kind = BtGunHidOutputCallbackKind.GET_REPORT,
@@ -214,7 +226,9 @@ class AndroidBluetoothHidGamepad(
         reportType: Int?,
         reportId: Int,
         payload: ByteArray,
+        generation: Int,
     ) {
+        if (!isActiveGeneration(generation)) return
         AndroidLog.i(TAG, "onOutputReport kind=$kind type=$reportType reportId=$reportId payload=${payload.size}")
         status = status.copy(
             lastOutputCallback = BtGunHidOutputCallbackStatus(
@@ -265,7 +279,8 @@ class AndroidBluetoothHidGamepad(
             BtGunHidErrorResponses.INVALID_PARAMETER
         }
 
-    private fun onVirtualCableUnplug() {
+    private fun onVirtualCableUnplug(generation: Int) {
+        if (!isActiveGeneration(generation)) return
         connectedHost = null
         status = status.copy(
             hostConnection = BtGunHidHostConnectionState.DISCONNECTED,
@@ -289,39 +304,46 @@ class AndroidBluetoothHidGamepad(
         return result
     }
 
-    private inner class ProfileCallback : BtGunHidProfileCallback {
+    private fun isActiveGeneration(generation: Int): Boolean =
+        !closed && started && generation == requestGeneration
+
+    private inner class ProfileCallback(
+        private val generation: Int,
+    ) : BtGunHidProfileCallback {
         override fun onProxyAvailable(proxy: BtGunHidDeviceProxy) {
-            this@AndroidBluetoothHidGamepad.onProxyAvailable(proxy)
+            this@AndroidBluetoothHidGamepad.onProxyAvailable(proxy, generation)
         }
 
         override fun onProxyUnavailable(reason: String) {
-            this@AndroidBluetoothHidGamepad.onProxyUnavailable(reason)
+            this@AndroidBluetoothHidGamepad.onProxyUnavailable(reason, generation)
         }
     }
 
-    private inner class DeviceCallback : BtGunHidDeviceCallback {
+    private inner class DeviceCallback(
+        private val generation: Int,
+    ) : BtGunHidDeviceCallback {
         override fun onAppStatusChanged(host: BtGunHidHost?, registered: Boolean) {
-            this@AndroidBluetoothHidGamepad.onAppStatusChanged(registered)
+            this@AndroidBluetoothHidGamepad.onAppStatusChanged(registered, generation)
         }
 
         override fun onConnectionStateChanged(host: BtGunHidHost, state: Int) {
-            this@AndroidBluetoothHidGamepad.onConnectionStateChanged(host, state)
+            this@AndroidBluetoothHidGamepad.onConnectionStateChanged(host, state, generation)
         }
 
         override fun onGetReport(host: BtGunHidHost, reportType: Int, reportId: Int, bufferSize: Int) {
-            this@AndroidBluetoothHidGamepad.onGetReport(host, reportType, reportId, bufferSize)
+            this@AndroidBluetoothHidGamepad.onGetReport(host, reportType, reportId, bufferSize, generation)
         }
 
         override fun onSetReport(host: BtGunHidHost, reportType: Int, reportId: Int, payload: ByteArray) {
-            onOutputReport(host, BtGunHidOutputCallbackKind.SET_REPORT, reportType, reportId, payload)
+            onOutputReport(host, BtGunHidOutputCallbackKind.SET_REPORT, reportType, reportId, payload, generation)
         }
 
         override fun onInterruptData(host: BtGunHidHost, reportId: Int, payload: ByteArray) {
-            onOutputReport(host, BtGunHidOutputCallbackKind.INTERRUPT_DATA, null, reportId, payload)
+            onOutputReport(host, BtGunHidOutputCallbackKind.INTERRUPT_DATA, null, reportId, payload, generation)
         }
 
         override fun onVirtualCableUnplug(host: BtGunHidHost) {
-            this@AndroidBluetoothHidGamepad.onVirtualCableUnplug()
+            this@AndroidBluetoothHidGamepad.onVirtualCableUnplug(generation)
         }
     }
 }
