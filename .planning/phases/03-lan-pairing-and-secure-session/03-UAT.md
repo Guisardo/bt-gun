@@ -1,20 +1,16 @@
 ---
-status: testing
+status: complete
 phase: 03-lan-pairing-and-secure-session
 source: [03-VERIFICATION.md, 03-MANUAL-SMOKE.md]
 started: 2026-06-08T12:20:05Z
-updated: 2026-06-08T16:49:38Z
+updated: 2026-06-11T18:39:47Z
 ---
 
 # Phase 03 UAT
 
 ## Current Test
 
-number: 4
-name: Heartbeat degradation
-expected: |
-  Connected becomes degraded, then disconnected; packet stream stays inactive and no phone haptic command executes.
-awaiting: none
+[testing complete]
 
 ## Tests
 
@@ -53,4 +49,4 @@ blocked: 0
 
 ## Gaps
 
-None. Automated verification passed; physical/manual smoke remains.
+None. Automated verification and all physical/manual UAT checks passed.
