@@ -1,7 +1,8 @@
 ---
 phase: "03-lan-pairing-and-secure-session"
 verified: "2026-06-08T01:46:18Z"
-status: "human_needed"
+reverified: "2026-06-11T18:39:47Z"
+status: "verified"
 score: "4/4 must-haves verified"
 overrides_applied: 0
 human_verification:
@@ -23,8 +24,9 @@ human_verification:
 
 **Phase Goal:** User can pair Android and desktop locally without manual IP entry and get an authenticated session.
 **Verified:** 2026-06-08T01:46:18Z
-**Status:** human_needed
-**Re-verification:** No - initial verification
+**Re-verified:** 2026-06-11T18:39:47Z
+**Status:** verified
+**Re-verification:** Yes - Phase 03 UAT now records all manual/device checks as passed.
 
 ## User Flow Coverage
 
@@ -36,7 +38,7 @@ User story used by Phase 03 plans: As a user with the Android host app and deskt
 | Scan QR on Android | Normal path uses QR payload endpoint, not manual IP | `MainActivity.handleScannedPayload()` sends `ACTION_CONNECT_DESKTOP_QR`; `HostSessionService.connectDesktopFromQr()` parses QR and builds `DesktopControlConnectionRequest.fromQrPayload()` using `wss://{host}:{port}/control` | VERIFIED |
 | Prove identity | Android sends HMAC proof and desktop accepts only before trusted control | Android and desktop `PairingProof` transcript constants match; `ControlServer.authenticate()` calls `PairingSessionRegistry.verifyProof()` before envelopes are handled | VERIFIED |
 | Reach reliable control | Authenticated WSS channel carries session ready, heartbeat, diagnostics, profile metadata, reserved haptic type | `ControlServer` sends `session_ready`, diagnostics, profile metadata, heartbeat ping; Android client handles ready, heartbeat, diagnostics, and profile metadata | VERIFIED |
-| User-visible outcome | Trusted authenticated session exists, but real QR/LAN flow still needs smoke | Unit/code evidence verifies wiring; physical QR scanner, local TLS/WSS, and liveness are listed in `03-MANUAL-SMOKE.md` | HUMAN NEEDED |
+| User-visible outcome | Trusted authenticated session exists and real QR/LAN flow has passed smoke | Unit/code evidence verifies wiring; `03-UAT.md` records QR path, manual fallback, trust mismatch, and heartbeat degradation as passed | VERIFIED |
 
 ## Goal Achievement
 
@@ -49,7 +51,7 @@ User story used by Phase 03 plans: As a user with the Android host app and deskt
 | 3 | Pairing creates an authenticated local session using a short-lived one-time secret with replay protection. | VERIFIED | Desktop registry enforces 120-300s TTL, single-use consumed sid, nonce replay rejection, fingerprint mismatch rejection, failed-attempt rate limit, and HMAC proof over fixed transcript. Android creates matching proof. |
 | 4 | Android and desktop maintain a reliable control channel for pairing state, heartbeat, diagnostics, profile metadata, and haptic commands. | VERIFIED | `ControlServer.kt` gates `/control` by proof, uses TLS/WSS, sends session ready/diagnostics/profile metadata/heartbeat, rejects invalid envelopes, and reserves `reserved_haptic_command` empty-body only. Android client pins SPKI, handles heartbeat/diagnostics/profile metadata, and rejects reserved haptic bodies. |
 
-**Score:** 4/4 truths verified by code/tests; physical user flow still needs manual verification.
+**Score:** 4/4 truths verified by code/tests and passed UAT evidence.
 
 ### Required Artifacts
 
@@ -91,7 +93,7 @@ User story used by Phase 03 plans: As a user with the Android host app and deskt
 | --- | --- | --- | --- |
 | Desktop pairing/control tests pass | `JAVA_HOME=... GRADLE_USER_HOME=/private/tmp/bt-gun-gradle-home gradle -p desktop-companion test` | `BUILD SUCCESSFUL`, 4 tasks up-to-date | PASS |
 | Android session/UI tests pass | `JAVA_HOME=... ANDROID_HOME=... GRADLE_USER_HOME=/private/tmp/bt-gun-gradle-home gradle -p android-host testDebugUnitTest` | `BUILD SUCCESSFUL`, 23 tasks up-to-date | PASS |
-| Phase 4 boundary absent from product source/docs | `rg -n "UdpInput|button bitmask|input frame schema|packet loss|jitter|visualizer latency|haptic strength|haptic duration|haptic_pattern|patternMs|Vibrator\\.vibrate|haptic ack|haptic fail" desktop-companion/src/main android-host/app/src/main/java/com/btgun/host/session docs/protocol/lan-pairing-v1.md` | No matches | PASS |
+| Phase 4 boundary absent from product source/docs | Original Phase 3 boundary grep | Superseded on current branch because Phase 4+ code and docs now legitimately contain UDP and haptic terms; Phase 3-owned behavior is covered by the current validation and UAT files | SUPERSEDED |
 | Probe discovery | `find scripts -path '*/tests/probe-*.sh' -type f` and phase probe grep | No probe scripts or declared probes | SKIP |
 
 ### Probe Execution
@@ -105,9 +107,9 @@ User story used by Phase 03 plans: As a user with the Android host app and deskt
 | Requirement | Source Plan | Description | Status | Evidence |
 | --- | --- | --- | --- | --- |
 | TRAN-01 | 03-01, 03-06, 03-08 | Desktop companion can create local pairing session and display QR plus code fallback. | SATISFIED | `PairingSessionRegistry`, `QrCodeRenderer`, and `PairingWindow` implement and test QR/manual desktop pairing. |
-| TRAN-02 | 03-02, 03-07, 03-08 | Android can pair using QR/code without manual IP entry in normal path. | SATISFIED, HUMAN SMOKE REQUIRED | QR parser, scanner action, service QR action, and WSS request from QR endpoint are wired; real device QR/LAN path remains manual smoke. |
+| TRAN-02 | 03-02, 03-07, 03-08 | Android can pair using QR/code without manual IP entry in normal path. | SATISFIED | QR parser, scanner action, service QR action, WSS request from QR endpoint, and UAT QR/manual evidence are complete. |
 | TRAN-03 | 03-01, 03-02, 03-03, 03-04, 03-06, 03-07, 03-08 | Pairing creates authenticated local session with short-lived one-time secret and replay protection. | SATISFIED | HMAC transcript, TTL, single-use sid, replay nonce rejection, fingerprint mismatch, and rate limit are implemented and tested. |
-| TRAN-06 | 03-04, 03-05, 03-06, 03-07, 03-08 | Reliable control channel for pairing state, heartbeat, diagnostics, profile metadata, and haptic commands. | SATISFIED, HUMAN SMOKE REQUIRED | WSS/TLS control server/client, envelope allowlist, heartbeat liveness, diagnostics, profile metadata, and reserved haptic type exist and pass tests; runtime LAN interruption needs smoke. |
+| TRAN-06 | 03-04, 03-05, 03-06, 03-07, 03-08 | Reliable control channel for pairing state, heartbeat, diagnostics, profile metadata, and haptic commands. | SATISFIED | WSS/TLS control server/client, envelope allowlist, heartbeat liveness, diagnostics, profile metadata, reserved haptic type, and UAT heartbeat degradation evidence are complete. |
 
 No orphaned Phase 03 requirements found. `.planning/REQUIREMENTS.md` maps only TRAN-01, TRAN-02, TRAN-03, and TRAN-06 to Phase 3; Phase 4 owns ANDR-07, TRAN-04, TRAN-05, TRAN-07, TRAN-08, TRAN-09, DESK-01, and PERF-03.
 
@@ -117,37 +119,38 @@ No orphaned Phase 03 requirements found. `.planning/REQUIREMENTS.md` maps only T
 | --- | --- | --- | --- | --- |
 | none | - | No unreferenced `TBD`, `FIXME`, or `XXX`; placeholder/null matches are lifecycle state or explicit Phase 4 deferral | Info | No blocker anti-patterns found. |
 
-### Human Verification Required
+### Human Verification Completed
 
 #### 1. QR Normal Path
 
 **Test:** Run desktop companion, click `Start pairing`, then scan QR from Android.
 **Expected:** Android uses QR endpoint without manual IP, proves identity, saves trusted desktop metadata, desktop reaches authenticated/connected control state, packet stream remains inactive.
-**Why human:** Camera scanner, physical Android service state, TLS/WSS, and LAN reachability cannot be fully proven by unit tests.
+**Evidence:** `03-UAT.md` test 1 passed.
 
 #### 2. Manual Fallback and Wrong Code
 
 **Test:** Use visible manual fields with valid values, then repeat with wrong code and expired material.
 **Expected:** Valid manual reauth against saved fingerprint works; wrong/expired material fails before trusted state and shows rescan/manual recovery or rate-limit state.
-**Why human:** UI entry, local endpoint, and visible error copy need device/runtime check.
+**Evidence:** `03-UAT.md` test 2 passed.
 
 #### 3. Trust Mismatch
 
 **Test:** Pair once, regenerate/clear desktop identity, then attempt pairing again.
 **Expected:** Android shows `Desktop identity changed` / trust problem and preserves old stored fingerprint.
-**Why human:** Persistent Android app state and changed desktop identity need real run.
+**Evidence:** `03-UAT.md` test 3 passed.
 
 #### 4. Heartbeat Degradation
 
 **Test:** After authenticated pairing, stop desktop companion or break LAN.
 **Expected:** Connected becomes degraded, then disconnected; heartbeat age/control error shown; no packet stream or phone haptic execution appears.
-**Why human:** Timing and network interruption behavior need runtime observation.
+**Evidence:** `03-UAT.md` test 4 passed.
 
 ### Gaps Summary
 
-No blocking code gaps found. Automated evidence verifies the Phase 03 pairing/session contract. Overall status is `human_needed` because the real QR scanner, local LAN WSS session, trust-mismatch UX, and heartbeat degradation require physical/manual smoke before closing the phase.
+No blocking code or UAT gaps found. Automated evidence verifies the Phase 03 pairing/session contract, and `03-UAT.md` records the real QR scanner, local LAN WSS session, trust-mismatch UX, and heartbeat degradation checks as passed.
 
 ---
 
 _Verified: 2026-06-08T01:46:18Z_
+_Re-verified: 2026-06-11T18:39:47Z_
 _Verifier: the agent (gsd-verifier)_
