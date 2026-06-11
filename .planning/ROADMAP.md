@@ -50,7 +50,7 @@ Plans:
 
 ### Phase 2: Android Host Live Input
 
-**Goal:** User can use the Android host app to connect the gun, see live control and motion-aim state, and recenter aim.
+**Goal:** As a user, I want to use the Android host app to connect the gun, see live control and motion-aim state, and recenter aim, so that I can prove the phone can read and normalize the gun stream.
 **Mode:** mvp
 **Depends on:** Phase 1
 **Requirements:** ANDR-01, ANDR-02, ANDR-03, ANDR-04, ANDR-05, ANDR-06, ANDR-08
