@@ -50,7 +50,9 @@ import com.btgun.host.hid.AndroidBluetoothHidGamepad
 import com.btgun.host.hid.AndroidBtGunHidProfileConnector
 import com.btgun.host.hid.BtGunHidHostConnectionState
 import com.btgun.host.hid.BtGunHidInputSendResult
+import com.btgun.host.hid.BtGunHidPairingWindowStatus
 import com.btgun.host.hid.BtGunHidStatus
+import com.btgun.host.permissions.CapabilityState
 import com.btgun.host.permissions.HostCapabilityProbe
 import com.btgun.host.permissions.PermissionGateState
 import com.btgun.host.recenter.ReloadHoldRecenter
@@ -410,6 +412,21 @@ class HostSessionService : Service() {
 
     private fun startBluetoothGamepad(openPairingWindow: Boolean = false) {
         AndroidLog.i(TAG, "startBluetoothGamepad openPairingWindow=$openPairingWindow foreground=${currentState.foregroundActive}")
+        val gate = permissionGateState()
+        if (openPairingWindow && gate.bluetoothAdvertise.state != CapabilityState.AVAILABLE) {
+            val detail = gate.bluetoothAdvertise.detail
+            currentState = currentState.copy(
+                hidGamepadStatus = currentState.hidGamepadStatus.copy(
+                    pairingWindow = BtGunHidPairingWindowStatus(
+                        open = false,
+                        detail = detail,
+                    ),
+                    unsupportedReason = detail,
+                ),
+            )
+            AndroidLog.w(TAG, "startBluetoothGamepad pairing blocked: $detail")
+            return
+        }
         if (!ensureForegroundForHidMode()) {
             AndroidLog.w(TAG, "startBluetoothGamepad blocked: foreground start failed")
             return

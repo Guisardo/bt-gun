@@ -12,6 +12,7 @@ fun main() {
     startRequestsHidDeviceProxyAndRegistersGamepadSdp()
     callbacksUpdateStatusAndHandleValidOutputReports()
     invalidOutputReportCallsReportErrorAndSkipsHaptics()
+    pairingWindowSecurityExceptionSurfacesBlockedStatus()
     staleProxyCallbacksAfterStopDoNotRegisterHidMode()
     olderProxyCallbacksDoNotOverrideNewStart()
     unregisterAndCloseAreIdempotent()
@@ -125,6 +126,20 @@ private fun invalidOutputReportCallsReportErrorAndSkipsHaptics() {
     expectEquals("callback set report", BtGunHidOutputCallbackKind.SET_REPORT, gamepad.status.lastOutputCallback.kind)
 }
 
+private fun pairingWindowSecurityExceptionSurfacesBlockedStatus() {
+    val connector = FakeHidProfileConnector().also {
+        it.openPairingError = SecurityException("missing advertise")
+    }
+    val gamepad = AndroidBluetoothHidGamepad(connector = connector, hapticHandler = { null })
+
+    val opened = gamepad.openPairingWindow(durationSeconds = 120)
+
+    expectEquals("pairing blocked", false, opened)
+    expectEquals("pairing status closed", false, gamepad.status.pairingWindow.open)
+    expectEquals("pairing security detail", "pairing window blocked: SecurityException", gamepad.status.pairingWindow.detail)
+    expectEquals("unsupported reason", "pairing window blocked: SecurityException", gamepad.status.unsupportedReason)
+}
+
 private fun staleProxyCallbacksAfterStopDoNotRegisterHidMode() {
     val connector = FakeHidProfileConnector()
     val gamepad = AndroidBluetoothHidGamepad(connector = connector, hapticHandler = { null })
@@ -223,6 +238,7 @@ private class FakeHidProfileConnector : BtGunHidProfileConnector {
     var requestCount = 0
     var closeCount = 0
     val pairingDurations = mutableListOf<Int>()
+    var openPairingError: RuntimeException? = null
 
     override fun requestHidDeviceProxy(callback: BtGunHidProfileCallback) {
         requestCount += 1
@@ -230,6 +246,7 @@ private class FakeHidProfileConnector : BtGunHidProfileConnector {
     }
 
     override fun openPairingWindow(durationSeconds: Int): Boolean {
+        openPairingError?.let { throw it }
         pairingDurations += durationSeconds
         return true
     }

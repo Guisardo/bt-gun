@@ -21,6 +21,11 @@ data class PermissionGateState(
     val bluetoothPermissionModel: BluetoothPermissionModel,
     val bluetoothScan: CapabilityStatus,
     val bluetoothConnect: CapabilityStatus,
+    val bluetoothAdvertise: CapabilityStatus = CapabilityStatus(
+        CapabilityState.AVAILABLE,
+        "Bluetooth advertise available",
+        "Runtime permission granted.",
+    ),
     val locationScanCompatibility: CapabilityStatus,
     val motionSensors: CapabilityStatus,
     val vibration: CapabilityStatus,
@@ -53,6 +58,7 @@ enum class BluetoothPermissionModel {
 object PermissionGate {
     const val BLUETOOTH_SCAN = "android.permission.BLUETOOTH_SCAN"
     const val BLUETOOTH_CONNECT = "android.permission.BLUETOOTH_CONNECT"
+    const val BLUETOOTH_ADVERTISE = "android.permission.BLUETOOTH_ADVERTISE"
     const val ACCESS_COARSE_LOCATION = "android.permission.ACCESS_COARSE_LOCATION"
     const val ACCESS_FINE_LOCATION = "android.permission.ACCESS_FINE_LOCATION"
 
@@ -73,6 +79,8 @@ object PermissionGate {
                 bluetoothEnabled = input.bluetoothEnabled,
                 bluetoothConnectPermissionGranted = !android12OrNewer ||
                     input.grantedPermissions.contains(BLUETOOTH_CONNECT),
+                bluetoothAdvertisePermissionGranted = !android12OrNewer ||
+                    input.grantedPermissions.contains(BLUETOOTH_ADVERTISE),
                 profileStatus = input.bluetoothHidProfileStatus,
                 registrationStatus = input.bluetoothHidRegistrationStatus,
                 hostConnectionStatus = input.bluetoothHidHostConnectionStatus,
@@ -83,6 +91,7 @@ object PermissionGate {
             bluetoothPermissionModel = model,
             bluetoothScan = bluetoothScan(input, android12OrNewer, locationCompatible),
             bluetoothConnect = bluetoothConnect(input, android12OrNewer),
+            bluetoothAdvertise = bluetoothAdvertise(input, android12OrNewer),
             locationScanCompatibility = locationCompatible,
             motionSensors = motionSensors(input),
             vibration = hardwareCapability(
@@ -136,6 +145,23 @@ object PermissionGate {
             )
         } else {
             available("Bluetooth connect available", "Legacy Bluetooth connect has no runtime permission.")
+        }
+    }
+
+    private fun bluetoothAdvertise(input: PermissionGateInput, android12OrNewer: Boolean): CapabilityStatus {
+        if (!input.bluetoothEnabled) {
+            return blocked("Bluetooth advertise blocked", "Bluetooth is off.")
+        }
+
+        return if (android12OrNewer) {
+            runtimePermission(
+                granted = input.grantedPermissions.contains(BLUETOOTH_ADVERTISE),
+                availableLabel = "Bluetooth advertise available",
+                blockedLabel = "Bluetooth advertise permission blocked",
+                blockedDetail = "Grant Nearby Devices advertise permission before opening HID pairing.",
+            )
+        } else {
+            available("Bluetooth advertise available", "Legacy Bluetooth discoverability has no runtime permission.")
         }
     }
 

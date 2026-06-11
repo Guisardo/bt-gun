@@ -4,6 +4,7 @@ data class AndroidHidCapabilityInput(
     val sdkInt: Int,
     val bluetoothEnabled: Boolean,
     val bluetoothConnectPermissionGranted: Boolean,
+    val bluetoothAdvertisePermissionGranted: Boolean,
     val profileStatus: AndroidHidProfileStatus,
     val registrationStatus: AndroidHidRegistrationStatus,
     val hostConnectionStatus: AndroidHidHostConnectionStatus,
@@ -49,6 +50,14 @@ object AndroidHidCapability {
             return blockedState(
                 "Bluetooth HID permission blocked",
                 "Grant Nearby Devices connect permission before starting Bluetooth gamepad.",
+                canStart = false,
+            )
+        }
+
+        if (input.sdkInt >= 31 && !input.bluetoothAdvertisePermissionGranted) {
+            return blockedState(
+                "Bluetooth HID advertise permission blocked",
+                "Grant Nearby Devices advertise permission before opening the HID pairing window.",
                 canStart = false,
             )
         }

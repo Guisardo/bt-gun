@@ -11,7 +11,7 @@ import java.util.Set;
 
 public final class PermissionGateTest {
     public static void main(String[] args) {
-        android12ScanAndConnectRequireNearbyDevicePermissions();
+        android12NearbyDevicePermissionsGateScanConnectAndAdvertise();
         android12BluetoothOffBlocksScanAndConnect();
         legacyScanAcceptsFineOrCoarseLocation();
         legacyLocationServiceOffBlocksScan();
@@ -23,7 +23,7 @@ public final class PermissionGateTest {
         envelopeCarriesOptionalDebugProvenance();
     }
 
-    private static void android12ScanAndConnectRequireNearbyDevicePermissions() {
+    private static void android12NearbyDevicePermissionsGateScanConnectAndAdvertise() {
         PermissionGateState blocked = PermissionGate.evaluate(new PermissionGateInput(
                 35,
                 Set.of(),
@@ -40,11 +40,12 @@ public final class PermissionGateTest {
 
         expectState("android12 scan missing permission", CapabilityState.BLOCKED, blocked.getBluetoothScan().getState());
         expectState("android12 connect missing permission", CapabilityState.BLOCKED, blocked.getBluetoothConnect().getState());
+        expectState("android12 advertise missing permission", CapabilityState.BLOCKED, blocked.getBluetoothAdvertise().getState());
         expectEquals("android12 permission model", BluetoothPermissionModel.ANDROID_12_NEARBY_DEVICES, blocked.getBluetoothPermissionModel());
 
         PermissionGateState granted = PermissionGate.evaluate(new PermissionGateInput(
                 35,
-                Set.of(PermissionGate.BLUETOOTH_SCAN, PermissionGate.BLUETOOTH_CONNECT),
+                Set.of(PermissionGate.BLUETOOTH_SCAN, PermissionGate.BLUETOOTH_CONNECT, PermissionGate.BLUETOOTH_ADVERTISE),
                 true,
                 true,
                 true,
@@ -58,13 +59,14 @@ public final class PermissionGateTest {
 
         expectState("android12 scan granted", CapabilityState.AVAILABLE, granted.getBluetoothScan().getState());
         expectState("android12 connect granted", CapabilityState.AVAILABLE, granted.getBluetoothConnect().getState());
+        expectState("android12 advertise granted", CapabilityState.AVAILABLE, granted.getBluetoothAdvertise().getState());
         expectState("android12 location compatibility not required", CapabilityState.AVAILABLE, granted.getLocationScanCompatibility().getState());
     }
 
     private static void android12BluetoothOffBlocksScanAndConnect() {
         PermissionGateState bluetoothOff = PermissionGate.evaluate(new PermissionGateInput(
                 35,
-                Set.of(PermissionGate.BLUETOOTH_SCAN, PermissionGate.BLUETOOTH_CONNECT),
+                Set.of(PermissionGate.BLUETOOTH_SCAN, PermissionGate.BLUETOOTH_CONNECT, PermissionGate.BLUETOOTH_ADVERTISE),
                 false,
                 true,
                 true,
@@ -158,7 +160,7 @@ public final class PermissionGateTest {
     private static void sensorCapabilityReportsAvailableAndUnavailableWithoutRuntimePermission() {
         PermissionGateState motionAvailable = PermissionGate.evaluate(new PermissionGateInput(
                 35,
-                Set.of(PermissionGate.BLUETOOTH_SCAN, PermissionGate.BLUETOOTH_CONNECT),
+                Set.of(PermissionGate.BLUETOOTH_SCAN, PermissionGate.BLUETOOTH_CONNECT, PermissionGate.BLUETOOTH_ADVERTISE),
                 true,
                 true,
                 false,
@@ -174,7 +176,7 @@ public final class PermissionGateTest {
 
         PermissionGateState motionUnavailable = PermissionGate.evaluate(new PermissionGateInput(
                 35,
-                Set.of(PermissionGate.BLUETOOTH_SCAN, PermissionGate.BLUETOOTH_CONNECT),
+                Set.of(PermissionGate.BLUETOOTH_SCAN, PermissionGate.BLUETOOTH_CONNECT, PermissionGate.BLUETOOTH_ADVERTISE),
                 true,
                 true,
                 false,
@@ -192,7 +194,7 @@ public final class PermissionGateTest {
     private static void vibrationCapabilityReportsHardwareState() {
         PermissionGateState noVibrator = PermissionGate.evaluate(new PermissionGateInput(
                 35,
-                Set.of(PermissionGate.BLUETOOTH_SCAN, PermissionGate.BLUETOOTH_CONNECT),
+                Set.of(PermissionGate.BLUETOOTH_SCAN, PermissionGate.BLUETOOTH_CONNECT, PermissionGate.BLUETOOTH_ADVERTISE),
                 true,
                 true,
                 true,
@@ -210,7 +212,7 @@ public final class PermissionGateTest {
     private static void lanCapabilityReportsNetworkState() {
         PermissionGateState noNetwork = PermissionGate.evaluate(new PermissionGateInput(
                 35,
-                Set.of(PermissionGate.BLUETOOTH_SCAN, PermissionGate.BLUETOOTH_CONNECT),
+                Set.of(PermissionGate.BLUETOOTH_SCAN, PermissionGate.BLUETOOTH_CONNECT, PermissionGate.BLUETOOTH_ADVERTISE),
                 true,
                 true,
                 true,
@@ -228,7 +230,7 @@ public final class PermissionGateTest {
     private static void hidCapabilityRowsDoNotChangeBleSessionGate() {
         PermissionGateState noHidHost = PermissionGate.evaluate(new PermissionGateInput(
                 35,
-                Set.of(PermissionGate.BLUETOOTH_SCAN, PermissionGate.BLUETOOTH_CONNECT),
+                Set.of(PermissionGate.BLUETOOTH_SCAN, PermissionGate.BLUETOOTH_CONNECT, PermissionGate.BLUETOOTH_ADVERTISE),
                 true,
                 true,
                 true,
@@ -249,7 +251,7 @@ public final class PermissionGateTest {
 
         PermissionGateState hidConnectedButBleBlocked = PermissionGate.evaluate(new PermissionGateInput(
                 35,
-                Set.of(PermissionGate.BLUETOOTH_CONNECT),
+                Set.of(PermissionGate.BLUETOOTH_CONNECT, PermissionGate.BLUETOOTH_ADVERTISE),
                 true,
                 true,
                 true,

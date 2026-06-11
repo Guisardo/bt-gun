@@ -13,7 +13,7 @@ Required states before proof:
 | Gate | Pass state | Blocked state |
 |------|------------|---------------|
 | Bluetooth adapter | Enabled | Bluetooth off or unavailable |
-| Runtime permission | `BLUETOOTH_CONNECT` granted on Android 12+ | Nearby Devices/Bluetooth permission missing |
+| Runtime permission | `BLUETOOTH_CONNECT` and `BLUETOOTH_ADVERTISE` granted on Android 12+ | Nearby Devices/Bluetooth permission missing |
 | HID profile proxy | `HID_DEVICE` proxy available | Phone/OEM does not expose HID Device profile |
 | App registration | `BluetoothHidDevice.registerApp` accepted and callback reports registered | Registration rejected or unregistered |
 | Pairing mode | User starts pairing window from the app | No discoverable/connectable window active |
