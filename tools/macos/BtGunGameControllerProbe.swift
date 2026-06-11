@@ -26,6 +26,7 @@ state.emit(
     fields: [
         "duration_seconds": options.durationSeconds,
         "target_label": "sanitized-bt-gun-android",
+        "allow_generic_controller": options.allowGenericController,
         "status": "running",
     ]
 )
@@ -45,11 +46,13 @@ private final class ProbeOptions {
     let captureID: String
     let durationSeconds: TimeInterval
     let probeHaptics: Bool
+    let allowGenericController: Bool
 
     init(arguments: [String]) {
         captureID = valueAfter("--capture-id", in: arguments) ?? defaultCaptureID
         durationSeconds = TimeInterval(valueAfter("--duration-seconds", in: arguments) ?? "") ?? defaultDurationSeconds
         probeHaptics = !arguments.contains("--no-haptics")
+        allowGenericController = arguments.contains("--allow-generic-controller")
     }
 }
 
@@ -63,6 +66,7 @@ private final class ProbeState {
     private var hapticsAttempted = false
     private var hidFallbackVisible = false
     private var hidManager: IOHIDManager?
+    private var selectedHIDDevicePointer: UnsafeMutableRawPointer?
 
     init(options: ProbeOptions) {
         self.options = options
@@ -84,15 +88,36 @@ private final class ProbeState {
         }
 
         if selectedController == nil || selectedController?.extendedGamepad == nil {
-            let ranked = controllers.enumerated().sorted { left, right in
-                score(controller: left.element) > score(controller: right.element)
+            let ranked = controllers.enumerated()
+                .map { entry -> (offset: Int, controller: GCController, score: Int) in
+                    (offset: entry.offset, controller: entry.element, score: score(controller: entry.element))
+                }
+                .filter { candidate in
+                    candidate.score > 0 || options.allowGenericController
+                }
+                .sorted { left, right in
+                    if left.score == right.score {
+                        return left.offset < right.offset
+                    }
+                    return left.score > right.score
+                }
+            guard let selected = ranked.first else {
+                emitOnce(
+                    key: "no-btgun-controller-visible",
+                    event: "controller-visible",
+                    fields: [
+                        "controller_count": controllers.count,
+                        "label_match": "generic-controller-only",
+                        "allow_generic_controller": options.allowGenericController,
+                        "status": "not-visible",
+                    ]
+                )
+                return
             }
-            if let selected = ranked.first {
-                selectedController = selected.element
-                selectedSlot = selected.offset
-                selectedLabelMatch = matchClass(controller: selected.element)
-                attach(to: selected.element, slot: selected.offset, labelMatch: selectedLabelMatch)
-            }
+            selectedController = selected.controller
+            selectedSlot = selected.offset
+            selectedLabelMatch = selected.score > 0 ? matchClass(controller: selected.controller) : "generic-controller-allowed"
+            attach(to: selected.controller, slot: selected.offset, labelMatch: selectedLabelMatch)
         }
 
         if options.probeHaptics, !hapticsAttempted, let controller = selectedController {
@@ -107,6 +132,7 @@ private final class ProbeState {
             fields: [
                 "controller_slot": selectedSlot as Any,
                 "label_match": selectedLabelMatch,
+                "allow_generic_controller": options.allowGenericController,
                 "observed_controls": observed.sorted(),
                 "status": selectedController == nil && !hidFallbackVisible ? "no-controller-visible" : "completed",
             ]
@@ -127,14 +153,49 @@ private final class ProbeState {
         hidManager = manager
 
         if let devices = IOHIDManagerCopyDevices(manager) as? Set<IOHIDDevice>, !devices.isEmpty {
+            let ranked = Array(devices).enumerated()
+                .map { entry -> (offset: Int, device: IOHIDDevice, score: Int, labelMatch: String) in
+                    let labelMatch = matchClass(device: entry.element)
+                    return (
+                        offset: entry.offset,
+                        device: entry.element,
+                        score: labelMatch == "bt-gun-or-android-label" ? 100 : 0,
+                        labelMatch: labelMatch
+                    )
+                }
+                .filter { candidate in
+                    candidate.score > 0 || options.allowGenericController
+                }
+                .sorted { left, right in
+                    if left.score == right.score {
+                        return left.offset < right.offset
+                    }
+                    return left.score > right.score
+                }
+            guard let selected = ranked.first else {
+                emitOnce(
+                    key: "iohid-generic-controller-only",
+                    event: "controller-visible",
+                    fields: [
+                        "controller_count": devices.count,
+                        "label_match": "generic-controller-only",
+                        "allow_generic_controller": options.allowGenericController,
+                        "status": "inconclusive",
+                    ]
+                )
+                IOHIDManagerScheduleWithRunLoop(manager, CFRunLoopGetCurrent(), CFRunLoopMode.defaultMode.rawValue)
+                return
+            }
             hidFallbackVisible = true
-            selectedSlot = selectedSlot ?? 0
-            selectedLabelMatch = selectedLabelMatch == "none" ? "bt-gun-or-android-label" : selectedLabelMatch
+            selectedSlot = selectedSlot ?? selected.offset
+            selectedHIDDevicePointer = hidDevicePointer(selected.device)
+            selectedLabelMatch = selected.score > 0 ? selected.labelMatch : "generic-controller-allowed"
             emit(
                 event: "controller-visible",
                 fields: [
                     "controller_slot": selectedSlot as Any,
                     "label_match": selectedLabelMatch,
+                    "allow_generic_controller": options.allowGenericController,
                     "product_category_class": "game-controller",
                     "status": "visible",
                 ]
@@ -144,6 +205,7 @@ private final class ProbeState {
                 fields: [
                     "controller_slot": selectedSlot as Any,
                     "label_match": selectedLabelMatch,
+                    "allow_generic_controller": options.allowGenericController,
                     "extended_gamepad": false,
                     "status": "iohid-fallback",
                 ]
@@ -155,6 +217,7 @@ private final class ProbeState {
                     fields: [
                         "controller_slot": selectedSlot as Any,
                         "label_match": selectedLabelMatch,
+                        "allow_generic_controller": options.allowGenericController,
                         "haptics_available": false,
                         "status": "no-gamecontroller-haptics",
                     ]
@@ -168,6 +231,9 @@ private final class ProbeState {
                 return
             }
             let state = Unmanaged<ProbeState>.fromOpaque(context).takeUnretainedValue()
+            guard state.isSelectedHIDValue(value) else {
+                return
+            }
             state.handleHIDValue(value)
         }, context)
         IOHIDManagerScheduleWithRunLoop(manager, CFRunLoopGetCurrent(), CFRunLoopMode.defaultMode.rawValue)
@@ -227,6 +293,7 @@ private final class ProbeState {
             fields: [
                 "controller_slot": slot,
                 "label_match": labelMatch,
+                "allow_generic_controller": options.allowGenericController,
                 "product_category_class": productCategoryClass(controller.productCategory),
                 "status": "visible",
             ]
@@ -236,6 +303,7 @@ private final class ProbeState {
             fields: [
                 "controller_slot": slot,
                 "label_match": labelMatch,
+                "allow_generic_controller": options.allowGenericController,
                 "extended_gamepad": hasExtendedGamepad,
                 "status": hasExtendedGamepad ? "available" : "missing",
             ]
@@ -413,6 +481,15 @@ private final class ProbeState {
         emit(event: event, fields: fields)
     }
 
+    private func isSelectedHIDValue(_ value: IOHIDValue) -> Bool {
+        guard let selectedHIDDevicePointer else {
+            return false
+        }
+        let element = IOHIDValueGetElement(value)
+        let device = IOHIDElementGetDevice(element)
+        return hidDevicePointer(device) == selectedHIDDevicePointer
+    }
+
     private func emitOnce(key: String, event: String, fields: [String: Any]) {
         guard !emittedKeys.contains(key) else {
             return
@@ -470,6 +547,31 @@ private func matchClass(controller: GCController) -> String {
         return "bt-gun-or-android-label"
     }
     return "generic-controller-label"
+}
+
+private func matchClass(device: IOHIDDevice) -> String {
+    let haystack = [
+        hidStringProperty(device, key: kIOHIDManufacturerKey),
+        hidStringProperty(device, key: kIOHIDProductKey),
+    ]
+    .joined(separator: " ")
+    .lowercased()
+
+    if labelTokens.contains(where: { haystack.contains($0) }) {
+        return "bt-gun-or-android-label"
+    }
+    return "generic-controller-label"
+}
+
+private func hidStringProperty(_ device: IOHIDDevice, key: String) -> String {
+    guard let value = IOHIDDeviceGetProperty(device, key as CFString) else {
+        return ""
+    }
+    return String(describing: value)
+}
+
+private func hidDevicePointer(_ device: IOHIDDevice) -> UnsafeMutableRawPointer {
+    Unmanaged.passUnretained(device).toOpaque()
 }
 
 private func productCategoryClass(_ productCategory: String) -> String {
