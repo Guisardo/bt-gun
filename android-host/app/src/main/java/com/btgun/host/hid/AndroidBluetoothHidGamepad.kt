@@ -11,6 +11,7 @@ import com.btgun.host.haptics.DesktopHapticCommand
 import com.btgun.host.haptics.HapticResult
 import com.btgun.host.model.GunInputState
 import com.btgun.host.model.MotionSample
+import com.btgun.host.util.AndroidLog
 import java.util.concurrent.Executor
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -76,12 +77,14 @@ class AndroidBluetoothHidGamepad(
 
     fun startGamepadMode() {
         if (closed || started) return
+        AndroidLog.i(TAG, "startGamepadMode")
         started = true
         status = status.copy(proxy = BtGunHidProxyState.REQUESTING, registration = BtGunHidRegistrationState.NOT_REGISTERED)
         connector.requestHidDeviceProxy(ProfileCallback())
     }
 
     fun stopGamepadMode() {
+        AndroidLog.i(TAG, "stopGamepadMode registered=$registered proxy=${proxy != null}")
         val activeProxy = proxy
         if (registered && activeProxy != null) {
             activeProxy.unregisterApp()
@@ -139,11 +142,13 @@ class AndroidBluetoothHidGamepad(
     }
 
     private fun onProxyAvailable(newProxy: BtGunHidDeviceProxy) {
+        AndroidLog.i(TAG, "HID_DEVICE proxy available; registering app")
         proxy = newProxy
         status = status.copy(proxy = BtGunHidProxyState.AVAILABLE, registration = BtGunHidRegistrationState.REGISTERING)
         val newCallback = DeviceCallback()
         callback = newCallback
         val accepted = newProxy.registerApp(gamepadSdpSettings(), newCallback)
+        AndroidLog.i(TAG, "registerApp accepted=$accepted")
         if (!accepted) {
             registered = false
             status = status.copy(registration = BtGunHidRegistrationState.FAILED)
@@ -151,6 +156,7 @@ class AndroidBluetoothHidGamepad(
     }
 
     private fun onProxyUnavailable(reason: String) {
+        AndroidLog.w(TAG, "HID_DEVICE proxy unavailable: $reason")
         proxy = null
         registered = false
         status = status.copy(
@@ -161,6 +167,7 @@ class AndroidBluetoothHidGamepad(
     }
 
     private fun onAppStatusChanged(registered: Boolean) {
+        AndroidLog.i(TAG, "onAppStatusChanged registered=$registered")
         this.registered = registered
         if (!registered) {
             connectedHost = null
@@ -172,6 +179,7 @@ class AndroidBluetoothHidGamepad(
     }
 
     private fun onConnectionStateChanged(host: BtGunHidHost, state: Int) {
+        AndroidLog.i(TAG, "onConnectionStateChanged state=$state host=${host.label}")
         if (state == BtGunHidConnectionStates.CONNECTED) {
             connectedHost = host
             status = status.copy(hostConnection = BtGunHidHostConnectionState.CONNECTED)
@@ -192,12 +200,11 @@ class AndroidBluetoothHidGamepad(
                 payloadLength = bufferSize,
             ),
         )
-        val payload = if (reportType == BtGunHidReportTypes.INPUT && reportId == BtGunHidDescriptor.INPUT_REPORT_ID) {
-            lastInputReport?.bytes ?: ByteArray(BtGunHidDescriptor.INPUT_REPORT_PAYLOAD_LENGTH_BYTES)
-        } else {
+        if (reportType != BtGunHidReportTypes.INPUT || reportId != BtGunHidDescriptor.INPUT_REPORT_ID) {
             proxy?.reportError(host, BtGunHidErrorResponses.UNSUPPORTED_REQUEST)
             return
         }
+        val payload = lastInputReport?.bytes ?: ByteArray(BtGunHidDescriptor.INPUT_REPORT_PAYLOAD_LENGTH_BYTES)
         proxy?.replyReport(host, reportType, reportId, payload)
     }
 
@@ -208,6 +215,7 @@ class AndroidBluetoothHidGamepad(
         reportId: Int,
         payload: ByteArray,
     ) {
+        AndroidLog.i(TAG, "onOutputReport kind=$kind type=$reportType reportId=$reportId payload=${payload.size}")
         status = status.copy(
             lastOutputCallback = BtGunHidOutputCallbackStatus(
                 kind = kind,
@@ -335,6 +343,7 @@ private class DefaultCommandIdFactory : () -> String {
 }
 
 private const val BT_GUN_HID_GAMEPAD_SUBCLASS: Byte = 0x05
+private const val TAG = "BtGunHidGamepad"
 
 class AndroidBtGunHidProfileConnector(
     private val context: Context,

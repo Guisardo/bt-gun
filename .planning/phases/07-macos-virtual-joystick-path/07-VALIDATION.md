@@ -40,8 +40,8 @@ Per-phase validation contract after the Android Bluetooth HID gamepad reroute. C
 | 07-03-02 | 03 | 3 | ANDR-11 | T-07-04 | Invalid host output reports trigger error/status and do not vibrate the phone | unit/fake adapter | `cd android-host && gradle test` | ❌ W0 | ⬜ pending |
 | 07-04-01 | 04 | 4 | ANDR-09, ANDR-10 | T-07-02 / T-07-06 | `HostSessionService` starts/stops HID mode by explicit action and fans out live gun/motion updates without changing LAN diagnostics | unit/static | `cd android-host && gradle test` | ❌ W0 | ⬜ pending |
 | 07-04-02 | 04 | 4 | ANDR-09, ANDR-11 | T-07-05 | Dashboard exposes HID role, registration, pairing window, host connection, last input report, output callback/result, and fallback status | unit | `cd android-host && gradle test` | ❌ W0 | ⬜ pending |
-| 07-05-01 | 05 | 5 | DESK-03 | T-07-07 / T-07-08 | macOS pairs to Android phone over Bluetooth and sees a gamepad/controller surface without desktop companion in the input path | manual/live | `rg -n 'phase7-macos-bluetooth-paired|phase7-gamecontroller-input' docs/evidence/manifests/phase7-android-bluetooth-hid.jsonl` | ❌ W0 | ⬜ pending |
-| 07-05-02 | 05 | 5 | DESK-06, ANDR-11 | T-07-04 / T-07-09 | HID output callback result is captured as phone haptic pass or honest macOS unsupported result after live probe | manual/live | `rg -n 'phase7-hid-output-callback' docs/evidence/manifests/phase7-android-bluetooth-hid.jsonl` | ❌ W0 | ⬜ pending |
+| 07-05-01 | 05 | 5 | DESK-03 | T-07-07 / T-07-08 | macOS pairs to Android phone over Bluetooth and sees a gamepad/controller surface without desktop companion in the input path | manual/live | `rg -n 'phase7-macos-bluetooth-paired|phase7-gamecontroller-input' docs/evidence/manifests/phase7-android-bluetooth-hid.jsonl` | `docs/evidence/manifests/phase7-android-bluetooth-hid.jsonl` | ✅ green |
+| 07-05-02 | 05 | 5 | DESK-06, ANDR-11 | T-07-04 / T-07-09 | HID output callback result is captured as phone haptic pass or honest macOS unsupported/deferred result after live probe | manual/live | `rg -n 'phase7-hid-output-callback|phase7-macos-output-unsupported' docs/evidence/manifests/phase7-android-bluetooth-hid.jsonl` | `docs/evidence/manifests/phase7-android-bluetooth-hid.jsonl` | ✅ green |
 | 07-06-01 | 06 | 6 | PACK-03, PACK-06 | T-07-10 | Docs name Android Bluetooth HID as primary, CoreHID/DriverKit as retained fallback evidence, and Windows VHF as fallback decision path | docs/static | `rg -n 'Android Bluetooth HID|HID_DEVICE|registerApp|sendReport|onSetReport|Windows VHF fallback|corehid-runtime-blocked' docs/setup/android-bluetooth-hid-gamepad.md` | ❌ W0 | ⬜ pending |
 | 07-06-02 | 06 | 6 | PACK-06 | T-07-10 | Evidence manifest and redaction scan exclude Bluetooth MACs, serials, account names, screenshots, keys, pairing material, and device ids | docs/static | `! rg -n '([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}|qr_secret|stream key|HMAC key|private key|device[_ -]?id|serial|screenshot_path' docs/evidence/manifests/phase7-android-bluetooth-hid.jsonl docs/setup/android-bluetooth-hid-gamepad.md` | ❌ W0 | ⬜ pending |
 
@@ -75,7 +75,7 @@ Per-phase validation contract after the Android Bluetooth HID gamepad reroute. C
 - [ ] Wave 0 covers all missing test/evidence/doc scaffolds.
 - [ ] No watch-mode flags.
 - [ ] Live DESK-03 proof uses Bluetooth HID/Game Controller path, not desktop companion LAN input.
-- [ ] DESK-06 pass requires host-origin HID output callback and phone vibration; unsupported status requires live no-callback/no-usable-output evidence.
+- [x] DESK-06 pass requires host-origin HID output callback and phone vibration; unsupported/deferred status requires live no-callback/no-usable-output evidence.
 - [ ] Redaction scan passes for evidence/docs.
 - [ ] `nyquist_compliant: true` remains set in frontmatter.
 

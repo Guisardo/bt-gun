@@ -1,11 +1,13 @@
 import CoreHaptics
 import Foundation
 import GameController
+import IOKit.hid
 
 private let schema = "btgun.phase7.gamecontroller_probe.v1"
 private let defaultCaptureID = "phase7-macos-gamecontroller-live"
 private let defaultDurationSeconds = 45.0
 private let axisThreshold: Float = 0.20
+private let hidAxisThreshold = 6_553
 private let labelTokens = ["bt gun", "btgun", "android", "hid gamepad"]
 
 private let options = ProbeOptions(arguments: Array(CommandLine.arguments.dropFirst()))
@@ -32,6 +34,7 @@ private let timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) {
     state.scanControllers()
 }
 state.scanControllers()
+state.startIOHIDFallback()
 
 RunLoop.current.run(until: Date().addingTimeInterval(options.durationSeconds))
 timer.invalidate()
@@ -58,6 +61,8 @@ private final class ProbeState {
     private var emittedKeys: Set<String> = []
     private var observed: Set<String> = []
     private var hapticsAttempted = false
+    private var hidFallbackVisible = false
+    private var hidManager: IOHIDManager?
 
     init(options: ProbeOptions) {
         self.options = options
@@ -103,9 +108,116 @@ private final class ProbeState {
                 "controller_slot": selectedSlot as Any,
                 "label_match": selectedLabelMatch,
                 "observed_controls": observed.sorted(),
-                "status": selectedController == nil ? "no-controller-visible" : "completed",
+                "status": selectedController == nil && !hidFallbackVisible ? "no-controller-visible" : "completed",
             ]
         )
+    }
+
+    func startIOHIDFallback() {
+        let manager = IOHIDManagerCreate(kCFAllocatorDefault, IOOptionBits(kIOHIDOptionsTypeNone))
+        let matching: [String: Any] = [
+            kIOHIDDeviceUsagePageKey: kHIDPage_GenericDesktop,
+            kIOHIDDeviceUsageKey: kHIDUsage_GD_GamePad,
+        ]
+        IOHIDManagerSetDeviceMatching(manager, matching as CFDictionary)
+        let opened = IOHIDManagerOpen(manager, IOOptionBits(kIOHIDOptionsTypeNone))
+        guard opened == kIOReturnSuccess else {
+            return
+        }
+        hidManager = manager
+
+        if let devices = IOHIDManagerCopyDevices(manager) as? Set<IOHIDDevice>, !devices.isEmpty {
+            hidFallbackVisible = true
+            selectedSlot = selectedSlot ?? 0
+            selectedLabelMatch = selectedLabelMatch == "none" ? "bt-gun-or-android-label" : selectedLabelMatch
+            emit(
+                event: "controller-visible",
+                fields: [
+                    "controller_slot": selectedSlot as Any,
+                    "label_match": selectedLabelMatch,
+                    "product_category_class": "game-controller",
+                    "status": "visible",
+                ]
+            )
+            emit(
+                event: "extended-gamepad-available",
+                fields: [
+                    "controller_slot": selectedSlot as Any,
+                    "label_match": selectedLabelMatch,
+                    "extended_gamepad": false,
+                    "status": "iohid-fallback",
+                ]
+            )
+            if options.probeHaptics && !hapticsAttempted {
+                hapticsAttempted = true
+                emit(
+                    event: "haptic-output-probe-attempted",
+                    fields: [
+                        "controller_slot": selectedSlot as Any,
+                        "label_match": selectedLabelMatch,
+                        "haptics_available": false,
+                        "status": "no-gamecontroller-haptics",
+                    ]
+                )
+            }
+        }
+
+        let context = Unmanaged.passUnretained(self).toOpaque()
+        IOHIDManagerRegisterInputValueCallback(manager, { context, _, _, value in
+            guard let context else {
+                return
+            }
+            let state = Unmanaged<ProbeState>.fromOpaque(context).takeUnretainedValue()
+            state.handleHIDValue(value)
+        }, context)
+        IOHIDManagerScheduleWithRunLoop(manager, CFRunLoopGetCurrent(), CFRunLoopMode.defaultMode.rawValue)
+    }
+
+    private func handleHIDValue(_ value: IOHIDValue) {
+        let element = IOHIDValueGetElement(value)
+        let usagePage = Int(IOHIDElementGetUsagePage(element))
+        let usage = Int(IOHIDElementGetUsage(element))
+        let intValue = IOHIDValueGetIntegerValue(value)
+        let slot = selectedSlot ?? 0
+
+        if usagePage == kHIDPage_Button, intValue != 0 {
+            if let button = hidButton(usage) {
+                emitObservation(
+                    key: button.event,
+                    event: button.event,
+                    fields: [
+                        "controller_slot": slot,
+                        "label_match": selectedLabelMatch,
+                        "control": button.control,
+                        "control_source": "iohid-button-\(usage)",
+                        "value_bucket": "active",
+                        "status": "observed",
+                    ]
+                )
+            }
+            return
+        }
+
+        guard usagePage == kHIDPage_GenericDesktop else {
+            return
+        }
+        guard abs(intValue) >= hidAxisThreshold else {
+            return
+        }
+        if let axis = hidAxis(usage) {
+            emitObservation(
+                key: axis.event,
+                event: axis.event,
+                fields: [
+                    "controller_slot": slot,
+                    "label_match": selectedLabelMatch,
+                    "axis": axis.axis,
+                    "axis_source": "iohid-axis-\(usage)",
+                    "value_bucket": signedIntegerBucket(intValue),
+                    "status": "observed",
+                ]
+            )
+        }
     }
 
     private func attach(to controller: GCController, slot: Int, labelMatch: String) {
@@ -403,6 +515,53 @@ private func signedValueBucket(_ value: Float) -> String {
         return "positive-high"
     }
     return "positive-active"
+}
+
+private func signedIntegerBucket(_ value: Int) -> String {
+    if value <= -26_214 {
+        return "negative-high"
+    }
+    if value < -hidAxisThreshold {
+        return "negative-active"
+    }
+    if value >= 26_214 {
+        return "positive-high"
+    }
+    return "positive-active"
+}
+
+private func hidButton(_ usage: Int) -> (event: String, control: String)? {
+    switch usage {
+    case 1:
+        return ("button-a-observed", "a")
+    case 2:
+        return ("button-b-observed", "b")
+    case 3:
+        return ("button-x-observed", "x")
+    case 4:
+        return ("button-y-observed", "y")
+    case 7:
+        return ("reload-observed", "reload")
+    case 8:
+        return ("trigger-observed", "trigger")
+    default:
+        return nil
+    }
+}
+
+private func hidAxis(_ usage: Int) -> (event: String, axis: String)? {
+    switch usage {
+    case kHIDUsage_GD_X:
+        return ("stickX-observed", "stickX")
+    case kHIDUsage_GD_Y:
+        return ("stickY-observed", "stickY")
+    case kHIDUsage_GD_Z:
+        return ("aimX-observed", "aimX")
+    case kHIDUsage_GD_Rx:
+        return ("aimY-observed", "aimY")
+    default:
+        return nil
+    }
 }
 
 private func sanitizePayload(_ payload: [String: Any]) -> [String: Any] {

@@ -4,7 +4,7 @@ fun main() {
     descriptorBytesArePinned()
     descriptorMirrorsBtGunV1Semantics()
     reportConstantsMatchBluetoothHidContract()
-    descriptorUsesStandardGamepadPagesOnly()
+    defaultDescriptorUsesStandardGamepadPagesOnly()
 }
 
 private fun descriptorBytesArePinned() {
@@ -15,15 +15,12 @@ private fun descriptorBytesArePinned() {
         0x85.toByte(), 0x01,
         0x05, 0x09,
         0x19, 0x01,
-        0x29, 0x06,
+        0x29, 0x08,
         0x15, 0x00,
         0x25, 0x01,
-        0x95.toByte(), 0x06,
+        0x95.toByte(), 0x08,
         0x75, 0x01,
         0x81.toByte(), 0x02,
-        0x95.toByte(), 0x01,
-        0x75, 0x02,
-        0x81.toByte(), 0x03,
         0x05, 0x01,
         0x16, 0x00, 0x80.toByte(),
         0x26, 0xff.toByte(), 0x7f,
@@ -31,8 +28,8 @@ private fun descriptorBytesArePinned() {
         0x95.toByte(), 0x04,
         0x09, 0x30,
         0x09, 0x31,
+        0x09, 0x32,
         0x09, 0x33,
-        0x09, 0x34,
         0x81.toByte(), 0x02,
         0x85.toByte(), 0x02,
         0x05, 0x01,
@@ -45,15 +42,19 @@ private fun descriptorBytesArePinned() {
         0xc0.toByte(),
     )
 
-    expectByteArray("descriptor", expected, BtGunHidDescriptor.DESCRIPTOR_BYTES)
+    expectByteArray("gamepad descriptor", expected, BtGunHidDescriptor.DESCRIPTOR_BYTES)
 }
 
 private fun descriptorMirrorsBtGunV1Semantics() {
     expectEquals("device kind", "gamepad_like_joystick", BtGunHidDescriptor.DEVICE_KIND)
-    expectEquals("buttons", listOf("trigger", "reload", "x", "y", "a", "b"), BtGunHidDescriptor.BUTTONS)
+    expectEquals(
+        "buttons",
+        listOf("button_a", "button_b", "button_x", "button_y", "leftShoulder", "rightShoulder", "reload", "trigger"),
+        BtGunHidDescriptor.BUTTONS,
+    )
     expectEquals("axes", listOf("stickX", "stickY", "aimX", "aimY"), BtGunHidDescriptor.AXES)
-    expectEquals("trigger kind", "digital", BtGunHidDescriptor.TRIGGER_KIND)
-    expectEquals("button count", 6, BtGunHidDescriptor.BUTTON_COUNT)
+    expectEquals("trigger kind", "digital_button_usages", BtGunHidDescriptor.TRIGGER_KIND)
+    expectEquals("button count", 8, BtGunHidDescriptor.BUTTON_COUNT)
     expectEquals("axis count", 4, BtGunHidDescriptor.AXIS_COUNT)
 }
 
@@ -65,11 +66,12 @@ private fun reportConstantsMatchBluetoothHidContract() {
     expectEquals("output payload length", 8, BtGunHidDescriptor.OUTPUT_REPORT_PAYLOAD_LENGTH_BYTES)
 }
 
-private fun descriptorUsesStandardGamepadPagesOnly() {
+private fun defaultDescriptorUsesStandardGamepadPagesOnly() {
     val descriptor = BtGunHidDescriptor.DESCRIPTOR_BYTES
     expectTrue("uses generic desktop page", descriptor.containsSubsequence(0x05, 0x01))
     expectTrue("uses gamepad usage", descriptor.containsSubsequence(0x09, 0x05))
     expectTrue("uses button page", descriptor.containsSubsequence(0x05, 0x09))
+    expectFalse("no pid force feedback page by default", descriptor.containsSubsequence(0x05, 0x0f))
     expectFalse("no vendor usage page", descriptor.containsSubsequence(0x06, 0x00, 0xff))
     expectFalse("no gun usage page", descriptor.containsSubsequence(0x05, 0x05))
 }

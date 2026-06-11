@@ -243,10 +243,12 @@ Plans:
   4. Bluetooth HID output or rumble reports route to Android phone haptics when supported, or the app reports the limitation clearly.
   5. Repository documents Android Bluetooth HID setup, macOS pairing, output-report behavior, compatibility risks, and the fallback to the completed Windows virtual joystick path.
 
-**Plans:** 4/6 plans executed
+**Plans:** 5/6 plans executed
 Plans:
 
 **Reroute note (2026-06-10):** CoreHID and DriverKit virtual HID paths require Apple entitlement/signing or local security relaxation and do not satisfy the no-subscription primary path. Legacy work is retained only as evidence/fallback scaffolding. The active Phase 7 plan set below is Android Bluetooth HID gamepad work.
+
+**Haptic defer note (2026-06-11):** macOS browser/GameController haptics over the Android Bluetooth HID path are unsupported/deferred after live `No Vibration` evidence and a failed PID ForceFeedback descriptor experiment. Stable gamepad input remains the active macOS path; phone haptics remain available through LAN/Windows VHF fallback paths.
 
 **Wave 1**
 
