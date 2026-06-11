@@ -28,7 +28,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 ### Phase 1: Hardware and Protocol Discovery
 
-**Goal:** Developer can verify the real iPega hardware protocol and capture enough evidence to build against it.
+**Goal:** As a developer, I want to verify the real iPega hardware protocol and capture enough build evidence, so that the Android host can target the correct gun input and feedback path.
 **Mode:** mvp
 **Depends on:** Nothing (first phase)
 **Requirements:** DISC-01, DISC-02, DISC-03, DISC-04, DISC-05, DISC-06, DISC-07
