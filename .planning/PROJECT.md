@@ -23,10 +23,12 @@ Make the discontinued iPega AR gun usable as a normal wireless joystick gun on m
 - [x] Phase 3 desktop companion can pair with the Android host via QR or pairing code over a proof-gated secure local session.
 - [x] Phase 4 Android host app can stream normalized gun input and motion samples to a desktop companion over Wi-Fi/LAN.
 - [x] Phase 4 desktop-to-Android haptic messages can vibrate the Android phone for v1 feedback.
+- [x] Phase 6 Windows VHF path exposes the BT Gun stream as a regular Windows gamepad-style joystick.
+- [x] Phase 7 Android Bluetooth HID path lets macOS Apple Silicon pair to the Android phone as a normal gamepad-style controller without paid Apple virtual HID entitlements.
+- [x] Phase 7 documents macOS Bluetooth HID output/haptics as unsupported/deferred for the stable Android HID path while preserving LAN and Windows VHF phone-haptic fallback routes.
 
 ### Active
 
-- [ ] Desktop companion can expose a regular gamepad-style gun controller on both Windows 11 x64 and macOS Apple Silicon.
 - [ ] Desktop profiles can map motion aim into joystick axes, with configurable aim mapping in v1.
 - [ ] End-to-end input latency targets under 50 ms for the v1 visualizer path.
 - [ ] A simple joystick visualizer can prove buttons, axes, aim mapping, recentering, and phone haptics.
@@ -77,14 +79,15 @@ Both desktop targets matter for v1: Windows 11 x64 and macOS on M3/Apple Silicon
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
 | Use Android as gun host | Original device was designed for Android Bluetooth pairing and phone-based motion aiming. | - Validated in Phase 2 |
-| Support Windows and macOS in v1 | Both Windows 11 x64 and macOS M3 are required target desktops. | - Pending |
-| Expose a gamepad-style gun HID shape | Regular joystick/gamepad compatibility is safer than a custom gun HID report. | - Pending |
+| Support Windows and macOS in v1 | Both Windows 11 x64 and macOS M3 are required target desktops. | - Windows validated in Phase 6; macOS no-subscription path validated through Android Bluetooth HID in Phase 7 |
+| Expose a gamepad-style gun HID shape | Regular joystick/gamepad compatibility is safer than a custom gun HID report. | - Validated in Phase 6 Windows VHF and Phase 7 Android Bluetooth HID |
 | Use Wi-Fi/LAN transport for v1 | Simpler local pairing, debugging, and latency measurement than desktop Bluetooth/BLE. | - Validated in Phase 4 |
 | Store aim profiles on desktop | Desktop owns target platform mapping and virtual controller behavior. | - Pending |
 | Support accelerometer-aware motion aim | Fused rotation sensors can improve stability when gyro and accelerometer data are available, and accelerometer/gravity tilt can keep a limited aiming mode working on devices without a gyroscope. | - Validated in Phase 2 |
 | Pair by QR or pairing code | Reduces manual IP setup while keeping local-only networking. | - Validated in Phase 3 |
 | Validate first with a joystick visualizer | Proves the input and phone-haptic pipeline before game-specific work. | - Pending |
 | Defer physical gun motor rumble | BLE `fff5` is only a read/write candidate; no verified physical gun motor command path exists. Android phone vibration is confirmed and good enough for v1 feedback. | - Validated in Phase 1; still deferred after Phase 4 |
+| Use Android Bluetooth HID as the no-subscription macOS path | CoreHID/DriverKit virtual HID requires restricted entitlement/signing or local security relaxation; Android HID pairs as a normal gamepad. | - Validated in Phase 7; macOS HID haptics unsupported/deferred |
 
 ## Evolution
 
@@ -104,4 +107,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-09 after Phase 4 approval*
+*Last updated: 2026-06-11 after Phase 7 Android Bluetooth HID verification*
