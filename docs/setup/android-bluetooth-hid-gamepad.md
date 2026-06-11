@@ -19,7 +19,7 @@ Required states before proof:
 | Pairing mode | User starts pairing window from the app | No discoverable/connectable window active |
 | Host connection | macOS connects as HID host | No host connected or host disconnected |
 
-The normal user action is **Start Bluetooth gamepad**. This action is separate from the BLE gun/LAN session path. It starts the HID role probe, registers the gamepad SDP record, and opens the pairing-mode countdown. The app should show remaining pairing time and an explicit blocked reason instead of silently falling back.
+The normal user flow starts with **Start Bluetooth gamepad**. This action is separate from the BLE gun/LAN session path; it starts the HID role probe and registers the gamepad SDP record. After registration is active, tap **Open pairing window** to start the discoverable pairing countdown. The app should show remaining pairing time and an explicit blocked reason instead of silently falling back.
 
 If the current phone blocks HID proxy, registration, macOS pairing, or input proof, test an alternate Android phone before selecting the Windows VHF fallback.
 
@@ -27,12 +27,14 @@ If the current phone blocks HID proxy, registration, macOS pairing, or input pro
 
 1. Start the Android host app and connect the iPega gun if live controls are being tested.
 2. Tap **Start Bluetooth gamepad**.
-3. Confirm the pairing-mode countdown is visible.
-4. On macOS, open Bluetooth settings and pair the Android HID gamepad.
-5. Verify Android reports host connection `CONNECTED`.
-6. Open a Game Controller surface, browser gamepad tester, or the Phase 7 probe path.
-7. Press trigger, reload, X/Y/A/B, move the physical stick, and move the phone for aim.
-8. Record only sanitized evidence rows in `docs/evidence/manifests/phase7-android-bluetooth-hid.jsonl`.
+3. Wait for the HID proxy/registration row to show active or registered.
+4. Tap **Open pairing window**.
+5. Confirm the pairing-mode countdown is visible.
+6. On macOS, open Bluetooth settings and pair the Android HID gamepad.
+7. Verify Android reports host connection `CONNECTED`.
+8. Open a Game Controller surface, browser gamepad tester, or the Phase 7 probe path.
+9. Press trigger, reload, X/Y/A/B, move the physical stick, and move the phone for aim.
+10. Record only sanitized evidence rows in `docs/evidence/manifests/phase7-android-bluetooth-hid.jsonl`.
 
 DESK-03 proof requires macOS Bluetooth HID input. Desktop companion LAN input does not count as DESK-03 proof.
 
