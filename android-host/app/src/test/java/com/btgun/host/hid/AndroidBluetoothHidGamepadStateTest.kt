@@ -12,6 +12,8 @@ fun main() {
     startRequestsHidDeviceProxyAndRegistersGamepadSdp()
     callbacksUpdateStatusAndHandleValidOutputReports()
     invalidOutputReportCallsReportErrorAndSkipsHaptics()
+    staleProxyCallbacksAfterStopDoNotRegisterHidMode()
+    olderProxyCallbacksDoNotOverrideNewStart()
     unregisterAndCloseAreIdempotent()
 }
 
@@ -123,6 +125,40 @@ private fun invalidOutputReportCallsReportErrorAndSkipsHaptics() {
     expectEquals("callback set report", BtGunHidOutputCallbackKind.SET_REPORT, gamepad.status.lastOutputCallback.kind)
 }
 
+private fun staleProxyCallbacksAfterStopDoNotRegisterHidMode() {
+    val connector = FakeHidProfileConnector()
+    val gamepad = AndroidBluetoothHidGamepad(connector = connector, hapticHandler = { null })
+
+    gamepad.startGamepadMode()
+    val staleCallback = connector.callback
+    gamepad.stopGamepadMode()
+    staleCallback.onProxyAvailable(connector.proxy)
+
+    expectEquals("stale callback did not register", 0, connector.proxy.registeredSettings.size)
+    expectEquals("stale proxy unregistered", 1, connector.proxy.unregisterCount)
+    expectEquals("stale status remains stopped", BtGunHidProxyState.NOT_REQUESTED, gamepad.status.proxy)
+    expectEquals("stale send has no proxy", BtGunHidInputSendResult.NO_PROXY, gamepad.sendInput(state(), motion(), stale = false))
+}
+
+private fun olderProxyCallbacksDoNotOverrideNewStart() {
+    val connector = FakeHidProfileConnector()
+    val staleProxy = FakeHidDeviceProxy()
+    val gamepad = AndroidBluetoothHidGamepad(connector = connector, hapticHandler = { null })
+
+    gamepad.startGamepadMode()
+    val firstCallback = connector.callback
+    gamepad.stopGamepadMode()
+    gamepad.startGamepadMode()
+    val currentCallback = connector.callback
+    firstCallback.onProxyAvailable(staleProxy)
+    currentCallback.onProxyAvailable(connector.proxy)
+
+    expectEquals("old proxy not registered", 0, staleProxy.registeredSettings.size)
+    expectEquals("old proxy unregistered", 1, staleProxy.unregisterCount)
+    expectEquals("current proxy registered once", 1, connector.proxy.registeredSettings.size)
+    expectEquals("current status available", BtGunHidProxyState.AVAILABLE, gamepad.status.proxy)
+}
+
 private fun unregisterAndCloseAreIdempotent() {
     val connector = FakeHidProfileConnector()
     val gamepad = AndroidBluetoothHidGamepad(connector = connector, hapticHandler = { null })
@@ -181,14 +217,16 @@ private object FakeHost : BtGunHidHost {
 
 private class FakeHidProfileConnector : BtGunHidProfileConnector {
     val proxy = FakeHidDeviceProxy()
-    lateinit var callback: BtGunHidProfileCallback
+    private val callbacks = mutableListOf<BtGunHidProfileCallback>()
+    val callback: BtGunHidProfileCallback
+        get() = callbacks.last()
     var requestCount = 0
     var closeCount = 0
     val pairingDurations = mutableListOf<Int>()
 
     override fun requestHidDeviceProxy(callback: BtGunHidProfileCallback) {
         requestCount += 1
-        this.callback = callback
+        callbacks += callback
     }
 
     override fun openPairingWindow(durationSeconds: Int): Boolean {
