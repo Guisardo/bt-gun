@@ -1,82 +1,98 @@
 ---
 phase: 03
 slug: lan-pairing-and-secure-session
-status: draft
-nyquist_compliant: false
-wave_0_complete: false
+status: verified
+nyquist_compliant: true
+wave_0_complete: true
 created: 2026-06-07
+updated: 2026-06-11
 ---
 
 # Phase 03 - Validation Strategy
 
-Per-phase validation contract for feedback sampling during Phase 03 execution.
+Retroactive Nyquist audit for Phase 03 LAN pairing and secure session.
 
-## Planned vs Achieved Status
+## Audit Result
 
-`nyquist_compliant: false` and `wave_0_complete: false` are intentional pre-execution values. This document defines the Wave 0 validation plan and the commands that must become green during execution; it does not claim those checks have already run. Executors may set `wave_0_complete: true` only after the Wave 0 desktop and Android test harnesses exist and their mapped checks pass. Executors may set `nyquist_compliant: true` only after every task in the Per-Task Verification Map has an automated command that exists, runs, and passes, plus any listed manual-only verifications are captured in the phase summary.
+Phase 03 is Nyquist-compliant for its owned requirements: `TRAN-01`, `TRAN-02`, `TRAN-03`, and `TRAN-06`.
+
+The previous validation file was a pre-execution Wave 0 plan. This update replaces stale `pending` rows with the implemented test map, current commands, and completed manual smoke evidence.
 
 ## Test Infrastructure
 
 | Property | Value |
 |----------|-------|
-| Framework | Android Kotlin/Java unit tests through Gradle `testDebugUnitTest`; desktop JVM test harness not created yet. |
-| Config file | `android-host/app/build.gradle.kts`; `desktop-companion/build.gradle.kts` must be created in Wave 0. |
-| Quick run command | `JAVA_HOME=/opt/homebrew/Cellar/openjdk@17/17.0.19/libexec/openjdk.jdk/Contents/Home ANDROID_HOME=/Users/lucas.rancez/Library/Android/sdk GRADLE_USER_HOME=/private/tmp/bt-gun-gradle-home gradle -p android-host testDebugUnitTest --tests '*DashboardState*'` |
-| Full suite command | `JAVA_HOME=/opt/homebrew/Cellar/openjdk@17/17.0.19/libexec/openjdk.jdk/Contents/Home ANDROID_HOME=/Users/lucas.rancez/Library/Android/sdk GRADLE_USER_HOME=/private/tmp/bt-gun-gradle-home gradle -p android-host testDebugUnitTest`; after Wave 0 also run `gradle -p desktop-companion test`. |
-| Estimated runtime | Android focused tests under 30 seconds; full Android plus desktop suite TBD after desktop harness exists. |
+| Framework | Android Kotlin/Java main-style unit tests through Gradle `testDebugUnitTest`; desktop Kotlin/JVM main-style tests through Gradle `test`. |
+| Config files | `android-host/app/build.gradle.kts`; `desktop-companion/build.gradle.kts`. |
+| Desktop command | `JAVA_HOME=/opt/homebrew/Cellar/openjdk@17/17.0.19/libexec/openjdk.jdk/Contents/Home GRADLE_USER_HOME=/private/tmp/bt-gun-gradle-home gradle -p desktop-companion test` |
+| Android command | `JAVA_HOME=/opt/homebrew/Cellar/openjdk@17/17.0.19/libexec/openjdk.jdk/Contents/Home ANDROID_HOME=/Users/lucas.rancez/Library/Android/sdk GRADLE_USER_HOME=/private/tmp/bt-gun-gradle-home gradle -p android-host testDebugUnitTest` |
+| Boundary note | Original Phase 3 Phase-4-boundary grep is superseded on the current branch because Phase 4+ code and docs now legitimately contain UDP and haptic protocol terms. Phase 3 validation now scopes to phase-owned requirements, tests, UAT, and manual smoke artifacts. |
 
 ## Sampling Rate
 
-- After every task commit: run focused unit tests for changed Android or desktop module.
-- After every plan wave: run full Android `testDebugUnitTest` plus desktop `test` once Wave 0 creates the desktop harness.
-- Before `$gsd-verify-work`: Android full suite and desktop full suite must be green.
-- Max feedback latency: under 60 seconds for focused checks after Wave 0.
+- After each Phase 03 implementation wave: focused Android or desktop command from that plan summary ran green.
+- Phase closeout: full desktop and Android suites ran green.
+- Retroactive audit on 2026-06-11 reran full desktop and Android suites.
+- Physical/user-only coverage is captured in `03-UAT.md` and `03-MANUAL-SMOKE.md`.
 
 ## Per-Task Verification Map
 
-| Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
-|---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 03-W0-01 | TBD | 0 | TRAN-01 | T-03-01 / T-03-02 | Desktop pairing session creates QR payload, 6-digit manual code, TTL, best IPv4 endpoint, and QR image without persisting one-time secrets. | unit | `gradle -p desktop-companion test --tests '*PairingSession*'` | no - W0 | pending |
-| 03-W0-02 | TBD | 0 | TRAN-02 | T-03-05 / T-03-06 | Android parses QR/manual payloads, rejects stale or unreachable endpoint state clearly, and does not broaden normal pairing into LAN discovery. | unit + manual device QR smoke | `gradle -p android-host testDebugUnitTest --tests '*PairingPayload*'` | no - W0 | pending |
-| 03-W0-03 | TBD | 0 | TRAN-03 | T-03-01 / T-03-02 / T-03-03 / T-03-04 | Pairing proof rejects expired, reused, wrong-code, wrong-fingerprint, and replayed-nonce attempts before trusted control messages are accepted. | unit + local integration | `gradle -p desktop-companion test --tests '*PairingSecurity*'` | no - W0 | pending |
-| 03-W0-04 | TBD | 0 | TRAN-06 | T-03-04 / T-03-05 | WSS control channel sends session-ready, heartbeat ping/pong, diagnostics, minimal profile metadata, and a reserved haptic envelope type only. | unit + local integration | `gradle -p desktop-companion test --tests '*ControlChannel*'` plus Android control client tests | no - W0 | pending |
+| Task ID | Plan | Wave | Requirement | Automated Evidence | Manual Evidence | Status |
+|---------|------|------|-------------|--------------------|-----------------|--------|
+| 03-01 | Desktop pairing session | 0 | TRAN-01, TRAN-03 | `PairingSessionRegistryTest.kt`; desktop full suite. Covers TTL, QR/manual payload, endpoint, 6-digit code, fingerprint suffix, QR rendering, identity persistence, and secret redaction. | QR/manual smoke checklist in `03-MANUAL-SMOKE.md`. | COVERED |
+| 03-02 | Android pairing entry | 1 | TRAN-02, TRAN-03 | `PairingPayloadTest.kt`, `TrustedDesktopStoreTest.kt`, `DashboardStateTest.kt`; Android full suite. Covers QR/manual parsing, expired/malformed payloads, trusted metadata, trust copy, and inactive packet stream. | UAT tests 1-3 passed. | COVERED |
+| 03-03 | Authenticated pairing proof | 2 | TRAN-03 | `PairingSecurityTest.kt`, `TrustedDesktopStoreTest.kt`; desktop and Android full suites. Covers HMAC transcript, expiry, single-use, replay nonce, wrong secret/code, fingerprint mismatch, rate-limit, and redaction. | UAT trust mismatch passed. | COVERED |
+| 03-04 | Reliable control core | 3 | TRAN-03, TRAN-06 | `ControlChannelTest.kt`, `DesktopControlClientTest.kt`; desktop and Android full suites. Covers proof-gated control, envelope version/type allowlist, max message handling, pre-auth rejection, and reserved haptic type. | UAT QR path passed. | COVERED |
+| 03-05 | Heartbeat, diagnostics, profile metadata | 4 | TRAN-06 | `ControlChannelTest.kt`, `DesktopControlClientTest.kt`, `DashboardStateTest.kt`; desktop and Android full suites. Covers heartbeat ping/pong, connected/degraded/disconnected states, diagnostics, minimal profile metadata, and reserved haptic handling. | UAT heartbeat degradation passed. | COVERED |
+| 03-06 | Desktop companion launch | 5 | TRAN-01, TRAN-03, TRAN-06 | `PairingSessionRegistryTest.kt`, `PairingWindowTest.kt`, `ControlChannelTest.kt`; desktop full suite. Covers launch wiring, QR/manual UI labels, countdown, lifecycle state, server start/stop, and redaction. | QR/manual smoke checklist in `03-MANUAL-SMOKE.md`. | COVERED |
+| 03-07 | Android QR/manual/trusted wiring | 6 | TRAN-02, TRAN-03, TRAN-06 | `DesktopControlClientTest.kt`, `DashboardStateTest.kt`, `HostSessionServiceLivenessTest.kt`; Android full suite. Covers QR-derived requests, proof headers, manual/trusted actions, trust mismatch fail-closed behavior, socket close, diagnostics, and packet inactivity. | UAT tests 1-4 passed. | COVERED |
+| 03-08 | Protocol docs and smoke guide | 7 | TRAN-01, TRAN-02, TRAN-03, TRAN-06 | Full desktop and Android suites; docs mirror implemented `btgun://pair`, proof transcript, WSS envelope, heartbeat, diagnostics, profile metadata, and reserved haptic type. | `03-MANUAL-SMOKE.md`; UAT summary 4/4 passed. | COVERED |
 
-## Wave 0 Requirements
+## Requirement Coverage
 
-- [ ] `desktop-companion/build.gradle.kts` - JVM desktop test harness and dependency verification gates.
-- [ ] `desktop-companion/src/test/kotlin/.../PairingSessionTest.kt` - pairing session TTL, manual code, endpoint, QR payload tests.
-- [ ] `desktop-companion/src/test/kotlin/.../PairingSecurityTest.kt` - wrong-code, replay, single-use, rate-limit, fingerprint mismatch tests.
-- [ ] `desktop-companion/src/test/kotlin/.../ControlChannelTest.kt` - envelope allowlist, heartbeat, diagnostics, profile metadata, and haptic reservation tests.
-- [ ] `android-host/app/src/test/java/com/btgun/host/session/PairingPayloadTest.kt` - QR/manual parser and stale endpoint error tests.
-- [ ] `android-host/app/src/test/java/com/btgun/host/session/TrustedDesktopStoreTest.kt` - persisted fingerprint trust and mismatch behavior tests.
-- [ ] `docs/protocol/lan-pairing-v1.md` - pairing URI, proof transcript, control envelope, and reserved haptic type contract.
+| Requirement | Covered By | Automated Status | Manual Status |
+|-------------|------------|------------------|---------------|
+| TRAN-01 | Plans 03-01, 03-06, 03-08 | COVERED by `PairingSessionRegistryTest.kt`, `PairingWindowTest.kt`, desktop full suite. | QR/manual fallback smoke passed through UAT/manual guide evidence. |
+| TRAN-02 | Plans 03-02, 03-07, 03-08 | COVERED by `PairingPayloadTest.kt`, `TrustedDesktopStoreTest.kt`, `DesktopControlClientTest.kt`, `DashboardStateTest.kt`, Android full suite. | QR normal path and manual fallback UAT passed. |
+| TRAN-03 | Plans 03-01 through 03-08 | COVERED by `PairingSecurityTest.kt`, `TrustedDesktopStoreTest.kt`, `ControlChannelTest.kt`, `DesktopControlClientTest.kt`, full suites. | Trust mismatch UAT passed. |
+| TRAN-06 | Plans 03-04 through 03-08 | COVERED by `ControlChannelTest.kt`, `DesktopControlClientTest.kt`, `DashboardStateTest.kt`, `HostSessionServiceLivenessTest.kt`, full suites. | Heartbeat degradation UAT passed. |
 
 ## Manual-Only Verifications
 
-| Behavior | Requirement | Why Manual | Test Instructions |
-|----------|-------------|------------|-------------------|
-| Android QR scan path pairs with the local desktop companion. | TRAN-02 | Camera/Google Code Scanner behavior and device Play services availability require a physical Android device. | Start desktop pairing session, scan QR from Android, confirm trusted desktop fingerprint prompt/state, and verify session reaches connected. |
-| Manual fallback is visible and usable without scanning. | TRAN-01, TRAN-02 | User-facing fallback layout and entry errors require visual/device confirmation. | Start desktop pairing session, use Android manual entry for IP/port/code, confirm clear errors for wrong code/stale endpoint, then confirm success with correct code. |
-| Heartbeat degrades and disconnects visibly. | TRAN-06 | Network interruption behavior needs real or simulated LAN disruption. | Pair Android and desktop, interrupt desktop or LAN, verify Android and desktop state move connected -> degraded -> disconnected without activating Packet stream. |
+| Behavior | Requirement | Why Manual | Evidence | Status |
+|----------|-------------|------------|----------|--------|
+| QR normal path pairs Android to desktop without manual IP entry. | TRAN-02, TRAN-03, TRAN-06 | Camera scanner, Android foreground service, local TLS/WSS, and LAN runtime need physical-device smoke. | `03-UAT.md` test 1 passed. | PASSED |
+| Manual fallback and wrong code behavior. | TRAN-01, TRAN-02, TRAN-03 | Visible entry UX, endpoint reachability, wrong-code copy, and expired material need runtime/device check. | `03-UAT.md` test 2 passed. | PASSED |
+| Trust mismatch fails closed. | TRAN-03 | Persisted trusted fingerprint and changed desktop identity need real app state. | `03-UAT.md` test 3 passed. | PASSED |
+| Heartbeat degradation. | TRAN-06 | LAN interruption and visible liveness timing need runtime observation. | `03-UAT.md` test 4 passed. | PASSED |
 
-## Threat Model References
+## Verification Run - 2026-06-11
 
-| Threat Ref | Threat | Required Mitigation |
-|------------|--------|---------------------|
-| T-03-01 | Rogue desktop impersonates trusted host. | Persist and pin desktop public-key fingerprint; fail closed on mismatch. |
-| T-03-02 | Pairing code brute force. | 6-digit code only with short TTL, per-session attempt limit, and backoff or lockout. |
-| T-03-03 | Replay of pair request. | Nonces, session id, HMAC transcript, single-use session material. |
-| T-03-04 | Control message injection before auth. | No trusted control handling until WSS is established and pair proof passes. |
-| T-03-05 | Oversized or unknown WebSocket message. | Set max frame/message size and reject unknown envelope versions/types. |
-| T-03-06 | Secret leakage in logs or QR screenshots. | Redact QR secret, manual code, and proof; show only fingerprint suffix and session state in diagnostics. |
+| Check | Result |
+|-------|--------|
+| Nyquist config | enabled |
+| Input state | State A - existing `03-VALIDATION.md` audited and updated |
+| Desktop full suite | PASS after escalated rerun; sandboxed Gradle cannot create local file-lock sockets |
+| Android full suite | PASS after escalated rerun; sandboxed Gradle cannot create local file-lock sockets |
+| Current uncovered requirement gaps | 0 |
+| Tests added by this audit | 0 |
+
+## Validation Audit 2026-06-11
+
+| Metric | Count |
+|--------|-------|
+| Current uncovered requirement gaps | 0 |
+| Stale pre-execution rows resolved | 4 |
+| Manual-only checks | 4 |
+| Manual-only passed | 4 |
+| Tests generated | 0 |
 
 ## Validation Sign-Off
 
-- [ ] All tasks have automated verification or Wave 0 dependencies.
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify.
-- [ ] Wave 0 covers all missing test references.
-- [ ] No watch-mode flags.
-- [ ] Feedback latency under 60 seconds after Wave 0.
-- [ ] `nyquist_compliant: true` set in frontmatter after Wave 0 test harness exists and all mapped checks are green.
+- [x] All Phase 03 requirements have automated verification.
+- [x] All Phase 03 manual/device-only flows have passed UAT evidence.
+- [x] Sampling continuity is restored from plan summaries and full-suite reruns.
+- [x] No watch-mode commands are required.
+- [x] `nyquist_compliant: true` set in frontmatter.
 
-**Approval:** pending
+**Approval:** verified
