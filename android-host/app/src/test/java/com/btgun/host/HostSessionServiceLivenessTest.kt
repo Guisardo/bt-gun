@@ -207,11 +207,17 @@ private fun liveInputFanoutOnlySendsWhenHidHostConnected() {
 
     controller.fanOutLiveInput(HostSessionState(gunInputState = inputState, lastMotionSample = null))
     driver.status = driver.status.copy(hostConnection = BtGunHidHostConnectionState.CONNECTED)
-    controller.fanOutLiveInput(HostSessionState(gunInputState = inputState, lastMotionSample = motionEnvelope(motion)))
+    val mappedState = HostSessionProfileRuntime(
+        profileStore = ProfileStore(InMemoryProfilePreferences()),
+        mapper = ProfileMapper(),
+        elapsedRealtimeNanos = { 2_000L },
+    ).loadActiveProfile(HostSessionState(gunInputState = inputState, lastMotionSample = motionEnvelope(motion)))
+    controller.fanOutLiveInput(mappedState)
 
-    expectEquals("only connected send", 1, driver.sentInputs.size)
-    expectEquals("sent state", inputState, driver.sentInputs.single().state)
-    expectEquals("sent motion", motion, driver.sentInputs.single().motion)
+    expectEquals("only connected send", 1, driver.sentMappedInputs.size)
+    expectEquals("sent mapped controls", setOf("trigger"), driver.sentMappedInputs.single().state.pressedVirtualControls)
+    expectEquals("sent mapped stick x", inputState.stickAxisX, driver.sentMappedInputs.single().state.stickAxisX)
+    expectEquals("sent mapped aim x", motion.aimX, driver.sentMappedInputs.single().state.aimAxisX)
 }
 
 private fun hidOutputCallbackRoutesThroughPhoneHapticExecutorStatus() {
@@ -273,7 +279,9 @@ private fun hostProfileRuntimeReloadsSelectedProfileWithoutRestart() {
         .copy(
             displayName = "Reload Test",
             aim = AimMappingSettings(sensitivity = 2f, smoothing = SmoothingMode.OFF),
-            buttonMapping = BtGunProfile.defaultButtonMapping() + (PhysicalButton.TRIGGER to VirtualButton.BUTTON_X),
+            buttonMapping = BtGunProfile.defaultButtonMapping() +
+                (PhysicalButton.TRIGGER to VirtualButton.BUTTON_X) +
+                (PhysicalButton.BUTTON_X to VirtualButton.TRIGGER),
             rawDebugEnabled = true,
         )
     store.saveProfile(copy)
@@ -382,6 +390,23 @@ private class RecordingHostHidGamepadDriver(
 
     override fun sendMappedInput(state: MappedControllerState, stale: Boolean): BtGunHidInputSendResult {
         sentMappedInputs += SentMappedInput(state, stale)
+        sentInputs += SentInput(
+            state = GunInputState(
+                pressedControls = state.pressedVirtualControls,
+                stickAxisX = state.stickAxisX,
+                stickAxisY = state.stickAxisY,
+            ),
+            motion = MotionSample(
+                provider = MotionProvider.ROTATION_VECTOR,
+                sourceSensorElapsedNanos = 0L,
+                yaw = 0f,
+                pitch = 0f,
+                roll = 0f,
+                aimX = state.aimAxisX,
+                aimY = state.aimAxisY,
+            ),
+            stale = stale,
+        )
         return BtGunHidInputSendResult.SENT
     }
 
