@@ -7,6 +7,8 @@ import com.btgun.host.model.MotionProvider
 import com.btgun.host.model.MotionSample
 import com.btgun.host.model.StreamKind
 import com.btgun.host.motion.MotionCapabilityFlags
+import com.btgun.host.profile.MappedAimStatus
+import com.btgun.host.profile.MappedControllerState
 import java.io.File
 
 fun main() {
@@ -16,6 +18,8 @@ fun main() {
     snapshotUsesFreshCaptureTimeForOldMotionSample()
     edgeUsesSharedMonotonicSequenceAndImmediateSend()
     senderCloseClosesDatagramSink()
+    snapshotSendsMappedProductStreamWithRawDebugOffByDefault()
+    rawDebugOnAddsFlagAndRawMotionExtras()
     senderSourceExcludesPreviewAimAndProductMapping()
 }
 
@@ -167,6 +171,86 @@ private fun senderCloseClosesDatagramSink() {
     expectTrue("sink closed", sink.closed)
 }
 
+private fun snapshotSendsMappedProductStreamWithRawDebugOffByDefault() {
+    val sink = RecordingDatagramSink()
+    val now = 6_000_000_000L
+    val sender = AndroidUdpInputSender(
+        datagramSink = sink,
+        elapsedRealtimeNanos = { now },
+    )
+
+    sender.start(fixtureConfig())
+    val result = sender.sendSnapshot(
+        mappedState = mappedState(
+            pressedVirtualControls = setOf("button_x", "reload"),
+            stickAxisX = -0.5f,
+            stickAxisY = 0.25f,
+            aimAxisX = 0.375f,
+            aimAxisY = -0.625f,
+        ),
+        motion = motionEnvelope(
+            rawAimX = 0.99f,
+            rawAimY = -0.99f,
+            aimX = 0.01f,
+            aimY = -0.01f,
+        ),
+        rawDebugEnabled = false,
+    )
+
+    val decoded = decodeSingle(sink)
+    expectEquals("mapped snapshot result", AndroidUdpInputSendResult.SENT, result)
+    expectEquals("mapped stream flag", UdpInputFrame.FLAG_MAPPED_PRODUCT_STREAM, decoded.streamFlags)
+    expectEquals("mapped buttons", AndroidUdpInputSender.BUTTON_RELOAD or AndroidUdpInputSender.BUTTON_X, decoded.buttonBitmask)
+    expectEquals("mapped stick x", -16_384, decoded.stickX)
+    expectEquals("mapped stick y", 8_192, decoded.stickY)
+    expectEquals("provider neutral", AndroidUdpInputSender.PROVIDER_UNAVAILABLE, decoded.motionProvider)
+    expectEquals("capability neutral", 0, decoded.motionCapabilityFlags)
+    expectEquals("product aim x", 0.375f, decoded.productAimX)
+    expectEquals("product aim y", -0.625f, decoded.productAimY)
+    expectTrue("raw roll absent", decoded.rawRoll.isNaN())
+    expectTrue("raw aim x absent", decoded.rawAimX.isNaN())
+    expectTrue("raw aim y absent", decoded.rawAimY.isNaN())
+    expectEquals("source sensor absent", 0L, decoded.sourceSensorElapsedNanos)
+}
+
+private fun rawDebugOnAddsFlagAndRawMotionExtras() {
+    val sink = RecordingDatagramSink()
+    val now = 7_000_000_000L
+    val sender = AndroidUdpInputSender(
+        datagramSink = sink,
+        elapsedRealtimeNanos = { now },
+    )
+
+    sender.start(fixtureConfig())
+    val result = sender.sendSnapshot(
+        mappedState = mappedState(aimAxisX = -0.25f, aimAxisY = 0.5f),
+        motion = motionEnvelope(
+            sourceSensorElapsedNanos = 6_999_999_000L,
+            rawAimX = 0.75f,
+            rawAimY = -0.5f,
+            aimX = 0.2f,
+            aimY = -0.2f,
+        ),
+        rawDebugEnabled = true,
+    )
+
+    val decoded = decodeSingle(sink)
+    expectEquals("raw debug result", AndroidUdpInputSendResult.SENT, result)
+    expectEquals(
+        "raw debug flags",
+        UdpInputFrame.FLAG_MAPPED_PRODUCT_STREAM or UdpInputFrame.FLAG_RAW_DEBUG_EXTRAS,
+        decoded.streamFlags,
+    )
+    expectEquals("raw provider", AndroidUdpInputSender.PROVIDER_ROTATION_VECTOR, decoded.motionProvider)
+    expectEquals("raw capabilities", 0x07, decoded.motionCapabilityFlags)
+    expectEquals("product aim x preserved", -0.25f, decoded.productAimX)
+    expectEquals("product aim y preserved", 0.5f, decoded.productAimY)
+    expectEquals("raw roll", 0.75f, decoded.rawRoll)
+    expectEquals("raw aim x", 0.75f, decoded.rawAimX)
+    expectEquals("raw aim y", -0.5f, decoded.rawAimY)
+    expectEquals("raw source sensor", 6_999_999_000L, decoded.sourceSensorElapsedNanos)
+}
+
 private fun senderSourceExcludesPreviewAimAndProductMapping() {
     val source = File("app/src/main/java/com/btgun/host/transport/AndroidUdpInputSender.kt")
     val text = if (source.exists()) source.readText() else ""
@@ -174,6 +258,29 @@ private fun senderSourceExcludesPreviewAimAndProductMapping() {
         expectFalse("sender excludes $banned", text.contains(banned, ignoreCase = false))
     }
 }
+
+private fun mappedState(
+    pressedVirtualControls: Set<String> = emptySet(),
+    stickAxisX: Float = 0f,
+    stickAxisY: Float = 0f,
+    aimAxisX: Float = 0f,
+    aimAxisY: Float = 0f,
+): MappedControllerState =
+    MappedControllerState(
+        aimAxisX = aimAxisX,
+        aimAxisY = aimAxisY,
+        aimStatus = MappedAimStatus(
+            aimSource = "mapped_profile",
+            providerName = "rotation_vector",
+            smoothingMode = "off",
+            estimatedFilterLagMillis = 0,
+            adaptiveFallback = false,
+        ),
+        pressedVirtualControls = pressedVirtualControls,
+        stickAxisX = stickAxisX,
+        stickAxisY = stickAxisY,
+        recenterPhysicalControl = "reload",
+    )
 
 private fun decodeSingle(sink: RecordingDatagramSink): UdpInputFrame {
     expectEquals("packet count", 1, sink.datagrams.size)

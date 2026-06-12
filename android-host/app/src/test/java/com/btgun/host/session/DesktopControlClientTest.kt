@@ -11,6 +11,7 @@ import okio.ByteString
 import okhttp3.Request
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
+import java.io.File
 
 fun main() {
     envelopeCodecMirrorsDesktopAllowlist()
@@ -32,6 +33,8 @@ fun main() {
     clientCloseStopsSocketAndDisconnectsLinkState()
     clientUpdatesLinkStateFromHeartbeatDiagnosticsAndErrors()
     profileMetadataModelContainsOnlyRequiredFields()
+    clientSendsAndroidProfileMetadataAfterSessionReady()
+    desktopControlClientHasNoRawStreamRequestPath()
     controlEnvelopeAllowsHeartbeatDiagnosticsAndProfileTypes()
     controlEnvelopeAllowsInputStreamConfigType()
     clientRejectsInputStreamConfigBeforeSessionReady()
@@ -571,14 +574,61 @@ private fun profileMetadataModelContainsOnlyRequiredFields() {
         profileId = "default",
         displayName = "Default profile",
         revision = 1L,
+        source = "android",
+        rawDebugEnabled = false,
     )
 
     expectEquals("profile display", "Default profile", profile.displayName)
     expectEquals(
         "profile fields",
-        listOf("profileId", "displayName", "revision"),
+        listOf("profileId", "displayName", "revision", "source", "rawDebugEnabled"),
         dataFieldNames(ProfileMetadata::class.java),
     )
+}
+
+private fun clientSendsAndroidProfileMetadataAfterSessionReady() {
+    val socket = FakeSocket()
+    var listener: WebSocketListener? = null
+    val client = DesktopControlClient(
+        config = DesktopControlClientConfig(
+            url = "wss://192.168.50.25:41731/control",
+            expectedDesktopSpkiSha256 = FINGERPRINT,
+            maxMessageBytes = 512,
+        ),
+        socketFactory = { _, socketListener ->
+            listener = socketListener
+            socket
+        },
+        elapsedRealtimeNanos = { 8_000_000_000L },
+    )
+
+    client.connect(authRequest = proofRequest())
+    expectEquals(
+        "pre-ready metadata blocked",
+        DesktopControlSendResult.NotConnected,
+        client.sendProfileMetadata(ProfileMetadata("profile-1", "Arcade", 7L, "android", rawDebugEnabled = true)),
+    )
+    listener?.onMessage(NOOP_WEB_SOCKET, readyEnvelope(sessionId = "sid-1"))
+
+    val result = client.sendProfileMetadata(ProfileMetadata("profile-1", "Arcade", 7L, "android", rawDebugEnabled = true))
+
+    expectEquals("metadata sent", DesktopControlSendResult.Sent, result)
+    val envelope = ControlEnvelopeCodec.decode(socket.sent.single()) as ControlDecodeResult.Accepted
+    expectEquals("metadata type", ControlMessageType.PROFILE_METADATA, envelope.envelope.type)
+    expectEquals("metadata sid", "sid-1", envelope.envelope.sessionId)
+    expectEquals("profile id", "profile-1", envelope.envelope.body["profileId"]?.jsonPrimitive?.content)
+    expectEquals("display name", "Arcade", envelope.envelope.body["displayName"]?.jsonPrimitive?.content)
+    expectEquals("revision", "7", envelope.envelope.body["revision"]?.jsonPrimitive?.content)
+    expectEquals("source", "android", envelope.envelope.body["source"]?.jsonPrimitive?.content)
+    expectEquals("raw debug", "true", envelope.envelope.body["rawDebugEnabled"]?.jsonPrimitive?.content)
+}
+
+private fun desktopControlClientHasNoRawStreamRequestPath() {
+    val source = File("app/src/main/java/com/btgun/host/session/DesktopControlClient.kt").readText()
+
+    listOf("raw_stream_request", "request_raw", "enable_raw_stream", "rawDebugRequest").forEach { token ->
+        expectFalse("no desktop raw request path $token", source.contains(token, ignoreCase = true))
+    }
 }
 
 private fun controlEnvelopeAllowsHeartbeatDiagnosticsAndProfileTypes() {
