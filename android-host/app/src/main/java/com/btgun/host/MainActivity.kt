@@ -29,6 +29,10 @@ import com.btgun.host.permissions.AndroidHidProfileStatus
 import com.btgun.host.permissions.AndroidHidRegistrationStatus
 import com.btgun.host.permissions.PermissionGate
 import com.btgun.host.permissions.PermissionGateState
+import com.btgun.host.profile.BtGunProfile
+import com.btgun.host.profile.DEFAULT_VISUALIZER_PROFILE_ID
+import com.btgun.host.profile.ProfileStore
+import com.btgun.host.profile.SaveProfileResult
 import com.btgun.host.session.DesktopLinkPhase
 import com.btgun.host.session.DesktopLinkState
 import com.btgun.host.session.TrustedDesktopMetadata
@@ -44,9 +48,12 @@ class MainActivity : Activity() {
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var phoneHaptics: PhoneHaptics
     private lateinit var trustedDesktopStore: TrustedDesktopStore
+    private lateinit var profileStore: ProfileStore
     private lateinit var root: LinearLayout
     private lateinit var primaryAction: Button
     private lateinit var hapticAction: Button
+    private lateinit var editProfilesAction: Button
+    private lateinit var profileListGroup: LinearLayout
     private lateinit var startBluetoothGamepadAction: Button
     private lateinit var stopBluetoothGamepadAction: Button
     private lateinit var openHidPairingWindowAction: Button
@@ -70,6 +77,8 @@ class MainActivity : Activity() {
     private var localStartError: String? = null
     private var desktopLinkState: DesktopLinkState = DesktopLinkState()
     private var manualEntryVisible: Boolean = false
+    private var profileListVisible: Boolean = false
+    private var profileActionStatus: String? = null
     private var eventMode: DashboardEventMode = DashboardEventMode.PRODUCT_EVENTS
     private var debugExpansion = DebugExpansion()
     private val refreshRunnable = object : Runnable {
@@ -83,6 +92,7 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         phoneHaptics = PhoneHaptics(this)
         trustedDesktopStore = TrustedDesktopStore(this)
+        profileStore = ProfileStore(this)
         lastPhoneHapticStatus = phoneHaptics.currentStatus()
         buildLayout()
         renderDashboard()
@@ -123,6 +133,23 @@ class MainActivity : Activity() {
             renderDashboard()
         }
         addActionGroup(primaryAction, hapticAction)
+
+        listOf(
+            "active_profile",
+            "profile_mapping",
+            "recenter_control",
+            "raw_debug_stream",
+            "profile_error",
+        ).forEach(::addField)
+        editProfilesAction = button("Edit profiles") {
+            profileListVisible = !profileListVisible
+            renderDashboard()
+        }
+        addActionGroup(editProfilesAction)
+        profileListGroup = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+        root.addView(profileListGroup)
 
         startBluetoothGamepadAction = button("Start Bluetooth gamepad") { startBluetoothGamepad() }
         stopBluetoothGamepadAction = button("Stop Bluetooth gamepad") { stopBluetoothGamepad() }
@@ -248,6 +275,13 @@ class MainActivity : Activity() {
         } else {
             "Debug provenance"
         }
+        setField("active_profile", dashboard.profile.activeProfile.value)
+        setField("profile_mapping", dashboard.profile.profileMapping.value)
+        setField("recenter_control", dashboard.profile.recenterControl.value)
+        setField("raw_debug_stream", dashboard.profile.rawDebugStream.value)
+        setField("profile_error", dashboard.profile.profileError.value)
+        editProfilesAction.text = "Edit profiles"
+        renderProfileList()
 
         setField("gun_connection", "${dashboard.gunConnection.label}: ${dashboard.gunConnection.value}")
         setField("foreground_service", "${dashboard.foregroundService.label}: ${dashboard.foregroundService.value}")
@@ -319,6 +353,111 @@ class MainActivity : Activity() {
 
     private fun requestHostPermissions() {
         requestPermissions(HostCapabilityProbe.runtimePermissionsForHost(), REQUEST_PERMISSIONS)
+    }
+
+    private fun renderProfileList() {
+        profileListGroup.removeAllViews()
+        profileListGroup.visibility = if (profileListVisible) View.VISIBLE else View.GONE
+        if (!profileListVisible) {
+            return
+        }
+
+        profileActionStatus?.let { status ->
+            profileListGroup.addView(profileText(status, bold = false))
+        }
+
+        val document = profileStore.load().document
+        val defaultProfile = document.profiles.firstOrNull { profile ->
+            profile.profileId == DEFAULT_VISUALIZER_PROFILE_ID
+        } ?: BtGunProfile.defaultVisualizer()
+        addProfileRow(defaultProfile, activeProfileId = document.activeProfileId)
+
+        val userProfiles = document.profiles.filterNot { profile ->
+            profile.profileId == DEFAULT_VISUALIZER_PROFILE_ID || profile.builtIn
+        }
+        userProfiles.forEach { profile ->
+            addProfileRow(profile, activeProfileId = document.activeProfileId)
+        }
+
+        if (userProfiles.isEmpty()) {
+            profileListGroup.addView(profileText("No user profiles", bold = true))
+            profileListGroup.addView(profileText("Duplicate Default Visualizer to create an editable profile.", bold = false))
+        }
+    }
+
+    private fun addProfileRow(profile: BtGunProfile, activeProfileId: String) {
+        val builtIn = profile.builtIn || profile.profileId == DEFAULT_VISUALIZER_PROFILE_ID
+        val labels = buildList {
+            add(profile.displayName)
+            if (builtIn) add("Built-in")
+            if (profile.profileId == activeProfileId) add("Active")
+            add("rev=${profile.revision}")
+        }
+        profileListGroup.addView(profileText(labels.joinToString(" | "), bold = true))
+
+        val useProfile = button("Use profile") {
+            applyProfileStoreResult(profileStore.selectProfile(profile.profileId), "Use profile")
+        }
+        val duplicateProfile = button("Duplicate profile") {
+            applyProfileStoreResult(profileStore.duplicateProfile(profile.profileId), "Duplicate profile")
+        }
+        if (builtIn) {
+            addProfileActionGroup(useProfile, duplicateProfile)
+            return
+        }
+
+        val editProfile = button("Edit profile") {
+            profileActionStatus = "Edit profile: ${profile.displayName}"
+            renderDashboard()
+        }
+        val deleteProfile = button("Delete profile") {
+            applyProfileStoreResult(profileStore.deleteProfile(profile.profileId), "Delete profile")
+        }
+        addProfileActionGroup(useProfile, editProfile, duplicateProfile, deleteProfile)
+    }
+
+    private fun applyProfileStoreResult(result: SaveProfileResult, action: String) {
+        profileActionStatus = when (result) {
+            is SaveProfileResult.Saved -> "$action saved"
+            is SaveProfileResult.Rejected -> "$action blocked: ${result.reason}"
+        }
+        if (result is SaveProfileResult.Saved) {
+            startServiceAction(
+                Intent(this, HostSessionService::class.java)
+                    .setAction(HostSessionService.ACTION_RELOAD_ACTIVE_PROFILE),
+            )
+        } else {
+            renderDashboard()
+        }
+    }
+
+    private fun profileText(value: String, bold: Boolean): TextView =
+        TextView(this).apply {
+            text = value
+            textSize = 14f
+            setTextColor(Color.rgb(31, 41, 51))
+            setTextIsSelectable(true)
+            setPadding(0, dp(8), 0, dp(4))
+            if (bold) {
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+            }
+        }
+
+    private fun addProfileActionGroup(vararg buttons: Button) {
+        val group = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, 0, 0, dp(8))
+        }
+        buttons.forEach { action ->
+            group.addView(
+                action,
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                ),
+            )
+        }
+        profileListGroup.addView(group)
     }
 
     private fun startBluetoothGamepad() {
