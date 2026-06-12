@@ -63,12 +63,12 @@ Retained for diagnostics, pairing/control experiments, and Windows virtual-contr
 
 ### Profiles
 
-- [ ] **PROF-01**: Desktop companion stores aim mapping profiles locally on the desktop.
-- [ ] **PROF-02**: User can configure motion aim mapping to joystick axes per desktop profile, including provider-specific tuning for fused rotation, gyro, and accelerometer/gravity tilt fallback.
-- [ ] **PROF-03**: User can configure sensitivity, inversion, dead zone, and smoothing per aim profile.
-- [ ] **PROF-04**: User can map trigger, reload, joystick, and X/Y/A/B to virtual joystick controls per profile.
-- [ ] **PROF-05**: Desktop companion applies profile changes without requiring Android app rebuilds.
-- [ ] **PROF-06**: Desktop companion stores a default visualizer profile that works immediately after pairing.
+- [ ] **PROF-01**: Android stores local profiles for gun controls, motion aim, and active-profile revision; desktop only displays active Android profile metadata.
+- [ ] **PROF-02**: Android profile editor configures motion aim mapping to joystick axes, including provider-specific tuning for calibrated/fused rotation, gyro/raw aim, and accelerometer/gravity tilt fallback.
+- [ ] **PROF-03**: Android profile settings include sensitivity, inversion, dead zone, and smoothing for shared aim behavior and provider overrides.
+- [ ] **PROF-04**: Android limited remap covers trigger, reload, X, Y, A, and B while stick axes and aim axes remain semantic.
+- [ ] **PROF-05**: Android profile changes apply at runtime without Android rebuilds or any desktop editor.
+- [ ] **PROF-06**: Android ships an immutable `Default Visualizer` profile that works immediately after pairing; desktop only displays active Android profile id, name, revision, source, and mapped-stream state.
 
 ### Visualizer
 

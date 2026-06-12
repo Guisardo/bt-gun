@@ -20,7 +20,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 5: Desktop Backend Contract and Smoke Harness** - Shared desktop backend contract and fake-input smoke tests work before real OS driver work. (completed 2026-06-09)
 - [x] **Phase 6: Windows Virtual Joystick Path** - Windows 11 x64 exposes the gun stream as a regular gamepad-style joystick with output-to-phone-haptic forwarding, retained as fallback if Android Bluetooth HID gamepad integration is blocked. (completed 2026-06-10)
 - [x] **Phase 7: Android Bluetooth HID Gamepad Path** - Android phone exposes the gun stream directly to macOS as a Bluetooth HID gamepad, with output-report-to-phone-haptic proof or clear compatibility limits. (completed 2026-06-11)
-- [ ] **Phase 8: Desktop Profiles and Mapping** - Users can configure aim and button mapping on desktop without Android rebuilds.
+- [ ] **Phase 8: Desktop Profiles and Mapping** - Users configure Android-owned aim and button profiles that apply at runtime; desktop only displays active Android profile metadata.
 - [ ] **Phase 9: Visualizer Acceptance Path** - The simple visualizer proves controls, aim, recentering, latency, packet loss, and phone haptic round trip.
 - [ ] **Phase 10: Diagnostics, Replay, and v1 Docs** - Replay tests, diagnostic logs, setup docs, protocol docs, and known limits make the MVP repeatable.
 
@@ -276,17 +276,17 @@ Plans:
 
 ### Phase 8: Desktop Profiles and Mapping
 
-**Goal:** User can configure desktop-side profiles that map gun controls and motion aim into virtual joystick behavior.
+**Goal:** User can configure Android-owned profiles that map gun controls and motion aim into virtual joystick behavior, while desktop remains a read-only mapped-stream diagnostics surface.
 **Mode:** mvp
 **Depends on:** Phase 7 Android Bluetooth HID gamepad proof or explicit Windows-fallback decision
 **Requirements:** PROF-01, PROF-02, PROF-03, PROF-04, PROF-05, PROF-06
 **Success Criteria** (what must be TRUE):
 
-  1. User can create, store, and select desktop aim mapping profiles locally.
-  2. User can configure motion axes, sensitivity, inversion, dead zone, smoothing, and provider-specific behavior per profile.
-  3. User can map trigger, reload, joystick, and X/Y/A/B to virtual joystick controls per profile.
-  4. Profile changes apply on desktop without rebuilding the Android app.
-  5. A default visualizer profile works immediately after pairing.
+  1. Android stores local profiles and desktop only displays active Android profile metadata.
+  2. Android profile editor configures motion axes, sensitivity, inversion, dead zone, smoothing, and provider-specific behavior per profile.
+  3. Android remaps trigger, reload, X, Y, A, and B while stick axes and aim axes remain semantic.
+  4. Android profile changes apply at runtime without Android rebuilds or a desktop editor.
+  5. Immutable `Default Visualizer` works immediately after pairing and desktop shows read-only mapped-stream status.
 
 **Plans:** 7 planned
 
