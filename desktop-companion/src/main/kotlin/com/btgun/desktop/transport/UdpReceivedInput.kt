@@ -11,6 +11,11 @@ data class UdpReceivedMotion(
     val sourceSensorElapsedNanos: Long,
 )
 
+data class UdpReceivedMappedAim(
+    val aimX: Float,
+    val aimY: Float,
+)
+
 data class UdpReceivedInput(
     val controlSessionId: String,
     val streamSessionIdHex: String,
@@ -20,6 +25,9 @@ data class UdpReceivedInput(
     val stickX: Int,
     val stickY: Int,
     val motion: UdpReceivedMotion,
+    val mappedAim: UdpReceivedMappedAim = UdpReceivedMappedAim(motion.rawAimX, motion.rawAimY),
+    val mappedProductStream: Boolean = true,
+    val rawDebugEnabled: Boolean = false,
     val captureElapsedNanos: Long,
     val sendElapsedNanos: Long,
     val receivedElapsedNanos: Long,
@@ -49,6 +57,12 @@ internal fun UdpInputFrame.toReceivedInput(
             rawAimY = rawAimY,
             sourceSensorElapsedNanos = sourceSensorElapsedNanos,
         ),
+        mappedAim = UdpReceivedMappedAim(
+            aimX = productAimX,
+            aimY = productAimY,
+        ),
+        mappedProductStream = mappedProductStream,
+        rawDebugEnabled = rawDebugEnabled,
         captureElapsedNanos = captureElapsedNanos,
         sendElapsedNanos = sendElapsedNanos,
         receivedElapsedNanos = receivedElapsedNanos,
