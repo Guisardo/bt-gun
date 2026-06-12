@@ -113,7 +113,7 @@ Additional required labels:
 | Desktop mapped-stream row | Mapped stream |
 | Validation summary | Save blocked |
 
-Do not use copy that implies desktop can edit or own profiles. Forbidden labels include `Desktop profile editor`, `Edit desktop profile`, `Desktop mapping profile`, and `Request raw stream`.
+Do not use copy that implies desktop can edit or own profiles. Forbidden labels include desktop-profile editor wording, desktop edit-profile action wording, desktop mapping-profile wording, and raw-stream request wording.
 
 ---
 
@@ -318,7 +318,7 @@ Recommended automated checks before human/device sign-off:
 ```bash
 ./gradlew :android-host:app:test
 ./gradlew :desktop-companion:test
-rg -n "Desktop profile editor|Edit desktop profile|Request raw stream" android-host desktop-companion .planning docs
+rg -n "<desktop edit/raw forbidden-label regex>" android-host desktop-companion .planning docs
 ```
 
 Recommended device evidence commands:

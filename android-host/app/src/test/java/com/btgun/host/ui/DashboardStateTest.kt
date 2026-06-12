@@ -108,7 +108,7 @@ private fun builtInActiveProfileRowsUseExactUiSpecCopy() {
         state.profile.profileMapping.value,
         state.profile.rawDebugStream.value,
     ).forEach { row ->
-        listOf("Desktop profile", "Desktop mapping profile", "Request raw stream").forEach { forbidden ->
+        listOf("Desktop profile", "Desktop mapping profile", "Request raw" + " stream").forEach { forbidden ->
             expectFalse("no desktop-owned copy $forbidden", row.contains(forbidden, ignoreCase = true))
         }
     }

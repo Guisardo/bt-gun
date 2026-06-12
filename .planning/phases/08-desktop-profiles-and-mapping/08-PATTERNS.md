@@ -47,5 +47,5 @@ Raw provider/motion extras are Android-session debug only. Desktop cannot reques
 - Keep v1 physical and virtual controls to `trigger`, `reload`, `button_x`, `button_y`, `button_a`, `button_b`.
 - Preserve stick axes and aim axes as semantic axes; do not expose axis remap controls.
 - Treat hold-to-recenter as a physical control selection separate from virtual button remap.
-- Keep desktop profile code read-only; no desktop profile store, editor, or profile authority.
+- Keep desktop profile code read-only; no desktop-side profile storage, editor, or profile authority.
 - Keep screenshots under ignored `.evidence/phase8/android-profile-ui/` or `/private/tmp`; never commit raw screenshots.

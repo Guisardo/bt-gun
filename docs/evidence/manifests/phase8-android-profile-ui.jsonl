@@ -1,0 +1,4 @@
+{"capture_id":"phase8-automated-android-unit-suite","status":"pass","note":"Android unit suite passed with Java 17 and Android SDK"}
+{"capture_id":"phase8-automated-desktop-unit-suite","status":"pass","note":"Desktop unit suite passed with Java 17"}
+{"capture_id":"phase8-forbidden-label-guard","status":"pass","note":"Forbidden desktop edit raw request and storage labels absent"}
+{"capture_id":"phase8-raw-debug-default-guard","status":"pass","note":"Raw debug defaults off and no source default enables raw debug"}

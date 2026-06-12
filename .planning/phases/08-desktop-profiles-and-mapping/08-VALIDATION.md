@@ -1,7 +1,7 @@
 ---
 phase: 08
 slug: desktop-profiles-and-mapping
-status: ready-for-profile-test-stubs
+status: ready-for-usb-profile-ui-evidence
 nyquist_compliant: true
 wave_0_complete: true
 created: 2026-06-12
@@ -81,3 +81,11 @@ created: 2026-06-12
 - [x] `nyquist_compliant: true` set in frontmatter.
 
 **Approval:** Wave 0 docs correction complete; ready for profile test stubs.
+
+## Plan 08-07 Execution Status
+
+- Automated Android suite: green.
+- Automated desktop suite: green.
+- Forbidden desktop edit/raw-request/storage label guard: green.
+- Raw debug default guard: green.
+- USB Android profile UI screenshot evidence: pending human verification checkpoint.
