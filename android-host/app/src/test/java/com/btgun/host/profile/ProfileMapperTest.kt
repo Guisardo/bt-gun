@@ -11,6 +11,9 @@ fun main() {
     appliesSensitivityInversionDeadZoneBeforeSmoothing()
     unavailableProviderCentersAim()
     reportsSmoothingStatusAndClampsFiniteOutput()
+    remapsPhysicalButtonsToVirtualOutputsOnly()
+    stickAxesPassThroughWithoutAxisRemap()
+    recenterPhysicalControlDoesNotSuppressVirtualReload()
 }
 
 private fun calibratedFusedProvidersUseCalibratedAimAndOverrides() {
@@ -161,6 +164,69 @@ private fun reportsSmoothingStatusAndClampsFiniteOutput() {
     expectEquals("smoothing mode", "balanced", mapped.aimStatus.smoothingMode)
     expectEquals("fallback false", false, mapped.aimStatus.adaptiveFallback)
     expectTrue("lag reported", mapped.aimStatus.estimatedFilterLagMillis > 0)
+}
+
+private fun remapsPhysicalButtonsToVirtualOutputsOnly() {
+    val profile = defaultProfile().copy(
+        buttonMapping = mapOf(
+            PhysicalButton.TRIGGER to VirtualButton.BUTTON_X,
+            PhysicalButton.RELOAD to VirtualButton.TRIGGER,
+            PhysicalButton.BUTTON_X to VirtualButton.BUTTON_Y,
+            PhysicalButton.BUTTON_Y to VirtualButton.BUTTON_A,
+            PhysicalButton.BUTTON_A to VirtualButton.RELOAD,
+            PhysicalButton.BUTTON_B to VirtualButton.BUTTON_B,
+        ),
+    )
+
+    val mapped = ProfileMapper().map(
+        profile = profile,
+        gunInputState = GunInputState(
+            pressedControls = setOf("trigger", "button_a", "unknown", "stick_axis_x"),
+        ),
+        motionSample = motion(provider = MotionProvider.ROTATION_VECTOR, aimX = 0.1f, aimY = 0.1f),
+        nowElapsedNanos = 1_000_000L,
+    )
+
+    expectEquals("remapped controls", setOf("button_x", "reload"), mapped.pressedVirtualControls)
+    expectEquals("no axis published as button", false, "stick_axis_x" in mapped.pressedVirtualControls)
+}
+
+private fun stickAxesPassThroughWithoutAxisRemap() {
+    val mapped = ProfileMapper().map(
+        profile = defaultProfile(),
+        gunInputState = GunInputState(
+            pressedControls = setOf("trigger"),
+            stickAxisX = 0.45f,
+            stickAxisY = -0.75f,
+        ),
+        motionSample = motion(provider = MotionProvider.ROTATION_VECTOR, aimX = 0.2f, aimY = -0.2f),
+        nowElapsedNanos = 1_000_000L,
+    )
+
+    expectNear("stick x pass-through", 0.45f, mapped.stickAxisX)
+    expectNear("stick y pass-through", -0.75f, mapped.stickAxisY)
+    expectNear("aim x still from motion", 0.2f, mapped.aimAxisX)
+    expectNear("aim y still from motion", -0.2f, mapped.aimAxisY)
+}
+
+private fun recenterPhysicalControlDoesNotSuppressVirtualReload() {
+    val profile = defaultProfile().copy(
+        recenterPhysicalControl = PhysicalButton.BUTTON_A,
+        buttonMapping = defaultProfile().buttonMapping + (PhysicalButton.BUTTON_A to VirtualButton.RELOAD),
+    )
+    val rawState = GunInputState(pressedControls = setOf("button_a"))
+    val mapper = ProfileMapper()
+
+    val mapped = mapper.map(
+        profile = profile,
+        gunInputState = rawState,
+        motionSample = motion(provider = MotionProvider.ROTATION_VECTOR, aimX = 0f, aimY = 0f),
+        nowElapsedNanos = 1_000_000L,
+    )
+
+    expectEquals("recenter control exposed", "button_a", mapped.recenterPhysicalControl)
+    expectEquals("recenter physical pressed", true, mapper.isRecenterPressed(profile, rawState))
+    expectEquals("virtual reload preserved", true, "reload" in mapped.pressedVirtualControls)
 }
 
 private fun motion(
