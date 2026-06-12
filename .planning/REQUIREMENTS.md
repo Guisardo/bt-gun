@@ -63,12 +63,12 @@ Retained for diagnostics, pairing/control experiments, and Windows virtual-contr
 
 ### Profiles
 
-- [ ] **PROF-01**: Android stores local profiles for gun controls, motion aim, and active-profile revision; desktop only displays active Android profile metadata.
+- [x] **PROF-01**: Android stores local profiles for gun controls, motion aim, and active-profile revision; desktop only displays active Android profile metadata.
 - [ ] **PROF-02**: Android profile editor configures motion aim mapping to joystick axes, including provider-specific tuning for calibrated/fused rotation, gyro/raw aim, and accelerometer/gravity tilt fallback.
 - [ ] **PROF-03**: Android profile settings include sensitivity, inversion, dead zone, and smoothing for shared aim behavior and provider overrides.
-- [ ] **PROF-04**: Android limited remap covers trigger, reload, X, Y, A, and B while stick axes and aim axes remain semantic.
+- [x] **PROF-04**: Android limited remap covers trigger, reload, X, Y, A, and B while stick axes and aim axes remain semantic.
 - [ ] **PROF-05**: Android profile changes apply at runtime without Android rebuilds or any desktop editor.
-- [ ] **PROF-06**: Android ships an immutable `Default Visualizer` profile that works immediately after pairing; desktop only displays active Android profile id, name, revision, source, and mapped-stream state.
+- [x] **PROF-06**: Android ships an immutable `Default Visualizer` profile that works immediately after pairing; desktop only displays active Android profile id, name, revision, source, and mapped-stream state.
 
 ### Visualizer
 
@@ -191,12 +191,12 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DESK-06 | Phase 7 | Complete |
 | DESK-07 | Phase 5 | Complete |
 | DESK-08 | Phase 5 | Complete |
-| PROF-01 | Phase 8 | Pending |
+| PROF-01 | Phase 8 | Complete |
 | PROF-02 | Phase 8 | Pending |
 | PROF-03 | Phase 8 | Pending |
-| PROF-04 | Phase 8 | Pending |
+| PROF-04 | Phase 8 | Complete |
 | PROF-05 | Phase 8 | Pending |
-| PROF-06 | Phase 8 | Pending |
+| PROF-06 | Phase 8 | Complete |
 | VIS-01 | Phase 9 | Pending |
 | VIS-02 | Phase 9 | Pending |
 | VIS-03 | Phase 9 | Pending |
