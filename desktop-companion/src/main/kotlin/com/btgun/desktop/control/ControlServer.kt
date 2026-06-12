@@ -54,6 +54,7 @@ class ControlServer(
 ) {
     var onSessionStateChanged: (ControlServerSessionState) -> Unit = {}
     var onControlEnvelopeAccepted: (ControlEnvelope) -> Unit = {}
+    var onProfileMetadataReceived: (ProfileMetadata) -> Unit = {}
     var onUdpInputReceived: (UdpReceivedInput) -> Unit = {}
     var onUdpInputRejected: (InputReplayRejectReason) -> Unit = {}
     var onUdpInputStateChanged: (InputStreamLifecycleState) -> Unit = {}
@@ -272,11 +273,16 @@ class ControlServer(
                 updateSessionState(heartbeat.stateAt(nowElapsedNanos), controlSessionToken, nowElapsedNanos)
             }
             ControlMessageType.DIAGNOSTICS,
-            ControlMessageType.PROFILE_METADATA,
             ControlMessageType.PAIRING_STATE,
             ControlMessageType.SESSION_READY,
             ControlMessageType.INPUT_STREAM_CONFIG,
             -> onControlEnvelopeAccepted(envelope)
+            ControlMessageType.PROFILE_METADATA -> {
+                profileMetadataFromJsonBody(envelope.body)?.let { metadata ->
+                    onProfileMetadataReceived(metadata)
+                    onControlEnvelopeAccepted(envelope)
+                }
+            }
             ControlMessageType.HAPTIC_RESULT -> handleHapticResult(envelope, controlSessionToken)
             ControlMessageType.RESERVED_HAPTIC_COMMAND -> Unit
         }
@@ -444,23 +450,6 @@ class ControlServer(
                         "desktopIdentitySuffix" to JsonPrimitive(trustedSession.desktopSpkiSha256.takeLast(8)),
                         "heartbeatAgeMillis" to JsonPrimitive(0L),
                         "lastControlError" to JsonPrimitive("none"),
-                    ),
-                ),
-            ),
-        )
-        sendEnvelope(
-            ControlEnvelope(
-                v = 1,
-                type = ControlMessageType.PROFILE_METADATA,
-                msgId = "desktop-profile-metadata",
-                sessionId = trustedSession.sid,
-                seq = 0L,
-                sentElapsedNanos = System.nanoTime(),
-                body = JsonObject(
-                    mapOf(
-                        "profileId" to JsonPrimitive(DEFAULT_PROFILE_ID),
-                        "displayName" to JsonPrimitive(DEFAULT_PROFILE_NAME),
-                        "revision" to JsonPrimitive(DEFAULT_PROFILE_REVISION),
                     ),
                 ),
             ),
@@ -650,9 +639,6 @@ class ControlServer(
         private const val DEFAULT_FRAME_AGE_LIMIT_MILLIS = 150L
         private const val DEFAULT_STREAM_TIMEOUT_MILLIS = 250L
         private const val DEFAULT_CONTROL_DISCONNECT_GRACE_MILLIS = 1500L
-        private const val DEFAULT_PROFILE_ID = "default"
-        private const val DEFAULT_PROFILE_NAME = "Default profile"
-        private const val DEFAULT_PROFILE_REVISION = 1L
         private const val DESKTOP_SESSION_CONNECTED = "connected"
         const val HEADER_DESKTOP_FINGERPRINT = "X-BT-Gun-Desktop-Fingerprint"
         const val HEADER_SESSION = "X-BT-Gun-Session"
