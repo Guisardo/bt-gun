@@ -39,6 +39,12 @@ import com.btgun.host.permissions.BluetoothPermissionModel
 import com.btgun.host.permissions.CapabilityState
 import com.btgun.host.permissions.CapabilityStatus
 import com.btgun.host.permissions.PermissionGateState
+import com.btgun.host.profile.AimMappingSettings
+import com.btgun.host.profile.BtGunProfile
+import com.btgun.host.profile.MappedAimStatus
+import com.btgun.host.profile.MappedControllerState
+import com.btgun.host.profile.PhysicalButton
+import com.btgun.host.profile.SmoothingMode
 import com.btgun.host.recenter.ReloadHoldState
 import com.btgun.host.session.DesktopLinkPhase
 import com.btgun.host.session.DesktopLinkState
@@ -46,6 +52,9 @@ import com.btgun.host.transport.InputStreamLifecycleState
 
 fun main() {
     initialStateUsesRequiredShellCopyAndCollapsedDebugPanels()
+    builtInActiveProfileRowsUseExactUiSpecCopy()
+    userProfileRowsShowRawDebugAndValidationStatus()
+    adaptiveFallbackRowUsesLowSmoothingCopy()
     connectedSessionShowsServiceErrorAndLastGunEvent()
     activeControlsShowMultiplePressedButtons()
     activeControlsShowCompositeStickAxis()
@@ -62,6 +71,110 @@ fun main() {
     hidBlockedRowsRenderInPermissionDebugStatus()
     hidPairingHostAndInputProofRenderAsFirstClassFields()
     hidOutputProofFieldsStaySeparateFromLanHaptics()
+}
+
+private fun builtInActiveProfileRowsUseExactUiSpecCopy() {
+    val state = DashboardState.from(
+        permissionGateState = permissionGateState(),
+        hostSessionState = HostSessionState(
+            activeProfile = BtGunProfile.defaultVisualizer(),
+            mappedControllerState = mappedState(
+                smoothingMode = SmoothingMode.LOW.id,
+                filterLagMs = 12,
+            ),
+        ),
+    )
+
+    expectEquals(
+        "active built-in profile row",
+        "Active profile: Default Visualizer | id=default_visualizer | rev=1 | built_in=true",
+        state.profile.activeProfile.value,
+    )
+    expectEquals(
+        "built-in mapping row",
+        "Profile mapping: mapped | sensitivity=1.0 | dead_zone=0.03 | smoothing=low | filter_lag<=12ms",
+        state.profile.profileMapping.value,
+    )
+    expectEquals(
+        "built-in recenter row",
+        "Recenter control: hold reload for 2000ms",
+        state.profile.recenterControl.value,
+    )
+    expectEquals("built-in raw debug row", "Raw debug stream: off", state.profile.rawDebugStream.value)
+    expectEquals("built-in profile error row", "Profile error: none", state.profile.profileError.value)
+
+    listOf(
+        state.profile.activeProfile.value,
+        state.profile.profileMapping.value,
+        state.profile.rawDebugStream.value,
+    ).forEach { row ->
+        listOf("Desktop profile", "Desktop mapping profile", "Request raw stream").forEach { forbidden ->
+            expectFalse("no desktop-owned copy $forbidden", row.contains(forbidden, ignoreCase = true))
+        }
+    }
+}
+
+private fun userProfileRowsShowRawDebugAndValidationStatus() {
+    val userProfile = BtGunProfile.defaultVisualizer().copy(
+        profileId = "profile_arcade",
+        displayName = "Arcade Aim",
+        revision = 7L,
+        builtIn = false,
+        rawDebugEnabled = true,
+        recenterPhysicalControl = PhysicalButton.BUTTON_A,
+        aim = AimMappingSettings(
+            sensitivity = 1.25f,
+            deadZone = 0.05f,
+            smoothing = SmoothingMode.BALANCED,
+        ),
+    )
+    val state = DashboardState.from(
+        permissionGateState = permissionGateState(),
+        hostSessionState = HostSessionState(
+            activeProfile = userProfile,
+            profileValidationError = "Name required",
+            mappedControllerState = mappedState(
+                smoothingMode = SmoothingMode.BALANCED.id,
+                filterLagMs = 24,
+            ),
+        ),
+    )
+
+    expectEquals(
+        "active user profile row",
+        "Active profile: Arcade Aim | id=profile_arcade | rev=7 | built_in=false",
+        state.profile.activeProfile.value,
+    )
+    expectEquals(
+        "user mapping row",
+        "Profile mapping: mapped | sensitivity=1.25 | dead_zone=0.05 | smoothing=balanced | filter_lag<=24ms",
+        state.profile.profileMapping.value,
+    )
+    expectEquals("user recenter row", "Recenter control: hold button_a for 2000ms", state.profile.recenterControl.value)
+    expectEquals("user raw debug row", "Raw debug stream: on | Android session controlled", state.profile.rawDebugStream.value)
+    expectEquals("user profile error row", "Profile error: Name required", state.profile.profileError.value)
+}
+
+private fun adaptiveFallbackRowUsesLowSmoothingCopy() {
+    val state = DashboardState.from(
+        permissionGateState = permissionGateState(),
+        hostSessionState = HostSessionState(
+            activeProfile = BtGunProfile.defaultVisualizer().copy(
+                aim = AimMappingSettings(smoothing = SmoothingMode.ADAPTIVE),
+            ),
+            mappedControllerState = mappedState(
+                smoothingMode = SmoothingMode.LOW.id,
+                filterLagMs = 12,
+                adaptiveFallback = true,
+            ),
+        ),
+    )
+
+    expectEquals(
+        "adaptive fallback mapping row",
+        "Profile mapping: mapped | sensitivity=1.0 | dead_zone=0.03 | smoothing=low | adaptive fallback | filter_lag<=12ms",
+        state.profile.profileMapping.value,
+    )
 }
 
 private fun initialStateUsesRequiredShellCopyAndCollapsedDebugPanels() {
@@ -606,6 +719,27 @@ private fun permissionGateState(
         vibration = CapabilityStatus(CapabilityState.AVAILABLE, "Phone vibration available", "Capability detected."),
         lanNetwork = CapabilityStatus(CapabilityState.AVAILABLE, "LAN network available", "Capability detected."),
         bluetoothHidRole = bluetoothHidRole,
+    )
+
+private fun mappedState(
+    smoothingMode: String,
+    filterLagMs: Int,
+    adaptiveFallback: Boolean = false,
+): MappedControllerState =
+    MappedControllerState(
+        aimAxisX = 0f,
+        aimAxisY = 0f,
+        aimStatus = MappedAimStatus(
+            aimSource = "calibrated",
+            providerName = "game_rotation_vector",
+            smoothingMode = smoothingMode,
+            estimatedFilterLagMillis = filterLagMs,
+            adaptiveFallback = adaptiveFallback,
+        ),
+        pressedVirtualControls = emptySet(),
+        stickAxisX = 0f,
+        stickAxisY = 0f,
+        recenterPhysicalControl = PhysicalButton.RELOAD.id,
     )
 
 private fun expectEquals(label: String, expected: Any?, actual: Any?) {
