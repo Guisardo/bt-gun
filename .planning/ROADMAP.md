@@ -300,7 +300,7 @@ Plans:
 
 **Wave 0**
 
-- [ ] 08-01-PLAN.md — Correct stale desktop-owned profile wording before code work.
+- [ ] 08-01-PLAN.md — Correct stale profile ownership wording before code work.
 
 **Wave 1** *(blocked on Wave 0 completion)*
 
