@@ -33,6 +33,10 @@ data class UdpInputFrame(
     val rawAimX: Float,
     val rawAimY: Float,
     val sourceSensorElapsedNanos: Long,
+    val streamFlags: Int = 0,
+    val productAimX: Float = yaw,
+    val productAimY: Float = pitch,
+    val rawRoll: Float = roll,
 ) {
     init {
         require(streamSessionId.length == 32 && streamSessionId.all { it in '0'..'9' || it in 'a'..'f' }) {
@@ -46,6 +50,14 @@ data class UdpInputFrame(
         require(motionProvider in 0..255) { "motionProvider must fit uint8" }
         require(motionCapabilityFlags in 0..255) { "motionCapabilityFlags must fit uint8" }
         require(sourceSensorElapsedNanos >= 0L) { "sourceSensorElapsedNanos must be non-negative" }
+        require(streamFlags in 0..0xffff) { "streamFlags must fit uint16" }
+        require(streamFlags and KNOWN_STREAM_FLAGS == streamFlags) { "streamFlags contains unknown bits" }
+    }
+
+    companion object {
+        const val FLAG_MAPPED_PRODUCT_STREAM: Int = 0x0001
+        const val FLAG_RAW_DEBUG_EXTRAS: Int = 0x0002
+        const val KNOWN_STREAM_FLAGS: Int = FLAG_MAPPED_PRODUCT_STREAM or FLAG_RAW_DEBUG_EXTRAS
     }
 }
 
@@ -76,9 +88,10 @@ data class UdpInputFrameDebugSummary(
     val stickY: Int? = null,
     val motionProvider: Int? = null,
     val motionCapabilityFlags: Int? = null,
-    val yaw: Float? = null,
-    val pitch: Float? = null,
-    val roll: Float? = null,
+    val streamFlags: Int? = null,
+    val productAimX: Float? = null,
+    val productAimY: Float? = null,
+    val rawRoll: Float? = null,
     val hasRawAim: Boolean? = null,
     val sourceSensorElapsedNanos: Long? = null,
 )
@@ -88,7 +101,8 @@ object UdpInputFrameCodec {
     const val TAG_SIZE = 32
     const val MAGIC = "BTGI"
     const val VERSION = 1
-    const val OFFSET_RESERVED_FLAGS = 6
+    const val OFFSET_STREAM_FLAGS = 6
+    const val OFFSET_RESERVED_FLAGS = OFFSET_STREAM_FLAGS
     const val OFFSET_SEQUENCE = 24
     const val OFFSET_CAPTURE_ELAPSED_NANOS = 32
     const val OFFSET_SEND_ELAPSED_NANOS = 40
@@ -113,7 +127,7 @@ object UdpInputFrameCodec {
         buffer.put(MAGIC.toByteArray(Charsets.US_ASCII))
         buffer.put(VERSION.toByte())
         buffer.put(frame.type.wireValue.toByte())
-        buffer.putShort(0)
+        buffer.putShort(frame.streamFlags.toShort())
         buffer.put(frame.streamSessionId.hexToBytes())
         buffer.putLong(frame.sequence)
         buffer.putLong(frame.captureElapsedNanos)
@@ -124,9 +138,9 @@ object UdpInputFrameCodec {
         buffer.put(frame.motionProvider.toByte())
         buffer.put(frame.motionCapabilityFlags.toByte())
         buffer.putShort(0)
-        buffer.putFloat(frame.yaw)
-        buffer.putFloat(frame.pitch)
-        buffer.putFloat(frame.roll)
+        buffer.putFloat(frame.productAimX)
+        buffer.putFloat(frame.productAimY)
+        buffer.putFloat(frame.rawRoll)
         buffer.putFloat(frame.rawAimX)
         buffer.putFloat(frame.rawAimY)
         buffer.putLong(frame.sourceSensorElapsedNanos)
@@ -156,8 +170,9 @@ object UdpInputFrameCodec {
             return UdpInputFrameDecodeResult.Rejected(UdpInputFrameRejectReason.BAD_HMAC)
         }
         val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.BIG_ENDIAN)
-        if (buffer.getShort(OFFSET_RESERVED_FLAGS).toInt() != 0) {
-            return UdpInputFrameDecodeResult.Rejected(UdpInputFrameRejectReason.MALFORMED_FIELD, "reserved flags")
+        val streamFlags = buffer.getShort(OFFSET_STREAM_FLAGS).toInt() and 0xffff
+        if (streamFlags and UdpInputFrame.KNOWN_STREAM_FLAGS != streamFlags) {
+            return UdpInputFrameDecodeResult.Rejected(UdpInputFrameRejectReason.MALFORMED_FIELD, "stream flags")
         }
         if (buffer.getShort(OFFSET_RESERVED_MOTION).toInt() != 0) {
             return UdpInputFrameDecodeResult.Rejected(UdpInputFrameRejectReason.MALFORMED_FIELD, "reserved motion")
@@ -180,6 +195,10 @@ object UdpInputFrameCodec {
                 rawAimX = buffer.getFloat(OFFSET_RAW_AIM_X),
                 rawAimY = buffer.getFloat(OFFSET_RAW_AIM_Y),
                 sourceSensorElapsedNanos = buffer.getLong(OFFSET_SOURCE_SENSOR_ELAPSED_NANOS),
+                streamFlags = streamFlags,
+                productAimX = buffer.getFloat(OFFSET_YAW),
+                productAimY = buffer.getFloat(OFFSET_PITCH),
+                rawRoll = buffer.getFloat(OFFSET_ROLL),
             )
         }.getOrElse { error ->
             return UdpInputFrameDecodeResult.Rejected(UdpInputFrameRejectReason.MALFORMED_FIELD, error.message)
@@ -208,9 +227,10 @@ object UdpInputFrameCodec {
             stickY = stickY,
             motionProvider = motionProvider,
             motionCapabilityFlags = motionCapabilityFlags,
-            yaw = yaw,
-            pitch = pitch,
-            roll = roll,
+            streamFlags = streamFlags,
+            productAimX = productAimX,
+            productAimY = productAimY,
+            rawRoll = rawRoll,
             hasRawAim = !rawAimX.isNaN() || !rawAimY.isNaN(),
             sourceSensorElapsedNanos = sourceSensorElapsedNanos,
         )

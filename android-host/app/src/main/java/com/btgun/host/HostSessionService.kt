@@ -73,6 +73,7 @@ import com.btgun.host.session.DesktopLivenessCoordinator
 import com.btgun.host.session.DesktopLivenessUpdate
 import com.btgun.host.session.PairingParseResult
 import com.btgun.host.session.PairingPayload
+import com.btgun.host.session.ProfileMetadata
 import com.btgun.host.session.TrustValidationResult
 import com.btgun.host.session.TrustedDesktopMetadata
 import com.btgun.host.session.TrustedDesktopStore
@@ -539,8 +540,21 @@ class HostSessionService : Service() {
 
     private fun reloadActiveProfile() {
         currentState = profileRuntime.reloadActiveProfile(currentState)
+        desktopControlClient?.let { sendActiveProfileMetadata(it) }
         currentState = hidSessionController.fanOutLiveInput(currentState)
         sendUdpSnapshot(throttled = false)
+    }
+
+    private fun sendActiveProfileMetadata(client: DesktopControlClient) {
+        client.sendProfileMetadata(
+            ProfileMetadata(
+                profileId = currentState.activeProfileId,
+                displayName = currentState.activeProfileDisplayName,
+                revision = currentState.activeProfileRevision,
+                source = "android",
+                rawDebugEnabled = currentState.rawDebugEnabled,
+            ),
+        )
     }
 
     private fun connectDesktopFromQr(rawPayload: String) {
@@ -709,6 +723,7 @@ class HostSessionService : Service() {
                         currentState = currentState.copy(
                             desktopLinkState = desktopLinkStateForRequest(client.currentLinkState(), request),
                         )
+                        sendActiveProfileMetadata(client)
                         startDesktopLiveness(client)
                     }
                 },
@@ -965,20 +980,22 @@ class HostSessionService : Service() {
             return
         }
         val result = sender.sendSnapshot(
-            state = currentState.gunInputState,
+            mappedState = currentState.mappedControllerState,
             motion = currentState.lastMotionSample,
+            rawDebugEnabled = currentState.rawDebugEnabled,
         )
         if (result == com.btgun.host.transport.AndroidUdpInputSendResult.SENT) {
             lastUdpSnapshotSentElapsedNanos = nowElapsedNanos
         }
     }
 
-    private fun sendUdpEdge(envelope: LiveEnvelope<GunEvent>, state: GunInputState) {
+    private fun sendUdpEdge(envelope: LiveEnvelope<GunEvent>) {
         val sender = udpInputSender ?: return
         sender.sendEdge(
             event = envelope,
-            state = state,
+            mappedState = currentState.mappedControllerState,
             motion = currentState.lastMotionSample,
+            rawDebugEnabled = currentState.rawDebugEnabled,
         )
     }
 
@@ -1377,7 +1394,7 @@ class HostSessionService : Service() {
                 aimCalibrationState = aimCalibrationSession.state,
             ))
             currentState = hidSessionController.fanOutLiveInput(currentState)
-            sendUdpEdge(envelope, gunInputState)
+            sendUdpEdge(envelope)
             return
         }
 
@@ -1403,7 +1420,7 @@ class HostSessionService : Service() {
             aimCalibrationState = aimCalibrationSession.state,
         ))
         currentState = hidSessionController.fanOutLiveInput(currentState)
-        sendUdpEdge(envelope, gunInputState)
+        sendUdpEdge(envelope)
     }
 
     private fun MotionSample.toAimBaseline(elapsedNanos: Long): AimBaseline =

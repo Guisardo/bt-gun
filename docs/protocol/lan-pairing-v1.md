@@ -189,7 +189,7 @@ Raw provider/motion fields are optional raw debug extras. They are sent only whe
 | 0 | 4 | magic `BTGI` | Reject wrong datagrams. |
 | 4 | 1 | version `1` | Reject unsupported schema versions. |
 | 5 | 1 | frame type | `1=snapshot`, `2=edge`. |
-| 6 | 2 | flags | Reserved, zero in v1. |
+| 6 | 2 | stream flags | Bit 0 = mapped product stream. Bit 1 = Android raw debug extras. Other bits reserved zero. |
 | 8 | 16 | stream session id | Must match trusted `input_stream_config`. |
 | 24 | 8 | sequence | Monotonic per stream session across snapshot and edge frames. |
 | 32 | 8 | capture elapsed nanos | Source capture timestamp. |
@@ -199,7 +199,7 @@ Raw provider/motion fields are optional raw debug extras. They are sent only whe
 | 54 | 2 | stick Y int16 | Android-mapped normalized stick Y in signed int16 range. |
 | 56 | 1 | motion provider | Raw debug compact provider id; absent/debug-neutral unless Android raw debug is on. |
 | 57 | 1 | motion capability flags | Raw debug compact capability bits; absent/debug-neutral unless Android raw debug is on. |
-| 58 | 2 | flags/debug state | Bit 0 may mark Android raw debug on; other bits reserved zero. |
+| 58 | 2 | reserved motion | Reserved, zero in v1. |
 | 60 | 4 | aim X float32 | Android-mapped aim X for product stream. |
 | 64 | 4 | aim Y float32 | Android-mapped aim Y for product stream. |
 | 68 | 4 | roll/debug float32 | Raw debug roll only when Android raw debug is on; otherwise NaN. |

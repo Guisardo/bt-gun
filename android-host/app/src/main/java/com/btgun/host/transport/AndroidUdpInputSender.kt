@@ -7,6 +7,7 @@ import com.btgun.host.model.LiveEnvelope
 import com.btgun.host.model.MotionProvider
 import com.btgun.host.model.MotionSample
 import com.btgun.host.motion.MotionCapabilityFlags
+import com.btgun.host.profile.MappedControllerState
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
@@ -160,6 +161,20 @@ class AndroidUdpInputSender(
             edgeBitmask = 0,
         )
 
+    fun sendSnapshot(
+        mappedState: MappedControllerState,
+        motion: LiveEnvelope<MotionSample>?,
+        rawDebugEnabled: Boolean,
+    ): AndroidUdpInputSendResult =
+        sendMappedFrame(
+            type = UdpInputFrameType.SNAPSHOT,
+            mappedState = mappedState,
+            motion = motion,
+            rawDebugEnabled = rawDebugEnabled,
+            captureElapsedNanos = elapsedRealtimeNanos(),
+            edgeBitmask = 0,
+        )
+
     fun sendEdge(
         event: LiveEnvelope<GunEvent>,
         state: GunInputState,
@@ -169,6 +184,21 @@ class AndroidUdpInputSender(
             type = UdpInputFrameType.EDGE,
             state = state,
             motion = motion,
+            captureElapsedNanos = event.captureElapsedNanos,
+            edgeBitmask = EDGE_CONTROL_CHANGED,
+        )
+
+    fun sendEdge(
+        event: LiveEnvelope<GunEvent>,
+        mappedState: MappedControllerState,
+        motion: LiveEnvelope<MotionSample>?,
+        rawDebugEnabled: Boolean,
+    ): AndroidUdpInputSendResult =
+        sendMappedFrame(
+            type = UdpInputFrameType.EDGE,
+            mappedState = mappedState,
+            motion = motion,
+            rawDebugEnabled = rawDebugEnabled,
             captureElapsedNanos = event.captureElapsedNanos,
             edgeBitmask = EDGE_CONTROL_CHANGED,
         )
@@ -212,6 +242,51 @@ class AndroidUdpInputSender(
         }
     }
 
+    private fun sendMappedFrame(
+        type: UdpInputFrameType,
+        mappedState: MappedControllerState,
+        motion: LiveEnvelope<MotionSample>?,
+        rawDebugEnabled: Boolean,
+        captureElapsedNanos: Long,
+        edgeBitmask: Int,
+    ): AndroidUdpInputSendResult {
+        val config = activeConfig ?: return AndroidUdpInputSendResult.INACTIVE
+        val sendElapsedNanos = elapsedRealtimeNanos()
+        if (!canSendAt(config, sendElapsedNanos)) {
+            return AndroidUdpInputSendResult.INACTIVE
+        }
+        val payload = motion?.payload
+        val rawFlags = if (rawDebugEnabled) UdpInputFrame.FLAG_RAW_DEBUG_EXTRAS else 0
+        val frame = UdpInputFrame(
+            type = type,
+            streamSessionId = config.streamSessionIdHex,
+            sequence = sequencer.next(),
+            captureElapsedNanos = captureElapsedNanos,
+            sendElapsedNanos = sendElapsedNanos.coerceAtLeast(captureElapsedNanos),
+            buttonBitmask = buttonBitmaskFor(mappedState.pressedVirtualControls) or edgeBitmask,
+            stickX = mappedState.stickAxisX.toInt16Axis(),
+            stickY = mappedState.stickAxisY.toInt16Axis(),
+            motionProvider = if (rawDebugEnabled) payload?.provider?.toWireProvider() ?: PROVIDER_UNAVAILABLE else PROVIDER_UNAVAILABLE,
+            motionCapabilityFlags = if (rawDebugEnabled) payload?.capabilities?.toWireFlags() ?: 0 else 0,
+            yaw = mappedState.aimAxisX,
+            pitch = mappedState.aimAxisY,
+            roll = if (rawDebugEnabled) payload?.roll ?: Float.NaN else Float.NaN,
+            rawAimX = if (rawDebugEnabled) payload?.rawAimX ?: Float.NaN else Float.NaN,
+            rawAimY = if (rawDebugEnabled) payload?.rawAimY ?: Float.NaN else Float.NaN,
+            sourceSensorElapsedNanos = if (rawDebugEnabled) payload?.sourceSensorElapsedNanos ?: 0L else 0L,
+            streamFlags = UdpInputFrame.FLAG_MAPPED_PRODUCT_STREAM or rawFlags,
+            productAimX = mappedState.aimAxisX,
+            productAimY = mappedState.aimAxisY,
+            rawRoll = if (rawDebugEnabled) payload?.roll ?: Float.NaN else Float.NaN,
+        )
+        val encoded = UdpInputFrameCodec.encode(frame, config)
+        return if (datagramSink.send(config.udpHost, config.udpPort, encoded)) {
+            AndroidUdpInputSendResult.SENT
+        } else {
+            AndroidUdpInputSendResult.FAILED
+        }
+    }
+
     private fun canSendAt(config: InputStreamConfig, nowElapsedNanos: Long): Boolean {
         val disconnectedAt = controlDisconnectedAtNanos ?: return lifecycleState == InputStreamLifecycleState.ACTIVE
         val graceNanos = config.controlDisconnectGraceMs * NANOS_PER_MILLI
@@ -229,18 +304,29 @@ class AndroidUdpInputSender(
     private fun buttonBitmaskFor(state: GunInputState): Int {
         var bitmask = 0
         state.pressedControls.forEach { control ->
-            bitmask = bitmask or when (control) {
-                "trigger" -> BUTTON_TRIGGER
-                "reload" -> BUTTON_RELOAD
-                "button_x" -> BUTTON_X
-                "button_y" -> BUTTON_Y
-                "button_a" -> BUTTON_A
-                "button_b" -> BUTTON_B
-                else -> 0
-            }
+            bitmask = bitmask or bitForControl(control)
         }
         return bitmask
     }
+
+    private fun buttonBitmaskFor(pressedControls: Set<String>): Int {
+        var bitmask = 0
+        pressedControls.forEach { control ->
+            bitmask = bitmask or bitForControl(control)
+        }
+        return bitmask
+    }
+
+    private fun bitForControl(control: String): Int =
+        when (control) {
+            "trigger" -> BUTTON_TRIGGER
+            "reload" -> BUTTON_RELOAD
+            "button_x" -> BUTTON_X
+            "button_y" -> BUTTON_Y
+            "button_a" -> BUTTON_A
+            "button_b" -> BUTTON_B
+            else -> 0
+        }
 
     private fun Float.toInt16Axis(): Int =
         when {
