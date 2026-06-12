@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 08-04-PLAN.md
-last_updated: "2026-06-12T17:04:32.693Z"
-last_activity: 2026-06-12 -- Phase 08 Plan 04 completed; Android active profile runtime now drives HID, mapped UDP, and profile metadata
+stopped_at: Completed 08-05-PLAN.md
+last_updated: "2026-06-12T17:20:31.957Z"
+last_activity: 2026-06-12 -- Phase 08 Plan 05 completed; Android profile management UI and dashboard profile rows are in place
 progress:
   total_phases: 10
   completed_phases: 7
   total_plans: 49
-  completed_plans: 46
-  percent: 94
+  completed_plans: 47
+  percent: 96
 ---
 
 # Project State
@@ -26,18 +26,18 @@ See: .planning/PROJECT.md (updated 2026-06-09)
 ## Current Position
 
 Phase: 08 (desktop-profiles-and-mapping) — EXECUTING
-Plan: 5 of 7
+Plan: 6 of 7
 Next phase: Execute Phase 08 desktop profiles and mapping
-Status: Ready to execute 08-05
-Last activity: 2026-06-12 -- Phase 08 Plan 04 completed; Android active profile runtime now drives HID, mapped UDP, and profile metadata
+Status: Ready to execute 08-06
+Last activity: 2026-06-12 -- Phase 08 Plan 05 completed; Android profile management UI and dashboard profile rows are in place
 
-Progress: [█████████░] 46/49 active planned plans complete. Phase 08 has 4/7 plans executed.
+Progress: [██████████] 47/49 active planned plans complete. Phase 08 has 5/7 plans executed.
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 46 of 49 planned
+- Total plans completed: 47 of 49 planned
 - Average duration: not tracked for hardware-interactive plans
 - Total execution time: not tracked after Plan 02
 
@@ -51,11 +51,11 @@ Progress: [█████████░] 46/49 active planned plans complete. 
 | 05 | 5 | hardware-interactive | hardware-interactive |
 | 06 | 6 | hardware-interactive | hardware-interactive |
 | 07 | 6 | hardware-interactive | complete; Android HID input passed, macOS haptics deferred |
-| 08 | 7 | 53m 25s | 13m 21s |
+| 08 | 7 | 1h 7m 25s | 13m 29s |
 
 **Recent Trend:**
 
-- Recent completed execution plans: 07-P01 through 07-P06 and 08-P01 through 08-P04 complete. Phase 08 now has 3 remaining execution plans.
+- Recent completed execution plans: 07-P01 through 07-P06 and 08-P01 through 08-P05 complete. Phase 08 now has 2 remaining execution plans.
 - Trend: CoreHID and DriverKit are no longer primary for macOS because no-subscription virtual HID is blocked. Phase 07 completed Android phone Bluetooth HID gamepad proof, with Windows VHF retained as fallback and macOS browser/GameController haptics deferred. Phase 08 reroutes profiles to Android-owned storage/mapping with desktop read-only metadata.
 
 *Updated after each plan completion*
@@ -106,6 +106,7 @@ Progress: [█████████░] 46/49 active planned plans complete. 
 | Phase 08 P02 | 14min | 3 tasks | 5 files |
 | Phase 08 P03 | 11min | 3 tasks | 5 files |
 | Phase 08 P04 | 23m 25s | 3 tasks | 12 files |
+| Phase 08 P05 | 14m | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -222,6 +223,9 @@ Recent decisions affecting current work:
 - [Phase 08]: HostSessionService loads and applies Android active profiles before HID and LAN fanout. — Plan 08-04 made Android the runtime profile authority for product output.
 - [Phase 08]: Android UDP frames use offset-6 stream flags for mapped product stream and raw-debug extras. — Mapped product output is default; raw provider/motion fields require Android raw-debug enablement.
 - [Phase 08]: Android sends profile_metadata with source=android and rawDebugEnabled after trusted control auth and profile reload. — Desktop remains a read-only consumer and cannot request raw mode or own profile state.
+- [Phase 08]: Android MainActivity is the profile management surface; desktop-owned profile labels remain forbidden. — Plan 08-05 implements native Android profile management and keeps desktop read-only.
+- [Phase 08]: Raw debug remains an Android profile/session toggle and is persisted through ProfileStore. — Preserves Android-owned raw-debug control and prevents desktop raw-stream request semantics.
+- [Phase 08]: Profile editor saves are rejected with ProfileValidator labels instead of silently repairing invalid mappings. — Preserves D-14 and T-08-08 mitigation.
 
 ### Pending Todos
 
@@ -250,6 +254,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-12T17:04:32.677Z
-Stopped at: Completed 08-04-PLAN.md
+Last session: 2026-06-12T17:20:31.951Z
+Stopped at: Completed 08-05-PLAN.md
 Resume file: None
