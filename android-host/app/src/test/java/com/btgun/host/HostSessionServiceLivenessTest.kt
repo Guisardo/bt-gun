@@ -20,6 +20,16 @@ import com.btgun.host.model.MotionProvider
 import com.btgun.host.model.MotionSample
 import com.btgun.host.permissions.PermissionGate
 import com.btgun.host.permissions.PermissionGateInput
+import com.btgun.host.profile.AimMappingSettings
+import com.btgun.host.profile.BtGunProfile
+import com.btgun.host.profile.MappedControllerState
+import com.btgun.host.profile.PhysicalButton
+import com.btgun.host.profile.ProfileMapper
+import com.btgun.host.profile.ProfilePreferences
+import com.btgun.host.profile.ProfileStore
+import com.btgun.host.profile.SaveProfileResult
+import com.btgun.host.profile.SmoothingMode
+import com.btgun.host.profile.VirtualButton
 
 fun main() {
     heartbeatTimeoutClearSchedulesUdpDisconnectGrace()
@@ -31,6 +41,10 @@ fun main() {
     bluetoothGamepadStopSessionAndDestroyCloseHidMode()
     liveInputFanoutOnlySendsWhenHidHostConnected()
     hidOutputCallbackRoutesThroughPhoneHapticExecutorStatus()
+    hostProfileRuntimeLoadsActiveProfileAndMapsCurrentInput()
+    hostProfileRuntimeReloadsSelectedProfileWithoutRestart()
+    hidFanoutUsesMappedStateAfterServiceMapping()
+    recenterUsesSelectedPhysicalControlWhileVirtualReloadPublishes()
 }
 
 private fun heartbeatTimeoutClearSchedulesUdpDisconnectGrace() {
@@ -224,6 +238,98 @@ private fun hidOutputCallbackRoutesThroughPhoneHapticExecutorStatus() {
     expectEquals("haptic result", HapticResultStatus.STARTED, state.hidGamepadStatus.lastHapticResult?.status)
 }
 
+private fun hostProfileRuntimeLoadsActiveProfileAndMapsCurrentInput() {
+    val runtime = HostSessionProfileRuntime(
+        profileStore = ProfileStore(InMemoryProfilePreferences()),
+        mapper = ProfileMapper(),
+        elapsedRealtimeNanos = { 10_000_000L },
+    )
+    val raw = GunInputState(pressedControls = setOf("trigger"), stickAxisX = 0.25f, stickAxisY = -0.5f)
+
+    val state = runtime.loadActiveProfile(HostSessionState(gunInputState = raw))
+
+    expectEquals("default active id", "default_visualizer", state.activeProfileId)
+    expectEquals("default active name", "Default Visualizer", state.activeProfileDisplayName)
+    expectEquals("default active revision", 1L, state.activeProfileRevision)
+    expectEquals("default raw debug", false, state.rawDebugEnabled)
+    expectEquals("mapped trigger", setOf("trigger"), state.mappedControllerState.pressedVirtualControls)
+    expectEquals("mapped stick x", 0.25f, state.mappedControllerState.stickAxisX)
+    expectEquals("mapped stick y", -0.5f, state.mappedControllerState.stickAxisY)
+    expectEquals("validation error clear", null, state.profileValidationError)
+}
+
+private fun hostProfileRuntimeReloadsSelectedProfileWithoutRestart() {
+    val preferences = InMemoryProfilePreferences()
+    val store = ProfileStore(preferences, idFactory = { "user_profile" }, nowEpochMillis = { 100L })
+    val runtime = HostSessionProfileRuntime(
+        profileStore = store,
+        mapper = ProfileMapper(),
+        elapsedRealtimeNanos = { 20_000_000L },
+    )
+    val copy = (store.duplicateProfile("default_visualizer") as SaveProfileResult.Saved)
+        .document
+        .profiles
+        .single { profile -> profile.profileId == "user_profile" }
+        .copy(
+            displayName = "Reload Test",
+            aim = AimMappingSettings(sensitivity = 2f, smoothing = SmoothingMode.OFF),
+            buttonMapping = BtGunProfile.defaultButtonMapping() + (PhysicalButton.TRIGGER to VirtualButton.BUTTON_X),
+            rawDebugEnabled = true,
+        )
+    store.saveProfile(copy)
+    store.selectProfile("default_visualizer")
+    val initial = runtime.loadActiveProfile(
+        HostSessionState(gunInputState = GunInputState(pressedControls = setOf("trigger"))),
+    )
+
+    store.selectProfile("user_profile")
+    val reloaded = runtime.reloadActiveProfile(initial)
+
+    expectEquals("reloaded id", "user_profile", reloaded.activeProfileId)
+    expectEquals("reloaded name", "Reload Test", reloaded.activeProfileDisplayName)
+    expectEquals("reloaded raw debug", true, reloaded.rawDebugEnabled)
+    expectEquals("runtime remapped trigger", setOf("button_x"), reloaded.mappedControllerState.pressedVirtualControls)
+}
+
+private fun hidFanoutUsesMappedStateAfterServiceMapping() {
+    val driver = RecordingHostHidGamepadDriver()
+    val controller = HostSessionHidController(driverFactory = { driver })
+    controller.startBluetoothGamepad(HostSessionState())
+    driver.status = driver.status.copy(hostConnection = BtGunHidHostConnectionState.CONNECTED)
+    val mapped = defaultMappedState().copy(
+        pressedVirtualControls = setOf("button_x"),
+        stickAxisX = 0.5f,
+        stickAxisY = -0.25f,
+        aimAxisX = 0.125f,
+        aimAxisY = -0.75f,
+    )
+
+    controller.fanOutLiveInput(HostSessionState(mappedControllerState = mapped))
+
+    expectEquals("one mapped send", 1, driver.sentMappedInputs.size)
+    expectEquals("mapped state sent", mapped, driver.sentMappedInputs.single().state)
+}
+
+private fun recenterUsesSelectedPhysicalControlWhileVirtualReloadPublishes() {
+    val profile = BtGunProfile.defaultVisualizer().copy(
+        recenterPhysicalControl = PhysicalButton.BUTTON_A,
+        buttonMapping = BtGunProfile.defaultButtonMapping() + (PhysicalButton.BUTTON_A to VirtualButton.RELOAD),
+    )
+    val rawState = GunInputState(pressedControls = setOf("button_a"))
+    val mapper = ProfileMapper()
+    val mapped = mapper.map(
+        profile = profile,
+        gunInputState = rawState,
+        motionSample = null,
+        nowElapsedNanos = 30_000_000L,
+    )
+
+    expectEquals("physical recenter button", true, shouldFeedRecenterHold(profile, "button_a"))
+    expectEquals("physical reload not recenter", false, shouldFeedRecenterHold(profile, "reload"))
+    expectEquals("button a starts hold", true, mapper.isRecenterPressed(profile, rawState))
+    expectEquals("virtual reload still publishes", true, "reload" in mapped.pressedVirtualControls)
+}
+
 private fun motionEnvelope(payload: MotionSample) =
     com.btgun.host.model.LiveEnvelope(
         stream = com.btgun.host.model.StreamKind.MOTION,
@@ -254,6 +360,7 @@ private class RecordingHostHidGamepadDriver(
     var closeCount = 0
     var openPairingCount = 0
     val sentInputs = mutableListOf<SentInput>()
+    val sentMappedInputs = mutableListOf<SentMappedInput>()
 
     override fun startGamepadMode() {
         startCount += 1
@@ -270,6 +377,11 @@ private class RecordingHostHidGamepadDriver(
 
     override fun sendInput(state: GunInputState, motion: MotionSample?, stale: Boolean): BtGunHidInputSendResult {
         sentInputs += SentInput(state, motion, stale)
+        return BtGunHidInputSendResult.SENT
+    }
+
+    override fun sendMappedInput(state: MappedControllerState, stale: Boolean): BtGunHidInputSendResult {
+        sentMappedInputs += SentMappedInput(state, stale)
         return BtGunHidInputSendResult.SENT
     }
 
@@ -304,6 +416,29 @@ private data class SentInput(
     val motion: MotionSample?,
     val stale: Boolean,
 )
+
+private data class SentMappedInput(
+    val state: MappedControllerState,
+    val stale: Boolean,
+)
+
+private fun defaultMappedState(): MappedControllerState =
+    ProfileMapper().map(
+        profile = BtGunProfile.defaultVisualizer(),
+        gunInputState = GunInputState(),
+        motionSample = null,
+        nowElapsedNanos = 0L,
+    )
+
+private class InMemoryProfilePreferences(initialValue: String? = null) : ProfilePreferences {
+    private var value: String? = initialValue
+
+    override fun loadProfiles(): String? = value
+
+    override fun saveProfiles(value: String) {
+        this.value = value
+    }
+}
 
 private fun expectEquals(label: String, expected: Any?, actual: Any?) {
     if (expected != actual) {
