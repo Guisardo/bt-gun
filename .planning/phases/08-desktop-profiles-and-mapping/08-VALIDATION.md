@@ -1,7 +1,7 @@
 ---
 phase: 08
 slug: desktop-profiles-and-mapping
-status: ready-for-usb-profile-ui-evidence
+status: passed
 nyquist_compliant: true
 wave_0_complete: true
 created: 2026-06-12
@@ -39,12 +39,12 @@ created: 2026-06-12
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
 | 08-01-01 | 01 | 0 | PROF-01..PROF-06 | T-08-01 / T-08-02 | Docs do not authorize desktop profile editing or raw-default stream | docs/source | `rg -n "Android-owned profiles|Default Visualizer|raw debug" .planning docs` and forbidden-label negative `rg` | W0 | green |
-| 08-02-01 | 02 | 1 | PROF-01, PROF-04, PROF-06 | T-08-03 / T-08-04 | Profile decode/save never crashes service and invalid profiles are rejected | unit | `gradle -p android-host testDebugUnitTest --tests '*ProfileStore*' --tests '*ProfileValidation*'` | W0 | pending |
-| 08-03-01 | 03 | 2 | PROF-02, PROF-03, PROF-04 | T-08-05 | Mapper applies profile math with bounded smoothing lag | unit | `gradle -p android-host testDebugUnitTest --tests '*ProfileMapper*' --tests '*AdaptiveAimSmoother*'` | W0 | pending |
-| 08-04-01 | 04 | 3 | PROF-02, PROF-03, PROF-04, PROF-05, PROF-06 | T-08-06 / T-08-07 | HID and LAN consume one Android-mapped state; raw debug is Android-controlled | unit/service | `gradle -p android-host testDebugUnitTest --tests '*HostSessionService*' --tests '*BtGunHidReportPacker*' --tests '*AndroidUdpInputSender*'` | W0 | pending |
-| 08-05-01 | 05 | 4 | PROF-01..PROF-06 | T-08-08 / T-08-09 | UI blocks invalid save, shows Android authority, no desktop-owned copy | unit/device | `gradle -p android-host testDebugUnitTest --tests '*DashboardState*' --tests '*Profile*'` | W0 | pending |
-| 08-06-01 | 06 | 5 | PROF-05, PROF-06 | T-08-10 / T-08-11 | Desktop only displays Android profile metadata and mapped-stream diagnostics | unit | `gradle -p desktop-companion test --tests '*PairingWindow*' --tests '*ControlChannel*' --tests '*UdpControllerStateAdapter*'` | W0 | pending |
-| 08-07-01 | 07 | 6 | PROF-01..PROF-06 | T-08-12 / T-08-13 | Evidence is sanitized; screenshots are ignored and stale files deleted | full + manual | Full suite, forbidden-label `rg`, redaction `rg`, USB screenshot capture | W0 | pending |
+| 08-02-01 | 02 | 1 | PROF-01, PROF-04, PROF-06 | T-08-03 / T-08-04 | Profile decode/save never crashes service and invalid profiles are rejected | unit | `gradle -p android-host testDebugUnitTest --tests '*ProfileStore*' --tests '*ProfileValidation*'` | W0 | green |
+| 08-03-01 | 03 | 2 | PROF-02, PROF-03, PROF-04 | T-08-05 | Mapper applies profile math with bounded smoothing lag | unit | `gradle -p android-host testDebugUnitTest --tests '*ProfileMapper*' --tests '*AdaptiveAimSmoother*'` | W0 | green |
+| 08-04-01 | 04 | 3 | PROF-02, PROF-03, PROF-04, PROF-05, PROF-06 | T-08-06 / T-08-07 | HID and LAN consume one Android-mapped state; raw debug is Android-controlled | unit/service | `gradle -p android-host testDebugUnitTest --tests '*HostSessionService*' --tests '*BtGunHidReportPacker*' --tests '*AndroidUdpInputSender*'` | W0 | green |
+| 08-05-01 | 05 | 4 | PROF-01..PROF-06 | T-08-08 / T-08-09 | UI blocks invalid save, shows Android authority, no desktop-owned copy | unit/device | `gradle -p android-host testDebugUnitTest --tests '*DashboardState*' --tests '*Profile*'` | W0 | green |
+| 08-06-01 | 06 | 5 | PROF-05, PROF-06 | T-08-10 / T-08-11 | Desktop only displays Android profile metadata and mapped-stream diagnostics | unit | `gradle -p desktop-companion test --tests '*PairingWindow*' --tests '*ControlChannel*' --tests '*UdpControllerStateAdapter*'` | W0 | green |
+| 08-07-01 | 07 | 6 | PROF-01..PROF-06 | T-08-12 / T-08-13 | Evidence is sanitized; screenshots are ignored and stale files deleted | full + manual | Full suite, forbidden-label `rg`, redaction `rg`, USB screenshot capture | W0 | green |
 
 *Status: pending, green, red, flaky.*
 
@@ -88,4 +88,18 @@ created: 2026-06-12
 - Automated desktop suite: green.
 - Forbidden desktop edit/raw-request/storage label guard: green.
 - Raw debug default guard: green.
-- USB Android profile UI screenshot evidence: pending human verification checkpoint.
+- USB Android profile UI screenshot evidence: green.
+- Evidence manifest redaction scan: green.
+- Raw screenshot storage: ignored and uncommitted.
+
+## Final Phase 8 Closeout
+
+All Phase 8 profile requirements are covered by automated tests, source guards, and connected USB Android UI evidence.
+
+| Evidence | Status | Notes |
+|----------|--------|-------|
+| PROF-01 through PROF-06 | green | Covered by plan summaries 08-01 through 08-07 and the final manifest rows. |
+| D-01 through D-19 | green | Android profile authority, mapped default stream, raw debug Android control, and desktop read-only decisions are preserved. |
+| Research pitfalls | green | Mapped stream default, raw debug default-off, Android profile mapper ownership, and desktop read-only profile state are covered. |
+| UI-SPEC capture IDs | green | `phase8-dashboard-profile-rows`, `phase8-profile-list-default`, `phase8-profile-editor-provider-overrides`, `phase8-validation-blocked-save`, and `phase8-raw-debug-toggle` are present in the sanitized manifest. |
+| Redaction | green | Manifest rows contain capture IDs, pass status, and sanitized notes only. |

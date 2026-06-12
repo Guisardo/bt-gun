@@ -16,6 +16,7 @@ fun main() {
     pairingWindowExposesHapticSmokeStateWithoutLaunchingSwing()
     pairingWindowFormatsMacosBackendDiagnostics()
     pairingWindowFormatsReadOnlyAndroidProfileDiagnostics()
+    pairingWindowFreshProfileDiagnosticsAreNeutral()
     pairingWindowForbiddenDesktopProfileControlsAbsent()
 }
 
@@ -126,6 +127,15 @@ private fun pairingWindowFormatsReadOnlyAndroidProfileDiagnostics() {
     expectContains("mapped stream value", html, "active | mapped=true | raw_debug=on")
     expectContains("last profile update", html, "Last profile update")
     expectContains("elapsed profile update", html, "2s ago")
+}
+
+private fun pairingWindowFreshProfileDiagnosticsAreNeutral() {
+    val html = PairingWindow.freshProfileDiagnosticsHtml(nowElapsedNanos = 2_000_000_000L)
+
+    expectContains("fresh active profile", html, "Active Android profile:</b> unknown")
+    expectContains("fresh profile source", html, "Profile source:</b> unknown")
+    expectContains("fresh mapped stream", html, "stopped | mapped=false | raw_debug=off")
+    expectContains("fresh profile update", html, "Last profile update:</b> none")
 }
 
 private fun pairingWindowForbiddenDesktopProfileControlsAbsent() {

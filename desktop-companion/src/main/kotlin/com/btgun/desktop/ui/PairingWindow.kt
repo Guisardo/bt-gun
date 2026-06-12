@@ -204,6 +204,7 @@ class PairingWindow(
         serverAuthenticated = false
         lastControlError = null
         lastHapticStatus = "inactive"
+        clearSessionDiagnostics()
         startControlServer(current)
         state.text = stateText(displayState)
         endpoint.text = endpointText(current.endpoint)
@@ -222,6 +223,14 @@ class PairingWindow(
             displayState = DesktopSessionUiState.DISCONNECTED
             lastControlError = SecretRedactor.redact("Control server start failed: ${errorSummary(error)}")
         }
+    }
+
+    private fun clearSessionDiagnostics() {
+        activeProfileMetadata = null
+        lastProfileUpdateElapsedNanos = null
+        lastMappedProductStream = false
+        lastRawDebugEnabled = false
+        packetStreamState = InputStreamLifecycleState.STOPPED
     }
 
     private fun refreshSession() {
@@ -351,6 +360,16 @@ class PairingWindow(
                 <p><b>Mapped stream:</b> ${packetState.label} | mapped=$mappedProductStream | raw_debug=${if (rawDebugEnabled) "on" else "off"}</p>
                 <p><b>Last profile update:</b> ${profileUpdateText(lastProfileUpdateElapsedNanos, nowElapsedNanos)}</p>
             """.trimIndent()
+
+        internal fun freshProfileDiagnosticsHtml(nowElapsedNanos: Long = 0L): String =
+            profileDiagnosticsHtml(
+                profile = null,
+                packetState = InputStreamLifecycleState.STOPPED,
+                mappedProductStream = false,
+                rawDebugEnabled = false,
+                lastProfileUpdateElapsedNanos = null,
+                nowElapsedNanos = nowElapsedNanos,
+            )
 
         internal fun smokeHapticCommand(commandId: String): HapticCommand =
             HapticCommand(
