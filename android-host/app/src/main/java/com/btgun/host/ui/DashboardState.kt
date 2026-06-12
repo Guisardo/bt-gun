@@ -28,6 +28,8 @@ import com.btgun.host.motion.AimCalibrationState
 import com.btgun.host.motion.MotionCapabilityFlags
 import com.btgun.host.motion.PreviewAim
 import com.btgun.host.permissions.PermissionGateState
+import com.btgun.host.profile.BtGunProfile
+import com.btgun.host.profile.MappedControllerState
 import com.btgun.host.recenter.ReloadHoldRecenter
 import com.btgun.host.recenter.ReloadHoldState
 import com.btgun.host.recenter.recenterEvent
@@ -81,6 +83,14 @@ data class DashboardPhoneHaptic(
     val label: String,
     val capability: String,
     val lastLocalTest: String,
+)
+
+data class DashboardProfileState(
+    val activeProfile: DashboardField,
+    val profileMapping: DashboardField,
+    val recenterControl: DashboardField,
+    val rawDebugStream: DashboardField,
+    val profileError: DashboardField,
 )
 
 data class DashboardHidGamepad(
@@ -153,6 +163,7 @@ data class DashboardState(
     val foregroundService: DashboardField,
     val currentError: DashboardField,
     val placeholders: DashboardPlaceholders,
+    val profile: DashboardProfileState,
     val phoneHaptic: DashboardPhoneHaptic,
     val hidGamepad: DashboardHidGamepad,
     val debugPanels: DashboardDebugPanels,
@@ -214,6 +225,7 @@ data class DashboardState(
                     hostSessionState.lastError ?: bleConnectionState.lastError ?: desktopControlError ?: "none",
                 ),
                 placeholders = placeholders,
+                profile = formatProfile(hostSessionState),
                 phoneHaptic = DashboardPhoneHaptic(
                     label = "Phone haptic",
                     capability = phoneHapticStatus.capability,
@@ -307,6 +319,58 @@ data class DashboardState(
 
         private fun formatAxis(value: Float): String =
             java.lang.String.format(java.util.Locale.US, "%.1f", value)
+
+        private fun formatProfile(state: HostSessionState): DashboardProfileState {
+            val profile = state.activeProfile
+            val mapped = state.mappedControllerState
+            return DashboardProfileState(
+                activeProfile = DashboardField(
+                    "Active profile",
+                    "Active profile: ${profile.displayName} | id=${profile.profileId} | " +
+                        "rev=${profile.revision} | built_in=${profile.builtIn}",
+                ),
+                profileMapping = DashboardField(
+                    "Profile mapping",
+                    formatProfileMapping(profile, mapped),
+                ),
+                recenterControl = DashboardField(
+                    "Recenter control",
+                    "Recenter control: hold ${profile.recenterPhysicalControl?.id ?: "none"} for 2000ms",
+                ),
+                rawDebugStream = DashboardField(
+                    "Raw debug stream",
+                    if (state.rawDebugEnabled) {
+                        "Raw debug stream: on | Android session controlled"
+                    } else {
+                        "Raw debug stream: off"
+                    },
+                ),
+                profileError = DashboardField(
+                    "Profile error",
+                    "Profile error: ${state.profileValidationError ?: "none"}",
+                ),
+            )
+        }
+
+        private fun formatProfileMapping(
+            profile: BtGunProfile,
+            mapped: MappedControllerState,
+        ): String {
+            val fallback = if (mapped.aimStatus.adaptiveFallback) " | adaptive fallback" else ""
+            return "Profile mapping: mapped | sensitivity=${formatProfileNumber(profile.aim.sensitivity)} | " +
+                "dead_zone=${formatProfileNumber(profile.aim.deadZone)} | " +
+                "smoothing=${mapped.aimStatus.smoothingMode}$fallback | " +
+                "filter_lag<=${mapped.aimStatus.estimatedFilterLagMillis}ms"
+        }
+
+        private fun formatProfileNumber(value: Float): String {
+            val text = java.lang.String.format(java.util.Locale.US, "%.2f", value)
+            return when {
+                text.endsWith(".00") -> text.dropLast(1)
+                text.endsWith("0") -> text.dropLast(1)
+                else -> text
+            }
+        }
 
         private fun formatCapabilities(capabilities: MotionCapabilityFlags?): String =
             if (capabilities == null) {
