@@ -36,7 +36,7 @@ object ProfileValidator {
                 errors += missingOutputError(output)
             }
         }
-        if (mappedOutputs.groupingBy { output -> output }.eachCount().any { (_, count) -> count > 1 }) {
+        if (hasDuplicateOutput(mappedOutputs)) {
             errors += ProfileValidationError.DUPLICATE_OUTPUT
         }
 
@@ -56,6 +56,16 @@ object ProfileValidator {
             VirtualButton.BUTTON_A -> ProfileValidationError.MISSING_A_OUTPUT
             VirtualButton.BUTTON_B -> ProfileValidationError.MISSING_B_OUTPUT
         }
+
+    private fun hasDuplicateOutput(outputs: Collection<VirtualButton>): Boolean {
+        val seen = mutableSetOf<VirtualButton>()
+        outputs.forEach { output ->
+            if (!seen.add(output)) {
+                return true
+            }
+        }
+        return false
+    }
 
     private fun ProviderAimOverrides.isValid(): Boolean =
         useSharedSettings || settings.isValid()
