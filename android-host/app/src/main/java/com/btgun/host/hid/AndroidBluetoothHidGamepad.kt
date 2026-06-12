@@ -11,6 +11,7 @@ import com.btgun.host.haptics.DesktopHapticCommand
 import com.btgun.host.haptics.HapticResult
 import com.btgun.host.model.GunInputState
 import com.btgun.host.model.MotionSample
+import com.btgun.host.profile.MappedControllerState
 import com.btgun.host.util.AndroidLog
 import java.util.concurrent.Executor
 import java.util.concurrent.atomic.AtomicInteger
@@ -138,6 +139,24 @@ class AndroidBluetoothHidGamepad(
         val host = connectedHost ?: return recordInputResult(BtGunHidInputSendResult.NO_HOST)
 
         val report = BtGunHidReportPacker.packInputReport(state = state, motion = motion, stale = stale)
+        lastInputReport = report
+        val result = if (activeProxy.sendReport(host, report.reportId, report.bytes)) {
+            BtGunHidInputSendResult.SENT
+        } else {
+            BtGunHidInputSendResult.FAILED
+        }
+        return recordInputResult(result, report)
+    }
+
+    fun sendMappedInput(
+        state: MappedControllerState,
+        stale: Boolean,
+    ): BtGunHidInputSendResult {
+        val activeProxy = proxy ?: return recordInputResult(BtGunHidInputSendResult.NO_PROXY)
+        if (!registered) return recordInputResult(BtGunHidInputSendResult.NOT_REGISTERED)
+        val host = connectedHost ?: return recordInputResult(BtGunHidInputSendResult.NO_HOST)
+
+        val report = BtGunHidReportPacker.packInputReport(mappedState = state, stale = stale)
         lastInputReport = report
         val result = if (activeProxy.sendReport(host, report.reportId, report.bytes)) {
             BtGunHidInputSendResult.SENT

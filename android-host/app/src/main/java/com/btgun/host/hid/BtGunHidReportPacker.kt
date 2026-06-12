@@ -2,6 +2,7 @@ package com.btgun.host.hid
 
 import com.btgun.host.model.GunInputState
 import com.btgun.host.model.MotionSample
+import com.btgun.host.profile.MappedControllerState
 import kotlin.math.roundToInt
 
 data class BtGunHidInputReport(
@@ -43,7 +44,30 @@ object BtGunHidReportPacker {
         )
     }
 
-    private fun GunInputState.faceButtonBits(): Int {
+    fun packInputReport(
+        mappedState: MappedControllerState,
+        stale: Boolean,
+    ): BtGunHidInputReport {
+        val report = ByteArray(BtGunHidDescriptor.INPUT_REPORT_PAYLOAD_LENGTH_BYTES)
+
+        report[0] = if (stale) 0 else faceButtonBits(mappedState.pressedVirtualControls).toByte()
+        report.writeInt16Le(offset = 1, value = if (stale) 0 else mappedState.stickAxisX.toSignedInt16Axis())
+        report.writeInt16Le(offset = 3, value = if (stale) 0 else (-mappedState.stickAxisY).toSignedInt16Axis())
+        report.writeInt16Le(offset = 5, value = mappedState.aimAxisX.toSignedInt16Axis())
+        report.writeInt16Le(offset = 7, value = (-mappedState.aimAxisY).toSignedInt16Axis())
+
+        return BtGunHidInputReport(
+            reportId = BtGunHidDescriptor.INPUT_REPORT_ID,
+            bytes = report,
+            stale = stale,
+            aimSource = mappedState.aimStatus.aimSource,
+        )
+    }
+
+    private fun GunInputState.faceButtonBits(): Int =
+        faceButtonBits(pressedControls)
+
+    private fun faceButtonBits(pressedControls: Set<String>): Int {
         var bits = 0
         pressedControls.forEach { control ->
             bits = bits or when (control) {
