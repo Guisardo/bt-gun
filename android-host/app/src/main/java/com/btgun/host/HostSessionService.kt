@@ -55,6 +55,13 @@ import com.btgun.host.hid.BtGunHidStatus
 import com.btgun.host.permissions.CapabilityState
 import com.btgun.host.permissions.HostCapabilityProbe
 import com.btgun.host.permissions.PermissionGateState
+import com.btgun.host.profile.BtGunProfile
+import com.btgun.host.profile.MappedAimStatus
+import com.btgun.host.profile.MappedControllerState
+import com.btgun.host.profile.ProfileMapper
+import com.btgun.host.profile.ProfileStore
+import com.btgun.host.profile.ProfileStoreLoadResult
+import com.btgun.host.profile.SmoothingMode
 import com.btgun.host.recenter.ReloadHoldRecenter
 import com.btgun.host.recenter.ReloadHoldState
 import com.btgun.host.session.DesktopControlClient
@@ -140,6 +147,7 @@ internal interface HostHidGamepadDriver : AutoCloseable {
     fun stopGamepadMode()
     fun openPairingWindow(durationSeconds: Int): Boolean
     fun sendInput(state: GunInputState, motion: MotionSample?, stale: Boolean): BtGunHidInputSendResult
+    fun sendMappedInput(state: MappedControllerState, stale: Boolean): BtGunHidInputSendResult
     override fun close()
 }
 
@@ -173,9 +181,8 @@ internal class HostSessionHidController(
         if (activeDriver.status.hostConnection != BtGunHidHostConnectionState.CONNECTED) {
             return refreshStatus(state)
         }
-        activeDriver.sendInput(
-            state = state.gunInputState,
-            motion = state.lastMotionSample?.payload,
+        activeDriver.sendMappedInput(
+            state = state.mappedControllerState,
             stale = false,
         )
         return refreshStatus(state)
@@ -217,6 +224,9 @@ internal class AndroidHostHidGamepadDriver(
     override fun sendInput(state: GunInputState, motion: MotionSample?, stale: Boolean): BtGunHidInputSendResult =
         gamepad.sendInput(state, motion, stale)
 
+    override fun sendMappedInput(state: MappedControllerState, stale: Boolean): BtGunHidInputSendResult =
+        gamepad.sendInput(state.toGunInputState(), state.toMotionSample(), stale)
+
     override fun close() {
         gamepad.close()
     }
@@ -231,8 +241,70 @@ private class UnavailableHostHidGamepadDriver(reason: String) : HostHidGamepadDr
     override fun sendInput(state: GunInputState, motion: MotionSample?, stale: Boolean): BtGunHidInputSendResult =
         BtGunHidInputSendResult.NO_PROXY
 
+    override fun sendMappedInput(state: MappedControllerState, stale: Boolean): BtGunHidInputSendResult =
+        BtGunHidInputSendResult.NO_PROXY
+
     override fun close() = Unit
 }
+
+internal class HostSessionProfileRuntime(
+    private val profileStore: ProfileStore,
+    private val mapper: ProfileMapper = ProfileMapper(),
+    private val elapsedRealtimeNanos: () -> Long,
+) {
+    fun loadActiveProfile(state: HostSessionState): HostSessionState =
+        applyLoadResult(state, profileStore.load())
+
+    fun reloadActiveProfile(state: HostSessionState): HostSessionState =
+        applyLoadResult(state, profileStore.load())
+
+    fun mapCurrentState(state: HostSessionState): HostSessionState =
+        state.copy(
+            mappedControllerState = mapper.map(
+                profile = state.activeProfile,
+                gunInputState = state.gunInputState,
+                motionSample = state.lastMotionSample?.payload,
+                nowElapsedNanos = elapsedRealtimeNanos(),
+            ),
+        )
+
+    private fun applyLoadResult(state: HostSessionState, result: ProfileStoreLoadResult): HostSessionState {
+        val nextProfile = result.document.activeProfile()
+        val nextState = state.copy(
+            activeProfile = nextProfile,
+            profileValidationError = when (result) {
+                is ProfileStoreLoadResult.Rejected -> result.reason
+                is ProfileStoreLoadResult.Defaulted,
+                is ProfileStoreLoadResult.Loaded,
+                -> null
+            },
+        )
+        return mapCurrentState(nextState)
+    }
+}
+
+internal fun shouldFeedRecenterHold(profile: BtGunProfile, controlName: String): Boolean =
+    profile.recenterPhysicalControl?.id == controlName
+
+private fun MappedControllerState.toGunInputState(): GunInputState =
+    GunInputState(
+        pressedControls = pressedVirtualControls,
+        stickAxisX = stickAxisX,
+        stickAxisY = stickAxisY,
+    )
+
+private fun MappedControllerState.toMotionSample(): MotionSample =
+    MotionSample(
+        provider = MotionProvider.ROTATION_VECTOR,
+        providerName = aimStatus.providerName,
+        sourceSensorElapsedNanos = 0L,
+        yaw = 0f,
+        pitch = 0f,
+        roll = 0f,
+        aimX = aimAxisX,
+        aimY = aimAxisY,
+        aimCalibrated = aimStatus.aimSource == "calibrated",
+    )
 
 class HostSessionService : Service() {
     private var adapter: IpegaBleGunAdapter? = null
@@ -251,6 +323,15 @@ class HostSessionService : Service() {
     private val aimCalibrationSession = AimCalibrationSession()
     private var activeAimCalibration: AimCalibration? = null
     private val aimCalibrationStore: AimCalibrationStore by lazy { AimCalibrationStore(applicationContext) }
+    private val profileStore: ProfileStore by lazy { ProfileStore(applicationContext) }
+    private val profileMapper = ProfileMapper()
+    private val profileRuntime: HostSessionProfileRuntime by lazy {
+        HostSessionProfileRuntime(
+            profileStore = profileStore,
+            mapper = profileMapper,
+            elapsedRealtimeNanos = { SystemClock.elapsedRealtimeNanos() },
+        )
+    }
     private val trustedDesktopStore: TrustedDesktopStore by lazy { TrustedDesktopStore(applicationContext) }
     private var desktopControlClient: DesktopControlClient? = null
     private var udpInputSender: AndroidUdpInputSender? = null
@@ -300,7 +381,7 @@ class HostSessionService : Service() {
             val selection = selectedMotionProvider ?: provider.currentSelection()
             if (!selection.isAvailable) {
                 val unavailable = provider.unavailableSample()
-                currentState = currentState.copy(lastMotionSample = unavailable)
+                currentState = profileRuntime.mapCurrentState(currentState.copy(lastMotionSample = unavailable))
                 return
             }
             val displayRotation = displayRotation()
@@ -326,12 +407,12 @@ class HostSessionService : Service() {
             }
             val enriched = envelope.withAim(rawAbsolute, currentRawOrigin ?: rawAbsolute)
             val preview = PreviewAimMapper(currentAimBaseline).map(enriched)
-            currentState = currentState.copy(
+            currentState = profileRuntime.mapCurrentState(currentState.copy(
                 lastMotionSample = enriched,
                 lastPreviewAim = preview,
                 aimBaseline = currentAimBaseline,
                 aimCalibrationState = aimCalibrationSession.state,
-            )
+            ))
             currentState = hidSessionController.fanOutLiveInput(currentState)
             sendUdpSnapshot(throttled = true)
         }
@@ -352,6 +433,7 @@ class HostSessionService : Service() {
             ACTION_CONNECT_TRUSTED_DESKTOP -> connectTrustedDesktop(intent.getStringExtra(EXTRA_DESKTOP_FINGERPRINT))
             ACTION_CONNECT_MANUAL_DESKTOP -> connectManualDesktop(intent)
             ACTION_STOP_DESKTOP_CONTROL -> stopDesktopControl()
+            ACTION_RELOAD_ACTIVE_PROFILE -> reloadActiveProfile()
             ACTION_START_SESSION, null -> startSession()
         }
         return START_STICKY
@@ -374,7 +456,7 @@ class HostSessionService : Service() {
             return
         }
 
-        currentState = HostSessionState(phase = HostSessionPhase.STARTING)
+        currentState = profileRuntime.loadActiveProfile(HostSessionState(phase = HostSessionPhase.STARTING))
         if (!startHostForegroundSafely()) {
             stopSelf()
             return
@@ -473,6 +555,12 @@ class HostSessionService : Service() {
             stopForegroundCompat()
             stopSelf()
         }
+    }
+
+    private fun reloadActiveProfile() {
+        currentState = profileRuntime.reloadActiveProfile(currentState)
+        currentState = hidSessionController.fanOutLiveInput(currentState)
+        sendUdpSnapshot(throttled = false)
     }
 
     private fun connectDesktopFromQr(rawPayload: String) {
@@ -1066,7 +1154,7 @@ class HostSessionService : Service() {
         )
 
         if (!selection.isAvailable) {
-            currentState = currentState.copy(lastMotionSample = provider.unavailableSample())
+            currentState = profileRuntime.mapCurrentState(currentState.copy(lastMotionSample = provider.unavailableSample()))
             return
         }
 
@@ -1075,7 +1163,7 @@ class HostSessionService : Service() {
             sensorManager.registerListener(sensorListener, sensor, SensorManager.SENSOR_DELAY_GAME)
         } == true
         if (!registered) {
-            currentState = currentState.copy(lastMotionSample = provider.unavailableSample())
+            currentState = profileRuntime.mapCurrentState(currentState.copy(lastMotionSample = provider.unavailableSample()))
         }
     }
 
@@ -1304,17 +1392,20 @@ class HostSessionService : Service() {
             } else {
                 currentState.gunInputState
             }
-            currentState = currentState.copy(
+            currentState = profileRuntime.mapCurrentState(currentState.copy(
                 gunInputState = gunInputState,
                 aimCalibrationState = aimCalibrationSession.state,
-            )
+            ))
             currentState = hidSessionController.fanOutLiveInput(currentState)
             sendUdpEdge(envelope, gunInputState)
             return
         }
 
         val gunInputState = currentState.gunInputState.apply(envelope.payload)
-        if (envelope.payload.name == "reload" && envelope.payload.pressed != null) {
+        if (
+            envelope.payload.pressed != null &&
+            shouldFeedRecenterHold(currentState.activeProfile, envelope.payload.name)
+        ) {
             val wasHeld = recenter.state.isReloadHeld
             recenter.onReload(envelope.payload.pressed, envelope.captureElapsedNanos)
             if (envelope.payload.pressed) {
@@ -1325,12 +1416,12 @@ class HostSessionService : Service() {
                 handler.removeCallbacks(reloadHoldTick)
             }
         }
-        currentState = currentState.copy(
+        currentState = profileRuntime.mapCurrentState(currentState.copy(
             lastGunEvent = envelope,
             gunInputState = gunInputState,
             reloadHoldState = recenter.state,
             aimCalibrationState = aimCalibrationSession.state,
-        )
+        ))
         currentState = hidSessionController.fanOutLiveInput(currentState)
         sendUdpEdge(envelope, gunInputState)
     }
@@ -1353,6 +1444,7 @@ class HostSessionService : Service() {
         const val ACTION_CONNECT_TRUSTED_DESKTOP: String = "com.btgun.host.action.CONNECT_TRUSTED_DESKTOP"
         const val ACTION_CONNECT_MANUAL_DESKTOP: String = "com.btgun.host.action.CONNECT_MANUAL_DESKTOP"
         const val ACTION_STOP_DESKTOP_CONTROL: String = "com.btgun.host.action.STOP_DESKTOP_CONTROL"
+        const val ACTION_RELOAD_ACTIVE_PROFILE: String = "com.btgun.host.action.RELOAD_ACTIVE_PROFILE"
         const val EXTRA_QR_PAYLOAD: String = "com.btgun.host.extra.QR_PAYLOAD"
         const val EXTRA_DESKTOP_FINGERPRINT: String = "com.btgun.host.extra.DESKTOP_FINGERPRINT"
         const val EXTRA_MANUAL_HOST: String = "com.btgun.host.extra.MANUAL_HOST"
@@ -1400,8 +1492,15 @@ data class HostSessionState(
     val desktopLinkState: DesktopLinkState = DesktopLinkState(),
     val packetStreamState: InputStreamLifecycleState = InputStreamLifecycleState.STOPPED,
     val hidGamepadStatus: BtGunHidStatus = BtGunHidStatus(),
+    val activeProfile: BtGunProfile = BtGunProfile.defaultVisualizer(),
+    val mappedControllerState: MappedControllerState = defaultMappedControllerState(),
+    val profileValidationError: String? = null,
 ) {
     val wireState: String = phase.wireName
+    val activeProfileId: String = activeProfile.profileId
+    val activeProfileDisplayName: String = activeProfile.displayName
+    val activeProfileRevision: Long = activeProfile.revision
+    val rawDebugEnabled: Boolean = activeProfile.rawDebugEnabled
     val isActive: Boolean =
         phase in setOf(
             HostSessionPhase.STARTING,
@@ -1478,6 +1577,23 @@ data class ReconnectPolicy(
         return uncapped.coerceAtMost(maxDelayMillis)
     }
 }
+
+private fun defaultMappedControllerState(): MappedControllerState =
+    MappedControllerState(
+        aimAxisX = 0f,
+        aimAxisY = 0f,
+        aimStatus = MappedAimStatus(
+            aimSource = "center",
+            providerName = "none",
+            smoothingMode = SmoothingMode.OFF.id,
+            estimatedFilterLagMillis = 0,
+            adaptiveFallback = false,
+        ),
+        pressedVirtualControls = emptySet(),
+        stickAxisX = 0f,
+        stickAxisY = 0f,
+        recenterPhysicalControl = BtGunProfile.defaultVisualizer().recenterPhysicalControl?.id,
+    )
 
 data class ReconnectDecision(
     val shouldReconnect: Boolean,
