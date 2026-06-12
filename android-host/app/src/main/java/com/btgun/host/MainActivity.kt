@@ -11,10 +11,13 @@ import android.os.SystemClock
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
+import android.widget.ArrayAdapter
 import android.widget.Button
+import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
+import android.widget.Spinner
 import android.widget.TextView
 import com.btgun.host.haptics.PhoneHapticStatus
 import com.btgun.host.haptics.PhoneHaptics
@@ -29,10 +32,17 @@ import com.btgun.host.permissions.AndroidHidProfileStatus
 import com.btgun.host.permissions.AndroidHidRegistrationStatus
 import com.btgun.host.permissions.PermissionGate
 import com.btgun.host.permissions.PermissionGateState
+import com.btgun.host.profile.AimMappingSettings
+import com.btgun.host.profile.AimProviderKey
 import com.btgun.host.profile.BtGunProfile
 import com.btgun.host.profile.DEFAULT_VISUALIZER_PROFILE_ID
+import com.btgun.host.profile.PhysicalButton
 import com.btgun.host.profile.ProfileStore
+import com.btgun.host.profile.ProfileValidator
+import com.btgun.host.profile.ProviderAimOverrides
 import com.btgun.host.profile.SaveProfileResult
+import com.btgun.host.profile.SmoothingMode
+import com.btgun.host.profile.VirtualButton
 import com.btgun.host.session.DesktopLinkPhase
 import com.btgun.host.session.DesktopLinkState
 import com.btgun.host.session.TrustedDesktopMetadata
@@ -43,6 +53,14 @@ import com.btgun.host.ui.DashboardState
 import com.btgun.host.ui.DebugExpansion
 import com.btgun.host.util.AndroidLog
 import java.lang.reflect.Proxy
+
+private data class AimSettingControls(
+    val sensitivity: EditText,
+    val invertX: CheckBox,
+    val invertY: CheckBox,
+    val deadZone: EditText,
+    val smoothing: Spinner,
+)
 
 class MainActivity : Activity() {
     private val handler = Handler(Looper.getMainLooper())
@@ -78,9 +96,19 @@ class MainActivity : Activity() {
     private var desktopLinkState: DesktopLinkState = DesktopLinkState()
     private var manualEntryVisible: Boolean = false
     private var profileListVisible: Boolean = false
+    private var profileSurfaceDirty: Boolean = true
+    private var editingProfileId: String? = null
     private var profileActionStatus: String? = null
     private var eventMode: DashboardEventMode = DashboardEventMode.PRODUCT_EVENTS
     private var debugExpansion = DebugExpansion()
+    private var profileNameInput: EditText? = null
+    private var sharedAimControls: AimSettingControls? = null
+    private val providerUseSharedInputs = mutableMapOf<AimProviderKey, CheckBox>()
+    private val providerAimControls = mutableMapOf<AimProviderKey, AimSettingControls>()
+    private val buttonMappingInputs = mutableMapOf<PhysicalButton, Spinner>()
+    private var recenterButtonInput: Spinner? = null
+    private var rawDebugInput: CheckBox? = null
+    private var profileValidationText: TextView? = null
     private val refreshRunnable = object : Runnable {
         override fun run() {
             renderDashboard()
@@ -143,6 +171,7 @@ class MainActivity : Activity() {
         ).forEach(::addField)
         editProfilesAction = button("Edit profiles") {
             profileListVisible = !profileListVisible
+            profileSurfaceDirty = true
             renderDashboard()
         }
         addActionGroup(editProfilesAction)
@@ -356,17 +385,33 @@ class MainActivity : Activity() {
     }
 
     private fun renderProfileList() {
-        profileListGroup.removeAllViews()
         profileListGroup.visibility = if (profileListVisible) View.VISIBLE else View.GONE
         if (!profileListVisible) {
+            editingProfileId = null
             return
         }
+        if (!profileSurfaceDirty) {
+            return
+        }
+        profileSurfaceDirty = false
+        profileListGroup.removeAllViews()
 
         profileActionStatus?.let { status ->
             profileListGroup.addView(profileText(status, bold = false))
         }
 
         val document = profileStore.load().document
+        val editingId = editingProfileId
+        if (editingId != null) {
+            val editingProfile = document.profiles.firstOrNull { profile -> profile.profileId == editingId }
+            if (editingProfile != null && !editingProfile.builtIn) {
+                addProfileEditor(editingProfile)
+                return
+            }
+            editingProfileId = null
+            profileActionStatus = "Edit profile blocked: built_in_immutable"
+        }
+
         val defaultProfile = document.profiles.firstOrNull { profile ->
             profile.profileId == DEFAULT_VISUALIZER_PROFILE_ID
         } ?: BtGunProfile.defaultVisualizer()
@@ -407,7 +452,9 @@ class MainActivity : Activity() {
         }
 
         val editProfile = button("Edit profile") {
-            profileActionStatus = "Edit profile: ${profile.displayName}"
+            editingProfileId = profile.profileId
+            profileSurfaceDirty = true
+            profileActionStatus = "Edit profile"
             renderDashboard()
         }
         val deleteProfile = button("Delete profile") {
@@ -417,6 +464,7 @@ class MainActivity : Activity() {
     }
 
     private fun applyProfileStoreResult(result: SaveProfileResult, action: String) {
+        profileSurfaceDirty = true
         profileActionStatus = when (result) {
             is SaveProfileResult.Saved -> "$action saved"
             is SaveProfileResult.Rejected -> "$action blocked: ${result.reason}"
@@ -430,6 +478,213 @@ class MainActivity : Activity() {
             renderDashboard()
         }
     }
+
+    private fun addProfileEditor(profile: BtGunProfile) {
+        clearProfileEditorInputs()
+        profileListGroup.addView(profileText("Edit profile", bold = true))
+        profileNameInput = editText("Profile name").apply {
+            setText(profile.displayName)
+        }.also(profileListGroup::addView)
+
+        profileListGroup.addView(profileText("Shared aim settings", bold = true))
+        sharedAimControls = addAimSettingControls(profile.aim)
+
+        addProviderOverrideGroup(
+            key = AimProviderKey.CALIBRATED_FUSED_ROTATION,
+            label = "Calibrated and fused rotation",
+            override = profile.providerOverrides[AimProviderKey.CALIBRATED_FUSED_ROTATION] ?: ProviderAimOverrides(),
+        )
+        addProviderOverrideGroup(
+            key = AimProviderKey.GYRO_RAW_AIM,
+            label = "Gyro and raw aim",
+            override = profile.providerOverrides[AimProviderKey.GYRO_RAW_AIM] ?: ProviderAimOverrides(),
+        )
+        addProviderOverrideGroup(
+            key = AimProviderKey.TILT_FALLBACK,
+            label = "Accelerometer and gravity tilt fallback",
+            override = profile.providerOverrides[AimProviderKey.TILT_FALLBACK] ?: ProviderAimOverrides(),
+        )
+
+        profileListGroup.addView(profileText("Button mapping", bold = true))
+        PhysicalButton.defaultOrder.forEach { physical ->
+            profileListGroup.addView(profileText("${physical.id} output", bold = false))
+            val spinner = spinner(
+                values = VirtualButton.requiredOutputs.map { output -> output.id },
+                selected = profile.buttonMapping[physical]?.id ?: VirtualButton.TRIGGER.id,
+            )
+            buttonMappingInputs[physical] = spinner
+            profileListGroup.addView(spinner)
+        }
+
+        profileListGroup.addView(profileText("Hold-to-recenter button", bold = true))
+        recenterButtonInput = spinner(
+            values = PhysicalButton.defaultOrder.map { button -> button.id },
+            selected = profile.recenterPhysicalControl?.id ?: PhysicalButton.RELOAD.id,
+        ).also(profileListGroup::addView)
+
+        rawDebugInput = CheckBox(this).apply {
+            text = "Send raw debug data"
+            textSize = 14f
+            minHeight = dp(48)
+            isChecked = profile.rawDebugEnabled
+        }.also(profileListGroup::addView)
+        profileListGroup.addView(
+            profileText(
+                "Adds provider and raw motion fields to the debug stream for this Android session only.",
+                bold = false,
+            ),
+        )
+
+        profileValidationText = profileText("Save blocked", bold = false).also { label ->
+            label.visibility = View.GONE
+            profileListGroup.addView(label)
+        }
+        val saveProfile = button("Save profile") { saveProfileEditor(profile) }
+        val resetProfile = button("Reset profile") { resetProfileEditor(profile) }
+        val cancelEdit = button("Use profile list") {
+            editingProfileId = null
+            profileSurfaceDirty = true
+            renderDashboard()
+        }
+        addProfileActionGroup(saveProfile, resetProfile, cancelEdit)
+    }
+
+    private fun addProviderOverrideGroup(
+        key: AimProviderKey,
+        label: String,
+        override: ProviderAimOverrides,
+    ) {
+        profileListGroup.addView(profileText(label, bold = true))
+        val useShared = CheckBox(this).apply {
+            text = "Use shared settings"
+            textSize = 14f
+            minHeight = dp(48)
+            isChecked = override.useSharedSettings
+        }
+        providerUseSharedInputs[key] = useShared
+        profileListGroup.addView(useShared)
+        providerAimControls[key] = addAimSettingControls(override.settings)
+    }
+
+    private fun addAimSettingControls(settings: AimMappingSettings): AimSettingControls {
+        val sensitivity = editText("Sensitivity").apply {
+            setText(formatEditorFloat(settings.sensitivity))
+        }
+        val invertX = CheckBox(this).apply {
+            text = "Invert X"
+            textSize = 14f
+            minHeight = dp(48)
+            isChecked = settings.invertX
+        }
+        val invertY = CheckBox(this).apply {
+            text = "Invert Y"
+            textSize = 14f
+            minHeight = dp(48)
+            isChecked = settings.invertY
+        }
+        val deadZone = editText("Dead zone").apply {
+            setText(formatEditorFloat(settings.deadZone))
+        }
+        val smoothing = spinner(
+            values = SmoothingMode.entries.map { mode -> mode.id },
+            selected = settings.smoothing.id,
+        )
+        listOf<View>(sensitivity, invertX, invertY, deadZone, smoothing).forEach(profileListGroup::addView)
+        return AimSettingControls(
+            sensitivity = sensitivity,
+            invertX = invertX,
+            invertY = invertY,
+            deadZone = deadZone,
+            smoothing = smoothing,
+        )
+    }
+
+    private fun saveProfileEditor(existing: BtGunProfile) {
+        val draft = profileDraftFromEditor(existing)
+        val validationErrors = ProfileValidator.validate(draft)
+        if (validationErrors.isNotEmpty()) {
+            profileValidationText?.apply {
+                visibility = View.VISIBLE
+                text = listOf(
+                    "Save blocked",
+                    "Profile has invalid mappings. Fix the highlighted controls before saving.",
+                    validationErrors.joinToString(", ") { error -> error.label },
+                ).joinToString("\n")
+            }
+            profileActionStatus = "Save blocked"
+            return
+        }
+        applyProfileStoreResult(profileStore.saveProfile(draft), "Save profile")
+    }
+
+    private fun resetProfileEditor(existing: BtGunProfile) {
+        val resetProfile = existing.copy(
+            aim = AimMappingSettings.defaults(),
+            providerOverrides = BtGunProfile.defaultProviderOverrides(),
+            buttonMapping = BtGunProfile.defaultButtonMapping(),
+            recenterPhysicalControl = PhysicalButton.RELOAD,
+            rawDebugEnabled = false,
+        )
+        applyProfileStoreResult(profileStore.saveProfile(resetProfile), "Reset profile")
+    }
+
+    private fun profileDraftFromEditor(existing: BtGunProfile): BtGunProfile =
+        existing.copy(
+            displayName = profileNameInput?.text?.toString().orEmpty(),
+            aim = sharedAimControls?.toAimSettings() ?: existing.aim,
+            providerOverrides = AimProviderKey.defaultOrder.associateWith { key ->
+                ProviderAimOverrides(
+                    useSharedSettings = providerUseSharedInputs[key]?.isChecked ?: true,
+                    settings = providerAimControls[key]?.toAimSettings() ?: AimMappingSettings.defaults(),
+                )
+            },
+            buttonMapping = PhysicalButton.defaultOrder.associateWith { physical ->
+                VirtualButton.fromId(buttonMappingInputs[physical]?.selectedItem?.toString().orEmpty())
+                    ?: VirtualButton.TRIGGER
+            },
+            recenterPhysicalControl = PhysicalButton.fromId(recenterButtonInput?.selectedItem?.toString().orEmpty()),
+            rawDebugEnabled = rawDebugInput?.isChecked ?: false,
+        )
+
+    private fun AimSettingControls.toAimSettings(): AimMappingSettings =
+        AimMappingSettings(
+            sensitivity = sensitivity.text.toString().toFloatOrNull() ?: Float.NaN,
+            invertX = invertX.isChecked,
+            invertY = invertY.isChecked,
+            deadZone = deadZone.text.toString().toFloatOrNull() ?: Float.NaN,
+            smoothing = SmoothingMode.fromId(smoothing.selectedItem?.toString().orEmpty()) ?: SmoothingMode.LOW,
+        )
+
+    private fun spinner(values: List<String>, selected: String): Spinner =
+        Spinner(this).apply {
+            minimumHeight = dp(48)
+            adapter = ArrayAdapter(
+                this@MainActivity,
+                android.R.layout.simple_spinner_dropdown_item,
+                values,
+            )
+            setSelection(values.indexOf(selected).coerceAtLeast(0))
+        }
+
+    private fun clearProfileEditorInputs() {
+        profileNameInput = null
+        sharedAimControls = null
+        providerUseSharedInputs.clear()
+        providerAimControls.clear()
+        buttonMappingInputs.clear()
+        recenterButtonInput = null
+        rawDebugInput = null
+        profileValidationText = null
+    }
+
+    private fun formatEditorFloat(value: Float): String =
+        java.lang.String.format(java.util.Locale.US, "%.2f", value).let { text ->
+            when {
+                text.endsWith(".00") -> text.dropLast(1)
+                text.endsWith("0") -> text.dropLast(1)
+                else -> text
+            }
+        }
 
     private fun profileText(value: String, bold: Boolean): TextView =
         TextView(this).apply {
