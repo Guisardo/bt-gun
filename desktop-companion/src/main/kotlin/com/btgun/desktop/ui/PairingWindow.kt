@@ -3,6 +3,7 @@ package com.btgun.desktop.ui
 import com.btgun.desktop.control.ControlServer
 import com.btgun.desktop.control.ControlServerSessionState
 import com.btgun.desktop.control.HapticSendResult
+import com.btgun.desktop.control.ProfileMetadata
 import com.btgun.desktop.backend.BackendLifecycleState
 import com.btgun.desktop.backend.BackendPublishResult
 import com.btgun.desktop.backend.macos.MacosBackendRuntime
@@ -61,6 +62,10 @@ class PairingWindow(
     private var packetStreamState = InputStreamLifecycleState.STOPPED
     private var lastControlError: String? = null
     private var lastHapticStatus: String = "inactive"
+    private var activeProfileMetadata: ProfileMetadata? = null
+    private var lastProfileUpdateElapsedNanos: Long? = null
+    private var lastMappedProductStream: Boolean = false
+    private var lastRawDebugEnabled: Boolean = false
     private var windowsBackendDiagnostics: WindowsBackendRuntimeDiagnostics? = windowsBackendRuntime?.diagnostics()
     private var macosBackendDiagnostics: MacosBackendRuntimeDiagnostics? = macosBackendRuntime?.diagnostics()
 
@@ -81,6 +86,21 @@ class PairingWindow(
         controlServer.onUdpInputStateChanged = { streamState ->
             SwingUtilities.invokeLater {
                 packetStreamState = streamState
+                updateDiagnostics()
+            }
+        }
+        controlServer.onProfileMetadataReceived = { metadata ->
+            SwingUtilities.invokeLater {
+                activeProfileMetadata = metadata
+                lastProfileUpdateElapsedNanos = System.nanoTime()
+                lastRawDebugEnabled = metadata.rawDebugEnabled
+                updateDiagnostics()
+            }
+        }
+        controlServer.onUdpInputReceived = { input ->
+            SwingUtilities.invokeLater {
+                lastMappedProductStream = input.mappedProductStream
+                lastRawDebugEnabled = input.rawDebugEnabled
                 updateDiagnostics()
             }
         }
@@ -263,6 +283,11 @@ class PairingWindow(
             packetState = packetStreamState,
             lastControlError = lastControlError,
             lastHapticStatus = lastHapticStatus,
+            profile = activeProfileMetadata,
+            mappedProductStream = lastMappedProductStream,
+            rawDebugEnabled = lastRawDebugEnabled,
+            lastProfileUpdateElapsedNanos = lastProfileUpdateElapsedNanos,
+            nowElapsedNanos = System.nanoTime(),
             windowsBackendStatus = windowsBackendStatusText(
                 diagnostics = windowsBackendDiagnostics,
                 startupDiagnostic = windowsBackendStartupDiagnostic,
@@ -310,6 +335,21 @@ class PairingWindow(
                 <p>Packet stream: ${state.label}</p>
                 </body>
                 </html>
+            """.trimIndent()
+
+        internal fun profileDiagnosticsHtml(
+            profile: ProfileMetadata?,
+            packetState: InputStreamLifecycleState,
+            mappedProductStream: Boolean,
+            rawDebugEnabled: Boolean,
+            lastProfileUpdateElapsedNanos: Long?,
+            nowElapsedNanos: Long,
+        ): String =
+            """
+                <p><b>Active Android profile:</b> ${activeProfileText(profile)}</p>
+                <p><b>Profile source:</b> ${escapeHtml(profile?.source ?: "unknown")}</p>
+                <p><b>Mapped stream:</b> ${packetState.label} | mapped=$mappedProductStream | raw_debug=${if (rawDebugEnabled) "on" else "off"}</p>
+                <p><b>Last profile update:</b> ${profileUpdateText(lastProfileUpdateElapsedNanos, nowElapsedNanos)}</p>
             """.trimIndent()
 
         internal fun smokeHapticCommand(commandId: String): HapticCommand =
@@ -387,15 +427,29 @@ class PairingWindow(
             packetState: InputStreamLifecycleState = InputStreamLifecycleState.STOPPED,
             lastControlError: String?,
             lastHapticStatus: String = "inactive",
+            profile: ProfileMetadata? = null,
+            mappedProductStream: Boolean = false,
+            rawDebugEnabled: Boolean = false,
+            lastProfileUpdateElapsedNanos: Long? = null,
+            nowElapsedNanos: Long = System.nanoTime(),
             windowsBackendStatus: String = "disabled",
             macosBackendStatus: String = "disabled",
         ): String {
             val safeError = SecretRedactor.redact(lastControlError ?: "none")
+            val profileRows = profileDiagnosticsHtml(
+                profile = profile,
+                packetState = packetState,
+                mappedProductStream = mappedProductStream,
+                rawDebugEnabled = rawDebugEnabled,
+                lastProfileUpdateElapsedNanos = lastProfileUpdateElapsedNanos,
+                nowElapsedNanos = nowElapsedNanos,
+            )
             return """
                 <html>
                 <body>
                 <p><b>Session:</b> ${state.label}</p>
                 <p>Packet stream: ${packetState.label}</p>
+                $profileRows
                 <p><b>Windows backend:</b> ${escapeHtml(windowsBackendStatus)}</p>
                 <p><b>macOS backend:</b> ${escapeHtml(macosBackendStatus)}</p>
                 <p><b>Last control error:</b> ${escapeHtml(safeError)}</p>
@@ -404,6 +458,19 @@ class PairingWindow(
                 </html>
             """.trimIndent()
         }
+
+        private fun activeProfileText(profile: ProfileMetadata?): String =
+            if (profile == null) {
+                "unknown"
+            } else {
+                "${escapeHtml(profile.displayName)} | id=${escapeHtml(profile.profileId)} | rev=${profile.revision}"
+            }
+
+        private fun profileUpdateText(lastProfileUpdateElapsedNanos: Long?, nowElapsedNanos: Long): String =
+            lastProfileUpdateElapsedNanos?.let { last ->
+                val elapsedSeconds = ((nowElapsedNanos - last).coerceAtLeast(0L) / 1_000_000_000L)
+                "${elapsedSeconds}s ago"
+            } ?: "none"
 
         private fun BackendLifecycleState.label(): String =
             name.lowercase()
