@@ -67,6 +67,7 @@ tasks.withType<Test>().configureEach {
             "com.btgun.host.transport.AndroidUdpInputSenderTestKt",
             "com.btgun.host.transport.InputStreamLifecycleTestKt",
             "com.btgun.host.ui.DashboardStateTestKt",
+            "com.btgun.host.profile.AdaptiveAimSmootherTestKt",
         ).forEach { testClass ->
             providers.exec {
                 commandLine(
