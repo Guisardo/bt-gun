@@ -50,7 +50,7 @@
 | UDP Input Stream | Send high-rate input/motion samples | Versioned binary packets under 1200 bytes |
 | Control Channel | Pairing, profile metadata, heartbeat, diagnostics, haptics | TCP/WebSocket with authenticated messages |
 | Desktop Session Receiver | Accept paired Android client and decrypt/validate packets | Native desktop service/app |
-| Profile Mapper | Map normalized input and motion aim to virtual joystick axes/buttons | Desktop-owned profile engine |
+| Profile Mapper | Map normalized input and motion aim to virtual joystick axes/buttons | Android-owned profile engine; desktop remains read-only for active profile metadata |
 | Virtual HID Backend | Expose regular gamepad/joystick gun to OS | Windows VHF/KMDF; macOS CoreHID or DriverKit |
 | Visualizer | Verify inputs, axes, latency, recenter, haptics | Desktop diagnostic app |
 
@@ -101,11 +101,11 @@ docs/
 **When to use:** v1 LAN transport.
 **Trade-offs:** More protocol code than one WebSocket, but avoids aim stutter from TCP retransmit/head-of-line stalls.
 
-### Pattern 3: Desktop-Owned Profiles
+### Pattern 3: Android-Owned Profiles
 
-**What:** Android sends normalized gun state and motion; desktop profile maps to HID axes/buttons.
-**When to use:** User selected configurable profiles in v1.
-**Trade-offs:** Desktop apps need profile UI/storage, but platform-specific game mapping stays on the platform that needs it.
+**What:** Android owns v1 profile storage, validation, editing, and application; desktop remains read-only for active Android profile metadata and mapped-stream diagnostics.
+**When to use:** Phase 8 and later v1 profile work after the Phase 7 Android Bluetooth HID reroute.
+**Trade-offs:** Android must keep game/platform constants out of profile defaults, while Windows VHF fallback consumes Android-mapped LAN input instead of running a desktop editor.
 
 ### Pattern 4: Virtual HID Backend Boundary
 
@@ -123,16 +123,15 @@ Physical trigger/stick/buttons
         -> Normalized gun event
             -> UDP InputFrame with seq + capture timestamp
                 -> Desktop receiver
-                    -> Profile mapper
-                        -> Virtual HID input report
+                    -> Android-mapped semantic state
+                        -> Virtual HID input report on Windows VHF fallback
                             -> Joystick visualizer/game
 
 Android motion sample
     -> Sensor Capture
         -> Recenter/profile-neutral motion sample
-            -> UDP InputFrame
-                -> Desktop profile mapper
-                    -> Aim axes
+            -> Android profile mapper
+                -> HID/LAN mapped aim axes
 ```
 
 ### Haptic Flow
@@ -219,7 +218,8 @@ Desktop starts session
 | Gun adapter -> Normalized event pipeline | In-process typed events | Hardware-specific parsing stops here. |
 | Android -> Desktop input | Authenticated UDP packets | Drop stale/out-of-order frames; no retransmit for input. |
 | Android <-> Desktop control | Authenticated reliable channel | Pairing, heartbeat, profile metadata, diagnostics, haptics. |
-| Profile mapper -> Virtual HID backend | Common backend interface | Backends expose capability flags for haptics, axes, buttons. |
+| Android profile mapper -> HID/LAN output | Android Bluetooth HID and authenticated UDP mapped stream | Android owns profile application; desktop remains read-only and Windows VHF fallback consumes Android-mapped input. |
+| Desktop mapped input -> Virtual HID backend | Common backend interface | Backends expose capability flags for haptics, axes, buttons without desktop profile editing authority. |
 
 ## Sources
 
