@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 08-05-PLAN.md
-last_updated: "2026-06-12T17:20:31.957Z"
-last_activity: 2026-06-12 -- Phase 08 Plan 05 completed; Android profile management UI and dashboard profile rows are in place
+stopped_at: Completed 08-06-PLAN.md
+last_updated: "2026-06-12T17:41:51.198Z"
+last_activity: 2026-06-12 -- Phase 08 Plan 06 completed; desktop read-only profile metadata and mapped stream diagnostics are in place
 progress:
   total_phases: 10
   completed_phases: 7
   total_plans: 49
-  completed_plans: 47
-  percent: 96
+  completed_plans: 48
+  percent: 98
 ---
 
 # Project State
@@ -26,12 +26,12 @@ See: .planning/PROJECT.md (updated 2026-06-09)
 ## Current Position
 
 Phase: 08 (desktop-profiles-and-mapping) — EXECUTING
-Plan: 6 of 7
+Plan: 7 of 7
 Next phase: Execute Phase 08 desktop profiles and mapping
-Status: Ready to execute 08-06
-Last activity: 2026-06-12 -- Phase 08 Plan 05 completed; Android profile management UI and dashboard profile rows are in place
+Status: Ready to execute 08-07
+Last activity: 2026-06-12 -- Phase 08 Plan 06 completed; desktop read-only profile metadata and mapped stream diagnostics are in place
 
-Progress: [██████████] 47/49 active planned plans complete. Phase 08 has 5/7 plans executed.
+Progress: [██████████] 48/49 active planned plans complete. Phase 08 has 6/7 plans executed.
 
 ## Performance Metrics
 
@@ -107,6 +107,7 @@ Progress: [██████████] 47/49 active planned plans complete. 
 | Phase 08 P03 | 11min | 3 tasks | 5 files |
 | Phase 08 P04 | 23m 25s | 3 tasks | 12 files |
 | Phase 08 P05 | 14m | 3 tasks | 3 files |
+| Phase 08 P06 | 16m | 3 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -226,6 +227,9 @@ Recent decisions affecting current work:
 - [Phase 08]: Android MainActivity is the profile management surface; desktop-owned profile labels remain forbidden. — Plan 08-05 implements native Android profile management and keeps desktop read-only.
 - [Phase 08]: Raw debug remains an Android profile/session toggle and is persisted through ProfileStore. — Preserves Android-owned raw-debug control and prevents desktop raw-stream request semantics.
 - [Phase 08]: Profile editor saves are rejected with ProfileValidator labels instead of silently repairing invalid mappings. — Preserves D-14 and T-08-08 mitigation.
+- [Phase 08]: Desktop semantic state uses Android-mapped product aim when mapped stream flag is present. — Plan 08-06 mirrors Android UDP mapped flags for Windows fallback.
+- [Phase 08]: Desktop consumes authenticated Android profile metadata as read-only state and no longer sends default profile authority. — Plan 08-06 keeps Android as profile owner and desktop as mapped-stream consumer.
+- [Phase 08]: Unmapped legacy UDP frames stay decodable but product-incompatible for desktop publishing. — Plan 08-06 avoids treating raw legacy motion as product aim.
 
 ### Pending Todos
 
@@ -254,6 +258,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-12T17:20:31.951Z
-Stopped at: Completed 08-05-PLAN.md
+Last session: 2026-06-12T17:41:33.053Z
+Stopped at: Completed 08-06-PLAN.md
 Resume file: None
