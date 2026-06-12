@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 08-02-PLAN.md
-last_updated: "2026-06-12T16:18:31.330Z"
-last_activity: 2026-06-12 -- Phase 08 Plan 02 completed; Android profile foundation implemented
+stopped_at: Completed 08-03-PLAN.md
+last_updated: "2026-06-12T16:35:34.973Z"
+last_activity: 2026-06-12 -- Phase 08 Plan 03 completed; pure profile mapper and adaptive smoother implemented
 progress:
   total_phases: 10
   completed_phases: 7
   total_plans: 49
-  completed_plans: 44
-  percent: 90
+  completed_plans: 45
+  percent: 92
 ---
 
 # Project State
@@ -26,18 +26,18 @@ See: .planning/PROJECT.md (updated 2026-06-09)
 ## Current Position
 
 Phase: 08 (desktop-profiles-and-mapping) — EXECUTING
-Plan: 3 of 7
+Plan: 4 of 7
 Next phase: Execute Phase 08 desktop profiles and mapping
-Status: Ready to execute 08-03
-Last activity: 2026-06-12 -- Phase 08 Plan 02 completed; Android profile foundation implemented
+Status: Ready to execute 08-04
+Last activity: 2026-06-12 -- Phase 08 Plan 03 completed; pure profile mapper and adaptive smoother implemented
 
-Progress: [█████████░] 44/49 active planned plans complete. Phase 08 has 2/7 plans executed.
+Progress: [█████████░] 45/49 active planned plans complete. Phase 08 has 3/7 plans executed.
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 44 of 49 planned
+- Total plans completed: 45 of 49 planned
 - Average duration: not tracked for hardware-interactive plans
 - Total execution time: not tracked after Plan 02
 
@@ -51,11 +51,11 @@ Progress: [█████████░] 44/49 active planned plans complete. 
 | 05 | 5 | hardware-interactive | hardware-interactive |
 | 06 | 6 | hardware-interactive | hardware-interactive |
 | 07 | 6 | hardware-interactive | complete; Android HID input passed, macOS haptics deferred |
-| 08 | 7 | 19min | 10min |
+| 08 | 7 | 30min | 10min |
 
 **Recent Trend:**
 
-- Recent completed execution plans: 07-P01 through 07-P06 and 08-P01 through 08-P02 complete. Phase 08 now has 5 remaining execution plans.
+- Recent completed execution plans: 07-P01 through 07-P06 and 08-P01 through 08-P03 complete. Phase 08 now has 4 remaining execution plans.
 - Trend: CoreHID and DriverKit are no longer primary for macOS because no-subscription virtual HID is blocked. Phase 07 completed Android phone Bluetooth HID gamepad proof, with Windows VHF retained as fallback and macOS browser/GameController haptics deferred. Phase 08 reroutes profiles to Android-owned storage/mapping with desktop read-only metadata.
 
 *Updated after each plan completion*
@@ -104,6 +104,7 @@ Progress: [█████████░] 44/49 active planned plans complete. 
 | Phase 07 P06 | 8min | 3 tasks | 3 files |
 | Phase 08 P01 | 5min | 3 tasks | 8 files |
 | Phase 08 P02 | 14min | 3 tasks | 5 files |
+| Phase 08 P03 | 11min | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -214,6 +215,9 @@ Recent decisions affecting current work:
 - [Phase 08]: Default Visualizer is a built-in Android profile with profileId=default_visualizer, revision=1, and builtIn=true. — Plan 08-02 locks built-in defaults.
 - [Phase 08]: ProfileStore returns explicit loaded/defaulted/rejected load states and saved/rejected mutation states for dashboard use. — Supports safe malformed fallback and blocked saves.
 - [Phase 08]: Unsupported axis/button crossing attempts are Android profile validation candidates only and are rejected before persistence. — Valid v1 mappings remain six button-to-button outputs.
+- [Phase 08]: Adaptive smoothing uses tau values Low=12ms, Balanced=24ms, High=40ms, with adaptive fast=8ms and jitter=18ms before latency fallback.
+- [Phase 08]: Adaptive fallback reports smoothingMode=low and adaptiveFallback=true when added filter lag or aim latency headroom threatens the 50ms target.
+- [Phase 08]: ProfileMapper publishes only v1 virtual button ids; unknown controls and axis-like names are ignored as product buttons.
 
 ### Pending Todos
 
@@ -242,6 +246,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-12T16:18:31.308Z
-Stopped at: Completed 08-02-PLAN.md
+Last session: 2026-06-12T16:35:34.941Z
+Stopped at: Completed 08-03-PLAN.md
 Resume file: None
