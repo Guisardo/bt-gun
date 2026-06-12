@@ -10,6 +10,7 @@ import android.os.Looper
 import android.os.SystemClock
 import android.view.Gravity
 import android.view.View
+import android.view.ViewGroup
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
@@ -114,26 +115,20 @@ class MainActivity : Activity() {
         addField("permission_title")
         addField("permission_body")
         permissionAction = button("Grant permissions") { requestHostPermissions() }
-        root.addView(permissionAction)
+        addActionGroup(permissionAction)
 
-        root.addView(row().apply {
-            primaryAction = button("Start live session") { toggleSession() }
-            hapticAction = button("Test local haptic") {
-                lastPhoneHapticStatus = phoneHaptics.test()
-                renderDashboard()
-            }
-            addView(primaryAction)
-            addView(hapticAction)
-        })
+        primaryAction = button("Start live session") { toggleSession() }
+        hapticAction = button("Test local haptic") {
+            lastPhoneHapticStatus = phoneHaptics.test()
+            renderDashboard()
+        }
+        addActionGroup(primaryAction, hapticAction)
 
-        root.addView(row().apply {
-            startBluetoothGamepadAction = button("Start Bluetooth gamepad") { startBluetoothGamepad() }
-            stopBluetoothGamepadAction = button("Stop Bluetooth gamepad") { stopBluetoothGamepad() }
-            addView(startBluetoothGamepadAction)
-            addView(stopBluetoothGamepadAction)
-        })
+        startBluetoothGamepadAction = button("Start Bluetooth gamepad") { startBluetoothGamepad() }
+        stopBluetoothGamepadAction = button("Stop Bluetooth gamepad") { stopBluetoothGamepad() }
+        addActionGroup(startBluetoothGamepadAction, stopBluetoothGamepadAction)
         openHidPairingWindowAction = button("Open pairing window") { openHidPairingWindow() }
-        root.addView(openHidPairingWindowAction)
+        addActionGroup(openHidPairingWindowAction)
 
         aimGraph = AimGraphView(this)
         root.addView(
@@ -167,14 +162,10 @@ class MainActivity : Activity() {
             "desktop_link",
         ).forEach(::addField)
 
-        root.addView(row().apply {
-            scanDesktopQrAction = button("Scan desktop QR") { scanDesktopQr() }
-            manualDesktopEntryAction = button("Enter manually") { showManualEntryState() }
-            trustedDesktopAction = button("Use trusted desktop") { useTrustedDesktop() }
-            addView(scanDesktopQrAction)
-            addView(manualDesktopEntryAction)
-            addView(trustedDesktopAction)
-        })
+        scanDesktopQrAction = button("Scan desktop QR") { scanDesktopQr() }
+        manualDesktopEntryAction = button("Enter manually") { showManualEntryState() }
+        trustedDesktopAction = button("Use trusted desktop") { useTrustedDesktop() }
+        addActionGroup(scanDesktopQrAction, manualDesktopEntryAction, trustedDesktopAction)
         buildManualEntryGroup()
 
         listOf(
@@ -190,7 +181,7 @@ class MainActivity : Activity() {
             }
             renderDashboard()
         }
-        root.addView(debugModeAction)
+        addActionGroup(debugModeAction)
 
         bleDebugAction = button("BLE provenance") {
             debugExpansion = debugExpansion.copy(bleProvenance = !debugExpansion.bleProvenance)
@@ -204,14 +195,25 @@ class MainActivity : Activity() {
             debugExpansion = debugExpansion.copy(gattStatus = !debugExpansion.gattStatus)
             renderDashboard()
         }
-        root.addView(bleDebugAction)
+        addActionGroup(bleDebugAction)
         addField("ble_debug")
-        root.addView(permissionDebugAction)
+        addActionGroup(permissionDebugAction)
         addField("permission_debug")
-        root.addView(gattDebugAction)
+        addActionGroup(gattDebugAction)
         addField("gatt_debug")
 
-        setContentView(ScrollView(this).apply { addView(root) })
+        setContentView(
+            ScrollView(this).apply {
+                isFillViewport = true
+                addView(
+                    root,
+                    ViewGroup.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ),
+                )
+            },
+        )
     }
 
     private fun renderDashboard() {
@@ -602,7 +604,13 @@ class MainActivity : Activity() {
     private fun button(label: String, action: () -> Unit): Button =
         Button(this).apply {
             text = label
+            setAllCaps(false)
+            textSize = 14f
             minHeight = dp(48)
+            minimumWidth = 0
+            maxLines = 2
+            gravity = Gravity.CENTER
+            setPadding(dp(8), 0, dp(8), 0)
             setOnClickListener { action() }
         }
 
@@ -615,11 +623,31 @@ class MainActivity : Activity() {
             setTextColor(Color.rgb(31, 41, 51))
         }
 
-    private fun row(): LinearLayout =
-        LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
+    private fun addActionGroup(vararg buttons: Button) {
+        val horizontal = resources.configuration.screenWidthDp >= ACTION_GROUP_HORIZONTAL_MIN_DP
+        val group = LinearLayout(this).apply {
+            orientation = if (horizontal) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
             gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, dp(4), 0, dp(4))
         }
+        buttons.forEachIndexed { index, action ->
+            val params = LinearLayout.LayoutParams(
+                if (horizontal) 0 else LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            )
+            if (horizontal) {
+                params.weight = 1f
+            }
+            params.setMargins(
+                0,
+                dp(4),
+                if (horizontal && index < buttons.lastIndex) dp(8) else 0,
+                dp(4),
+            )
+            group.addView(action, params)
+        }
+        root.addView(group)
+    }
 
     private fun dp(value: Int): Int =
         (value * resources.displayMetrics.density).toInt()
@@ -628,5 +656,6 @@ class MainActivity : Activity() {
         private const val TAG = "BtGunMain"
         private const val REFRESH_INTERVAL_MS = 500L
         private const val REQUEST_PERMISSIONS = 2001
+        private const val ACTION_GROUP_HORIZONTAL_MIN_DP = 600
     }
 }

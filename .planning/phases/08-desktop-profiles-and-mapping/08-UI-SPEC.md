@@ -1,7 +1,7 @@
 ---
 phase: 08
 slug: desktop-profiles-and-mapping
-status: draft
+status: approved
 shadcn_initialized: false
 preset: none
 created: 2026-06-12
@@ -36,6 +36,8 @@ Out of scope for this UI contract: Phase 9 visualizer controls, latency dashboar
 No `components.json`, Tailwind, React, Next.js, Vite, or web component system is present. The shadcn gate is not applicable.
 
 Use the existing utilitarian dashboard style: native controls, selectable diagnostic text, compact rows, explicit labels, and no decorative cards. Do not introduce Compose, a web UI kit, or custom iconography in Phase 8.
+
+Primary scan order is active Android profile state first, then profile actions, then validation/raw-debug status, then lower-priority diagnostics.
 
 ---
 
@@ -339,4 +341,4 @@ The executor must delete stale unused Phase 8 screenshot files after capturing t
 - [ ] Dimension 5 Spacing: PASS
 - [ ] Dimension 6 Registry Safety: PASS
 
-**Approval:** pending
+**Approval:** approved by `gsd-ui-checker` on 2026-06-12.

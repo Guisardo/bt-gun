@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Phase 8 context gathered
-last_updated: "2026-06-12T01:04:06.399Z"
+stopped_at: Session resumed; awaiting Phase 8 planning or cleanup choice
+last_updated: "2026-06-12T01:41:03.002Z"
 last_activity: 2026-06-11 -- Phase 07 completed with Android Bluetooth HID input proof and macOS haptics deferred
 progress:
   total_phases: 10
@@ -233,6 +233,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-12T01:04:06.373Z
-Stopped at: Phase 8 context gathered
-Resume file: .planning/phases/08-desktop-profiles-and-mapping/08-CONTEXT.md
+Last session: 2026-06-12T01:41:02.991Z
+Stopped at: Session resumed; awaiting Phase 8 planning or cleanup choice
+Resume file: .planning/phases/08-desktop-profiles-and-mapping/08-UI-SPEC.md
