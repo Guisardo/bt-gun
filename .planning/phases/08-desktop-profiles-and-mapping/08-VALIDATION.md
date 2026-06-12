@@ -1,9 +1,9 @@
 ---
 phase: 08
 slug: desktop-profiles-and-mapping
-status: draft
+status: ready-for-profile-test-stubs
 nyquist_compliant: true
-wave_0_complete: false
+wave_0_complete: true
 created: 2026-06-12
 ---
 
@@ -38,7 +38,7 @@ created: 2026-06-12
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 08-01-01 | 01 | 0 | PROF-01..PROF-06 | T-08-01 / T-08-02 | Docs do not authorize desktop profile editing or raw-default stream | docs/source | `rg -n "Android-owned profiles|Default Visualizer|raw debug" .planning docs` and forbidden-label negative `rg` | W0 | pending |
+| 08-01-01 | 01 | 0 | PROF-01..PROF-06 | T-08-01 / T-08-02 | Docs do not authorize desktop profile editing or raw-default stream | docs/source | `rg -n "Android-owned profiles|Default Visualizer|raw debug" .planning docs` and forbidden-label negative `rg` | W0 | green |
 | 08-02-01 | 02 | 1 | PROF-01, PROF-04, PROF-06 | T-08-03 / T-08-04 | Profile decode/save never crashes service and invalid profiles are rejected | unit | `gradle -p android-host testDebugUnitTest --tests '*ProfileStore*' --tests '*ProfileValidation*'` | W0 | pending |
 | 08-03-01 | 03 | 2 | PROF-02, PROF-03, PROF-04 | T-08-05 | Mapper applies profile math with bounded smoothing lag | unit | `gradle -p android-host testDebugUnitTest --tests '*ProfileMapper*' --tests '*AdaptiveAimSmoother*'` | W0 | pending |
 | 08-04-01 | 04 | 3 | PROF-02, PROF-03, PROF-04, PROF-05, PROF-06 | T-08-06 / T-08-07 | HID and LAN consume one Android-mapped state; raw debug is Android-controlled | unit/service | `gradle -p android-host testDebugUnitTest --tests '*HostSessionService*' --tests '*BtGunHidReportPacker*' --tests '*AndroidUdpInputSender*'` | W0 | pending |
@@ -80,4 +80,4 @@ created: 2026-06-12
 - [x] Feedback latency target is under 4 minutes for automated gates.
 - [x] `nyquist_compliant: true` set in frontmatter.
 
-**Approval:** pending execution evidence.
+**Approval:** Wave 0 docs correction complete; ready for profile test stubs.

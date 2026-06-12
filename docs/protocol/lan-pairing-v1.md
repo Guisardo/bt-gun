@@ -2,7 +2,7 @@
 
 Phase 3 pairing is desktop initiated. Desktop opens one short-lived local session, shows a QR code as the normal path, and keeps a visible manual fallback for scan failures.
 
-This contract covers local pairing, authenticated reliable control, liveness, diagnostics, minimal profile metadata, Phase 4 input stream negotiation, input stream lifecycle recovery, and Phase 4 phone haptic command/result transport. Later phases own OS controller backends, desktop aim profiles, visualizer metrics, and full pattern haptic behavior.
+This contract covers local pairing, authenticated reliable control, liveness, diagnostics, active Android profile metadata, Phase 4 input stream negotiation, Phase 8 mapped product stream semantics, input stream lifecycle recovery, and Phase 4 phone haptic command/result transport. Later phases own visualizer metrics, broader replay diagnostics, and full pattern haptic behavior.
 
 ## QR URI
 
@@ -180,6 +180,10 @@ Result details must not include QR secrets, manual codes, proof values, stream k
 
 Android sends fixed-size binary UDP frames authenticated with HMAC-SHA256 over bytes `0..87`; bytes `88..119` carry the full 32-byte tag. Multi-byte fields are big-endian. The frame size is always 120 bytes.
 
+Phase 8 changes the default product meaning of these frames: the UDP stream is a mapped product stream. Android profile mapping runs before HID/LAN output, so button bits, stick axes, and aim axes are already Android-mapped to the v1 gamepad-like shape. Desktop consumes these mapped values and displays active profile metadata; it does not own profile storage or mapping authority.
+
+Raw provider/motion fields are optional raw debug extras. They are sent only when the Android `Send raw debug data` session toggle is enabled. Desktop cannot request raw extras in Phase 8. When raw debug is off, receivers must treat provider, capability, yaw, pitch, roll, raw aim, and source sensor timestamp as absent/debug-neutral even if legacy bytes are present.
+
 | Offset | Size | Field | Notes |
 |--------|------|-------|-------|
 | 0 | 4 | magic `BTGI` | Reject wrong datagrams. |
@@ -190,25 +194,25 @@ Android sends fixed-size binary UDP frames authenticated with HMAC-SHA256 over b
 | 24 | 8 | sequence | Monotonic per stream session across snapshot and edge frames. |
 | 32 | 8 | capture elapsed nanos | Source capture timestamp. |
 | 40 | 8 | send elapsed nanos | Android send timestamp. |
-| 48 | 4 | button bitmask | Trigger, reload, X/Y/A/B, and edge flags. |
-| 52 | 2 | stick X int16 | Normalized stick X in signed int16 range. |
-| 54 | 2 | stick Y int16 | Normalized stick Y in signed int16 range. |
-| 56 | 1 | motion provider | Compact provider id. |
-| 57 | 1 | motion capability flags | Compact capability bits. |
-| 58 | 2 | reserved | Zero in v1. |
-| 60 | 4 | yaw float32 | Raw normalized motion field. |
-| 64 | 4 | pitch float32 | Raw normalized motion field. |
-| 68 | 4 | roll float32 | Raw normalized motion field. |
-| 72 | 4 | raw aim X float32 or NaN | Raw motion-derived field only. |
-| 76 | 4 | raw aim Y float32 or NaN | Raw motion-derived field only. |
-| 80 | 8 | source sensor elapsed nanos | Sensor timestamp provenance. |
+| 48 | 4 | button bitmask | Android-mapped trigger, reload, X/Y/A/B, and edge flags. |
+| 52 | 2 | stick X int16 | Android-mapped normalized stick X in signed int16 range. |
+| 54 | 2 | stick Y int16 | Android-mapped normalized stick Y in signed int16 range. |
+| 56 | 1 | motion provider | Raw debug compact provider id; absent/debug-neutral unless Android raw debug is on. |
+| 57 | 1 | motion capability flags | Raw debug compact capability bits; absent/debug-neutral unless Android raw debug is on. |
+| 58 | 2 | flags/debug state | Bit 0 may mark Android raw debug on; other bits reserved zero. |
+| 60 | 4 | aim X float32 | Android-mapped aim X for product stream. |
+| 64 | 4 | aim Y float32 | Android-mapped aim Y for product stream. |
+| 68 | 4 | roll/debug float32 | Raw debug roll only when Android raw debug is on; otherwise NaN. |
+| 72 | 4 | raw aim X float32 or NaN | Raw debug motion-derived field only when Android raw debug is on. |
+| 76 | 4 | raw aim Y float32 or NaN | Raw debug motion-derived field only when Android raw debug is on. |
+| 80 | 8 | source sensor elapsed nanos | Raw debug sensor timestamp provenance when Android raw debug is on; otherwise zero. |
 | 88 | 32 | HMAC-SHA256 tag | Full tag over bytes `0..87`. |
 
 Desktop must reject malformed length, wrong magic, unsupported version, unknown type, wrong stream id, wrong trusted session, bad tag, Android-local capture-to-send age beyond `frameAgeLimitMs`, and duplicate or old sequence before applying input. Desktop must not reject by comparing Android `sendElapsedNanos` to desktop receive time until a trusted sender-to-receiver clock offset is negotiated.
 
 Snapshot frames are authoritative current state and repair dropped edges. Edge frames are opportunistic low-latency control changes. A late edge older than the newest accepted sequence must be dropped. Stream timeout clears active buttons/pressed controls; aim remains last-known and marked stale for downstream status.
 
-Motion payload is raw provider/capability/yaw/pitch/roll/raw-aim data only. Android-local preview aim is not product mapping, and desktop profile mapping remains a later desktop responsibility.
+Mapped product stream values are authoritative for product input. Raw provider/capability/yaw/pitch/roll/raw-aim values are debug-only and Android-session controlled. Desktop must not treat raw debug extras as profile input unless the active Android session reports raw debug on.
 
 ## Input Stream Lifecycle
 
@@ -218,7 +222,7 @@ Phase 4 uses these packet-stream lifecycle labels:
 |-------|---------|
 | `active` | Trusted control is connected and authenticated UDP frames for the current stream config can apply. |
 | `grace` | Reliable control disconnected briefly; UDP for the unchanged session may continue until `controlDisconnectGraceMs` expires. |
-| `stale` | Input timed out or disconnect grace expired. Active buttons/pressed controls are cleared, while last-known raw aim/motion stays visible as stale. |
+| `stale` | Input timed out or disconnect grace expired. Active buttons/pressed controls are cleared, while last-known mapped aim stays visible as stale. |
 | `stopped` | No trusted stream config is active. UDP input must not apply. |
 
 Disconnect and reconnect rules:
@@ -227,7 +231,7 @@ Disconnect and reconnect rules:
 - Desktop may keep applying unchanged-session UDP only inside `controlDisconnectGraceMs`. After grace expires it rejects frames with `control_grace_expired` and marks packet stream `stale`.
 - A fresh `input_stream_config` resets stream id, auth secret, sequence guard, and stale state. Frames from the old stream id/key must be rejected before apply.
 - A changed trusted control session clears sender and receiver state immediately. The new session needs fresh authenticated control before UDP input is trusted.
-- Stream timeout uses the same receiver state path as replay rejection: buttons, pressed controls, and stick axes clear; raw yaw/pitch/roll/raw-aim and last accepted sequence remain visible with `stale=true`.
+- Stream timeout uses the same receiver state path as replay rejection: buttons, pressed controls, and stick axes clear; mapped aim and last accepted sequence remain visible with `stale=true`; raw debug extras remain visible only when the Android session toggle is on.
 - A short reliable-control disconnect does not cancel an already-started phone pulse. A control session change cancels the active phone pulse and reports `cancelled`.
 
 ## Heartbeat and Liveness
@@ -260,15 +264,17 @@ Diagnostics must not include one-time secrets, full proof strings, private key m
 
 ## Profile Metadata
 
-Phase 3 profile metadata is intentionally minimal:
+Phase 8 profile metadata is intentionally minimal and read-only on desktop. It describes the active Android profile for display and diagnostics only. The source field is always `source=android`, and raw debug state reflects the Android `Send raw debug data` session toggle.
 
 | Field | Type | Meaning |
 |-------|------|---------|
 | `profileId` | string | Stable profile identifier. |
 | `displayName` | string | User-visible profile name. |
 | `revision` | integer | Monotonic metadata revision. |
+| `source` | string | Literal `android`; displayed as `source=android`. |
+| `rawDebugEnabled` | boolean | Whether Android is adding raw debug extras for this session. |
 
-Full profile storage, aim mapping, button mapping, sensitivity, inversion, dead-zone, smoothing, and platform backend capabilities belong to Phase 8 and later desktop phases.
+Full profile storage, aim mapping, button mapping, sensitivity, inversion, dead-zone, smoothing, validation, and profile application belong to Android in Phase 8. Desktop only displays this metadata and mapped-stream state.
 
 ## Redaction Gates
 
@@ -296,7 +302,7 @@ Later phases own:
 
 - desktop virtual-controller input handling
 - full haptic pattern playback and physical gun motor rumble
-- profile mapping behavior and editing
+- Android profile mapping behavior and editing
 - visualizer transport metrics
 
 Phase 3 implementations must not vibrate the phone from desktop-origin commands. Phase 4 implementations may accept non-empty `reserved_haptic_command` bodies only with the validated phone-haptic shape above.
