@@ -17,6 +17,10 @@ data class MappedControllerState(
     val aimAxisX: Float,
     val aimAxisY: Float,
     val aimStatus: MappedAimStatus,
+    val pressedVirtualControls: Set<String>,
+    val stickAxisX: Float,
+    val stickAxisY: Float,
+    val recenterPhysicalControl: String?,
 )
 
 class ProfileMapper(
@@ -41,6 +45,10 @@ class ProfileMapper(
                     estimatedFilterLagMillis = 0,
                     adaptiveFallback = false,
                 ),
+                pressedVirtualControls = profile.mapPressedVirtualControls(gunInputState),
+                stickAxisX = gunInputState.stickAxisX.finiteAxis(),
+                stickAxisY = gunInputState.stickAxisY.finiteAxis(),
+                recenterPhysicalControl = profile.recenterPhysicalControl?.id,
             )
         }
 
@@ -72,7 +80,16 @@ class ProfileMapper(
                 estimatedFilterLagMillis = smoothed.estimatedFilterLagMillis,
                 adaptiveFallback = smoothed.adaptiveFallback,
             ),
+            pressedVirtualControls = profile.mapPressedVirtualControls(gunInputState),
+            stickAxisX = gunInputState.stickAxisX.finiteAxis(),
+            stickAxisY = gunInputState.stickAxisY.finiteAxis(),
+            recenterPhysicalControl = profile.recenterPhysicalControl?.id,
         )
+    }
+
+    fun isRecenterPressed(profile: BtGunProfile, gunInputState: GunInputState): Boolean {
+        val recenter = profile.recenterPhysicalControl ?: return false
+        return recenter.id in gunInputState.pressedControls
     }
 
     private fun selectAim(profile: BtGunProfile, motionSample: MotionSample?): SelectedMappedAim {
@@ -150,6 +167,13 @@ class ProfileMapper(
             else -> SelectedMappedAim.center(settings)
         }
 
+    private fun BtGunProfile.mapPressedVirtualControls(gunInputState: GunInputState): Set<String> =
+        gunInputState.pressedControls.mapNotNull { controlId ->
+            val physical = PhysicalButton.fromId(controlId)
+            val virtual = physical?.let { button -> buttonMapping[button] }
+            virtual?.id
+        }.toSet()
+
     private fun Float.applySensitivity(sensitivity: Float): Float =
         finiteClamped() * sensitivity
 
@@ -160,6 +184,9 @@ class ProfileMapper(
         if (abs(this) < deadZone) 0f else this
 
     private fun Float.finiteClamped(): Float =
+        if (isFinite()) coerceIn(-1.0f, 1.0f) else 0.0f
+
+    private fun Float.finiteAxis(): Float =
         if (isFinite()) coerceIn(-1.0f, 1.0f) else 0.0f
 
     private data class SelectedMappedAim(
