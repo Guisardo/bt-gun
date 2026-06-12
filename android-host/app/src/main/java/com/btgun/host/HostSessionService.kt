@@ -1463,6 +1463,9 @@ class HostSessionService : Service() {
         fun canStartWithPermissionGate(state: PermissionGateState): Boolean =
             state.canStartSession
 
+        fun shouldStartServiceForProfileReload(state: HostSessionState): Boolean =
+            state.foregroundActive
+
         private fun blockedPermissionMessage(state: PermissionGateState): String =
             listOf(state.bluetoothScan, state.bluetoothConnect, state.motionSensors)
                 .firstOrNull { status -> status.state != com.btgun.host.permissions.CapabilityState.AVAILABLE }

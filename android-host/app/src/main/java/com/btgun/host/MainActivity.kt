@@ -495,10 +495,14 @@ class MainActivity : Activity() {
             is SaveProfileResult.Rejected -> "$action blocked: ${result.reason}"
         }
         if (result is SaveProfileResult.Saved) {
-            startServiceAction(
-                Intent(this, HostSessionService::class.java)
-                    .setAction(HostSessionService.ACTION_RELOAD_ACTIVE_PROFILE),
-            )
+            if (HostSessionService.shouldStartServiceForProfileReload(HostSessionService.latestState)) {
+                startServiceAction(
+                    Intent(this, HostSessionService::class.java)
+                        .setAction(HostSessionService.ACTION_RELOAD_ACTIVE_PROFILE),
+                )
+            } else {
+                renderDashboard()
+            }
         } else {
             renderDashboard()
         }

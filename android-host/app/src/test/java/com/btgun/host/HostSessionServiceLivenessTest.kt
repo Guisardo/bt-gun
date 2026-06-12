@@ -35,6 +35,7 @@ fun main() {
     heartbeatTimeoutClearSchedulesUdpDisconnectGrace()
     controlDisconnectWithoutUdpStreamStaysStopped()
     bluetoothGamepadActionConstantsAreExplicit()
+    profileReloadServiceActionOnlyRunsWhenForegroundActive()
     bluetoothGamepadStartRequiresConnectPermission()
     bluetoothGamepadStartDoesNotStartLanDesktopControl()
     bluetoothGamepadStartAndPairingWindowAreSeparateActions()
@@ -121,6 +122,17 @@ private fun bluetoothGamepadActionConstantsAreExplicit() {
         "pairing hid action",
         "com.btgun.host.action.START_HID_PAIRING_WINDOW",
         HostSessionService.ACTION_START_HID_PAIRING_WINDOW,
+    )
+}
+
+private fun profileReloadServiceActionOnlyRunsWhenForegroundActive() {
+    expectFalse(
+        "inactive profile save does not start foreground service",
+        HostSessionService.shouldStartServiceForProfileReload(HostSessionState()),
+    )
+    expectTrue(
+        "foreground profile save reloads live service",
+        HostSessionService.shouldStartServiceForProfileReload(HostSessionState(foregroundActive = true)),
     )
 }
 

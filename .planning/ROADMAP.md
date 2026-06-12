@@ -20,7 +20,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 5: Desktop Backend Contract and Smoke Harness** - Shared desktop backend contract and fake-input smoke tests work before real OS driver work. (completed 2026-06-09)
 - [x] **Phase 6: Windows Virtual Joystick Path** - Windows 11 x64 exposes the gun stream as a regular gamepad-style joystick with output-to-phone-haptic forwarding, retained as fallback if Android Bluetooth HID gamepad integration is blocked. (completed 2026-06-10)
 - [x] **Phase 7: Android Bluetooth HID Gamepad Path** - Android phone exposes the gun stream directly to macOS as a Bluetooth HID gamepad, with output-report-to-phone-haptic proof or clear compatibility limits. (completed 2026-06-11)
-- [ ] **Phase 8: Desktop Profiles and Mapping** - Users configure Android-owned aim and button profiles that apply at runtime; desktop only displays active Android profile metadata.
+- [x] **Phase 8: Desktop Profiles and Mapping** - Users configure Android-owned aim and button profiles that apply at runtime; desktop only displays active Android profile metadata. (completed 2026-06-12)
 - [ ] **Phase 9: Visualizer Acceptance Path** - The simple visualizer proves controls, aim, recentering, latency, packet loss, and phone haptic round trip.
 - [ ] **Phase 10: Diagnostics, Replay, and v1 Docs** - Replay tests, diagnostic logs, setup docs, protocol docs, and known limits make the MVP repeatable.
 
@@ -288,7 +288,7 @@ Plans:
   4. Android profile changes apply at runtime without Android rebuilds or a desktop editor.
   5. Immutable `Default Visualizer` works immediately after pairing and desktop shows read-only mapped-stream status.
 
-**Plans:** 6/7 plans executed
+**Plans:** 7/7 plans complete
 
 Cross-cutting constraints:
 
@@ -321,7 +321,7 @@ Plans:
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
-- [ ] 08-07-PLAN.md — Full validation, USB Android screenshots, screenshot cleanup, and sanitized evidence manifest.
+- [x] 08-07-PLAN.md — Full validation, USB Android screenshots, screenshot cleanup, and sanitized evidence manifest.
 
 **UI hint**: yes
 
@@ -371,6 +371,6 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 | 5. Desktop Backend Contract and Smoke Harness | 5/5 | Complete | 2026-06-09 |
 | 6. Windows Virtual Joystick Path | 6/6 | Complete | 2026-06-10 |
 | 7. Android Bluetooth HID Gamepad Path | 6/6 | Complete    | 2026-06-11 |
-| 8. Desktop Profiles and Mapping | 6/7 | In Progress|  |
+| 8. Desktop Profiles and Mapping | 7/7 | Complete    | 2026-06-12 |
 | 9. Visualizer Acceptance Path | 0/TBD | Not started | - |
 | 10. Diagnostics, Replay, and v1 Docs | 0/TBD | Not started | - |
