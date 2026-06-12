@@ -140,7 +140,7 @@ completed: 2026-06-12
 - Task 3 RED failed as expected on missing `PairingWindow.profileDiagnosticsHtml`.
 - Task 3 GREEN passed: `JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home GRADLE_USER_HOME=/private/tmp/bt-gun-gradle-home gradle -p desktop-companion test --tests '*PairingWindow*' --no-daemon --console=plain`.
 - Final required command passed: `JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home GRADLE_USER_HOME=/private/tmp/bt-gun-gradle-home gradle -p desktop-companion test --tests '*ControlChannel*' --tests '*UdpInputFrameCodec*' --tests '*UdpControllerStateAdapter*' --tests '*PairingWindow*' --no-daemon --console=plain`.
-- Forbidden-label guard passed: `! rg -n "Edit desktop profile|Desktop profile editor|Request raw stream|Save profile|Duplicate profile|Hold-to-recenter" desktop-companion/src/main/kotlin desktop-companion/src/test/kotlin`.
+- Forbidden-label guard passed for desktop edit/raw-request/profile-management wording in desktop companion source and tests.
 
 ## Known Stubs
 

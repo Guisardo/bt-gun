@@ -86,7 +86,7 @@ Each behavior task used RED then GREEN commits:
 ## Decisions Made
 
 - Used manual `kotlinx.serialization-json` object encoding/decoding instead of adding the Kotlin serialization compiler plugin.
-- Kept profile persistence Android-only; no desktop profile store, editor, or profile authority was added.
+- Kept profile persistence Android-only; no desktop-side profile storage, editor, or profile authority was added.
 - Added `unsupportedMappings` as candidate-state validation input so axis/button crossing attempts can be rejected without widening the valid v1 mapping model.
 
 ## Deviations from Plan

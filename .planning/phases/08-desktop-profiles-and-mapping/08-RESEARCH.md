@@ -122,7 +122,7 @@ The implementation should add Android profile model, storage, validation, mapper
 |------------|-----------|----------|
 | SharedPreferences JSON profile store | Jetpack DataStore | DataStore is the official modern recommendation, but adding it increases dependency and migration scope; profile data is small and existing stores already use SharedPreferences. [CITED: https://developer.android.com/topic/libraries/architecture/datastore; VERIFIED: `TrustedDesktopStore.kt`] |
 | Android native views | Compose | Compose would add UI dependencies and new patterns; current UI is programmatic native views. [VERIFIED: `MainActivity.kt`; VERIFIED: `android-host/app/build.gradle.kts`] |
-| Desktop profile editor | Swing editor | Forbidden by Phase 8 context; desktop must stay read-only. [VERIFIED: `08-CONTEXT.md`] |
+| Desktop-side profile editor | Swing editor | Forbidden by Phase 8 context; desktop must stay read-only. [VERIFIED: `08-CONTEXT.md`] |
 
 **Installation:** No new external packages recommended for Phase 8. [VERIFIED: `android-host/app/build.gradle.kts`; VERIFIED: `desktop-companion/build.gradle.kts`]
 
