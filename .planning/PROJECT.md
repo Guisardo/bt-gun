@@ -29,7 +29,7 @@ Make the discontinued iPega AR gun usable as a normal wireless joystick gun on m
 
 ### Active
 
-- [ ] Desktop profiles can map motion aim into joystick axes, with configurable aim mapping in v1.
+- [ ] Android stores local profiles that map motion aim into joystick axes, with desktop read-only metadata in v1.
 - [ ] End-to-end input latency targets under 50 ms for the v1 visualizer path.
 - [ ] A simple joystick visualizer can prove buttons, axes, aim mapping, recentering, and phone haptics.
 - [ ] Reverse-engineering of the discontinued reference APK/XAPK apps and the iPega Bluetooth protocol is allowed when standard Android controller APIs are insufficient.
@@ -68,7 +68,7 @@ Both desktop targets matter for v1: Windows 11 x64 and macOS on M3/Apple Silicon
 - **Transport**: Android-to-desktop v1 transport is Wi-Fi/LAN with QR or pairing code - this keeps pairing/debugging simpler while preserving wireless use.
 - **Latency**: End-to-end target is under 50 ms for visualizer input path - design must support timestamping and latency measurement early.
 - **HID shape**: Desktop exposes a regular gamepad-style gun controller - avoids custom HID compatibility risk in v1.
-- **Aim mapping**: Aim mapping is configurable by desktop-side profiles - Android should send normalized/raw motion data, sensor provider metadata, and capability flags without baking in one desktop mapping.
+- **Aim mapping**: Android profile editor configures sensitivity, inversion, dead zone, smoothing, provider-specific tuning, and limited button remap; desktop only displays active Android profile metadata and mapped-stream diagnostics.
 - **Sensor fallback**: Prefer Android fused rotation-vector or game-rotation-vector data when available; use gyro plus accelerometer/gravity when useful for stability; support an explicit accelerometer/gravity tilt fallback when no gyroscope is available.
 - **Calibration**: Holding reload for two seconds recenters motion aim - this gesture must not break normal reload behavior.
 - **Reverse engineering**: Reference APK/XAPK and Bluetooth protocol reverse-engineering is allowed - useful if standard Android controller APIs do not reveal full input behavior. Physical gun motor rumble is no longer a v1 blocker.
@@ -82,7 +82,7 @@ Both desktop targets matter for v1: Windows 11 x64 and macOS on M3/Apple Silicon
 | Support Windows and macOS in v1 | Both Windows 11 x64 and macOS M3 are required target desktops. | - Windows validated in Phase 6; macOS no-subscription path validated through Android Bluetooth HID in Phase 7 |
 | Expose a gamepad-style gun HID shape | Regular joystick/gamepad compatibility is safer than a custom gun HID report. | - Validated in Phase 6 Windows VHF and Phase 7 Android Bluetooth HID |
 | Use Wi-Fi/LAN transport for v1 | Simpler local pairing, debugging, and latency measurement than desktop Bluetooth/BLE. | - Validated in Phase 4 |
-| Store aim profiles on desktop | Desktop owns target platform mapping and virtual controller behavior. | - Pending |
+| Store aim profiles on Android | Phase 8 context supersedes the old desktop-owned profile decision after the Android Bluetooth HID reroute; Android owns profile storage, editing, validation, and application. | - Pending |
 | Support accelerometer-aware motion aim | Fused rotation sensors can improve stability when gyro and accelerometer data are available, and accelerometer/gravity tilt can keep a limited aiming mode working on devices without a gyroscope. | - Validated in Phase 2 |
 | Pair by QR or pairing code | Reduces manual IP setup while keeping local-only networking. | - Validated in Phase 3 |
 | Validate first with a joystick visualizer | Proves the input and phone-haptic pipeline before game-specific work. | - Pending |
