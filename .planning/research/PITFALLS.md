@@ -101,22 +101,22 @@ Phase 2/3: control channel and virtual HID output reports.
 
 ---
 
-### Pitfall 6: Profiles Baked Into Android
+### Pitfall 6: Android Profiles With Platform-Specific Constants
 
 **What goes wrong:**
-Every desktop/game mapping change requires Android app changes and platform-specific logic leaks into the phone.
+Android profile code hard-codes Windows, macOS, game, or visualizer-specific constants instead of storing user-editable local profile settings.
 
 **Why it happens:**
-Gyro math is captured on Android, so it is tempting to finish mapping there.
+Phase 7 made Android Bluetooth HID the primary macOS path, so Android now owns profile storage and mapping; without guardrails, platform-specific shortcuts can leak into the phone.
 
 **How to avoid:**
-Android sends normalized raw/semiprocessed motion; desktop profiles decide joystick axes, sensitivity, inversion, dead zones, and game-specific mapping.
+Android owns v1 profile storage, editing, validation, and runtime application. Keep profiles generic to the v1 gamepad-like shape, keep stick and aim axes semantic, and keep game-specific presets deferred. The desktop remains read-only for active Android profile metadata, and Windows VHF fallback consumes Android-mapped LAN input.
 
 **Warning signs:**
-Android code contains Windows/macOS/game profile names or HID-axis decisions.
+Android code contains Windows/macOS/game profile names, desktop-only profile ids, or raw debug defaults enabled without an Android session toggle.
 
 **Phase to address:**
-Phase 4: profile mapper and visualizer.
+Phase 8: Android profile authority and mapped-stream docs.
 
 ## Technical Debt Patterns
 
@@ -147,7 +147,7 @@ Phase 4: profile mapper and visualizer.
 | Oversized UDP packets | Random loss on some networks | Keep packets under 1200 bytes | Fragmentation path |
 | Android background throttling | Latency grows when screen dims/app backgrounds | Foreground active session, wake/low-latency Wi-Fi handling | Longer sessions |
 | Unmeasured desktop publish latency | Android looks fast but OS input lags | Timestamp every stage through visualizer | Driver integration |
-| Sensor over-filtering | Smooth but sluggish aim | Profile-tunable filters with raw mode | First aiming tests |
+| Sensor over-filtering | Smooth but sluggish aim | Android profile-tunable filters with raw debug mode off by default | First aiming tests |
 
 ## Security Mistakes
 
@@ -187,7 +187,7 @@ Phase 4: profile mapper and visualizer.
 | macOS entitlement blocked | HIGH | Switch to alternate virtual HID path, limit macOS v1 to supported OS/entitlement, or make visualizer-only macOS milestone explicit. |
 | Windows VHF too slow | MEDIUM | Prototype vJoy/ViGEm to validate product behavior while VHF driver continues. |
 | UDP packet design flawed | MEDIUM | Version packets, add compatibility parser, keep debug decoder. |
-| Aim mapping feels bad | MEDIUM | Add raw mode, profile tuning, calibration UI, and replayable sensor traces. |
+| Aim mapping feels bad | MEDIUM | Add Android raw debug toggle, profile tuning, calibration UI, and replayable sensor traces. |
 
 ## Pitfall-to-Phase Mapping
 

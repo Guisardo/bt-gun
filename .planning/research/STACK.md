@@ -18,6 +18,10 @@
 | macOS CoreHID HIDVirtualDevice or HIDDriverKit | macOS target dependent | Product-grade virtual HID gamepad on Apple Silicon | CoreHID virtual device is preferred if target macOS/entitlements allow it; HIDDriverKit is the fallback for a system extension based virtual HID path. |
 | Simple desktop visualizer | Native desktop or cross-platform UI | First acceptance harness | A visualizer proves buttons, axes, motion mapping, recenter, latency, and phone haptics before game-specific integration. |
 
+### Phase 8 Profile Reroute
+
+Android owns v1 profile storage, editing, validation, and runtime application because Android Bluetooth HID is the primary no-subscription macOS path after Phase 7. The desktop remains read-only for active Android profile metadata and mapped-stream diagnostics. Windows VHF fallback consumes Android-mapped LAN input instead of owning profile authority.
+
 ### Supporting Libraries
 
 | Library | Version | Purpose | When to Use |
@@ -38,7 +42,7 @@
 | Windows Driver Kit | Build/sign VHF driver | Driver signing, HVCI/Secure Boot behavior, and installer flow are first-class product risks. |
 | Xcode | Build macOS virtual HID helper/driver | CoreHID/DriverKit entitlement availability must be validated early. |
 | Wireshark or packet logger | Transport diagnostics | Capture UDP/TCP timing and packet loss during latency tests. |
-| Joystick visualizer | Acceptance test | Can start as an internal desktop tool, then become the first user-facing diagnostic. |
+| Joystick visualizer | Acceptance test | Can start as an internal desktop tool, then become the first user-facing diagnostic. It consumes Android-mapped state and active profile metadata. |
 
 ## Installation
 
@@ -100,8 +104,12 @@ Apple Developer account with required entitlements
 - Keep DriverKit as fallback for older target or entitlement constraints.
 
 **If macOS CoreHID path is blocked:**
-- Use DriverKit/HIDDriverKit packaged in a system extension app.
-- Plan for user approval, entitlement, signing, and installer work early.
+- Use Android Bluetooth HID as the primary no-subscription macOS input path already proven in Phase 7.
+- Keep DriverKit/HIDDriverKit only as retained fallback evidence unless a later plan explicitly revives it with approval.
+
+**If Windows fallback is active:**
+- Keep Windows VHF/KMDF as the OS-visible fallback backend.
+- Consume Android-mapped LAN input and active Android profile metadata; do not add desktop profile editing authority in Phase 8.
 
 ## Version Compatibility
 
