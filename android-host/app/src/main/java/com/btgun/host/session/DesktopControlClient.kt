@@ -66,6 +66,8 @@ data class ProfileMetadata(
     val profileId: String,
     val displayName: String,
     val revision: Long,
+    val source: String = "android",
+    val rawDebugEnabled: Boolean = false,
 )
 
 data class DesktopControlConnectionRequest(
@@ -307,6 +309,11 @@ class DesktopControlClient(
         return send(resultEnvelope(sessionId, result))
     }
 
+    fun sendProfileMetadata(profile: ProfileMetadata): DesktopControlSendResult {
+        val sessionId = trustedSessionId ?: return DesktopControlSendResult.NotConnected
+        return send(profileMetadataEnvelope(sessionId, profile))
+    }
+
     fun close() {
         socket?.close()
         socket = null
@@ -484,6 +491,25 @@ class DesktopControlClient(
             body = result.toJsonBody(),
         )
 
+    private fun profileMetadataEnvelope(sessionId: String, profile: ProfileMetadata): ControlEnvelope =
+        ControlEnvelope(
+            v = 1,
+            type = ControlMessageType.PROFILE_METADATA,
+            msgId = "android-profile-${profile.profileId}-${profile.revision}",
+            sessionId = sessionId,
+            seq = 0L,
+            sentElapsedNanos = elapsedRealtimeNanos(),
+            body = JsonObject(
+                mapOf(
+                    "profileId" to JsonPrimitive(profile.profileId),
+                    "displayName" to JsonPrimitive(profile.displayName),
+                    "revision" to JsonPrimitive(profile.revision),
+                    "source" to JsonPrimitive(profile.source),
+                    "rawDebugEnabled" to JsonPrimitive(profile.rawDebugEnabled),
+                ),
+            ),
+        )
+
     private fun JsonObject.toDiagnostics(): ControlDiagnostics? {
         val sessionState = stringField("sessionState") ?: return null
         val desktopIdentitySuffix = stringField("desktopIdentitySuffix") ?: return null
@@ -503,6 +529,8 @@ class DesktopControlClient(
             profileId = profileId,
             displayName = displayName,
             revision = revision,
+            source = stringField("source") ?: "android",
+            rawDebugEnabled = boolField("rawDebugEnabled") ?: false,
         )
     }
 
@@ -525,6 +553,9 @@ class DesktopControlClient(
 
     private fun JsonObject.longField(name: String): Long? =
         (get(name) as? JsonPrimitive)?.jsonPrimitive?.longOrNull
+
+    private fun JsonObject.boolField(name: String): Boolean? =
+        (get(name) as? JsonPrimitive)?.jsonPrimitive?.contentOrNull?.toBooleanStrictOrNull()
 
     private fun JsonObject.intField(name: String): Int? =
         longField(name)

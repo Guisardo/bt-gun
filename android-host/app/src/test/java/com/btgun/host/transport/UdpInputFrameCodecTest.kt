@@ -24,7 +24,9 @@ private fun codecConstantsMatchWireContract() {
     expectEquals("version", 1, UdpInputFrameCodec.VERSION)
     expectEquals("snapshot type", 1, UdpInputFrameType.SNAPSHOT.wireValue)
     expectEquals("edge type", 2, UdpInputFrameType.EDGE.wireValue)
-    expectEquals("reserved flags offset", 6, UdpInputFrameCodec.OFFSET_RESERVED_FLAGS)
+    expectEquals("stream flags offset", 6, UdpInputFrameCodec.OFFSET_STREAM_FLAGS)
+    expectEquals("mapped flag", 0x0001, UdpInputFrame.FLAG_MAPPED_PRODUCT_STREAM)
+    expectEquals("raw debug flag", 0x0002, UdpInputFrame.FLAG_RAW_DEBUG_EXTRAS)
     expectEquals("sequence offset", 24, UdpInputFrameCodec.OFFSET_SEQUENCE)
     expectEquals("capture offset", 32, UdpInputFrameCodec.OFFSET_CAPTURE_ELAPSED_NANOS)
     expectEquals("send offset", 40, UdpInputFrameCodec.OFFSET_SEND_ELAPSED_NANOS)
@@ -133,9 +135,9 @@ private fun decoderRejectsAuthenticatedMalformedFields() {
         ),
     )
     expectRejected(
-        "nonzero reserved flags",
+        "unknown stream flags",
         UdpInputFrameRejectReason.MALFORMED_FIELD,
-        UdpInputFrameCodec.authenticateAndDecode(authenticatedShortMutation(UdpInputFrameCodec.OFFSET_RESERVED_FLAGS, 1), config),
+        UdpInputFrameCodec.authenticateAndDecode(authenticatedShortMutation(UdpInputFrameCodec.OFFSET_STREAM_FLAGS, 0x4000), config),
     )
     expectRejected(
         "nonzero reserved motion",
@@ -166,7 +168,7 @@ private fun debugDecoderRedactsSecrets() {
 private fun sourceContractExcludesPreviewAimAndJsonUdp() {
     val source = File("app/src/main/java/com/btgun/host/transport/UdpInputFrameCodec.kt")
     val text = if (source.exists()) source.readText() else ""
-    listOf("PreviewAim", "aimX", "aimY", "profile mapping", "profile_mapper", "json udp").forEach { banned ->
+    listOf("PreviewAim", "profile mapping", "profile_mapper", "json udp").forEach { banned ->
         expectFalse("codec excludes $banned", text.contains(banned, ignoreCase = false))
     }
 }

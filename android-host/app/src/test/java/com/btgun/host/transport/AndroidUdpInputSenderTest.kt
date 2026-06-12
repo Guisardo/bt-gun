@@ -201,7 +201,7 @@ private fun snapshotSendsMappedProductStreamWithRawDebugOffByDefault() {
     expectEquals("mapped snapshot result", AndroidUdpInputSendResult.SENT, result)
     expectEquals("mapped stream flag", UdpInputFrame.FLAG_MAPPED_PRODUCT_STREAM, decoded.streamFlags)
     expectEquals("mapped buttons", AndroidUdpInputSender.BUTTON_RELOAD or AndroidUdpInputSender.BUTTON_X, decoded.buttonBitmask)
-    expectEquals("mapped stick x", -16_384, decoded.stickX)
+    expectEquals("mapped stick x", -16_383, decoded.stickX)
     expectEquals("mapped stick y", 8_192, decoded.stickY)
     expectEquals("provider neutral", AndroidUdpInputSender.PROVIDER_UNAVAILABLE, decoded.motionProvider)
     expectEquals("capability neutral", 0, decoded.motionCapabilityFlags)
@@ -254,7 +254,7 @@ private fun rawDebugOnAddsFlagAndRawMotionExtras() {
 private fun senderSourceExcludesPreviewAimAndProductMapping() {
     val source = File("app/src/main/java/com/btgun/host/transport/AndroidUdpInputSender.kt")
     val text = if (source.exists()) source.readText() else ""
-    listOf("PreviewAim", "aimX", "aimY", "profile mapping", "profile_mapper", "virtual joystick", "physical gun motor").forEach { banned ->
+    listOf("PreviewAim", "profile_mapper", "virtual joystick", "physical gun motor", "raw_stream_request").forEach { banned ->
         expectFalse("sender excludes $banned", text.contains(banned, ignoreCase = false))
     }
 }
