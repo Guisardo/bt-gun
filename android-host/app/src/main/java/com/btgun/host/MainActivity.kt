@@ -3,6 +3,8 @@ package com.btgun.host
 import android.app.Activity
 import android.content.Intent
 import android.graphics.Color
+import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -11,6 +13,7 @@ import android.os.SystemClock
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
+import android.view.WindowInsets
 import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.CheckBox
@@ -62,6 +65,13 @@ private data class AimSettingControls(
     val smoothing: Spinner,
 )
 
+private enum class ButtonStyle {
+    PRIMARY,
+    SECONDARY,
+    TONAL,
+    DANGER,
+}
+
 class MainActivity : Activity() {
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var phoneHaptics: PhoneHaptics
@@ -111,7 +121,9 @@ class MainActivity : Activity() {
     private var profileValidationText: TextView? = null
     private val refreshRunnable = object : Runnable {
         override fun run() {
-            renderDashboard()
+            if (!profileListVisible) {
+                renderDashboard()
+            }
             handler.postDelayed(this, REFRESH_INTERVAL_MS)
         }
     }
@@ -140,28 +152,26 @@ class MainActivity : Activity() {
         root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(16), dp(16), dp(16), dp(16))
-            setBackgroundColor(Color.rgb(247, 248, 246))
+            setBackgroundColor(COLOR_BACKGROUND)
         }
 
-        root.addView(TextView(this).apply {
-            text = "BT Gun Host"
-            textSize = 22f
-            setTextColor(Color.rgb(31, 41, 51))
-            setTypeface(typeface, android.graphics.Typeface.BOLD)
-        })
+        addAppHeader()
 
+        addSectionHeader("Permissions")
         addField("permission_title")
         addField("permission_body")
-        permissionAction = button("Grant permissions") { requestHostPermissions() }
+        permissionAction = button("Grant permissions", ButtonStyle.PRIMARY) { requestHostPermissions() }
         addActionGroup(permissionAction)
 
-        primaryAction = button("Start live session") { toggleSession() }
-        hapticAction = button("Test local haptic") {
+        addSectionHeader("Session")
+        primaryAction = button("Start live session", ButtonStyle.PRIMARY) { toggleSession() }
+        hapticAction = button("Test local haptic", ButtonStyle.TONAL) {
             lastPhoneHapticStatus = phoneHaptics.test()
             renderDashboard()
         }
         addActionGroup(primaryAction, hapticAction)
 
+        addSectionHeader("Profile")
         listOf(
             "active_profile",
             "profile_mapping",
@@ -177,24 +187,33 @@ class MainActivity : Activity() {
         addActionGroup(editProfilesAction)
         profileListGroup = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
+            setPadding(dp(12), dp(12), dp(12), dp(12))
+            background = roundedRect(COLOR_SURFACE, COLOR_BORDER)
         }
-        root.addView(profileListGroup)
+        root.addView(profileListGroup, spacedParams(top = 4, bottom = 12))
 
-        startBluetoothGamepadAction = button("Start Bluetooth gamepad") { startBluetoothGamepad() }
+        addSectionHeader("Bluetooth Gamepad")
+        startBluetoothGamepadAction = button("Start Bluetooth gamepad", ButtonStyle.PRIMARY) { startBluetoothGamepad() }
         stopBluetoothGamepadAction = button("Stop Bluetooth gamepad") { stopBluetoothGamepad() }
         addActionGroup(startBluetoothGamepadAction, stopBluetoothGamepadAction)
         openHidPairingWindowAction = button("Open pairing window") { openHidPairingWindow() }
         addActionGroup(openHidPairingWindowAction)
 
-        aimGraph = AimGraphView(this)
+        addSectionHeader("Live Aim")
+        aimGraph = AimGraphView(this).apply {
+            background = roundedRect(COLOR_SURFACE, COLOR_BORDER)
+        }
         root.addView(
             aimGraph,
-            LinearLayout.LayoutParams(
+            spacedParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 dp(220),
+                top = 4,
+                bottom = 12,
             ),
         )
 
+        addSectionHeader("Diagnostics")
         listOf(
             "gun_connection",
             "foreground_service",
@@ -218,7 +237,8 @@ class MainActivity : Activity() {
             "desktop_link",
         ).forEach(::addField)
 
-        scanDesktopQrAction = button("Scan desktop QR") { scanDesktopQr() }
+        addSectionHeader("Desktop Pairing")
+        scanDesktopQrAction = button("Scan desktop QR", ButtonStyle.PRIMARY) { scanDesktopQr() }
         manualDesktopEntryAction = button("Enter manually") { showManualEntryState() }
         trustedDesktopAction = button("Use trusted desktop") { useTrustedDesktop() }
         addActionGroup(scanDesktopQrAction, manualDesktopEntryAction, trustedDesktopAction)
@@ -229,6 +249,7 @@ class MainActivity : Activity() {
             "phone_haptic",
         ).forEach(::addField)
 
+        addSectionHeader("Debug")
         debugModeAction = button("Product events") {
             eventMode = if (eventMode == DashboardEventMode.PRODUCT_EVENTS) {
                 DashboardEventMode.DEBUG_PROVENANCE
@@ -258,18 +279,22 @@ class MainActivity : Activity() {
         addActionGroup(gattDebugAction)
         addField("gatt_debug")
 
-        setContentView(
-            ScrollView(this).apply {
-                isFillViewport = true
-                addView(
-                    root,
-                    ViewGroup.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        ViewGroup.LayoutParams.WRAP_CONTENT,
-                    ),
-                )
-            },
-        )
+        val scrollView = ScrollView(this).apply {
+            isFillViewport = true
+            clipToPadding = false
+            overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
+            setBackgroundColor(COLOR_BACKGROUND)
+            addView(
+                root,
+                ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                ),
+            )
+        }
+        applyEdgeToEdge(scrollView)
+        setContentView(scrollView)
+        scrollView.post { scrollView.requestApplyInsets() }
     }
 
     private fun renderDashboard() {
@@ -451,13 +476,13 @@ class MainActivity : Activity() {
             return
         }
 
-        val editProfile = button("Edit profile") {
+        val editProfile = button("Edit profile", ButtonStyle.TONAL) {
             editingProfileId = profile.profileId
             profileSurfaceDirty = true
             profileActionStatus = "Edit profile"
             renderDashboard()
         }
-        val deleteProfile = button("Delete profile") {
+        val deleteProfile = button("Delete profile", ButtonStyle.DANGER) {
             applyProfileStoreResult(profileStore.deleteProfile(profile.profileId), "Delete profile")
         }
         addProfileActionGroup(useProfile, editProfile, duplicateProfile, deleteProfile)
@@ -482,9 +507,11 @@ class MainActivity : Activity() {
     private fun addProfileEditor(profile: BtGunProfile) {
         clearProfileEditorInputs()
         profileListGroup.addView(profileText("Edit profile", bold = true))
-        profileNameInput = editText("Profile name").apply {
+        val nameInput = editText("Profile name").apply {
             setText(profile.displayName)
-        }.also(profileListGroup::addView)
+        }
+        profileNameInput = nameInput
+        addProfileControl("Profile name", nameInput)
 
         profileListGroup.addView(profileText("Shared aim settings", bold = true))
         sharedAimControls = addAimSettingControls(profile.aim)
@@ -507,25 +534,27 @@ class MainActivity : Activity() {
 
         profileListGroup.addView(profileText("Button mapping", bold = true))
         PhysicalButton.defaultOrder.forEach { physical ->
-            profileListGroup.addView(profileText("${physical.id} output", bold = false))
             val spinner = spinner(
                 values = VirtualButton.requiredOutputs.map { output -> output.id },
                 selected = profile.buttonMapping[physical]?.id ?: VirtualButton.TRIGGER.id,
             )
             buttonMappingInputs[physical] = spinner
-            profileListGroup.addView(spinner)
+            addProfileControl("${physical.id} output", spinner)
         }
 
         profileListGroup.addView(profileText("Hold-to-recenter button", bold = true))
-        recenterButtonInput = spinner(
+        val recenterInput = spinner(
             values = PhysicalButton.defaultOrder.map { button -> button.id },
             selected = profile.recenterPhysicalControl?.id ?: PhysicalButton.RELOAD.id,
-        ).also(profileListGroup::addView)
+        )
+        recenterButtonInput = recenterInput
+        addProfileControl("Physical hold control", recenterInput)
 
         rawDebugInput = CheckBox(this).apply {
             text = "Send raw debug data"
             textSize = 14f
             minHeight = dp(48)
+            setTextColor(COLOR_TEXT)
             isChecked = profile.rawDebugEnabled
         }.also(profileListGroup::addView)
         profileListGroup.addView(
@@ -537,10 +566,13 @@ class MainActivity : Activity() {
 
         profileValidationText = profileText("Save blocked", bold = false).also { label ->
             label.visibility = View.GONE
+            label.setTextColor(COLOR_DANGER)
+            label.background = roundedRect(COLOR_DANGER_CONTAINER, COLOR_DANGER)
+            label.setPadding(dp(12), dp(10), dp(12), dp(10))
             profileListGroup.addView(label)
         }
-        val saveProfile = button("Save profile") { saveProfileEditor(profile) }
-        val resetProfile = button("Reset profile") { resetProfileEditor(profile) }
+        val saveProfile = button("Save profile", ButtonStyle.PRIMARY) { saveProfileEditor(profile) }
+        val resetProfile = button("Reset profile", ButtonStyle.TONAL) { resetProfileEditor(profile) }
         val cancelEdit = button("Use profile list") {
             editingProfileId = null
             profileSurfaceDirty = true
@@ -559,6 +591,7 @@ class MainActivity : Activity() {
             text = "Use shared settings"
             textSize = 14f
             minHeight = dp(48)
+            setTextColor(COLOR_TEXT)
             isChecked = override.useSharedSettings
         }
         providerUseSharedInputs[key] = useShared
@@ -574,12 +607,14 @@ class MainActivity : Activity() {
             text = "Invert X"
             textSize = 14f
             minHeight = dp(48)
+            setTextColor(COLOR_TEXT)
             isChecked = settings.invertX
         }
         val invertY = CheckBox(this).apply {
             text = "Invert Y"
             textSize = 14f
             minHeight = dp(48)
+            setTextColor(COLOR_TEXT)
             isChecked = settings.invertY
         }
         val deadZone = editText("Dead zone").apply {
@@ -589,7 +624,11 @@ class MainActivity : Activity() {
             values = SmoothingMode.entries.map { mode -> mode.id },
             selected = settings.smoothing.id,
         )
-        listOf<View>(sensitivity, invertX, invertY, deadZone, smoothing).forEach(profileListGroup::addView)
+        addProfileControl("Sensitivity", sensitivity)
+        profileListGroup.addView(invertX, spacedParams(top = 2, bottom = 2))
+        profileListGroup.addView(invertY, spacedParams(top = 2, bottom = 2))
+        addProfileControl("Dead zone", deadZone)
+        addProfileControl("Smoothing", smoothing)
         return AimSettingControls(
             sensitivity = sensitivity,
             invertX = invertX,
@@ -660,9 +699,11 @@ class MainActivity : Activity() {
             minimumHeight = dp(48)
             adapter = ArrayAdapter(
                 this@MainActivity,
-                android.R.layout.simple_spinner_dropdown_item,
+                android.R.layout.simple_spinner_item,
                 values,
-            )
+            ).apply {
+                setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+            }
             setSelection(values.indexOf(selected).coerceAtLeast(0))
         }
 
@@ -689,27 +730,30 @@ class MainActivity : Activity() {
     private fun profileText(value: String, bold: Boolean): TextView =
         TextView(this).apply {
             text = value
-            textSize = 14f
-            setTextColor(Color.rgb(31, 41, 51))
+            textSize = if (bold) 15f else 14f
+            includeFontPadding = false
+            setTextColor(if (bold) COLOR_TEXT else COLOR_MUTED)
             setTextIsSelectable(true)
-            setPadding(0, dp(8), 0, dp(4))
+            setPadding(0, dp(8), 0, dp(6))
             if (bold) {
-                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTypeface(typeface, Typeface.BOLD)
             }
         }
+
+    private fun addProfileControl(label: String, control: View) {
+        profileListGroup.addView(profileText(label, bold = false))
+        profileListGroup.addView(control, spacedParams(top = 2, bottom = 6))
+    }
 
     private fun addProfileActionGroup(vararg buttons: Button) {
         val group = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(0, 0, 0, dp(8))
+            setPadding(0, dp(4), 0, dp(8))
         }
         buttons.forEach { action ->
             group.addView(
                 action,
-                LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                ),
+                spacedParams(top = 4, bottom = 4),
             )
         }
         profileListGroup.addView(group)
@@ -942,14 +986,93 @@ class MainActivity : Activity() {
             ?.detail
             ?: "Session permission gate blocked."
 
-    private fun addField(key: String) {
-        fields[key] = TextView(this).apply {
-            textSize = 14f
-            setTextColor(Color.rgb(31, 41, 51))
-            setTextIsSelectable(true)
-            setPadding(0, dp(8), 0, dp(8))
+    private fun applyEdgeToEdge(scrollView: ScrollView) {
+        if (Build.VERSION.SDK_INT >= 21) {
+            window.statusBarColor = COLOR_BACKGROUND
+            window.navigationBarColor = COLOR_BACKGROUND
         }
-        root.addView(fields.getValue(key))
+        if (Build.VERSION.SDK_INT >= 30) {
+            window.setDecorFitsSystemWindows(false)
+        }
+        var flags = View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+        if (Build.VERSION.SDK_INT >= 23) {
+            flags = flags or View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
+        }
+        if (Build.VERSION.SDK_INT >= 26) {
+            flags = flags or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
+        }
+        window.decorView.systemUiVisibility = flags
+        scrollView.setOnApplyWindowInsetsListener { _, insets ->
+            val topInset: Int
+            val bottomInset: Int
+            if (Build.VERSION.SDK_INT >= 30) {
+                val bars = insets.getInsets(WindowInsets.Type.systemBars())
+                topInset = bars.top
+                bottomInset = bars.bottom
+            } else {
+                topInset = insets.systemWindowInsetTop
+                bottomInset = insets.systemWindowInsetBottom
+            }
+            root.setPadding(
+                dp(16),
+                dp(16) + topInset,
+                dp(16),
+                dp(16) + bottomInset,
+            )
+            insets
+        }
+    }
+
+    private fun addAppHeader() {
+        root.addView(
+            TextView(this).apply {
+                text = "BT Gun Host"
+                textSize = 28f
+                includeFontPadding = false
+                setTextColor(COLOR_TEXT)
+                setTypeface(typeface, Typeface.BOLD)
+                setPadding(0, dp(4), 0, dp(4))
+            },
+            spacedParams(bottom = 4),
+        )
+        root.addView(
+            TextView(this).apply {
+                text = "Android profile authority, HID output, LAN pairing"
+                textSize = 14f
+                includeFontPadding = false
+                setTextColor(COLOR_MUTED)
+                setPadding(0, 0, 0, dp(8))
+            },
+            spacedParams(bottom = 8),
+        )
+    }
+
+    private fun addSectionHeader(label: String) {
+        root.addView(
+            TextView(this).apply {
+                text = label
+                textSize = 15f
+                includeFontPadding = false
+                letterSpacing = 0f
+                setTextColor(COLOR_TEXT)
+                setTypeface(typeface, Typeface.BOLD)
+                setPadding(0, dp(14), 0, dp(6))
+            },
+            spacedParams(),
+        )
+    }
+
+    private fun addField(key: String) {
+        val field = TextView(this).apply {
+            textSize = 14f
+            setTextColor(COLOR_TEXT)
+            setTextIsSelectable(true)
+            setPadding(dp(12), dp(10), dp(12), dp(10))
+            setLineSpacing(dp(2).toFloat(), 1f)
+            background = roundedRect(COLOR_SURFACE, COLOR_BORDER)
+        }
+        fields[key] = field
+        root.addView(field, spacedParams(top = 3, bottom = 3))
     }
 
     private fun setField(key: String, value: String) {
@@ -959,13 +1082,10 @@ class MainActivity : Activity() {
     private fun buildManualEntryGroup() {
         manualEntryGroup = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
+            setPadding(dp(12), dp(12), dp(12), dp(12))
+            background = roundedRect(COLOR_SURFACE, COLOR_BORDER)
         }
-        manualEntryGroup.addView(TextView(this).apply {
-            text = "Manual pairing"
-            textSize = 14f
-            setTextColor(Color.rgb(31, 41, 51))
-            setTypeface(typeface, android.graphics.Typeface.BOLD)
-        })
+        manualEntryGroup.addView(profileText("Manual pairing", bold = true))
         manualHostInput = editText("Host/IP")
         manualPortInput = editText("Port")
         manualCodeInput = editText("6-digit code")
@@ -977,8 +1097,10 @@ class MainActivity : Activity() {
             manualCodeInput,
             manualFingerprintSuffixInput,
             manualPairAction,
-        ).forEach(manualEntryGroup::addView)
-        root.addView(manualEntryGroup)
+        ).forEach { control ->
+            manualEntryGroup.addView(control, spacedParams(top = 4, bottom = 4))
+        }
+        root.addView(manualEntryGroup, spacedParams(top = 4, bottom = 8))
     }
 
     private fun setManualEntryField() {
@@ -995,16 +1117,23 @@ class MainActivity : Activity() {
         fields.getValue(key).text = value
     }
 
-    private fun button(label: String, action: () -> Unit): Button =
+    private fun button(
+        label: String,
+        style: ButtonStyle = ButtonStyle.SECONDARY,
+        action: () -> Unit,
+    ): Button =
         Button(this).apply {
             text = label
             setAllCaps(false)
             textSize = 14f
+            typeface = Typeface.DEFAULT_BOLD
             minHeight = dp(48)
             minimumWidth = 0
             maxLines = 2
             gravity = Gravity.CENTER
-            setPadding(dp(8), 0, dp(8), 0)
+            setPadding(dp(12), 0, dp(12), 0)
+            setTextColor(buttonTextColor(style))
+            background = buttonBackground(style)
             setOnClickListener { action() }
         }
 
@@ -1014,7 +1143,10 @@ class MainActivity : Activity() {
             textSize = 14f
             setSingleLine(true)
             minHeight = dp(48)
-            setTextColor(Color.rgb(31, 41, 51))
+            setTextColor(COLOR_TEXT)
+            setHintTextColor(COLOR_MUTED)
+            setPadding(dp(12), 0, dp(12), 0)
+            background = roundedRect(COLOR_FIELD, COLOR_BORDER)
         }
 
     private fun addActionGroup(vararg buttons: Button) {
@@ -1040,13 +1172,63 @@ class MainActivity : Activity() {
             )
             group.addView(action, params)
         }
-        root.addView(group)
+        root.addView(group, spacedParams(top = 2, bottom = 6))
     }
+
+    private fun roundedRect(fill: Int, stroke: Int? = null): GradientDrawable =
+        GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            cornerRadius = dp(8).toFloat()
+            setColor(fill)
+            if (stroke != null) {
+                setStroke(dp(1), stroke)
+            }
+        }
+
+    private fun buttonBackground(style: ButtonStyle): GradientDrawable =
+        when (style) {
+            ButtonStyle.PRIMARY -> roundedRect(COLOR_PRIMARY)
+            ButtonStyle.SECONDARY -> roundedRect(COLOR_SURFACE, COLOR_BORDER_STRONG)
+            ButtonStyle.TONAL -> roundedRect(COLOR_TONAL, COLOR_TONAL_STROKE)
+            ButtonStyle.DANGER -> roundedRect(COLOR_DANGER_CONTAINER, COLOR_DANGER)
+        }
+
+    private fun buttonTextColor(style: ButtonStyle): Int =
+        when (style) {
+            ButtonStyle.PRIMARY -> Color.WHITE
+            ButtonStyle.SECONDARY -> COLOR_TEXT
+            ButtonStyle.TONAL -> COLOR_PRIMARY
+            ButtonStyle.DANGER -> COLOR_DANGER
+        }
+
+    private fun spacedParams(
+        width: Int = LinearLayout.LayoutParams.MATCH_PARENT,
+        height: Int = LinearLayout.LayoutParams.WRAP_CONTENT,
+        top: Int = 0,
+        bottom: Int = 0,
+        start: Int = 0,
+        end: Int = 0,
+    ): LinearLayout.LayoutParams =
+        LinearLayout.LayoutParams(width, height).apply {
+            setMargins(dp(start), dp(top), dp(end), dp(bottom))
+        }
 
     private fun dp(value: Int): Int =
         (value * resources.displayMetrics.density).toInt()
 
     companion object {
+        private val COLOR_BACKGROUND = Color.rgb(244, 247, 248)
+        private val COLOR_SURFACE = Color.rgb(255, 255, 255)
+        private val COLOR_FIELD = Color.rgb(250, 252, 252)
+        private val COLOR_TEXT = Color.rgb(24, 31, 41)
+        private val COLOR_MUTED = Color.rgb(89, 101, 115)
+        private val COLOR_PRIMARY = Color.rgb(12, 93, 128)
+        private val COLOR_TONAL = Color.rgb(224, 243, 248)
+        private val COLOR_TONAL_STROKE = Color.rgb(150, 205, 216)
+        private val COLOR_DANGER = Color.rgb(176, 42, 55)
+        private val COLOR_DANGER_CONTAINER = Color.rgb(255, 239, 240)
+        private val COLOR_BORDER = Color.rgb(220, 228, 232)
+        private val COLOR_BORDER_STRONG = Color.rgb(186, 199, 207)
         private const val TAG = "BtGunMain"
         private const val REFRESH_INTERVAL_MS = 500L
         private const val REQUEST_PERMISSIONS = 2001
