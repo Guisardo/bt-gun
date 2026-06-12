@@ -82,7 +82,7 @@ Both desktop targets matter for v1: Windows 11 x64 and macOS on M3/Apple Silicon
 | Support Windows and macOS in v1 | Both Windows 11 x64 and macOS M3 are required target desktops. | - Windows validated in Phase 6; macOS no-subscription path validated through Android Bluetooth HID in Phase 7 |
 | Expose a gamepad-style gun HID shape | Regular joystick/gamepad compatibility is safer than a custom gun HID report. | - Validated in Phase 6 Windows VHF and Phase 7 Android Bluetooth HID |
 | Use Wi-Fi/LAN transport for v1 | Simpler local pairing, debugging, and latency measurement than desktop Bluetooth/BLE. | - Validated in Phase 4 |
-| Store aim profiles on Android | Phase 8 context supersedes the old desktop-owned profile decision after the Android Bluetooth HID reroute; Android owns profile storage, editing, validation, and application. | - Pending |
+| Store aim profiles on Android | Phase 8 context supersedes the old desktop-local mapping decision after the Android Bluetooth HID reroute; Android owns profile storage, editing, validation, and application. | - Pending |
 | Support accelerometer-aware motion aim | Fused rotation sensors can improve stability when gyro and accelerometer data are available, and accelerometer/gravity tilt can keep a limited aiming mode working on devices without a gyroscope. | - Validated in Phase 2 |
 | Pair by QR or pairing code | Reduces manual IP setup while keeping local-only networking. | - Validated in Phase 3 |
 | Validate first with a joystick visualizer | Proves the input and phone-haptic pipeline before game-specific work. | - Pending |
