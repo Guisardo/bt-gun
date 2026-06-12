@@ -4,15 +4,19 @@ import com.btgun.desktop.backend.BackendLifecycleState
 import com.btgun.desktop.backend.BackendPublishResult
 import com.btgun.desktop.backend.macos.MacosBackendRuntimeDiagnostics
 import com.btgun.desktop.backend.macos.MacosHidHelperStatus
+import com.btgun.desktop.control.ProfileMetadata
 import com.btgun.desktop.control.HapticSendResult
 import com.btgun.desktop.haptics.HapticResult
 import com.btgun.desktop.haptics.HapticResultStatus
 import com.btgun.desktop.transport.InputStreamLifecycleState
+import java.io.File
 
 fun main() {
     pairingWindowExposesOnlyConciseTransportStateLabels()
     pairingWindowExposesHapticSmokeStateWithoutLaunchingSwing()
     pairingWindowFormatsMacosBackendDiagnostics()
+    pairingWindowFormatsReadOnlyAndroidProfileDiagnostics()
+    pairingWindowForbiddenDesktopProfileControlsAbsent()
 }
 
 private fun pairingWindowExposesOnlyConciseTransportStateLabels() {
@@ -95,6 +99,51 @@ private fun pairingWindowFormatsMacosBackendDiagnostics() {
     }
     listOf("QR", "proof", "stream key", "HMAC", "private key", "raw packet", "screenshot").forEach { forbidden ->
         expectFalse("macos status excludes $forbidden", status.contains(forbidden, ignoreCase = true))
+    }
+}
+
+private fun pairingWindowFormatsReadOnlyAndroidProfileDiagnostics() {
+    val html = PairingWindow.profileDiagnosticsHtml(
+        profile = ProfileMetadata(
+            profileId = "default_visualizer",
+            displayName = "Default Visualizer",
+            revision = 7L,
+            source = "android",
+            rawDebugEnabled = true,
+        ),
+        packetState = InputStreamLifecycleState.ACTIVE,
+        mappedProductStream = true,
+        rawDebugEnabled = true,
+        lastProfileUpdateElapsedNanos = 1_000_000_000L,
+        nowElapsedNanos = 3_500_000_000L,
+    )
+
+    expectContains("active profile label", html, "Active Android profile")
+    expectContains("active profile value", html, "Default Visualizer | id=default_visualizer | rev=7")
+    expectContains("profile source", html, "Profile source")
+    expectContains("profile source value", html, "android")
+    expectContains("mapped stream label", html, "Mapped stream")
+    expectContains("mapped stream value", html, "active | mapped=true | raw_debug=on")
+    expectContains("last profile update", html, "Last profile update")
+    expectContains("elapsed profile update", html, "2s ago")
+}
+
+private fun pairingWindowForbiddenDesktopProfileControlsAbsent() {
+    val source = File("src/main/kotlin/com/btgun/desktop/ui/PairingWindow.kt")
+        .takeIf { it.exists() }
+        ?.readText()
+        .orEmpty()
+    val forbidden = listOf(
+        "Edit desktop " + "profile",
+        "Desktop profile " + "editor",
+        "Request raw " + "stream",
+        "Save " + "profile",
+        "Duplicate " + "profile",
+        "Hold-to-" + "recenter",
+    )
+
+    forbidden.forEach { label ->
+        expectFalse("forbidden desktop control absent: $label", source.contains(label, ignoreCase = true))
     }
 }
 
