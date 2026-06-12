@@ -37,7 +37,10 @@ fun main() {
     heartbeatMonitorTransitionsConnectedDegradedDisconnected()
     heartbeatPingAndPongRefreshLiveness()
     diagnosticsPayloadContainsOnlyControlFields()
-    profileMetadataContainsOnlyRequiredFields()
+    profileMetadataContainsAndroidOwnershipFields()
+    controlServerAcceptsAndroidProfileMetadataCallback()
+    controlServerIgnoresIncompleteProfileMetadata()
+    controlServerDoesNotOwnDefaultProfileMetadata()
     controlEnvelopeAllowsHeartbeatDiagnosticsAndProfileTypes()
     controlEnvelopeAllowsHapticResultBody()
     controlServerBuildsTrustedHapticCommandEnvelope()
@@ -239,19 +242,94 @@ private fun diagnosticsPayloadContainsOnlyControlFields() {
     )
 }
 
-private fun profileMetadataContainsOnlyRequiredFields() {
+private fun profileMetadataContainsAndroidOwnershipFields() {
     val profile = ProfileMetadata(
-        profileId = "default",
-        displayName = "Default profile",
+        profileId = "default_visualizer",
+        displayName = "Default Visualizer",
         revision = 1L,
+        source = "android",
+        rawDebugEnabled = true,
     )
 
-    expectEquals("profile id", "default", profile.profileId)
+    expectEquals("profile id", "default_visualizer", profile.profileId)
+    expectEquals("source", "android", profile.source)
+    expectEquals("raw debug", true, profile.rawDebugEnabled)
     expectEquals(
         "profile fields",
-        listOf("profileId", "displayName", "revision"),
+        listOf("profileId", "displayName", "revision", "source", "rawDebugEnabled"),
         dataFieldNames(ProfileMetadata::class.java),
     )
+}
+
+private fun controlServerAcceptsAndroidProfileMetadataCallback() = runBlocking {
+    val server = ControlServer(registry = testRegistry(), maxMessageBytes = 512)
+    val received = mutableListOf<ProfileMetadata>()
+    server.onProfileMetadataReceived = received::add
+
+    server.handleAcceptedEnvelope(
+        envelope = envelope(
+            ControlMessageType.PROFILE_METADATA,
+            sessionId = "sid-1",
+            body = JsonObject(
+                mapOf(
+                    "profileId" to JsonPrimitive("default_visualizer"),
+                    "displayName" to JsonPrimitive("Default Visualizer"),
+                    "revision" to JsonPrimitive(7L),
+                    "source" to JsonPrimitive("android"),
+                    "rawDebugEnabled" to JsonPrimitive(true),
+                ),
+            ),
+        ),
+        heartbeat = HeartbeatMonitor(),
+        nowElapsedNanos = 1_000_000_000L,
+    )
+
+    expectEquals(
+        "android metadata callback",
+        ProfileMetadata(
+            profileId = "default_visualizer",
+            displayName = "Default Visualizer",
+            revision = 7L,
+            source = "android",
+            rawDebugEnabled = true,
+        ),
+        received.single(),
+    )
+}
+
+private fun controlServerIgnoresIncompleteProfileMetadata() = runBlocking {
+    val server = ControlServer(registry = testRegistry(), maxMessageBytes = 512)
+    val received = mutableListOf<ProfileMetadata>()
+    server.onProfileMetadataReceived = received::add
+
+    server.handleAcceptedEnvelope(
+        envelope = envelope(
+            ControlMessageType.PROFILE_METADATA,
+            sessionId = "sid-1",
+            body = JsonObject(
+                mapOf(
+                    "profileId" to JsonPrimitive("default_visualizer"),
+                    "displayName" to JsonPrimitive("Default Visualizer"),
+                    "revision" to JsonPrimitive(7L),
+                ),
+            ),
+        ),
+        heartbeat = HeartbeatMonitor(),
+        nowElapsedNanos = 1_000_000_000L,
+    )
+
+    expectEquals("missing source ignored", emptyList<ProfileMetadata>(), received)
+}
+
+private fun controlServerDoesNotOwnDefaultProfileMetadata() {
+    val source = java.io.File("src/main/kotlin/com/btgun/desktop/control/ControlServer.kt")
+        .takeIf { it.exists() }
+        ?.readText()
+        .orEmpty()
+
+    listOf("desktop-profile-metadata", "DEFAULT_PROFILE_ID", "DEFAULT_PROFILE_NAME").forEach { forbidden ->
+        expectFalse("desktop default profile authority absent: $forbidden", source.contains(forbidden))
+    }
 }
 
 private fun controlEnvelopeAllowsHeartbeatDiagnosticsAndProfileTypes() {
@@ -762,6 +840,12 @@ private fun expectEquals(label: String, expected: Any?, actual: Any?) {
 
 private fun expectTrue(label: String, condition: Boolean) {
     if (!condition) {
+        throw AssertionError(label)
+    }
+}
+
+private fun expectFalse(label: String, condition: Boolean) {
+    if (condition) {
         throw AssertionError(label)
     }
 }
