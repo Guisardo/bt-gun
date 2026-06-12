@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: ready_to_execute
-stopped_at: Phase 8 planned; ready to execute 08-01
-last_updated: "2026-06-12T15:45:36.767Z"
-last_activity: 2026-06-12 -- Phase 08 planned with Android-owned profiles and mapped-stream reroute
+status: executing
+stopped_at: Completed 08-01-PLAN.md
+last_updated: "2026-06-12T15:58:12.638Z"
+last_activity: 2026-06-12 -- Phase 08 Plan 01 completed; Android-owned profile docs corrected
 progress:
   total_phases: 10
   completed_phases: 7
   total_plans: 49
-  completed_plans: 42
-  percent: 70
+  completed_plans: 43
+  percent: 88
 ---
 
 # Project State
@@ -25,19 +25,19 @@ See: .planning/PROJECT.md (updated 2026-06-09)
 
 ## Current Position
 
-Phase: 08 (desktop-profiles-and-mapping) — PLANNED
-Plan: 08-01 of 7 — Correct stale desktop-owned profile wording before code work
+Phase: 08 (desktop-profiles-and-mapping) — EXECUTING
+Plan: 2 of 7
 Next phase: Execute Phase 08 desktop profiles and mapping
-Status: Ready to execute Phase 08
-Last activity: 2026-06-12 -- Phase 08 planned with Android-owned profiles and mapped-stream reroute
+Status: Ready to execute 08-02
+Last activity: 2026-06-12 -- Phase 08 Plan 01 completed; Android-owned profile docs corrected
 
-Progress: [████████░░] 42/49 active planned plans complete. Phase 08 has 0/7 plans executed.
+Progress: [█████████░] 43/49 active planned plans complete. Phase 08 has 1/7 plans executed.
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 42 of 49 planned
+- Total plans completed: 43 of 49 planned
 - Average duration: not tracked for hardware-interactive plans
 - Total execution time: not tracked after Plan 02
 
@@ -51,11 +51,11 @@ Progress: [████████░░] 42/49 active planned plans complete. 
 | 05 | 5 | hardware-interactive | hardware-interactive |
 | 06 | 6 | hardware-interactive | hardware-interactive |
 | 07 | 6 | hardware-interactive | complete; Android HID input passed, macOS haptics deferred |
-| 08 | 7 | not started | ready to execute |
+| 08 | 7 | 5min | 5min |
 
 **Recent Trend:**
 
-- Recent completed execution plans: 06-P01, 06-P02, 06-P03, 06-P05, 06-P04, 06-P06, and 07-P01 through 07-P06 complete. Phase 08 now has 7 planned execution plans.
+- Recent completed execution plans: 07-P01 through 07-P06 and 08-P01 complete. Phase 08 now has 6 remaining execution plans.
 - Trend: CoreHID and DriverKit are no longer primary for macOS because no-subscription virtual HID is blocked. Phase 07 completed Android phone Bluetooth HID gamepad proof, with Windows VHF retained as fallback and macOS browser/GameController haptics deferred. Phase 08 reroutes profiles to Android-owned storage/mapping with desktop read-only metadata.
 
 *Updated after each plan completion*
@@ -102,6 +102,7 @@ Progress: [████████░░] 42/49 active planned plans complete. 
 | Phase 07 P04 | 12min | 3 tasks | 6 files |
 | Phase 07 P05 | hardware-interactive | macOS Bluetooth HID input proof | haptics unsupported/deferred |
 | Phase 07 P06 | 8min | 3 tasks | 3 files |
+| Phase 08 P01 | 5min | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -206,6 +207,9 @@ Recent decisions affecting current work:
 - [Phase 07]: Android HID mode starts only through explicit service actions; live BLE/LAN session startup remains separate. — Plan 07-04 keeps Bluetooth HID gamepad proof separate from LAN diagnostics and desktop companion input.
 - [Phase 07]: macOS browser/GameController haptics through Android Bluetooth HID are deferred. — Live gpadtester reported no vibration, Android saw no usable host output callback, and the PID ForceFeedback descriptor experiment stopped macOS from publishing a browser-visible gamepad. Keep the stable input descriptor and use LAN/Windows VHF paths for phone haptics.
 - [Phase 07 complete]: Android Bluetooth HID is documented as the primary no-subscription macOS path, with current-phone DESK-03 input proof accepted and no alternate-phone fallback row required. — CoreHID/DriverKit stay blocked/fallback evidence only; Windows VHF remains fallback if a future Android HID target blocks.
+- [Phase 08]: Phase 8 requirements now name Android as the profile authority. — Desktop profile editing is out of scope; desktop displays active Android profile metadata only.
+- [Phase 08]: The LAN product stream is Android-mapped by default. — Raw provider/motion extras require the Android `Send raw debug data` session toggle.
+- [Phase 08]: Windows VHF fallback consumes Android-mapped LAN input. — It does not own profile mapping authority.
 
 ### Pending Todos
 
@@ -234,6 +238,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-12T01:41:02.991Z
-Stopped at: Session resumed; awaiting Phase 8 planning or cleanup choice
-Resume file: .planning/phases/08-desktop-profiles-and-mapping/08-UI-SPEC.md
+Last session: 2026-06-12T15:58:12.377Z
+Stopped at: Completed 08-01-PLAN.md
+Resume file: None

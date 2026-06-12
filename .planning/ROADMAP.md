@@ -288,7 +288,7 @@ Plans:
   4. Android profile changes apply at runtime without Android rebuilds or a desktop editor.
   5. Immutable `Default Visualizer` works immediately after pairing and desktop shows read-only mapped-stream status.
 
-**Plans:** 7 planned
+**Plans:** 1/7 plans executed
 
 Cross-cutting constraints:
 
@@ -300,7 +300,7 @@ Plans:
 
 **Wave 0**
 
-- [ ] 08-01-PLAN.md — Correct stale profile ownership wording before code work.
+- [x] 08-01-PLAN.md — Correct stale profile ownership wording before code work.
 
 **Wave 1** *(blocked on Wave 0 completion)*
 
@@ -322,6 +322,7 @@ Plans:
 **Wave 5** *(blocked on Wave 4 completion)*
 
 - [ ] 08-07-PLAN.md — Full validation, USB Android screenshots, screenshot cleanup, and sanitized evidence manifest.
+
 **UI hint**: yes
 
 ### Phase 9: Visualizer Acceptance Path
@@ -370,6 +371,6 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 | 5. Desktop Backend Contract and Smoke Harness | 5/5 | Complete | 2026-06-09 |
 | 6. Windows Virtual Joystick Path | 6/6 | Complete | 2026-06-10 |
 | 7. Android Bluetooth HID Gamepad Path | 6/6 | Complete    | 2026-06-11 |
-| 8. Desktop Profiles and Mapping | 0/7 | Planned | - |
+| 8. Desktop Profiles and Mapping | 1/7 | In Progress|  |
 | 9. Visualizer Acceptance Path | 0/TBD | Not started | - |
 | 10. Diagnostics, Replay, and v1 Docs | 0/TBD | Not started | - |
