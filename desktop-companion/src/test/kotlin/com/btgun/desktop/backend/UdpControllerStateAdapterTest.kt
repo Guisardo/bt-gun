@@ -8,6 +8,7 @@ import com.btgun.desktop.transport.UdpInputReceiverResult
 fun main() {
     snapshotFixtureReplaysThroughReceiverBeforeMapping()
     edgeFixtureMapsSemanticControlsAndNeutralizesNanAim()
+    legacyUnmappedFrameIsIncompatibleWithProductPath()
     edgeFlagDoesNotBecomeButtonThree()
     staleReceiverInputClearsButtonsAndStickBeforeMapping()
 }
@@ -23,8 +24,8 @@ private fun snapshotFixtureReplaysThroughReceiverBeforeMapping() {
     expectEquals("b", true, state.b)
     expectEquals("stickX", 12345, state.stickX)
     expectEquals("stickY", -12345, state.stickY)
-    expectEquals("aimX", 0.125f, state.aimX)
-    expectEquals("aimY", -0.25f, state.aimY)
+    expectEquals("aimX", 0.375f, state.aimX)
+    expectEquals("aimY", -0.625f, state.aimY)
     expectEquals("stale", false, state.stale)
     expectEquals("sourceSequence", 42L, state.sourceSequence)
 }
@@ -40,9 +41,25 @@ private fun edgeFixtureMapsSemanticControlsAndNeutralizesNanAim() {
     expectEquals("b", false, state.b)
     expectEquals("stickX", -32768, state.stickX)
     expectEquals("stickY", 32767, state.stickY)
+    expectEquals("aimX mapped", -0.5f, state.aimX)
+    expectEquals("aimY mapped", 0.25f, state.aimY)
+    expectEquals("sourceSequence", 43L, state.sourceSequence)
+}
+
+private fun legacyUnmappedFrameIsIncompatibleWithProductPath() {
+    val accepted = acceptFixture(LEGACY_UNMAPPED_SNAPSHOT_FRAME_HEX)
+    val input = accepted.input
+    val state = accepted.toSemanticState()
+
+    expectEquals("mapped stream absent", false, input.mappedProductStream)
+    expectEquals("raw debug absent", false, input.rawDebugEnabled)
+    expectEquals("trigger ignored", false, state.trigger)
+    expectEquals("reload ignored", false, state.reload)
+    expectEquals("stickX neutral", 0, state.stickX)
+    expectEquals("stickY neutral", 0, state.stickY)
     expectEquals("aimX neutral", 0.0f, state.aimX)
     expectEquals("aimY neutral", 0.0f, state.aimY)
-    expectEquals("sourceSequence", 43L, state.sourceSequence)
+    expectEquals("incompatible marked stale", true, state.stale)
 }
 
 private fun edgeFlagDoesNotBecomeButtonThree() {
@@ -134,7 +151,10 @@ private const val HMAC_KEY_BASE64URL = "ASNFZ4mrze_-3LqYdlQyEAEjRWeJq83v_ty6mHZU
 private const val RECEIVED_ELAPSED_NANOS = 1_111_111_333L
 
 private const val GOLDEN_SNAPSHOT_FRAME_HEX =
-    "425447490101000000112233445566778899aabbccddeeff000000000000002a00000000423a35c700000000423a3636000000233039cfc7020700003fa00000c02000003f4000003e000000be80000000000000423a3558ad0f94e008b50a045111a7bbb25688c2f1d399a8de4b3b8f2e325c0f63fb7d5f"
+    "425447490101000300112233445566778899aabbccddeeff000000000000002a00000000423a35c700000000423a3636000000233039cfc7020700003ec00000bf2000003f4000003e000000be80000000000000423a3558e5fe65b7e6e39c6eb8109901c44e1078e75277dded88c2c0732a5a15e517c6dc"
 
 private const val GOLDEN_EDGE_FRAME_HEX =
-    "425447490102000000112233445566778899aabbccddeeff000000000000002b00000000423a36a500000000423a37140000010180007fff03030000bf8000003f000000400000007fc000007fc0000000000000423a36843b9a10ccf01f62a02db4cc6065db9d133b1f4e20e1b4f8c74579b672755e8d24"
+    "425447490102000100112233445566778899aabbccddeeff000000000000002b00000000423a36a500000000423a37140000010180007fff03030000bf0000003e800000400000007fc000007fc0000000000000423a3684a5b9af27f6b97e7699e380efcfbc21fb7ce9dd851c9b632de938d6081ee4a669"
+
+private const val LEGACY_UNMAPPED_SNAPSHOT_FRAME_HEX =
+    "425447490101000000112233445566778899aabbccddeeff000000000000002a00000000423a35c700000000423a3636000000233039cfc7020700003fa00000c02000003f4000003e000000be80000000000000423a3558ad0f94e008b50a045111a7bbb25688c2f1d399a8de4b3b8f2e325c0f63fb7d5f"
