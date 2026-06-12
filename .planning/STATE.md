@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 08-03-PLAN.md
-last_updated: "2026-06-12T16:35:34.973Z"
-last_activity: 2026-06-12 -- Phase 08 Plan 03 completed; pure profile mapper and adaptive smoother implemented
+stopped_at: Completed 08-04-PLAN.md
+last_updated: "2026-06-12T17:04:32.693Z"
+last_activity: 2026-06-12 -- Phase 08 Plan 04 completed; Android active profile runtime now drives HID, mapped UDP, and profile metadata
 progress:
   total_phases: 10
   completed_phases: 7
   total_plans: 49
-  completed_plans: 45
-  percent: 92
+  completed_plans: 46
+  percent: 94
 ---
 
 # Project State
@@ -26,18 +26,18 @@ See: .planning/PROJECT.md (updated 2026-06-09)
 ## Current Position
 
 Phase: 08 (desktop-profiles-and-mapping) — EXECUTING
-Plan: 4 of 7
+Plan: 5 of 7
 Next phase: Execute Phase 08 desktop profiles and mapping
-Status: Ready to execute 08-04
-Last activity: 2026-06-12 -- Phase 08 Plan 03 completed; pure profile mapper and adaptive smoother implemented
+Status: Ready to execute 08-05
+Last activity: 2026-06-12 -- Phase 08 Plan 04 completed; Android active profile runtime now drives HID, mapped UDP, and profile metadata
 
-Progress: [█████████░] 45/49 active planned plans complete. Phase 08 has 3/7 plans executed.
+Progress: [█████████░] 46/49 active planned plans complete. Phase 08 has 4/7 plans executed.
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 45 of 49 planned
+- Total plans completed: 46 of 49 planned
 - Average duration: not tracked for hardware-interactive plans
 - Total execution time: not tracked after Plan 02
 
@@ -51,11 +51,11 @@ Progress: [█████████░] 45/49 active planned plans complete. 
 | 05 | 5 | hardware-interactive | hardware-interactive |
 | 06 | 6 | hardware-interactive | hardware-interactive |
 | 07 | 6 | hardware-interactive | complete; Android HID input passed, macOS haptics deferred |
-| 08 | 7 | 30min | 10min |
+| 08 | 7 | 53m 25s | 13m 21s |
 
 **Recent Trend:**
 
-- Recent completed execution plans: 07-P01 through 07-P06 and 08-P01 through 08-P03 complete. Phase 08 now has 4 remaining execution plans.
+- Recent completed execution plans: 07-P01 through 07-P06 and 08-P01 through 08-P04 complete. Phase 08 now has 3 remaining execution plans.
 - Trend: CoreHID and DriverKit are no longer primary for macOS because no-subscription virtual HID is blocked. Phase 07 completed Android phone Bluetooth HID gamepad proof, with Windows VHF retained as fallback and macOS browser/GameController haptics deferred. Phase 08 reroutes profiles to Android-owned storage/mapping with desktop read-only metadata.
 
 *Updated after each plan completion*
@@ -105,6 +105,7 @@ Progress: [█████████░] 45/49 active planned plans complete. 
 | Phase 08 P01 | 5min | 3 tasks | 8 files |
 | Phase 08 P02 | 14min | 3 tasks | 5 files |
 | Phase 08 P03 | 11min | 3 tasks | 5 files |
+| Phase 08 P04 | 23m 25s | 3 tasks | 12 files |
 
 ## Accumulated Context
 
@@ -218,6 +219,9 @@ Recent decisions affecting current work:
 - [Phase 08]: Adaptive smoothing uses tau values Low=12ms, Balanced=24ms, High=40ms, with adaptive fast=8ms and jitter=18ms before latency fallback.
 - [Phase 08]: Adaptive fallback reports smoothingMode=low and adaptiveFallback=true when added filter lag or aim latency headroom threatens the 50ms target.
 - [Phase 08]: ProfileMapper publishes only v1 virtual button ids; unknown controls and axis-like names are ignored as product buttons.
+- [Phase 08]: HostSessionService loads and applies Android active profiles before HID and LAN fanout. — Plan 08-04 made Android the runtime profile authority for product output.
+- [Phase 08]: Android UDP frames use offset-6 stream flags for mapped product stream and raw-debug extras. — Mapped product output is default; raw provider/motion fields require Android raw-debug enablement.
+- [Phase 08]: Android sends profile_metadata with source=android and rawDebugEnabled after trusted control auth and profile reload. — Desktop remains a read-only consumer and cannot request raw mode or own profile state.
 
 ### Pending Todos
 
@@ -246,6 +250,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-12T16:35:34.941Z
-Stopped at: Completed 08-03-PLAN.md
+Last session: 2026-06-12T17:04:32.677Z
+Stopped at: Completed 08-04-PLAN.md
 Resume file: None
