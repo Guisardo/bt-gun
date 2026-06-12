@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: planning
-stopped_at: Session resumed; awaiting Phase 8 planning or cleanup choice
-last_updated: "2026-06-12T01:41:03.002Z"
-last_activity: 2026-06-11 -- Phase 07 completed with Android Bluetooth HID input proof and macOS haptics deferred
+status: ready_to_execute
+stopped_at: Phase 8 planned; ready to execute 08-01
+last_updated: "2026-06-12T15:45:36.767Z"
+last_activity: 2026-06-12 -- Phase 08 planned with Android-owned profiles and mapped-stream reroute
 progress:
   total_phases: 10
   completed_phases: 7
-  total_plans: 42
+  total_plans: 49
   completed_plans: 42
   percent: 70
 ---
@@ -25,19 +25,19 @@ See: .planning/PROJECT.md (updated 2026-06-09)
 
 ## Current Position
 
-Phase: 08 (desktop-profiles-and-mapping) — READY
-Plan: TBD
-Next phase: Plan Phase 08 desktop profiles and mapping
-Status: Ready to plan Phase 08
-Last activity: 2026-06-11 -- Phase 07 completed with Android Bluetooth HID input proof and macOS haptics deferred
+Phase: 08 (desktop-profiles-and-mapping) — PLANNED
+Plan: 08-01 of 7 — Correct stale desktop-owned profile wording before code work
+Next phase: Execute Phase 08 desktop profiles and mapping
+Status: Ready to execute Phase 08
+Last activity: 2026-06-12 -- Phase 08 planned with Android-owned profiles and mapped-stream reroute
 
-Progress: [██████████] 42/42 active planned plans complete. Phase 06 has 6/6 plans complete; Phase 07 has 6/6 active Android Bluetooth HID plans executed after the reroute.
+Progress: [████████░░] 42/49 active planned plans complete. Phase 08 has 0/7 plans executed.
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 42
+- Total plans completed: 42 of 49 planned
 - Average duration: not tracked for hardware-interactive plans
 - Total execution time: not tracked after Plan 02
 
@@ -51,11 +51,12 @@ Progress: [██████████] 42/42 active planned plans complete. 
 | 05 | 5 | hardware-interactive | hardware-interactive |
 | 06 | 6 | hardware-interactive | hardware-interactive |
 | 07 | 6 | hardware-interactive | complete; Android HID input passed, macOS haptics deferred |
+| 08 | 7 | not started | ready to execute |
 
 **Recent Trend:**
 
-- Recent completed execution plans: 06-P01, 06-P02, 06-P03, 06-P05, 06-P04, 06-P06, and 07-P01 through 07-P06 complete.
-- Trend: CoreHID and DriverKit are no longer primary for macOS because no-subscription virtual HID is blocked. Phase 07 completed Android phone Bluetooth HID gamepad proof, with Windows VHF retained as fallback and macOS browser/GameController haptics deferred.
+- Recent completed execution plans: 06-P01, 06-P02, 06-P03, 06-P05, 06-P04, 06-P06, and 07-P01 through 07-P06 complete. Phase 08 now has 7 planned execution plans.
+- Trend: CoreHID and DriverKit are no longer primary for macOS because no-subscription virtual HID is blocked. Phase 07 completed Android phone Bluetooth HID gamepad proof, with Windows VHF retained as fallback and macOS browser/GameController haptics deferred. Phase 08 reroutes profiles to Android-owned storage/mapping with desktop read-only metadata.
 
 *Updated after each plan completion*
 | Phase 01 P01 | 10 min | 3 tasks | 6 files |

@@ -288,7 +288,40 @@ Plans:
   4. Profile changes apply on desktop without rebuilding the Android app.
   5. A default visualizer profile works immediately after pairing.
 
-**Plans:** TBD
+**Plans:** 7 planned
+
+Cross-cutting constraints:
+
+- Android owns Phase 8 profile storage, editing, validation, and runtime application; desktop remains read-only for active Android profile metadata.
+- Android sends a mapped product stream by default; raw provider/motion extras are Android-session debug only.
+- Stick axes and aim axes stay semantic; Phase 8 remaps only trigger, reload, X, Y, A, and B.
+
+Plans:
+
+**Wave 0**
+
+- [ ] 08-01-PLAN.md — Correct stale desktop-owned profile wording before code work.
+
+**Wave 1** *(blocked on Wave 0 completion)*
+
+- [ ] 08-02-PLAN.md — Android profile schema, store, validation, and immutable Default Visualizer.
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 08-03-PLAN.md — Pure Android profile mapper and latency-capped adaptive smoother.
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 08-04-PLAN.md — Runtime active-profile wiring into HID, LAN mapped stream, and control metadata.
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 08-05-PLAN.md — Android profile management UI and dashboard profile rows.
+- [ ] 08-06-PLAN.md — Desktop read-only active Android profile metadata and mapped-stream diagnostics.
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
+- [ ] 08-07-PLAN.md — Full validation, USB Android screenshots, screenshot cleanup, and sanitized evidence manifest.
 **UI hint**: yes
 
 ### Phase 9: Visualizer Acceptance Path
@@ -337,6 +370,6 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 | 5. Desktop Backend Contract and Smoke Harness | 5/5 | Complete | 2026-06-09 |
 | 6. Windows Virtual Joystick Path | 6/6 | Complete | 2026-06-10 |
 | 7. Android Bluetooth HID Gamepad Path | 6/6 | Complete    | 2026-06-11 |
-| 8. Desktop Profiles and Mapping | 0/TBD | Not started | - |
+| 8. Desktop Profiles and Mapping | 0/7 | Planned | - |
 | 9. Visualizer Acceptance Path | 0/TBD | Not started | - |
 | 10. Diagnostics, Replay, and v1 Docs | 0/TBD | Not started | - |
