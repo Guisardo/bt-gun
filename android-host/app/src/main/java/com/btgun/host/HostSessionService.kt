@@ -225,7 +225,7 @@ internal class AndroidHostHidGamepadDriver(
         gamepad.sendInput(state, motion, stale)
 
     override fun sendMappedInput(state: MappedControllerState, stale: Boolean): BtGunHidInputSendResult =
-        gamepad.sendInput(state.toGunInputState(), state.toMotionSample(), stale)
+        gamepad.sendMappedInput(state, stale)
 
     override fun close() {
         gamepad.close()
@@ -285,26 +285,6 @@ internal class HostSessionProfileRuntime(
 
 internal fun shouldFeedRecenterHold(profile: BtGunProfile, controlName: String): Boolean =
     profile.recenterPhysicalControl?.id == controlName
-
-private fun MappedControllerState.toGunInputState(): GunInputState =
-    GunInputState(
-        pressedControls = pressedVirtualControls,
-        stickAxisX = stickAxisX,
-        stickAxisY = stickAxisY,
-    )
-
-private fun MappedControllerState.toMotionSample(): MotionSample =
-    MotionSample(
-        provider = MotionProvider.ROTATION_VECTOR,
-        providerName = aimStatus.providerName,
-        sourceSensorElapsedNanos = 0L,
-        yaw = 0f,
-        pitch = 0f,
-        roll = 0f,
-        aimX = aimAxisX,
-        aimY = aimAxisY,
-        aimCalibrated = aimStatus.aimSource == "calibrated",
-    )
 
 class HostSessionService : Service() {
     private var adapter: IpegaBleGunAdapter? = null
