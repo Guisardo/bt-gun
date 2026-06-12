@@ -3,14 +3,19 @@ package com.btgun.host.hid
 import com.btgun.host.model.GunInputState
 import com.btgun.host.model.MotionProvider
 import com.btgun.host.model.MotionSample
+import com.btgun.host.profile.MappedAimStatus
+import com.btgun.host.profile.MappedControllerState
 import java.io.File
 
 fun main() {
     packsButtonsAndAxesIntoPinnedInputPayload()
+    packsMappedButtonsAndAxesIntoPinnedInputPayload()
     usesNormalizedAimBeforeRawAim()
     clampsAxesAndFallsBackToRawAim()
     centersAimWhenMotionIsMissing()
     staleReportClearsButtonsAndStickButKeepsSelectedAim()
+    staleMappedReportClearsButtonsAndStickButKeepsMappedAim()
+    descriptorBytesRemainPinnedForMappedState()
     hidPackageDoesNotDependOnDesktopModules()
 }
 
@@ -45,6 +50,35 @@ private fun packsButtonsAndAxesIntoPinnedInputPayload() {
     expectEquals("aimY calibrated inverted for HID", 16_384, report.bytes.readInt16Le(7))
     expectEquals("aim source", "calibrated", report.aimSource)
     expectEquals("stale metadata", false, report.stale)
+}
+
+private fun packsMappedButtonsAndAxesIntoPinnedInputPayload() {
+    val report = BtGunHidReportPacker.packInputReport(
+        mappedState = mappedState(
+            pressedVirtualControls = setOf("trigger", "reload", "button_x", "button_a"),
+            stickAxisX = 0.5f,
+            stickAxisY = -0.25f,
+            aimAxisX = 0.25f,
+            aimAxisY = -0.5f,
+            aimSource = "mapped_profile",
+        ),
+        stale = false,
+    )
+
+    expectEquals("mapped report id", BtGunHidDescriptor.INPUT_REPORT_ID, report.reportId)
+    expectEquals("mapped payload length", BtGunHidDescriptor.INPUT_REPORT_PAYLOAD_LENGTH_BYTES, report.bytes.size)
+    expectByteArray(
+        "mapped golden payload",
+        byteArrayOf(
+            0b1100_0101.toByte(),
+            0x00, 0x40,
+            0x00, 0x20,
+            0x00, 0x20,
+            0x00, 0x40,
+        ),
+        report.bytes,
+    )
+    expectEquals("mapped aim source", "mapped_profile", report.aimSource)
 }
 
 private fun usesNormalizedAimBeforeRawAim() {
@@ -113,6 +147,46 @@ private fun staleReportClearsButtonsAndStickButKeepsSelectedAim() {
     expectEquals("stale metadata", true, report.stale)
 }
 
+private fun staleMappedReportClearsButtonsAndStickButKeepsMappedAim() {
+    val report = BtGunHidReportPacker.packInputReport(
+        mappedState = mappedState(
+            pressedVirtualControls = setOf("trigger", "reload", "button_x", "button_y", "button_a", "button_b"),
+            stickAxisX = 0.75f,
+            stickAxisY = -0.75f,
+            aimAxisX = -0.125f,
+            aimAxisY = 0.5f,
+            aimSource = "mapped_profile",
+        ),
+        stale = true,
+    )
+
+    expectEquals("mapped stale buttons clear", 0.toByte(), report.bytes[0])
+    expectEquals("mapped stale stickX clear", 0, report.bytes.readInt16Le(1))
+    expectEquals("mapped stale stickY clear", 0, report.bytes.readInt16Le(3))
+    expectEquals("mapped stale aimX preserved", -4_096, report.bytes.readInt16Le(5))
+    expectEquals("mapped stale aimY preserved inverted for HID", -16_384, report.bytes.readInt16Le(7))
+    expectEquals("mapped stale source", "mapped_profile", report.aimSource)
+    expectEquals("mapped stale metadata", true, report.stale)
+}
+
+private fun descriptorBytesRemainPinnedForMappedState() {
+    expectEquals("descriptor payload length", 9, BtGunHidDescriptor.INPUT_REPORT_PAYLOAD_LENGTH_BYTES)
+    expectByteArray(
+        "descriptor bytes pinned",
+        byteArrayOf(
+            0x05, 0x01, 0x09, 0x05, 0xa1.toByte(), 0x01, 0x85.toByte(), 0x01,
+            0x05, 0x09, 0x19, 0x01, 0x29, 0x08, 0x15, 0x00, 0x25, 0x01,
+            0x95.toByte(), 0x08, 0x75, 0x01, 0x81.toByte(), 0x02, 0x05, 0x01,
+            0x16, 0x00, 0x80.toByte(), 0x26, 0xff.toByte(), 0x7f, 0x75, 0x10,
+            0x95.toByte(), 0x04, 0x09, 0x30, 0x09, 0x31, 0x09, 0x32, 0x09, 0x33,
+            0x81.toByte(), 0x02, 0x85.toByte(), 0x02, 0x05, 0x01, 0x09, 0x00,
+            0x15, 0x00, 0x26, 0xff.toByte(), 0x00, 0x75, 0x08, 0x95.toByte(), 0x08,
+            0x91.toByte(), 0x02, 0xc0.toByte(),
+        ),
+        BtGunHidDescriptor.DESCRIPTOR_BYTES,
+    )
+}
+
 private fun hidPackageDoesNotDependOnDesktopModules() {
     val roots = listOf(
         File("app/src/main/java/com/btgun/host/hid"),
@@ -145,6 +219,30 @@ private fun motion(
         aimX = aimX,
         aimY = aimY,
         aimCalibrated = aimCalibrated,
+    )
+
+private fun mappedState(
+    pressedVirtualControls: Set<String> = emptySet(),
+    stickAxisX: Float = 0f,
+    stickAxisY: Float = 0f,
+    aimAxisX: Float = 0f,
+    aimAxisY: Float = 0f,
+    aimSource: String = "mapped_profile",
+): MappedControllerState =
+    MappedControllerState(
+        aimAxisX = aimAxisX,
+        aimAxisY = aimAxisY,
+        aimStatus = MappedAimStatus(
+            aimSource = aimSource,
+            providerName = "rotation_vector",
+            smoothingMode = "off",
+            estimatedFilterLagMillis = 0,
+            adaptiveFallback = false,
+        ),
+        pressedVirtualControls = pressedVirtualControls,
+        stickAxisX = stickAxisX,
+        stickAxisY = stickAxisY,
+        recenterPhysicalControl = "reload",
     )
 
 private fun ByteArray.readInt16Le(offset: Int): Int {
