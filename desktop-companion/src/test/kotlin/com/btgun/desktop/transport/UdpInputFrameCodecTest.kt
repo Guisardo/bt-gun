@@ -24,7 +24,10 @@ private fun codecConstantsMatchWireContract() {
     expectEquals("version", 1, UdpInputFrameCodec.VERSION)
     expectEquals("snapshot type", 1, UdpInputFrameType.SNAPSHOT.wireValue)
     expectEquals("edge type", 2, UdpInputFrameType.EDGE.wireValue)
-    expectEquals("reserved flags offset", 6, UdpInputFrameCodec.OFFSET_RESERVED_FLAGS)
+    expectEquals("stream flags offset", 6, UdpInputFrameCodec.OFFSET_STREAM_FLAGS)
+    expectEquals("reserved flags offset", UdpInputFrameCodec.OFFSET_STREAM_FLAGS, UdpInputFrameCodec.OFFSET_RESERVED_FLAGS)
+    expectEquals("mapped product flag", 0x0001, UdpInputFrame.FLAG_MAPPED_PRODUCT_STREAM)
+    expectEquals("raw debug flag", 0x0002, UdpInputFrame.FLAG_RAW_DEBUG_EXTRAS)
     expectEquals("sequence offset", 24, UdpInputFrameCodec.OFFSET_SEQUENCE)
     expectEquals("capture offset", 32, UdpInputFrameCodec.OFFSET_CAPTURE_ELAPSED_NANOS)
     expectEquals("send offset", 40, UdpInputFrameCodec.OFFSET_SEND_ELAPSED_NANOS)
@@ -62,6 +65,10 @@ private fun goldenSnapshotAndEdgeFramesRoundTrip() {
         rawAimX = 0.125f,
         rawAimY = -0.25f,
         sourceSensorElapsedNanos = 1_111_111_000L,
+        streamFlags = UdpInputFrame.FLAG_MAPPED_PRODUCT_STREAM or UdpInputFrame.FLAG_RAW_DEBUG_EXTRAS,
+        productAimX = 0.375f,
+        productAimY = -0.625f,
+        rawRoll = 0.75f,
     )
     val edge = UdpInputFrame(
         type = UdpInputFrameType.EDGE,
@@ -80,6 +87,10 @@ private fun goldenSnapshotAndEdgeFramesRoundTrip() {
         rawAimX = Float.NaN,
         rawAimY = Float.NaN,
         sourceSensorElapsedNanos = 1_111_111_300L,
+        streamFlags = UdpInputFrame.FLAG_MAPPED_PRODUCT_STREAM,
+        productAimX = -0.5f,
+        productAimY = 0.25f,
+        rawRoll = 2.0f,
     )
 
     expectEquals("snapshot hex", GOLDEN_SNAPSHOT_FRAME_HEX, UdpInputFrameCodec.encode(snapshot, config).toHex())
@@ -92,6 +103,14 @@ private fun goldenSnapshotAndEdgeFramesRoundTrip() {
     expectTrue("edge accepted", decodedEdge is UdpInputFrameDecodeResult.Accepted)
     expectEquals("snapshot frame", snapshot, (decodedSnapshot as UdpInputFrameDecodeResult.Accepted).frame)
     expectEquals("edge frame type", UdpInputFrameType.EDGE, (decodedEdge as UdpInputFrameDecodeResult.Accepted).frame.type)
+    expectEquals("snapshot mapped product", true, decodedSnapshot.frame.mappedProductStream)
+    expectEquals("snapshot raw debug", true, decodedSnapshot.frame.rawDebugEnabled)
+    expectEquals("snapshot product aim x", 0.375f, decodedSnapshot.frame.productAimX)
+    expectEquals("snapshot product aim y", -0.625f, decodedSnapshot.frame.productAimY)
+    expectEquals("edge mapped product", true, decodedEdge.frame.mappedProductStream)
+    expectEquals("edge raw debug off", false, decodedEdge.frame.rawDebugEnabled)
+    expectEquals("edge product aim x", -0.5f, decodedEdge.frame.productAimX)
+    expectEquals("edge product aim y", 0.25f, decodedEdge.frame.productAimY)
     expectTrue("edge raw aim x missing", decodedEdge.frame.rawAimX.isNaN())
     expectTrue("edge raw aim y missing", decodedEdge.frame.rawAimY.isNaN())
 }
@@ -133,9 +152,9 @@ private fun decoderRejectsAuthenticatedMalformedFields() {
         ),
     )
     expectRejected(
-        "nonzero reserved flags",
+        "unknown stream flags",
         UdpInputFrameRejectReason.MALFORMED_FIELD,
-        UdpInputFrameCodec.authenticateAndDecode(authenticatedShortMutation(UdpInputFrameCodec.OFFSET_RESERVED_FLAGS, 1), config),
+        UdpInputFrameCodec.authenticateAndDecode(authenticatedShortMutation(UdpInputFrameCodec.OFFSET_STREAM_FLAGS, 0x0004), config),
     )
     expectRejected(
         "nonzero reserved motion",
@@ -158,6 +177,8 @@ private fun debugDecoderRedactsSecrets() {
     expectContains("debug type", summary, "SNAPSHOT")
     expectContains("debug sequence", summary, "sequence=42")
     expectContains("debug provider", summary, "motionProvider=2")
+    expectContains("debug stream flags", summary, "streamFlags=3")
+    expectContains("debug mapped aim", summary, "productAimX=0.375")
     listOf("qr_secret", "manual code", "proof", HMAC_KEY_BASE64URL, HMAC_KEY_HEX).forEach { secret ->
         expectFalse("debug redacts $secret", summary.contains(secret, ignoreCase = true))
     }
@@ -166,7 +187,7 @@ private fun debugDecoderRedactsSecrets() {
 private fun sourceContractExcludesPreviewAimAndJsonUdp() {
     val source = File("src/main/kotlin/com/btgun/desktop/transport/UdpInputFrameCodec.kt")
     val text = if (source.exists()) source.readText() else ""
-    listOf("PreviewAim", "aimX", "aimY", "profile mapping", "profile_mapper", "json udp").forEach { banned ->
+    listOf("PreviewAim", "profile mapping", "profile_mapper", "json udp").forEach { banned ->
         expectFalse("codec excludes $banned", text.contains(banned, ignoreCase = false))
     }
 }
@@ -256,5 +277,5 @@ private fun expectThrows(label: String, block: () -> Unit) {
 private const val STREAM_SESSION_ID_HEX = "00112233445566778899aabbccddeeff"
 private const val HMAC_KEY_HEX = "0123456789abcdeffedcba98765432100123456789abcdeffedcba9876543210"
 private const val HMAC_KEY_BASE64URL = "ASNFZ4mrze_-3LqYdlQyEAEjRWeJq83v_ty6mHZUMhA"
-private const val GOLDEN_SNAPSHOT_FRAME_HEX = "425447490101000000112233445566778899aabbccddeeff000000000000002a00000000423a35c700000000423a3636000000233039cfc7020700003fa00000c02000003f4000003e000000be80000000000000423a3558ad0f94e008b50a045111a7bbb25688c2f1d399a8de4b3b8f2e325c0f63fb7d5f"
-private const val GOLDEN_EDGE_FRAME_HEX = "425447490102000000112233445566778899aabbccddeeff000000000000002b00000000423a36a500000000423a37140000010180007fff03030000bf8000003f000000400000007fc000007fc0000000000000423a36843b9a10ccf01f62a02db4cc6065db9d133b1f4e20e1b4f8c74579b672755e8d24"
+private const val GOLDEN_SNAPSHOT_FRAME_HEX = "425447490101000300112233445566778899aabbccddeeff000000000000002a00000000423a35c700000000423a3636000000233039cfc7020700003ec00000bf2000003f4000003e000000be80000000000000423a3558e5fe65b7e6e39c6eb8109901c44e1078e75277dded88c2c0732a5a15e517c6dc"
+private const val GOLDEN_EDGE_FRAME_HEX = "425447490102000100112233445566778899aabbccddeeff000000000000002b00000000423a36a500000000423a37140000010180007fff03030000bf0000003e800000400000007fc000007fc0000000000000423a3684a5b9af27f6b97e7699e380efcfbc21fb7ce9dd851c9b632de938d6081ee4a669"
