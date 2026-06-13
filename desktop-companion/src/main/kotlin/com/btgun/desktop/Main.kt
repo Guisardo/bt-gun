@@ -47,6 +47,8 @@ private fun createPairingWindow(): PairingWindow {
         macosBackendStartupDiagnostic = macosBackendLaunch.diagnostic,
         openVisualizer = coordinator::openVisualizer,
         eventHub = eventHub,
+        onWindowsBackendDiagnosticsChanged = coordinator::onWindowsBackendDiagnosticsChanged,
+        onMacosBackendDiagnosticsChanged = coordinator::onMacosBackendDiagnosticsChanged,
     )
 }
 

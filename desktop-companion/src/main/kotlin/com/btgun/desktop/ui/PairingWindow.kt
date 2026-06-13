@@ -47,6 +47,8 @@ class PairingWindow(
     private val macosBackendStartupDiagnostic: String = "disabled",
     private val openVisualizer: () -> Unit = {},
     private val eventHub: DesktopUiEventHub? = null,
+    private val onWindowsBackendDiagnosticsChanged: (WindowsBackendRuntimeDiagnostics) -> Unit = {},
+    private val onMacosBackendDiagnosticsChanged: (MacosBackendRuntimeDiagnostics) -> Unit = {},
 ) {
     private val frame = JFrame("BT Gun Desktop")
     private val title = JLabel("BT Gun Desktop")
@@ -131,6 +133,7 @@ class PairingWindow(
             SwingUtilities.invokeLater {
                 windowsBackendDiagnostics = backendDiagnostics
                 updateDiagnostics()
+                onWindowsBackendDiagnosticsChanged(backendDiagnostics)
             }
         }
         windowsBackendRuntime?.attach(controlServer)
@@ -138,6 +141,7 @@ class PairingWindow(
             SwingUtilities.invokeLater {
                 macosBackendDiagnostics = backendDiagnostics
                 updateDiagnostics()
+                onMacosBackendDiagnosticsChanged(backendDiagnostics)
             }
         }
         macosBackendRuntime?.attach(controlServer)
