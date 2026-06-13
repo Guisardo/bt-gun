@@ -32,7 +32,11 @@ private fun createPairingWindow(): PairingWindow {
     eventHub.listen(
         DesktopUiEventListener(
             onSessionStateChanged = coordinator::onSessionStateChanged,
+            onProfileMetadataReceived = coordinator::onProfileMetadataReceived,
             onVisualizerStatusReceived = coordinator::onVisualizerStatusReceived,
+            onUdpInputReceived = coordinator::onUdpInputReceived,
+            onUdpInputRejected = coordinator::onUdpInputRejected,
+            onUdpInputStateChanged = coordinator::onUdpInputStateChanged,
             onHapticResultReceived = coordinator::onHapticResultReceived,
         ),
     )

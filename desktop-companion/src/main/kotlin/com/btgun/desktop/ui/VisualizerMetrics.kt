@@ -67,10 +67,14 @@ class VisualizerMetrics(
     ): VisualizerMetricSnapshot {
         val nextKey = SessionKey(input.controlSessionId, input.streamSessionIdHex)
         if (sessionKey != nextKey) {
+            val previousKey = sessionKey
             sessionKey = nextKey
             firstSequence = null
             lastSequence = null
             acceptedCount = 0L
+            if (previousKey != null) {
+                this.clockOffset = null
+            }
         }
 
         if (firstSequence == null) {

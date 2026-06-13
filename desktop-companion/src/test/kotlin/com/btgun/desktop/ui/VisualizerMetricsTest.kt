@@ -12,6 +12,7 @@ fun main() {
     latencyUsesExplicitClockOffsetInsteadOfDirectClockSubtraction()
     metricsLabelsExposeUiSpecCopy()
     packetCountersResetOnControlOrStreamSessionChange()
+    clockOffsetClearsOnControlOrStreamSessionChange()
 }
 
 private fun offsetQualityStartsUnavailableThenUsesStatusAndUdpSamples() {
@@ -140,6 +141,37 @@ private fun packetCountersResetOnControlOrStreamSessionChange() {
     expectEquals("control reset missed", 0L, controlReset.packetMissed)
     expectEquals("stream reset expected", 1L, streamReset.packetExpected)
     expectEquals("stream reset missed", 0L, streamReset.packetMissed)
+}
+
+private fun clockOffsetClearsOnControlOrStreamSessionChange() {
+    val metrics = VisualizerMetrics()
+    metrics.recordStatus(
+        status = VisualizerStatus(
+            rawDebugEnabled = false,
+            aimZeroState = "ready",
+            recenterState = "idle",
+            androidElapsedNanos = 1_000_000_000L,
+        ),
+        desktopReceivedElapsedNanos = 10_000_000_000L,
+    )
+    metrics.record(
+        acceptedInput(sequence = 1L, captureElapsedNanos = 1_000_000_000L, sendElapsedNanos = 1_010_000_000L),
+        desktopRenderElapsedNanos = 10_030_000_000L,
+    )
+
+    val reset = metrics.record(
+        acceptedInput(
+            controlSessionId = "control-sid-2",
+            sequence = 1L,
+            captureElapsedNanos = 2_000_000_000L,
+            sendElapsedNanos = 2_010_000_000L,
+            receivedElapsedNanos = 20_020_000_000L,
+        ),
+        desktopRenderElapsedNanos = 20_030_000_000L,
+    )
+
+    expectEquals("new session uses UDP estimated offset", VisualizerClockOffsetQuality.ESTIMATED, reset.offsetQuality)
+    expectEquals("new session does not reuse stale good offset", 20L, reset.headlineLatencyMillis)
 }
 
 private fun acceptedInput(

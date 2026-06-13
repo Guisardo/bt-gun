@@ -24,6 +24,7 @@ fun main() {
     eventStripLabelsIncludeSequenceAndAge()
     rawDebugDrawerStartsCollapsedAndShowsWhitelistedFieldsOnlyWhenEnabled()
     visualizerStatusUpdatesRecenterAimZeroAndRawDebugWithoutConfirming()
+    idleVisualizerStatusDoesNotObserveRecenterProof()
     hapticAckObservesLanRowButDoesNotConfirmPhoneVibration()
     observedLanStreamDoesNotConfirmManualProofRows()
     modelLabelsExcludeDesktopProfileControlsAndSecretFields()
@@ -275,6 +276,26 @@ private fun visualizerStatusUpdatesRecenterAimZeroAndRawDebugWithoutConfirming()
     expectFalse("recenter not auto-confirmed", model.row(VisualizerChecklistRowId.RECENTER_AIM_ZERO).state == VisualizerChecklistState.CONFIRMED)
     expectEquals("status event type", "recenter_recentered", model.productEvents.first().type)
     expectEquals("status event sequence", 44L, model.productEvents.first().sequence)
+}
+
+private fun idleVisualizerStatusDoesNotObserveRecenterProof() {
+    val model = VisualizerModel.initial().withVisualizerStatus(
+        status = VisualizerStatus(
+            rawDebugEnabled = false,
+            aimZeroState = "ready",
+            recenterState = "idle",
+            lastRecenterElapsedNanos = null,
+            androidElapsedNanos = 5_000_000_000L,
+            statusSequence = 45L,
+            recenterLabel = "idle",
+            aimZeroLabel = "ready",
+        ),
+        observedElapsedNanos = 6_000_000_000L,
+    )
+
+    expectEquals("idle status updates aim zero label", "Aim zero: ready", model.recenter.aimZeroLabel)
+    expectEquals("idle status does not observe recenter row", VisualizerChecklistState.WAITING, model.row(VisualizerChecklistRowId.RECENTER_AIM_ZERO).state)
+    expectEquals("idle status event recorded", "recenter_idle", model.productEvents.first().type)
 }
 
 private fun hapticAckObservesLanRowButDoesNotConfirmPhoneVibration() {
