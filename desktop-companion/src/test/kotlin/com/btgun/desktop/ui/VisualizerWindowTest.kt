@@ -251,6 +251,7 @@ private fun visualizerWindowSourceExcludesForbiddenLabels() {
         "Click Here",
         "Edit desktop " + "profile",
         "Desktop profile " + "editor",
+        "Generated evidence " + "bundle",
         "generated evidence " + "bundle pass",
     )
 
