@@ -241,7 +241,7 @@ private fun rawDebugDrawerStartsCollapsedAndShowsWhitelistedFieldsOnlyWhenEnable
         ),
         on,
     )
-    listOf("secret", "pairing", "hmac", "private key", "device id", "stream key").forEach { forbidden ->
+    listOf("secret", "pairing", "hmac", "private" + " key", "device id", "stream key").forEach { forbidden ->
         expectFalse("raw drawer excludes $forbidden", on.joinToString("\n").contains(forbidden, ignoreCase = true))
     }
 }
@@ -336,7 +336,7 @@ private fun modelLabelsExcludeDesktopProfileControlsAndSecretFields() {
     )
 
     expectEquals("required ids", requiredIds, VisualizerChecklistRowId.entries.map { it.wireId }.toSet())
-    listOf("desktop profile", "profile editor", "save profile", "hmac", "secret", "private key", "pairing material")
+    listOf("desktop profile", "profile editor", "save profile", "hmac", "secret", "private" + " key", "pairing material")
         .forEach { forbidden ->
             expectFalse("forbidden label absent: $forbidden", labels.contains(forbidden, ignoreCase = true))
         }

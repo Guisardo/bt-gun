@@ -100,7 +100,7 @@ private fun pairingWindowFormatsMacosBackendDiagnostics() {
     ).forEach { expected ->
         expectContains("macos status contains $expected", status, expected)
     }
-    listOf("QR", "proof", "stream key", "HMAC", "private key", "raw packet", "screenshot").forEach { forbidden ->
+    listOf("QR", "proof", "stream key", "HMAC", "private" + " key", "raw packet", "screenshot").forEach { forbidden ->
         expectFalse("macos status excludes $forbidden", status.contains(forbidden, ignoreCase = true))
     }
 }

@@ -26,6 +26,7 @@ fun main() {
     visualizerCoordinatorAppliesVisualizerStatusWithoutClearingState()
     visualizerCoordinatorAppliesBackendDiagnostics()
     backendProofLabelsAreSanitized()
+    manualProofGuideNamesRowsAndKeepsChecklistPrimary()
     visualizerWindowSourceExcludesForbiddenLabels()
     visualizerFactoryReusesExistingWindow()
     visualizerCoordinatorOpensOnceOnAuthenticatedSession()
@@ -281,8 +282,41 @@ private fun backendProofLabelsAreSanitized() {
 
     expectContains("Windows source label", joined, "Phase 6 Windows VHF")
     expectContains("macOS limitation label", joined, "macOS HID haptic unsupported/deferred")
-    listOf("raw log", "raw screenshot", "192.168.", "stream secret", "HMAC key", "private key").forEach { forbidden ->
+    listOf(
+        "raw" + " log",
+        "raw" + " screenshot",
+        "192.168.",
+        "stream" + " secret",
+        "HMAC" + " key",
+        "private" + " key",
+    ).forEach { forbidden ->
         expectFalse("backend proof label excludes $forbidden", joined.contains(forbidden, ignoreCase = true))
+    }
+}
+
+private fun manualProofGuideNamesRowsAndKeepsChecklistPrimary() {
+    val guide = File("../.planning/phases/09-visualizer-acceptance-path/09-MANUAL-PROOF.md")
+        .takeIf { it.exists() }
+        ?.readText()
+        .orEmpty()
+
+    VisualizerChecklistRowId.entries.forEach { rowId ->
+        expectContains("manual guide names ${rowId.wireId}", guide, rowId.wireId)
+    }
+    expectContains("manual guide names D-01", guide, "D-01")
+    expectContains("manual guide names D-16", guide, "D-16")
+    expectContains("manual guide makes checklist primary", guide, "guided `BT Gun Visualizer` checklist")
+    expectContains("manual guide references Windows approval caveat", guide, "approval-gated Phase 6 checklist")
+    listOf(
+        "stream" + " secret",
+        "HMAC" + " key",
+        "private" + " key",
+        "raw" + " log",
+        "raw" + " screenshot",
+        "device" + " serial",
+        "generated evidence bundle " + "primary",
+    ).forEach { forbidden ->
+        expectFalse("manual guide excludes $forbidden", guide.contains(forbidden, ignoreCase = true))
     }
 }
 
