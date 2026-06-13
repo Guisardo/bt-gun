@@ -51,8 +51,9 @@ Android owns descriptor bytes and input packing. The shape remains a normal game
 | Output payload length | 8 bytes |
 | Axis encoding | signed int16 little-endian |
 | Axis range | `-32768..32767` |
-| Input axes | X, Y, Z, Rx |
+| Input axes | X, Y, Rx, Ry |
 | Browser mapping intent | left stick on axes 0/1, aim/right stick on axes 2/3 |
+| Windows Game Controllers labels | stick on X/Y, aim on Rotation X/Rotation Y |
 
 Input payload layout:
 
@@ -68,14 +69,14 @@ Button bit order:
 
 | Bit | Control |
 |-----|---------|
-| 0 | A |
-| 1 | B |
+| 0 | Trigger |
+| 1 | Reload |
 | 2 | X |
 | 3 | Y |
-| 4 | Reserved shoulder usage |
-| 5 | Reserved shoulder usage |
-| 6 | Reload |
-| 7 | Trigger |
+| 4 | A |
+| 5 | B |
+| 6 | Padding |
+| 7 | Padding |
 
 Aim uses normalized/calibrated `aimX` and `aimY` when present. Raw aim is fallback only when normalized aim is unavailable. Stale input clears buttons and stick axes; aim stays center/default through the packer input state.
 

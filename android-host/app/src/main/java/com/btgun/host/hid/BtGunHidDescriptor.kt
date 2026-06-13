@@ -45,8 +45,8 @@ object BtGunHidDescriptor {
         0x95.toByte(), AXIS_COUNT.toByte(), // Report Count (4)
         0x09, 0x30, // Usage (X)
         0x09, 0x31, // Usage (Y)
-        0x09, 0x32, // Usage (Z / browser right stick X)
-        0x09, 0x33, // Usage (Rx / browser right stick Y)
+        0x09, 0x33, // Usage (Rx / aim X)
+        0x09, 0x34, // Usage (Ry / aim Y)
         0x81.toByte(), 0x02, // Input (Data,Var,Abs)
         0x85.toByte(), OUTPUT_REPORT_ID.toByte(), // Report ID
         0x05, 0x01, // Usage Page (Generic Desktop)
