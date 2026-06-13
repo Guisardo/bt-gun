@@ -3,6 +3,10 @@ package com.btgun.desktop.ui
 import com.btgun.desktop.control.ControlServerSessionState
 import com.btgun.desktop.control.HapticSendResult
 import com.btgun.desktop.control.VisualizerStatus
+import com.btgun.desktop.backend.BackendLifecycleState
+import com.btgun.desktop.backend.BackendPublishResult
+import com.btgun.desktop.backend.macos.MacosBackendRuntimeDiagnostics
+import com.btgun.desktop.backend.windows.WindowsBackendRuntimeDiagnostics
 import com.btgun.desktop.haptics.HapticResultStatus
 import com.btgun.desktop.transport.InputStreamLifecycleState
 import java.io.File
@@ -20,6 +24,8 @@ fun main() {
     visualizerHapticStatusCopyMatchesUiSpec()
     visualizerWindowRendersRecenterAndRawDebugStatusLabels()
     visualizerCoordinatorAppliesVisualizerStatusWithoutClearingState()
+    visualizerCoordinatorAppliesBackendDiagnostics()
+    backendProofLabelsAreSanitized()
     visualizerWindowSourceExcludesForbiddenLabels()
     visualizerFactoryReusesExistingWindow()
     visualizerCoordinatorOpensOnceOnAuthenticatedSession()
@@ -238,6 +244,48 @@ private fun visualizerCoordinatorAppliesVisualizerStatusWithoutClearingState() {
     expectEquals("recenter observed", VisualizerChecklistState.OBSERVED, updated.row(VisualizerChecklistRowId.RECENTER_AIM_ZERO).state)
 }
 
+private fun visualizerCoordinatorAppliesBackendDiagnostics() {
+    val updated = VisualizerWindowCoordinator.modelForWindowsBackendDiagnostics(
+        model = VisualizerModel.initial(),
+        diagnostics = WindowsBackendRuntimeDiagnostics(
+            lifecycleState = BackendLifecycleState.STARTED,
+            lastPublishResult = BackendPublishResult.Published,
+            lastSourceSequence = 55L,
+        ),
+        observedElapsedNanos = 7_000_000L,
+    )
+
+    expectEquals(
+        "Windows input observed from diagnostics",
+        VisualizerChecklistState.OBSERVED,
+        updated.row(VisualizerChecklistRowId.WINDOWS_VHF_INPUT).state,
+    )
+    expectEquals(
+        "macOS input not inferred from Windows diagnostics",
+        VisualizerChecklistState.WAITING,
+        updated.row(VisualizerChecklistRowId.MACOS_HID_INPUT).state,
+    )
+}
+
+private fun backendProofLabelsAreSanitized() {
+    val labels = VisualizerWindow.backendProofLabels(
+        windowsDiagnostics = WindowsBackendRuntimeDiagnostics(
+            lifecycleState = BackendLifecycleState.STARTED,
+            lastPublishResult = BackendPublishResult.Published,
+            lastSourceSequence = 55L,
+            outputHapticCommandsRouted = 1L,
+        ),
+        macosDiagnostics = MacosBackendRuntimeDiagnostics(),
+    )
+    val joined = labels.joinToString("\n")
+
+    expectContains("Windows source label", joined, "Phase 6 Windows VHF")
+    expectContains("macOS limitation label", joined, "macOS HID haptic unsupported/deferred")
+    listOf("raw log", "raw screenshot", "192.168.", "stream secret", "HMAC key", "private key").forEach { forbidden ->
+        expectFalse("backend proof label excludes $forbidden", joined.contains(forbidden, ignoreCase = true))
+    }
+}
+
 private fun visualizerWindowSourceExcludesForbiddenLabels() {
     val source = File("src/main/kotlin/com/btgun/desktop/ui/VisualizerWindow.kt")
         .takeIf { it.exists() }
@@ -351,6 +399,8 @@ private fun mainWiresEventHubVisualizerFactoryAndPairingWindow() {
         "eventHub = eventHub",
         "openVisualizer = coordinator::openVisualizer",
         "onVisualizerStatusReceived = coordinator::onVisualizerStatusReceived",
+        "onWindowsBackendDiagnosticsChanged = coordinator::onWindowsBackendDiagnosticsChanged",
+        "onMacosBackendDiagnosticsChanged = coordinator::onMacosBackendDiagnosticsChanged",
     ).forEach { expected ->
         expectContains("main wiring contains $expected", source, expected)
     }
