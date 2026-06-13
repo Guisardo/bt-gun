@@ -352,7 +352,7 @@ Plans:
 **Wave 2** *(blocked on Wave 1 for 09-03; blocked on Wave 0 for 09-04)*
 
 - [ ] 09-03-PLAN.md — Live gamepad panels, metrics display, raw-debug drawer, event strip, and LAN phone haptic action.
-- [ ] 09-04-PLAN.md — Android sanitized visualizer status diagnostics for recenter, aim-zero, raw-debug, and clock context.
+- [x] 09-04-PLAN.md — Android sanitized visualizer status diagnostics for recenter, aim-zero, raw-debug, and clock context.
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
@@ -377,7 +377,7 @@ Plans:
   3. Repository documents Android build tooling, device testing workflow, LAN protocol schemas, pairing flow, and security model.
   4. Repository documents v1 limitations, including no direct desktop Bluetooth, deferred physical gun motor rumble, and no game-specific presets.
 
-**Plans:** 2/6 plans executed
+**Plans:** 3/6 plans executed
 
 ## Progress
 
@@ -394,5 +394,5 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 | 6. Windows Virtual Joystick Path | 6/6 | Complete | 2026-06-10 |
 | 7. Android Bluetooth HID Gamepad Path | 6/6 | Complete    | 2026-06-11 |
 | 8. Desktop Profiles and Mapping | 7/7 | Complete    | 2026-06-12 |
-| 9. Visualizer Acceptance Path | 2/6 | In Progress|  |
+| 9. Visualizer Acceptance Path | 3/6 | In Progress|  |
 | 10. Diagnostics, Replay, and v1 Docs | 0/TBD | Not started | - |
