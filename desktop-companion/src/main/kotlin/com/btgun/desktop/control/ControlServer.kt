@@ -55,6 +55,7 @@ class ControlServer(
     var onSessionStateChanged: (ControlServerSessionState) -> Unit = {}
     var onControlEnvelopeAccepted: (ControlEnvelope) -> Unit = {}
     var onProfileMetadataReceived: (ProfileMetadata) -> Unit = {}
+    var onVisualizerStatusReceived: (VisualizerStatus) -> Unit = {}
     var onUdpInputReceived: (UdpReceivedInput) -> Unit = {}
     var onUdpInputRejected: (InputReplayRejectReason) -> Unit = {}
     var onUdpInputStateChanged: (InputStreamLifecycleState) -> Unit = {}
@@ -272,11 +273,14 @@ class ControlServer(
                 heartbeat.observePong(nowElapsedNanos)
                 updateSessionState(heartbeat.stateAt(nowElapsedNanos), controlSessionToken, nowElapsedNanos)
             }
-            ControlMessageType.DIAGNOSTICS,
             ControlMessageType.PAIRING_STATE,
             ControlMessageType.SESSION_READY,
             ControlMessageType.INPUT_STREAM_CONFIG,
             -> onControlEnvelopeAccepted(envelope)
+            ControlMessageType.DIAGNOSTICS -> {
+                visualizerStatusFromJsonBody(envelope.body)?.let(onVisualizerStatusReceived)
+                onControlEnvelopeAccepted(envelope)
+            }
             ControlMessageType.PROFILE_METADATA -> {
                 profileMetadataFromJsonBody(envelope.body)?.let { metadata ->
                     onProfileMetadataReceived(metadata)
