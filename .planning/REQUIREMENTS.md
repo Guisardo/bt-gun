@@ -76,7 +76,7 @@ Retained for diagnostics, pairing/control experiments, and Windows virtual-contr
 - [x] **VIS-02**: Visualizer displays trigger, reload, joystick, X/Y/A/B, and aim axes in real time.
 - [x] **VIS-03**: Visualizer displays recenter events and current aim-zero state.
 - [x] **VIS-04**: Visualizer displays Android connection, desktop virtual controller, packet stream, and haptic status.
-- [ ] **VIS-05**: Visualizer includes a haptic test control that vibrates the Android phone and shows ack/fail result.
+- [x] **VIS-05**: Visualizer includes a haptic test control that vibrates the Android phone and shows ack/fail result.
 - [x] **VIS-06**: Visualizer displays latency and packet loss metrics for the current session.
 
 ### Performance and Reliability
@@ -201,7 +201,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | VIS-02 | Phase 9 | Complete |
 | VIS-03 | Phase 9 | Complete |
 | VIS-04 | Phase 9 | Complete |
-| VIS-05 | Phase 9 | Pending |
+| VIS-05 | Phase 9 | Complete |
 | VIS-06 | Phase 9 | Complete |
 | PERF-01 | Phase 9 | Complete |
 | PERF-02 | Phase 9 | Complete |
