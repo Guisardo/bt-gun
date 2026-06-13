@@ -11,6 +11,7 @@ import javax.swing.BorderFactory
 import javax.swing.Box
 import javax.swing.BoxLayout
 import javax.swing.JButton
+import javax.swing.JComponent
 import javax.swing.JFrame
 import javax.swing.JLabel
 import javax.swing.JPanel
@@ -30,7 +31,7 @@ class VisualizerWindow(
     private val session = JLabel(emptyStateHeading())
     private val profile = JLabel("Profile: unknown")
     private val checklist = JLabel(checklistHtml(VisualizerModel.defaultChecklistRows()))
-    private val gamepad = JLabel(emptyStateBody(), SwingConstants.CENTER)
+    private val gamepad = VisualizerPanels.liveGamepadPanel()
     private val metrics = JLabel(VisualizerMetricSnapshot.empty().headlineLatencyLabel)
     private val hapticAction = JButton(hapticButtonLabel())
     private val events = JLabel("Recent product events: none")
@@ -76,7 +77,7 @@ class VisualizerWindow(
             session.text = summaryFor(model.packetLifecycle.toDisplayState())
             profile.text = "Profile: ${model.profileSummary.displayName}"
             checklist.text = checklistHtml(model.checklistRows)
-            gamepad.text = liveGamepadText(model)
+            gamepad.updateModel(model)
             metrics.text = model.metrics.headlineLatencyLabel
             events.text = productEventsText(model.productEvents)
             frame.pack()
@@ -98,7 +99,7 @@ class VisualizerWindow(
         val center = JPanel(GridLayout(1, 2, SPACING_LG, 0))
         center.background = COLOR_BACKGROUND
         center.add(panel(requiredSectionLabels()[0], checklist))
-        center.add(panel(requiredSectionLabels()[1], gamepad, Dimension(240, 240)))
+        center.add(panel(requiredSectionLabels()[1], gamepad, Dimension(520, 320)))
 
         val south = JPanel()
         south.background = COLOR_BACKGROUND
@@ -115,12 +116,14 @@ class VisualizerWindow(
         return root
     }
 
-    private fun panel(title: String, child: JLabel, preferredSize: Dimension? = null): JPanel {
+    private fun panel(title: String, child: JComponent, preferredSize: Dimension? = null): JPanel {
         val panel = JPanel(BorderLayout(SPACING_SM, SPACING_SM))
         panel.background = COLOR_SURFACE
         panel.border = BorderFactory.createTitledBorder(title)
-        child.font = child.font.deriveFont(Font.PLAIN, BODY_FONT_SIZE)
-        child.verticalAlignment = SwingConstants.TOP
+        if (child is JLabel) {
+            child.font = child.font.deriveFont(Font.PLAIN, BODY_FONT_SIZE)
+            child.verticalAlignment = SwingConstants.TOP
+        }
         preferredSize?.let {
             child.preferredSize = it
             child.minimumSize = it
@@ -180,12 +183,6 @@ class VisualizerWindow(
             ) { row ->
                 "<p><b>${escapeHtml(row.label)}:</b> ${row.state.name.lowercase()}</p>"
             }
-
-        private fun liveGamepadText(model: VisualizerModel): String {
-            val live = model.liveState
-            return "Trigger=${live.trigger} Reload=${live.reload} X=${live.x} Y=${live.y} A=${live.a} B=${live.b} " +
-                "Stick=${live.stickX},${live.stickY} Aim=${live.aimX},${live.aimY}"
-        }
 
         private fun productEventsText(events: List<VisualizerProductEvent>): String =
             if (events.isEmpty()) {
