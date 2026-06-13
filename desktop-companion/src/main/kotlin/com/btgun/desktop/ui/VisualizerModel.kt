@@ -18,6 +18,12 @@ enum class VisualizerChecklistState {
     UNSUPPORTED_DEFERRED,
 }
 
+enum class VisualizerChecklistSummary {
+    PENDING,
+    PASSING,
+    NEEDS_ATTENTION,
+}
+
 enum class VisualizerChecklistRowId(
     val wireId: String,
     val label: String,
@@ -40,6 +46,9 @@ data class VisualizerChecklistRow(
     val label: String = id.label,
     val state: VisualizerChecklistState = VisualizerChecklistState.WAITING,
     val requiresUserConfirmation: Boolean = id.requiresUserConfirmation,
+    val observedSource: String? = null,
+    val observedElapsedNanos: Long? = null,
+    val confirmationLabel: String? = if (id.requiresUserConfirmation) "Confirm observed" else null,
 )
 
 data class VisualizerProductEvent(
@@ -136,8 +145,16 @@ data class VisualizerModel(
             liveState = state,
             rawDebug = nextRawDebug,
             checklistRows = checklistRows
-                .markObserved(VisualizerChecklistRowId.LAN_VISUALIZER_STREAM)
-                .markObserved(VisualizerChecklistRowId.LIVE_CONTROLS),
+                .markObserved(
+                    id = VisualizerChecklistRowId.LAN_VISUALIZER_STREAM,
+                    source = "authenticated LAN mapped UDP frame",
+                    observedElapsedNanos = observedElapsedNanos,
+                )
+                .markObserved(
+                    id = VisualizerChecklistRowId.LIVE_CONTROLS,
+                    source = "live mapped controls and aim stream",
+                    observedElapsedNanos = observedElapsedNanos,
+                ),
             lastAcceptedAimX = state.aimX,
             lastAcceptedAimY = state.aimY,
         ).withProductEvent(
@@ -180,7 +197,11 @@ data class VisualizerModel(
                 rawAimX = if (status.rawDebugEnabled) rawDebug.rawAimX else null,
                 rawAimY = if (status.rawDebugEnabled) rawDebug.rawAimY else null,
             ),
-            checklistRows = checklistRows.markObserved(VisualizerChecklistRowId.RECENTER_AIM_ZERO),
+            checklistRows = checklistRows.markObserved(
+                id = VisualizerChecklistRowId.RECENTER_AIM_ZERO,
+                source = "Android visualizer recenter status",
+                observedElapsedNanos = observedElapsedNanos,
+            ),
         ).withProductEvent(
             VisualizerProductEvent(
                 type = "recenter_${status.recenterState}",
@@ -193,8 +214,17 @@ data class VisualizerModel(
         copy(
             metrics = snapshot,
             checklistRows = checklistRows
-                .markObservedIf(VisualizerChecklistRowId.LATENCY_TARGET, snapshot.targetStatus == "pass")
-                .markObserved(VisualizerChecklistRowId.PACKET_LOSS),
+                .markObservedIf(
+                    id = VisualizerChecklistRowId.LATENCY_TARGET,
+                    condition = snapshot.targetStatus == "pass",
+                    source = "current-session latency sample under target",
+                    observedElapsedNanos = null,
+                )
+                .markObserved(
+                    id = VisualizerChecklistRowId.PACKET_LOSS,
+                    source = "current-session accepted sequence counters",
+                    observedElapsedNanos = null,
+                ),
         )
 
     fun withHapticResult(result: HapticResult): VisualizerModel =
@@ -206,7 +236,11 @@ data class VisualizerModel(
                     detail = VisualizerWindow.hapticResultStatusText(result.status),
                     observedElapsedNanos = result.observedElapsedNanos,
                 ),
-                checklistRows = checklistRows.markObserved(VisualizerChecklistRowId.LAN_PHONE_HAPTIC),
+                checklistRows = checklistRows.markObserved(
+                    id = VisualizerChecklistRowId.LAN_PHONE_HAPTIC,
+                    source = "authenticated LAN phone haptic ack",
+                    observedElapsedNanos = result.observedElapsedNanos,
+                ),
             )
         } else {
             copy(
@@ -263,13 +297,60 @@ data class VisualizerModel(
     }
 
     fun confirmRow(id: VisualizerChecklistRowId): VisualizerModel =
-        copy(checklistRows = checklistRows.update(id) { row -> row.copy(state = VisualizerChecklistState.CONFIRMED) })
+        copy(
+            checklistRows = checklistRows.update(id) { row ->
+                row.copy(
+                    state = VisualizerChecklistState.CONFIRMED,
+                    observedSource = row.observedSource ?: "user-confirmed observation",
+                )
+            },
+        )
+
+    fun confirmNextObservedRow(): VisualizerModel {
+        val next = checklistRows.firstOrNull { row ->
+            row.requiresUserConfirmation && row.state == VisualizerChecklistState.OBSERVED
+        } ?: return this
+        return confirmRow(next.id)
+    }
+
+    fun confirmLimitation(id: VisualizerChecklistRowId): VisualizerModel =
+        if (id == VisualizerChecklistRowId.MACOS_HID_HAPTIC_LIMIT) {
+            copy(
+                checklistRows = checklistRows.update(id) { row ->
+                    row.copy(
+                        state = VisualizerChecklistState.UNSUPPORTED_DEFERRED,
+                        observedSource = row.observedSource
+                            ?: "Phase 7 macOS HID haptic unsupported/deferred evidence",
+                        confirmationLabel = "Confirm limitation",
+                    )
+                },
+            )
+        } else {
+            this
+        }
 
     fun failRow(id: VisualizerChecklistRowId): VisualizerModel =
         copy(checklistRows = checklistRows.update(id) { row -> row.copy(state = VisualizerChecklistState.FAILED) })
 
     fun markUnsupportedDeferred(id: VisualizerChecklistRowId): VisualizerModel =
         copy(checklistRows = checklistRows.update(id) { row -> row.copy(state = VisualizerChecklistState.UNSUPPORTED_DEFERRED) })
+
+    fun resetChecklist(): VisualizerModel =
+        copy(checklistRows = defaultChecklistRows())
+
+    fun checklistSummary(): VisualizerChecklistSummary =
+        when {
+            checklistRows.any { it.state == VisualizerChecklistState.FAILED } -> VisualizerChecklistSummary.NEEDS_ATTENTION
+            checklistRows.all { it.isAcceptedForPass() } -> VisualizerChecklistSummary.PASSING
+            else -> VisualizerChecklistSummary.PENDING
+        }
+
+    fun topSummaryLabel(): String =
+        when (checklistSummary()) {
+            VisualizerChecklistSummary.PENDING -> VisualizerWindow.topSummaryPending()
+            VisualizerChecklistSummary.PASSING -> VisualizerWindow.topSummaryPassing()
+            VisualizerChecklistSummary.NEEDS_ATTENTION -> VisualizerWindow.topSummaryFailed()
+        }
 
     companion object {
         const val MAX_PRODUCT_EVENTS = 10
@@ -281,16 +362,35 @@ data class VisualizerModel(
     }
 }
 
+private fun VisualizerChecklistRow.isAcceptedForPass(): Boolean =
+    when (id) {
+        VisualizerChecklistRowId.MACOS_HID_HAPTIC_LIMIT ->
+            state == VisualizerChecklistState.UNSUPPORTED_DEFERRED
+        else -> if (requiresUserConfirmation) {
+            state == VisualizerChecklistState.CONFIRMED
+        } else {
+            state == VisualizerChecklistState.OBSERVED || state == VisualizerChecklistState.CONFIRMED
+        }
+    }
+
 private fun lastRecenterLabel(status: VisualizerStatus): String {
     val last = status.lastRecenterElapsedNanos ?: return "Last recenter: none"
     val ageMillis = ((status.androidElapsedNanos - last).coerceAtLeast(0L)) / 1_000_000L
     return "Last recenter: $ageMillis ms ago"
 }
 
-private fun List<VisualizerChecklistRow>.markObserved(id: VisualizerChecklistRowId): List<VisualizerChecklistRow> =
+private fun List<VisualizerChecklistRow>.markObserved(
+    id: VisualizerChecklistRowId,
+    source: String,
+    observedElapsedNanos: Long?,
+): List<VisualizerChecklistRow> =
     update(id) { row ->
         if (row.state == VisualizerChecklistState.WAITING) {
-            row.copy(state = VisualizerChecklistState.OBSERVED)
+            row.copy(
+                state = VisualizerChecklistState.OBSERVED,
+                observedSource = source,
+                observedElapsedNanos = observedElapsedNanos,
+            )
         } else {
             row
         }
@@ -299,8 +399,18 @@ private fun List<VisualizerChecklistRow>.markObserved(id: VisualizerChecklistRow
 private fun List<VisualizerChecklistRow>.markObservedIf(
     id: VisualizerChecklistRowId,
     condition: Boolean,
+    source: String,
+    observedElapsedNanos: Long?,
 ): List<VisualizerChecklistRow> =
-    if (condition) markObserved(id) else this
+    if (condition) {
+        markObserved(
+            id = id,
+            source = source,
+            observedElapsedNanos = observedElapsedNanos,
+        )
+    } else {
+        this
+    }
 
 private fun List<VisualizerChecklistRow>.update(
     id: VisualizerChecklistRowId,

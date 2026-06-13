@@ -43,9 +43,13 @@ class VisualizerWindow(
     private val metrics = JLabel(VisualizerMetricSnapshot.empty().headlineLatencyLabel)
     private val recenter = JLabel(labelsHtml(recenterStatusLabels(VisualizerModel.initial())))
     private val hapticAction = JButton(hapticButtonLabel())
+    private val confirmObservedAction = JButton(confirmObservedLabel())
+    private val confirmLimitationAction = JButton(confirmLimitationLabel())
+    private val resetChecklistAction = JButton(resetChecklistLabel())
     private val events = JLabel("Recent product events: none")
     private val rawDebug = JLabel("Raw debug off")
     private var currentModel = VisualizerModel.initial()
+    private var resetArmed = false
 
     init {
         title.font = title.font.deriveFont(Font.BOLD, DISPLAY_FONT_SIZE)
@@ -57,6 +61,27 @@ class VisualizerWindow(
         hapticAction.isEnabled = false
         hapticAction.addActionListener {
             runPhoneHapticTest()
+        }
+        confirmObservedAction.addActionListener {
+            currentModel = currentModel.confirmNextObservedRow()
+            resetArmed = false
+            applyModel(currentModel)
+        }
+        confirmLimitationAction.addActionListener {
+            currentModel = currentModel.confirmLimitation(VisualizerChecklistRowId.MACOS_HID_HAPTIC_LIMIT)
+            resetArmed = false
+            applyModel(currentModel)
+        }
+        resetChecklistAction.toolTipText = resetChecklistConfirmationCopy()
+        resetChecklistAction.addActionListener {
+            if (resetArmed) {
+                currentModel = currentModel.resetChecklist()
+                resetArmed = false
+                applyModel(currentModel)
+            } else {
+                resetArmed = true
+                session.text = resetChecklistConfirmationCopy()
+            }
         }
         frame.contentPane.add(content(), BorderLayout.CENTER)
         frame.addWindowListener(
@@ -89,7 +114,7 @@ class VisualizerWindow(
     override fun applyModel(model: VisualizerModel) {
         SwingUtilities.invokeLater {
             currentModel = model
-            summary.text = topSummaryPending()
+            summary.text = model.topSummaryLabel()
             session.text = summaryFor(model.packetLifecycle.toDisplayState())
             profile.text = "Profile: ${model.profileSummary.displayName}"
             checklist.text = checklistHtml(model.checklistRows)
@@ -147,6 +172,13 @@ class VisualizerWindow(
         south.add(Box.createVerticalStrut(SPACING_SM))
         south.add(hapticAction)
         south.add(Box.createVerticalStrut(SPACING_SM))
+        val checklistActions = JPanel(GridLayout(1, 3, SPACING_SM, 0))
+        checklistActions.background = COLOR_BACKGROUND
+        checklistActions.add(confirmObservedAction)
+        checklistActions.add(confirmLimitationAction)
+        checklistActions.add(resetChecklistAction)
+        south.add(checklistActions)
+        south.add(Box.createVerticalStrut(SPACING_SM))
         south.add(panel(requiredSectionLabels()[3], events))
         south.add(Box.createVerticalStrut(SPACING_SM))
         south.add(panel("Raw debug off", rawDebug))
@@ -190,7 +222,20 @@ class VisualizerWindow(
 
         fun topSummaryPending(): String = "Phase 9 checks pending"
 
+        fun topSummaryPassing(): String = "Phase 9 checks passing"
+
+        fun topSummaryFailed(): String = "Phase 9 checks need attention"
+
         fun hapticButtonLabel(): String = "Run phone haptic test"
+
+        fun confirmObservedLabel(): String = "Confirm observed"
+
+        fun confirmLimitationLabel(): String = "Confirm limitation"
+
+        fun resetChecklistLabel(): String = "Reset checklist"
+
+        fun resetChecklistConfirmationCopy(): String =
+            "Reset checklist: Reset Phase 9 checklist progress for this session? Live input and pairing state are unchanged."
 
         fun hapticButtonEnabled(state: ControlServerSessionState): Boolean =
             state == ControlServerSessionState.AUTHENTICATED
