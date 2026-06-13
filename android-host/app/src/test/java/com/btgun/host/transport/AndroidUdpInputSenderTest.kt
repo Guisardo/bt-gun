@@ -20,6 +20,8 @@ fun main() {
     senderCloseClosesDatagramSink()
     snapshotSendsMappedProductStreamWithRawDebugOffByDefault()
     rawDebugOnAddsFlagAndRawMotionExtras()
+    datagramPriorityReadsWireFrameType()
+    socketSinkKeepsLatestSnapshotQueueContract()
     senderSourceExcludesPreviewAimAndProductMapping()
 }
 
@@ -251,6 +253,30 @@ private fun rawDebugOnAddsFlagAndRawMotionExtras() {
     expectEquals("raw source sensor", 6_999_999_000L, decoded.sourceSensorElapsedNanos)
 }
 
+private fun datagramPriorityReadsWireFrameType() {
+    val snapshot = ByteArray(UdpInputFrameCodec.FRAME_SIZE).also { bytes ->
+        bytes[5] = UdpInputFrameType.SNAPSHOT.wireValue.toByte()
+    }
+    val edge = ByteArray(UdpInputFrameCodec.FRAME_SIZE).also { bytes ->
+        bytes[5] = UdpInputFrameType.EDGE.wireValue.toByte()
+    }
+
+    expectEquals("snapshot priority", AndroidUdpDatagramPriority.SNAPSHOT, priorityFor(snapshot))
+    expectEquals("edge priority", AndroidUdpDatagramPriority.EDGE, priorityFor(edge))
+    expectEquals("malformed defaults to snapshot", AndroidUdpDatagramPriority.SNAPSHOT, priorityFor(ByteArray(4)))
+}
+
+private fun socketSinkKeepsLatestSnapshotQueueContract() {
+    val source = File("app/src/main/java/com/btgun/host/transport/AndroidUdpInputSender.kt")
+    val text = if (source.exists()) source.readText() else ""
+
+    expectContains("bounded queue cap", text, "MAX_QUEUED_DATAGRAMS")
+    expectContains("old snapshots dropped", text, "dropAllSnapshotsLocked")
+    expectContains("edge priority preserved", text, "AndroidUdpDatagramPriority.EDGE")
+    expectContains("destination cache", text, "cachedAddress")
+    expectFalse("no unbounded single-thread executor", text.contains("Executors.newSingleThreadExecutor"))
+}
+
 private fun senderSourceExcludesPreviewAimAndProductMapping() {
     val source = File("app/src/main/java/com/btgun/host/transport/AndroidUdpInputSender.kt")
     val text = if (source.exists()) source.readText() else ""
@@ -390,5 +416,11 @@ private fun expectTrue(label: String, condition: Boolean) {
 private fun expectFalse(label: String, condition: Boolean) {
     if (condition) {
         throw AssertionError(label)
+    }
+}
+
+private fun expectContains(label: String, actual: String, expectedPart: String) {
+    if (!actual.contains(expectedPart, ignoreCase = true)) {
+        throw AssertionError("$label expected <$actual> to contain <$expectedPart>")
     }
 }

@@ -11,13 +11,16 @@ import com.btgun.host.profile.MappedControllerState
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
-import java.util.concurrent.ExecutorService
-import java.util.concurrent.Executors
-import java.util.concurrent.RejectedExecutionException
+import java.util.ArrayDeque
 import kotlin.math.roundToInt
 
 fun interface AndroidUdpDatagramSink {
     fun send(host: String, port: Int, payload: ByteArray): Boolean
+}
+
+enum class AndroidUdpDatagramPriority {
+    SNAPSHOT,
+    EDGE,
 }
 
 enum class AndroidUdpInputSendResult {
@@ -27,30 +30,85 @@ enum class AndroidUdpInputSendResult {
 }
 
 class AndroidUdpSocketSink : AndroidUdpDatagramSink, AutoCloseable {
-    private val lock = Any()
-    private val executor: ExecutorService = Executors.newSingleThreadExecutor { runnable ->
-        Thread(runnable, "bt-gun-udp-sender").apply { isDaemon = true }
-    }
+    private val lock = Object()
+    private val queue = ArrayDeque<QueuedDatagram>()
     private var socket: DatagramSocket? = null
+    private var worker: Thread? = null
     private var closed: Boolean = false
     private var lastFailureLogNanos: Long = 0L
+    private var cachedHost: String? = null
+    private var cachedAddress: InetAddress? = null
 
     override fun send(host: String, port: Int, payload: ByteArray): Boolean {
-        val packetPayload = payload.copyOf()
+        val queued = QueuedDatagram(
+            host = host,
+            port = port,
+            payload = payload.copyOf(),
+            priority = priorityFor(payload),
+        )
         synchronized(lock) {
             if (closed) return false
-        }
-        return try {
-            executor.execute {
-                sendOnWorker(host = host, port = port, payload = packetPayload)
-            }
-            true
-        } catch (_: RejectedExecutionException) {
-            false
+            enqueueLocked(queued)
+            ensureWorkerLocked()
+            lock.notifyAll()
+            return true
         }
     }
 
-    private fun sendOnWorker(host: String, port: Int, payload: ByteArray) {
+    private fun enqueueLocked(queued: QueuedDatagram) {
+        if (queued.priority == AndroidUdpDatagramPriority.SNAPSHOT) {
+            dropAllSnapshotsLocked()
+        }
+        while (queue.size >= MAX_QUEUED_DATAGRAMS) {
+            if (!dropOldestSnapshotLocked()) {
+                queue.removeFirst()
+            }
+        }
+        queue.addLast(queued)
+    }
+
+    private fun dropAllSnapshotsLocked() {
+        val iterator = queue.iterator()
+        while (iterator.hasNext()) {
+            if (iterator.next().priority == AndroidUdpDatagramPriority.SNAPSHOT) {
+                iterator.remove()
+            }
+        }
+    }
+
+    private fun dropOldestSnapshotLocked(): Boolean {
+        val iterator = queue.iterator()
+        while (iterator.hasNext()) {
+            if (iterator.next().priority == AndroidUdpDatagramPriority.SNAPSHOT) {
+                iterator.remove()
+                return true
+            }
+        }
+        return false
+    }
+
+    private fun ensureWorkerLocked() {
+        if (worker?.isAlive == true) return
+        worker = Thread(::workerLoop, "bt-gun-udp-sender").apply {
+            isDaemon = true
+            start()
+        }
+    }
+
+    private fun workerLoop() {
+        while (true) {
+            val queued = synchronized(lock) {
+                while (!closed && queue.isEmpty()) {
+                    lock.wait()
+                }
+                if (closed && queue.isEmpty()) return
+                queue.removeFirst()
+            }
+            sendOnWorker(queued)
+        }
+    }
+
+    private fun sendOnWorker(queued: QueuedDatagram) {
         val activeSocket = synchronized(lock) {
             if (closed) return
             socket ?: DatagramSocket().also { socket = it }
@@ -58,10 +116,10 @@ class AndroidUdpSocketSink : AndroidUdpDatagramSink, AutoCloseable {
         runCatching {
             activeSocket.send(
                 DatagramPacket(
-                    payload,
-                    payload.size,
-                    InetAddress.getByName(host),
-                    port,
+                    queued.payload,
+                    queued.payload.size,
+                    addressFor(queued.host),
+                    queued.port,
                 ),
             )
         }.onFailure { error ->
@@ -70,13 +128,28 @@ class AndroidUdpSocketSink : AndroidUdpDatagramSink, AutoCloseable {
         }
     }
 
+    private fun addressFor(host: String): InetAddress {
+        synchronized(lock) {
+            if (cachedHost == host) {
+                cachedAddress?.let { return it }
+            }
+        }
+        val resolved = InetAddress.getByName(host)
+        synchronized(lock) {
+            cachedHost = host
+            cachedAddress = resolved
+        }
+        return resolved
+    }
+
     override fun close() {
         synchronized(lock) {
             closed = true
+            queue.clear()
             socket?.close()
             socket = null
+            lock.notifyAll()
         }
-        executor.shutdownNow()
     }
 
     private fun closeSocket(activeSocket: DatagramSocket) {
@@ -95,11 +168,31 @@ class AndroidUdpSocketSink : AndroidUdpDatagramSink, AutoCloseable {
         Log.w(TAG, "UDP input send failed", error)
     }
 
-    private companion object {
+    companion object {
         const val TAG = "BtGunUdp"
+        const val MAX_QUEUED_DATAGRAMS = 3
         const val FAILURE_LOG_INTERVAL_NANOS = 1_000_000_000L
     }
 }
+
+private data class QueuedDatagram(
+    val host: String,
+    val port: Int,
+    val payload: ByteArray,
+    val priority: AndroidUdpDatagramPriority,
+)
+
+internal fun priorityFor(payload: ByteArray): AndroidUdpDatagramPriority =
+    if (
+        payload.size > UDP_FRAME_TYPE_OFFSET &&
+        (payload[UDP_FRAME_TYPE_OFFSET].toInt() and 0xff) == UdpInputFrameType.EDGE.wireValue
+    ) {
+        AndroidUdpDatagramPriority.EDGE
+    } else {
+        AndroidUdpDatagramPriority.SNAPSHOT
+    }
+
+private const val UDP_FRAME_TYPE_OFFSET = 5
 
 class AndroidUdpInputSender(
     private val datagramSink: AndroidUdpDatagramSink = AndroidUdpSocketSink(),
