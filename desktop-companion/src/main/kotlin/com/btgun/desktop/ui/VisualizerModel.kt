@@ -4,6 +4,7 @@ import com.btgun.desktop.backend.SemanticControllerState
 import com.btgun.desktop.backend.UdpControllerStateAdapter
 import com.btgun.desktop.control.HapticSendResult
 import com.btgun.desktop.control.ProfileMetadata
+import com.btgun.desktop.control.VisualizerStatus
 import com.btgun.desktop.haptics.HapticResult
 import com.btgun.desktop.haptics.HapticResultStatus
 import com.btgun.desktop.transport.InputStreamLifecycleState
@@ -81,7 +82,10 @@ data class VisualizerRawDebugState(
 data class VisualizerRecenterState(
     val aimZeroLabel: String = "unavailable",
     val recenterInstruction: String = "Recenter: hold reload for 2000ms",
+    val lastRecenterLabel: String = "Last recenter: none",
     val lastRecenterElapsedNanos: Long? = null,
+    val recenterState: String = "unavailable",
+    val lastStatusObservedElapsedNanos: Long? = null,
 )
 
 data class VisualizerHapticStatus(
@@ -154,6 +158,35 @@ data class VisualizerModel(
     fun withInputRejection(reason: String): VisualizerModel =
         copy(
             rawDebug = rawDebug.copy(lastRejection = reason.take(80)),
+        )
+
+    fun withVisualizerStatus(status: VisualizerStatus, observedElapsedNanos: Long): VisualizerModel =
+        copy(
+            recenter = VisualizerRecenterState(
+                aimZeroLabel = "Aim zero: ${status.aimZeroLabel}",
+                recenterInstruction = recenter.recenterInstruction,
+                lastRecenterLabel = lastRecenterLabel(status),
+                lastRecenterElapsedNanos = status.lastRecenterElapsedNanos,
+                recenterState = status.recenterState,
+                lastStatusObservedElapsedNanos = observedElapsedNanos,
+            ),
+            rawDebug = rawDebug.copy(
+                enabled = status.rawDebugEnabled,
+                collapsed = !status.rawDebugEnabled,
+                provider = if (status.rawDebugEnabled) rawDebug.provider else null,
+                yaw = if (status.rawDebugEnabled) rawDebug.yaw else null,
+                pitch = if (status.rawDebugEnabled) rawDebug.pitch else null,
+                roll = if (status.rawDebugEnabled) rawDebug.roll else null,
+                rawAimX = if (status.rawDebugEnabled) rawDebug.rawAimX else null,
+                rawAimY = if (status.rawDebugEnabled) rawDebug.rawAimY else null,
+            ),
+            checklistRows = checklistRows.markObserved(VisualizerChecklistRowId.RECENTER_AIM_ZERO),
+        ).withProductEvent(
+            VisualizerProductEvent(
+                type = "recenter_${status.recenterState}",
+                sequence = status.statusSequence,
+                ageSourceElapsedNanos = observedElapsedNanos,
+            ),
         )
 
     fun withMetrics(snapshot: VisualizerMetricSnapshot): VisualizerModel =
@@ -246,6 +279,12 @@ data class VisualizerModel(
         fun defaultChecklistRows(): List<VisualizerChecklistRow> =
             VisualizerChecklistRowId.entries.map { id -> VisualizerChecklistRow(id = id) }
     }
+}
+
+private fun lastRecenterLabel(status: VisualizerStatus): String {
+    val last = status.lastRecenterElapsedNanos ?: return "Last recenter: none"
+    val ageMillis = ((status.androidElapsedNanos - last).coerceAtLeast(0L)) / 1_000_000L
+    return "Last recenter: $ageMillis ms ago"
 }
 
 private fun List<VisualizerChecklistRow>.markObserved(id: VisualizerChecklistRowId): List<VisualizerChecklistRow> =

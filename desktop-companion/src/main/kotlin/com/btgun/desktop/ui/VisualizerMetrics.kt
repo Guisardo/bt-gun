@@ -1,5 +1,6 @@
 package com.btgun.desktop.ui
 
+import com.btgun.desktop.control.VisualizerStatus
 import com.btgun.desktop.transport.UdpReceivedInput
 import kotlin.math.round
 
@@ -56,6 +57,7 @@ class VisualizerMetrics(
     private var firstSequence: Long? = null
     private var lastSequence: Long? = null
     private var acceptedCount: Long = 0L
+    private var clockOffset: VisualizerClockOffset? = null
     private var snapshot: VisualizerMetricSnapshot = VisualizerMetricSnapshot.empty(targetLatencyMillis)
 
     fun record(
@@ -82,7 +84,11 @@ class VisualizerMetrics(
         val percent = if (expected == 0L) 0.0 else round((missed.toDouble() / expected.toDouble()) * 1_000.0) / 10.0
         val captureToSendMillis = nanosToMillis(input.sendElapsedNanos - input.captureElapsedNanos)
         val receiveToRenderMillis = nanosToMillis(desktopRenderElapsedNanos - input.receivedElapsedNanos)
-        val latencyMillis = clockOffset?.let { offset ->
+        val effectiveOffset = clockOffset ?: this.clockOffset ?: udpEstimatedOffset(input)
+        if (clockOffset != null || this.clockOffset == null) {
+            this.clockOffset = effectiveOffset
+        }
+        val latencyMillis = effectiveOffset?.let { offset ->
             val captureOnDesktopClock = input.captureElapsedNanos + offset.androidToDesktopNanos
             nanosToMillis(desktopRenderElapsedNanos - captureOnDesktopClock)
         }
@@ -95,7 +101,7 @@ class VisualizerMetrics(
         snapshot = VisualizerMetricSnapshot(
             headlineLatencyMillis = latencyMillis,
             headlineLatencyLabel = latencyLabel(latencyMillis, targetStatus),
-            offsetQuality = clockOffset?.quality ?: VisualizerClockOffsetQuality.UNAVAILABLE,
+            offsetQuality = effectiveOffset?.quality ?: VisualizerClockOffsetQuality.UNAVAILABLE,
             captureToSendMillis = captureToSendMillis,
             receiveToRenderMillis = receiveToRenderMillis,
             sampleAgeMillis = receiveToRenderMillis,
@@ -110,11 +116,25 @@ class VisualizerMetrics(
         return snapshot
     }
 
+    fun recordStatus(
+        status: VisualizerStatus,
+        desktopReceivedElapsedNanos: Long,
+    ): VisualizerClockOffset {
+        val offset = VisualizerClockOffset(
+            androidToDesktopNanos = desktopReceivedElapsedNanos - status.androidElapsedNanos,
+            quality = VisualizerClockOffsetQuality.GOOD,
+        )
+        clockOffset = offset
+        snapshot = snapshot.copy(offsetQuality = offset.quality)
+        return offset
+    }
+
     fun reset(): VisualizerMetricSnapshot {
         sessionKey = null
         firstSequence = null
         lastSequence = null
         acceptedCount = 0L
+        clockOffset = null
         snapshot = VisualizerMetricSnapshot.empty(targetLatencyMillis)
         return snapshot
     }
@@ -137,6 +157,16 @@ class VisualizerMetrics(
     companion object {
         const val DEFAULT_TARGET_LATENCY_MILLIS = 50L
     }
+}
+
+private fun udpEstimatedOffset(input: UdpReceivedInput): VisualizerClockOffset? {
+    if (input.receivedElapsedNanos < input.sendElapsedNanos) {
+        return null
+    }
+    return VisualizerClockOffset(
+        androidToDesktopNanos = input.receivedElapsedNanos - input.sendElapsedNanos,
+        quality = VisualizerClockOffsetQuality.ESTIMATED,
+    )
 }
 
 private data class SessionKey(
