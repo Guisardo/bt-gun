@@ -315,9 +315,41 @@ private fun visualizerStatusBodyIsSanitized() {
             ),
         ),
     )
+    val invalidSource = visualizerStatusFromJsonBody(
+        JsonObject(
+            mapOf(
+                "visualizerStatus" to JsonObject(
+                    mapOf(
+                        "rawDebugEnabled" to JsonPrimitive(false),
+                        "aimZeroState" to JsonPrimitive("pending"),
+                        "recenterState" to JsonPrimitive("idle"),
+                        "androidElapsedNanos" to JsonPrimitive(2_000_000_000L),
+                        "source" to JsonPrimitive("desktop"),
+                    ),
+                ),
+            ),
+        ),
+    )
+    val secretLikeField = visualizerStatusFromJsonBody(
+        JsonObject(
+            mapOf(
+                "visualizerStatus" to JsonObject(
+                    mapOf(
+                        "rawDebugEnabled" to JsonPrimitive(false),
+                        "aimZeroState" to JsonPrimitive("pending"),
+                        "recenterState" to JsonPrimitive("idle"),
+                        "androidElapsedNanos" to JsonPrimitive(2_000_000_000L),
+                        "pairingSecret" to JsonPrimitive("nope"),
+                    ),
+                ),
+            ),
+        ),
+    )
 
     expectEquals("valid status parsed", "pending", valid?.aimZeroState)
     expectEquals("negative elapsed rejected", null, invalidElapsed)
+    expectEquals("invalid source rejected", null, invalidSource)
+    expectEquals("secret-like field rejected", null, secretLikeField)
     expectEquals(
         "visualizer status fields",
         listOf(
