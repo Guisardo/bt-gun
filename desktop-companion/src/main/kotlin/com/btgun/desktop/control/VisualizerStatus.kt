@@ -8,6 +8,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
 
 data class VisualizerStatus(
+    val controlSessionId: String? = null,
     val rawDebugEnabled: Boolean,
     val aimZeroState: String,
     val recenterState: String,

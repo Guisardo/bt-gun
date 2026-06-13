@@ -239,6 +239,7 @@ private fun controlServerAcceptsVisualizerStatusFromTrustedDiagnostics() = runBl
     expectEquals(
         "visualizer status callback",
         VisualizerStatus(
+            controlSessionId = "sid-1",
             rawDebugEnabled = true,
             aimZeroState = "ready",
             recenterState = "recentered",
@@ -353,6 +354,7 @@ private fun visualizerStatusBodyIsSanitized() {
     expectEquals(
         "visualizer status fields",
         listOf(
+            "controlSessionId",
             "rawDebugEnabled",
             "aimZeroState",
             "recenterState",

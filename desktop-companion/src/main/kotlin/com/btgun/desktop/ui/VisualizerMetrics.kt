@@ -58,6 +58,7 @@ class VisualizerMetrics(
     private var lastSequence: Long? = null
     private var acceptedCount: Long = 0L
     private var clockOffset: VisualizerClockOffset? = null
+    private var pendingStatusOffset: PendingStatusOffset? = null
     private var snapshot: VisualizerMetricSnapshot = VisualizerMetricSnapshot.empty(targetLatencyMillis)
 
     fun record(
@@ -73,8 +74,18 @@ class VisualizerMetrics(
             lastSequence = null
             acceptedCount = 0L
             if (previousKey != null) {
-                this.clockOffset = null
+                this.clockOffset = pendingStatusOffset
+                    ?.takeIf { it.controlSessionId == input.controlSessionId }
+                    ?.offset
+                if (this.clockOffset != null) {
+                    pendingStatusOffset = null
+                }
             }
+        }
+
+        if (pendingStatusOffset?.controlSessionId == input.controlSessionId) {
+            this.clockOffset = pendingStatusOffset?.offset
+            pendingStatusOffset = null
         }
 
         if (firstSequence == null) {
@@ -128,7 +139,12 @@ class VisualizerMetrics(
             androidToDesktopNanos = desktopReceivedElapsedNanos - status.androidElapsedNanos,
             quality = VisualizerClockOffsetQuality.GOOD,
         )
-        clockOffset = offset
+        val activeControlSessionId = sessionKey?.controlSessionId
+        if (status.controlSessionId == null || activeControlSessionId == null || status.controlSessionId == activeControlSessionId) {
+            clockOffset = offset
+        } else {
+            pendingStatusOffset = PendingStatusOffset(status.controlSessionId, offset)
+        }
         snapshot = snapshot.copy(offsetQuality = offset.quality)
         return offset
     }
@@ -139,6 +155,7 @@ class VisualizerMetrics(
         lastSequence = null
         acceptedCount = 0L
         clockOffset = null
+        pendingStatusOffset = null
         snapshot = VisualizerMetricSnapshot.empty(targetLatencyMillis)
         return snapshot
     }
@@ -176,6 +193,11 @@ private fun udpEstimatedOffset(input: UdpReceivedInput): VisualizerClockOffset? 
 private data class SessionKey(
     val controlSessionId: String,
     val streamSessionIdHex: String,
+)
+
+private data class PendingStatusOffset(
+    val controlSessionId: String,
+    val offset: VisualizerClockOffset,
 )
 
 private fun nanosToMillis(nanos: Long): Long =

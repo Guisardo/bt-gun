@@ -49,6 +49,7 @@ fun main() {
     hidFanoutUsesMappedStateAfterServiceMapping()
     recenterUsesSelectedPhysicalControlWhileVirtualReloadPublishes()
     visualizerStatusReflectsRecenterAimZeroAndRawDebug()
+    visualizerStatusDoesNotReportReadyBeforeLiveMotion()
     visualizerStatusNoopsWithoutTrustedDesktopConnection()
     reloadDownUpEventsStillFanOutAroundRecenterStatus()
 }
@@ -365,6 +366,7 @@ private fun visualizerStatusReflectsRecenterAimZeroAndRawDebug() {
     val state = HostSessionState(
         activeProfile = profile,
         lastRecenterStatus = recenter,
+        lastMotionSample = motionEnvelope(liveMotionSample()),
         aimBaseline = com.btgun.host.motion.AimBaseline(
             yaw = 1f,
             pitch = 2f,
@@ -388,6 +390,37 @@ private fun visualizerStatusReflectsRecenterAimZeroAndRawDebug() {
     expectFalse("no raw yaw status", body.containsKey("yaw"))
     expectFalse("no raw pitch status", body.containsKey("pitch"))
     expectFalse("no raw roll status", body.containsKey("roll"))
+}
+
+private fun visualizerStatusDoesNotReportReadyBeforeLiveMotion() {
+    val status = hostVisualizerStatusFor(
+        state = HostSessionState(
+            aimBaseline = com.btgun.host.motion.AimBaseline(
+                yaw = 1f,
+                pitch = 2f,
+                roll = 3f,
+                elapsedNanos = 4_000_000_000L,
+            ),
+        ),
+        androidElapsedNanos = 4_100_000_000L,
+        statusSequence = 4L,
+    )
+    val unavailableMotionStatus = hostVisualizerStatusFor(
+        state = HostSessionState(
+            lastMotionSample = motionEnvelope(liveMotionSample(provider = MotionProvider.UNAVAILABLE)),
+            aimBaseline = com.btgun.host.motion.AimBaseline(
+                yaw = 1f,
+                pitch = 2f,
+                roll = 3f,
+                elapsedNanos = 4_000_000_000L,
+            ),
+        ),
+        androidElapsedNanos = 4_200_000_000L,
+        statusSequence = 5L,
+    )
+
+    expectEquals("baseline alone not ready", VisualizerStatus.AIM_ZERO_UNAVAILABLE, status.aimZeroState)
+    expectEquals("unavailable provider not ready", VisualizerStatus.AIM_ZERO_UNAVAILABLE, unavailableMotionStatus.aimZeroState)
 }
 
 private fun visualizerStatusNoopsWithoutTrustedDesktopConnection() {
@@ -443,6 +476,17 @@ private fun motionEnvelope(payload: MotionSample) =
         captureElapsedNanos = 2_000L,
         emittedElapsedNanos = 2_000L,
         payload = payload,
+    )
+
+private fun liveMotionSample(provider: MotionProvider = MotionProvider.ROTATION_VECTOR): MotionSample =
+    MotionSample(
+        provider = provider,
+        sourceSensorElapsedNanos = 2_000L,
+        yaw = 0f,
+        pitch = 0f,
+        roll = 0f,
+        aimX = 0.5f,
+        aimY = -0.25f,
     )
 
 private fun outputPayload(strength: Int, durationMs: Int, ttlMs: Int): ByteArray =
