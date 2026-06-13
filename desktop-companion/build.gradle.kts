@@ -66,6 +66,7 @@ tasks.withType<Test>().configureEach {
             "com.btgun.desktop.transport.InputStreamLifecycleTestKt",
             "com.btgun.desktop.haptics.HapticCommandCodecTestKt",
             "com.btgun.desktop.ui.PairingWindowTestKt",
+            "com.btgun.desktop.ui.DesktopUiEventHubTestKt",
             "com.btgun.desktop.backend.BackendContractTestKt",
             "com.btgun.desktop.backend.BackendCapabilitiesTestKt",
             "com.btgun.desktop.backend.UdpControllerStateAdapterTestKt",
