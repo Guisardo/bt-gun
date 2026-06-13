@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 09-03-PLAN.md
-last_updated: "2026-06-13T02:52:37.901Z"
+stopped_at: Completed 09-05-PLAN.md
+last_updated: "2026-06-13T03:12:13.132Z"
 last_activity: 2026-06-13 -- Phase 09 execution started
 progress:
   total_phases: 10
   completed_phases: 8
   total_plans: 55
-  completed_plans: 53
-  percent: 96
+  completed_plans: 54
+  percent: 98
 ---
 
 # Project State
@@ -26,12 +26,12 @@ See: .planning/PROJECT.md (updated 2026-06-09)
 ## Current Position
 
 Phase: 09 (visualizer-acceptance-path) — EXECUTING
-Plan: 5 of 6
+Plan: 6 of 6
 Next phase: Execute Phase 09 visualizer acceptance path
 Status: Ready to execute
 Last activity: 2026-06-13 -- Phase 09 execution started
 
-Progress: [██████████] 53/55 active planned plans complete. Phase 09 is executing.
+Progress: [██████████] 54/55 active planned plans complete. Phase 09 is executing.
 
 ## Performance Metrics
 
@@ -55,7 +55,7 @@ Progress: [██████████] 53/55 active planned plans complete. 
 
 **Recent Trend:**
 
-- Recent completed execution plans: 07-P01 through 07-P06 and 08-P01 through 08-P07 complete. Phase 09 has no execution plans yet.
+- Recent completed execution plans: 07-P01 through 07-P06, 08-P01 through 08-P07, and Phase 09 P01 through P05 complete.
 - Trend: CoreHID and DriverKit are no longer primary for macOS because no-subscription virtual HID is blocked. Phase 07 completed Android phone Bluetooth HID gamepad proof, with Windows VHF retained as fallback and macOS browser/GameController haptics deferred. Phase 08 reroutes profiles to Android-owned storage/mapping with desktop read-only metadata.
 
 *Updated after each plan completion*
@@ -113,6 +113,7 @@ Progress: [██████████] 53/55 active planned plans complete. 
 | Phase 09 P02 | 14 min | 3 tasks | 6 files |
 | Phase 09 P04 | 10min | 3 tasks | 7 files |
 | Phase 09 P03 | 12 min | 3 tasks | 8 files |
+| Phase 09 P05 | 13 min | 3 tasks | 12 files |
 
 ## Accumulated Context
 
@@ -247,6 +248,10 @@ Recent decisions affecting current work:
 - [Phase 09]: Render live gamepad through fixed-size Swing helper panels rather than text-only labels. — Keeps visualizer dimensions stable and testable without launching Swing.
 - [Phase 09]: Keep raw debug output whitelisted to provider/yaw/pitch/roll/raw aim/rejection reason and omit sensitive stream or pairing material. — Matches Phase 9 information-disclosure mitigation while preserving useful diagnostics.
 - [Phase 09]: Use visualizer-scoped haptic command ids and the existing authenticated ControlServer.sendHapticCommand path only. — Keeps LAN haptic proof inside the authenticated control channel and avoids UDP haptics or physical motor claims.
+- [Phase 09]: Parse Android visualizer status only from nested authenticated diagnostics, keeping existing control message type. — Plan 09-05 desktop integration preserves authenticated control envelope shape and avoids new wire messages.
+- [Phase 09]: Reject visualizer status with invalid source, negative elapsed values, or non-whitelisted fields. — Plan 09-05 keeps desktop diagnostics sanitized before they influence recenter, raw-debug, or latency display.
+- [Phase 09]: Use Android status offset as good clock quality and UDP send/receive offset as estimated fallback. — Plan 09-05 avoids direct Android-to-desktop clock subtraction while still showing latency when status samples are not available.
+- [Phase 09]: Main.kt subscribes the visualizer coordinator to status fanout in the real launch path. — Plan 09-05 found this wiring was required for visualizer status to reach the window outside tests.
 
 ### Pending Todos
 
@@ -276,6 +281,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-13T02:52:01.999Z
-Stopped at: Completed 09-03-PLAN.md
+Last session: 2026-06-13T03:12:13.116Z
+Stopped at: Completed 09-05-PLAN.md
 Resume file: None
