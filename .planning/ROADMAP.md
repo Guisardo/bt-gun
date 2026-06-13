@@ -356,7 +356,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 09-05-PLAN.md — Desktop visualizerStatus parser, callback fanout, model integration, and recenter/aim-zero rendering.
+- [x] 09-05-PLAN.md — Desktop visualizerStatus parser, callback fanout, model integration, and recenter/aim-zero rendering.
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
@@ -377,7 +377,7 @@ Plans:
   3. Repository documents Android build tooling, device testing workflow, LAN protocol schemas, pairing flow, and security model.
   4. Repository documents v1 limitations, including no direct desktop Bluetooth, deferred physical gun motor rumble, and no game-specific presets.
 
-**Plans:** 4/6 plans executed
+**Plans:** 5/6 plans executed
 
 ## Progress
 
@@ -394,5 +394,5 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 | 6. Windows Virtual Joystick Path | 6/6 | Complete | 2026-06-10 |
 | 7. Android Bluetooth HID Gamepad Path | 6/6 | Complete    | 2026-06-11 |
 | 8. Desktop Profiles and Mapping | 7/7 | Complete    | 2026-06-12 |
-| 9. Visualizer Acceptance Path | 4/6 | In Progress|  |
+| 9. Visualizer Acceptance Path | 5/6 | In Progress|  |
 | 10. Diagnostics, Replay, and v1 Docs | 0/TBD | Not started | - |
