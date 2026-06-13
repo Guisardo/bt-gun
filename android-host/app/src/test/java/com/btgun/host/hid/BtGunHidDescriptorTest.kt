@@ -31,8 +31,8 @@ private fun descriptorBytesArePinned() {
         0x95.toByte(), 0x04,
         0x09, 0x30,
         0x09, 0x31,
-        0x09, 0x32,
         0x09, 0x33,
+        0x09, 0x34,
         0x81.toByte(), 0x02,
         0x85.toByte(), 0x02,
         0x05, 0x01,
@@ -60,6 +60,8 @@ private fun descriptorMirrorsBtGunV1Semantics() {
     expectEquals("button count", 6, BtGunHidDescriptor.BUTTON_COUNT)
     expectEquals("button padding count", 2, BtGunHidDescriptor.BUTTON_PADDING_COUNT)
     expectEquals("axis count", 4, BtGunHidDescriptor.AXIS_COUNT)
+    expectTrue("aim uses rotation pair", BtGunHidDescriptor.DESCRIPTOR_BYTES.containsSubsequence(0x09, 0x33, 0x09, 0x34))
+    expectFalse("aim does not use Z axis", BtGunHidDescriptor.DESCRIPTOR_BYTES.containsSubsequence(0x09, 0x32, 0x09, 0x33))
 }
 
 private fun reportConstantsMatchBluetoothHidContract() {
