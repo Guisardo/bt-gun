@@ -35,6 +35,7 @@ fun main() {
     visualizerFactoryReusesExistingWindow()
     visualizerCoordinatorOpensOnceOnAuthenticatedSession()
     visualizerCoordinatorKeepsHapticAvailableWhenUdpStale()
+    visualizerCoordinatorUserActionsSurviveLiveUpdates()
     visualizerCoordinatorAppliesLiveInputProfileMetricsAndRejections()
     visualizerCoordinatorPreservesChecklistAndContextOnDisconnect()
     mainWiresEventHubVisualizerFactoryAndPairingWindow()
@@ -458,6 +459,37 @@ private fun visualizerCoordinatorKeepsHapticAvailableWhenUdpStale() {
     expectTrue("authenticated control enables haptic despite stale udp", VisualizerWindow.hapticButtonEnabled(coordinator.model.controlSessionState))
 }
 
+private fun visualizerCoordinatorUserActionsSurviveLiveUpdates() {
+    val coordinator = VisualizerWindowCoordinator(
+        windowFactory = VisualizerWindowFactory {
+            object : VisualizerWindowHandle {
+                override fun open() = Unit
+                override fun applyModel(model: VisualizerModel) = Unit
+            }
+        },
+    )
+
+    coordinator.confirmNextObservedRow()
+    coordinator.onUdpInputReceived(
+        acceptedInputForWindow(sequence = 1L, aimX = 0.33f, aimY = -0.44f),
+        observedElapsedNanos = 10_000_000L,
+    )
+    coordinator.recordHapticSendResult(
+        result = HapticSendResult.Sent,
+        commandId = "visualizer-haptic-1",
+        observedElapsedNanos = 11_000_000L,
+    )
+    coordinator.confirmMacosHapticLimitation()
+    coordinator.onUdpInputReceived(
+        acceptedInputForWindow(sequence = 2L, aimX = 0.34f, aimY = -0.45f),
+        observedElapsedNanos = 12_000_000L,
+    )
+
+    expectEquals("macOS user confirmation survives live input", VisualizerChecklistState.CONFIRMED, coordinator.model.row(VisualizerChecklistRowId.MACOS_HID_INPUT).state)
+    expectEquals("limitation confirmation survives live input", VisualizerChecklistState.UNSUPPORTED_DEFERRED, coordinator.model.row(VisualizerChecklistRowId.MACOS_HID_HAPTIC_LIMIT).state)
+    expectEquals("haptic send state stays on coordinator model", "queued", coordinator.model.hapticStatus.status)
+}
+
 private fun visualizerCoordinatorAppliesLiveInputProfileMetricsAndRejections() {
     val applied = mutableListOf<VisualizerModel>()
     val coordinator = VisualizerWindowCoordinator(
@@ -542,6 +574,10 @@ private fun mainWiresEventHubVisualizerFactoryAndPairingWindow() {
         "PairingWindow(",
         "eventHub = eventHub",
         "openVisualizer = coordinator::openVisualizer",
+        "onConfirmObserved = coordinator::confirmNextObservedRow",
+        "onConfirmLimitation = coordinator::confirmMacosHapticLimitation",
+        "onResetChecklist = coordinator::resetChecklist",
+        "onHapticSendResult = coordinator::recordHapticSendResult",
         "onVisualizerStatusReceived = coordinator::onVisualizerStatusReceived",
         "onProfileMetadataReceived = coordinator::onProfileMetadataReceived",
         "onUdpInputReceived = coordinator::onUdpInputReceived",

@@ -39,6 +39,10 @@ interface VisualizerWindowHandle {
 class VisualizerWindow(
     private val controlServer: ControlServer? = null,
     private val frame: JFrame = JFrame(windowTitle()),
+    private val onConfirmObserved: (() -> VisualizerModel)? = null,
+    private val onConfirmLimitation: (() -> VisualizerModel)? = null,
+    private val onResetChecklist: (() -> VisualizerModel)? = null,
+    private val onHapticSendResult: ((HapticSendResult, String?, Long) -> VisualizerModel)? = null,
 ) : VisualizerWindowHandle {
     private val title = JLabel(windowTitle())
     private val summary = JLabel(topSummaryPending())
@@ -69,19 +73,20 @@ class VisualizerWindow(
             runPhoneHapticTest()
         }
         confirmObservedAction.addActionListener {
-            currentModel = currentModel.confirmNextObservedRow()
+            currentModel = onConfirmObserved?.invoke() ?: currentModel.confirmNextObservedRow()
             resetArmed = false
             applyModel(currentModel)
         }
         confirmLimitationAction.addActionListener {
-            currentModel = currentModel.confirmLimitation(VisualizerChecklistRowId.MACOS_HID_HAPTIC_LIMIT)
+            currentModel = onConfirmLimitation?.invoke()
+                ?: currentModel.confirmLimitation(VisualizerChecklistRowId.MACOS_HID_HAPTIC_LIMIT)
             resetArmed = false
             applyModel(currentModel)
         }
         resetChecklistAction.toolTipText = resetChecklistConfirmationCopy()
         resetChecklistAction.addActionListener {
             if (resetArmed) {
-                currentModel = currentModel.resetChecklist()
+                currentModel = onResetChecklist?.invoke() ?: currentModel.resetChecklist()
                 resetArmed = false
                 applyModel(currentModel)
             } else {
@@ -144,11 +149,12 @@ class VisualizerWindow(
         val command = visualizerHapticCommand(nowElapsedNanos = now)
         val result = controlServer?.sendHapticCommand(command, nowElapsedNanos = now)
             ?: HapticSendResult.NoActiveSession
-        currentModel = currentModel.withHapticSendResult(
-            result = result,
-            commandId = command.commandId,
-            observedElapsedNanos = now,
-        )
+        currentModel = onHapticSendResult?.invoke(result, command.commandId, now)
+            ?: currentModel.withHapticSendResult(
+                result = result,
+                commandId = command.commandId,
+                observedElapsedNanos = now,
+            )
         applyModel(currentModel)
     }
 
@@ -389,6 +395,38 @@ class VisualizerWindowCoordinator(
     fun onHapticResultReceived(result: HapticResult) {
         model = model.withHapticResult(result)
         windowFactory.applyModel(model)
+    }
+
+    fun confirmNextObservedRow(): VisualizerModel {
+        model = model.confirmNextObservedRow()
+        windowFactory.applyModel(model)
+        return model
+    }
+
+    fun confirmMacosHapticLimitation(): VisualizerModel {
+        model = model.confirmLimitation(VisualizerChecklistRowId.MACOS_HID_HAPTIC_LIMIT)
+        windowFactory.applyModel(model)
+        return model
+    }
+
+    fun resetChecklist(): VisualizerModel {
+        model = model.resetChecklist()
+        windowFactory.applyModel(model)
+        return model
+    }
+
+    fun recordHapticSendResult(
+        result: HapticSendResult,
+        commandId: String?,
+        observedElapsedNanos: Long,
+    ): VisualizerModel {
+        model = model.withHapticSendResult(
+            result = result,
+            commandId = commandId,
+            observedElapsedNanos = observedElapsedNanos,
+        )
+        windowFactory.applyModel(model)
+        return model
     }
 
     fun onProfileMetadataReceived(metadata: ProfileMetadata) {
