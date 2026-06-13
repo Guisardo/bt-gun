@@ -1,6 +1,8 @@
 package com.btgun.desktop.ui
 
 import com.btgun.desktop.control.ControlServerSessionState
+import com.btgun.desktop.control.HapticSendResult
+import com.btgun.desktop.haptics.HapticResultStatus
 import com.btgun.desktop.transport.InputStreamLifecycleState
 import java.io.File
 
@@ -11,6 +13,9 @@ fun main() {
     visualizerCrosshairHelpersClampAndInvertYAxis()
     visualizerStaleOverlayPreservesLastAimCopy()
     visualizerWindowSourceUsesEdtFriendlyRendering()
+    visualizerHapticButtonRequiresAuthenticatedSession()
+    visualizerHapticCommandUsesSafeShape()
+    visualizerHapticStatusCopyMatchesUiSpec()
     visualizerWindowSourceExcludesForbiddenLabels()
     visualizerFactoryReusesExistingWindow()
     visualizerCoordinatorOpensOnceOnAuthenticatedSession()
@@ -103,6 +108,61 @@ private fun visualizerWindowSourceUsesEdtFriendlyRendering() {
     expectContains("EDT repaint flow", source, "SwingUtilities.invokeLater")
     expectFalse("no blocking sleep in visualizer window", source.contains("Thread.sleep("))
     expectFalse("no blocking network io in visualizer window", source.contains("java.net."))
+}
+
+private fun visualizerHapticButtonRequiresAuthenticatedSession() {
+    expectTrue("authenticated enables haptic", VisualizerWindow.hapticButtonEnabled(ControlServerSessionState.AUTHENTICATED))
+    listOf(
+        ControlServerSessionState.STARTED,
+        ControlServerSessionState.ANDROID_CONNECTED,
+        ControlServerSessionState.DEGRADED,
+        ControlServerSessionState.DISCONNECTED,
+        ControlServerSessionState.STOPPED,
+        ControlServerSessionState.RATE_LIMITED,
+    ).forEach { state ->
+        expectFalse("non-active session disables haptic: $state", VisualizerWindow.hapticButtonEnabled(state))
+    }
+}
+
+private fun visualizerHapticCommandUsesSafeShape() {
+    val command = VisualizerWindow.visualizerHapticCommand(nowElapsedNanos = 123_456_789L)
+
+    expectContains("visualizer-scoped id", command.commandId, "visualizer-haptic-")
+    expectEquals("strength", 0.6, command.strength)
+    expectEquals("duration", 80L, command.durationMs)
+    expectEquals("ttl", 500L, command.ttlMs)
+    expectEquals("pattern omitted", null, command.pattern)
+    listOf("sid", "session", "secret", "hmac", "pairing").forEach { forbidden ->
+        expectFalse("command id excludes $forbidden", command.commandId.contains(forbidden, ignoreCase = true))
+    }
+}
+
+private fun visualizerHapticStatusCopyMatchesUiSpec() {
+    expectEquals(
+        "queued copy",
+        "Phone haptic queued",
+        VisualizerWindow.hapticSendStatusText(HapticSendResult.Sent, commandId = "visualizer-haptic-1"),
+    )
+    expectEquals(
+        "no session copy",
+        "No active Android session. Pair Android before running haptic proof.",
+        VisualizerWindow.hapticSendStatusText(HapticSendResult.NoActiveSession, commandId = null),
+    )
+    expectEquals(
+        "failed send copy",
+        "Phone haptic failed. Check Android session and try again.",
+        VisualizerWindow.hapticSendStatusText(HapticSendResult.Failed("socket closed"), commandId = "visualizer-haptic-1"),
+    )
+    expectEquals(
+        "ack copy",
+        "Phone haptic confirmed",
+        VisualizerWindow.hapticResultStatusText(HapticResultStatus.STARTED),
+    )
+    expectEquals(
+        "failed ack copy",
+        "Phone haptic failed. Check Android session and try again.",
+        VisualizerWindow.hapticResultStatusText(HapticResultStatus.PERMISSION_BLOCKED),
+    )
 }
 
 private fun visualizerWindowSourceExcludesForbiddenLabels() {

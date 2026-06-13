@@ -4,11 +4,14 @@ import com.btgun.desktop.transport.UdpInputFrameType
 import com.btgun.desktop.transport.UdpReceivedInput
 import com.btgun.desktop.transport.UdpReceivedMappedAim
 import com.btgun.desktop.transport.UdpReceivedMotion
+import com.btgun.desktop.haptics.HapticResult
+import com.btgun.desktop.haptics.HapticResultStatus
 
 fun main() {
     eventStripKeepsExactlyTenNewestProductEvents()
     eventStripLabelsIncludeSequenceAndAge()
     rawDebugDrawerStartsCollapsedAndShowsWhitelistedFieldsOnlyWhenEnabled()
+    hapticAckObservesLanRowButDoesNotConfirmPhoneVibration()
     observedLanStreamDoesNotConfirmManualProofRows()
     modelLabelsExcludeDesktopProfileControlsAndSecretFields()
     staleInputPreservesLastAcceptedAimContext()
@@ -84,6 +87,25 @@ private fun rawDebugDrawerStartsCollapsedAndShowsWhitelistedFieldsOnlyWhenEnable
     listOf("secret", "pairing", "hmac", "private key", "device id", "stream key").forEach { forbidden ->
         expectFalse("raw drawer excludes $forbidden", on.joinToString("\n").contains(forbidden, ignoreCase = true))
     }
+}
+
+private fun hapticAckObservesLanRowButDoesNotConfirmPhoneVibration() {
+    val model = VisualizerModel.initial().withHapticResult(
+        HapticResult(
+            commandId = "visualizer-haptic-123",
+            status = HapticResultStatus.STARTED,
+            detail = "phone pulse started",
+            observedElapsedNanos = 10_000_000L,
+        ),
+    )
+
+    expectEquals("haptic status copy", "Phone haptic confirmed", model.hapticStatus.detail)
+    expectEquals(
+        "lan haptic observed",
+        VisualizerChecklistState.OBSERVED,
+        model.row(VisualizerChecklistRowId.LAN_PHONE_HAPTIC).state,
+    )
+    expectTrue("lan haptic still needs user confirmation", model.row(VisualizerChecklistRowId.LAN_PHONE_HAPTIC).requiresUserConfirmation)
 }
 
 private fun observedLanStreamDoesNotConfirmManualProofRows() {
