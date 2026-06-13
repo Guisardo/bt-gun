@@ -77,6 +77,7 @@ import com.btgun.host.session.ProfileMetadata
 import com.btgun.host.session.TrustValidationResult
 import com.btgun.host.session.TrustedDesktopMetadata
 import com.btgun.host.session.TrustedDesktopStore
+import com.btgun.host.session.VisualizerStatus
 import com.btgun.host.transport.AndroidUdpInputSender
 import com.btgun.host.transport.InputStreamConfig
 import com.btgun.host.transport.InputStreamLifecycleState
@@ -287,6 +288,52 @@ internal class HostSessionProfileRuntime(
 internal fun shouldFeedRecenterHold(profile: BtGunProfile, controlName: String): Boolean =
     profile.recenterPhysicalControl?.id == controlName
 
+internal fun shouldPublishVisualizerStatus(
+    hasTrustedDesktopConnection: Boolean,
+    meaningfulChange: Boolean,
+): Boolean =
+    hasTrustedDesktopConnection && meaningfulChange
+
+internal fun hostVisualizerStatusFor(
+    state: HostSessionState,
+    androidElapsedNanos: Long,
+    statusSequence: Long,
+): VisualizerStatus {
+    val lastRecenter = state.lastRecenterStatus
+    val lastRecenterElapsedNanos = lastRecenter
+        ?.payload
+        ?.baselineElapsedNanos
+        ?: lastRecenter?.captureElapsedNanos
+    val aimZeroState = when {
+        state.aimBaseline != null -> VisualizerStatus.AIM_ZERO_READY
+        state.lastMotionSample != null -> VisualizerStatus.AIM_ZERO_PENDING
+        else -> VisualizerStatus.AIM_ZERO_UNAVAILABLE
+    }
+    val recenterState = when {
+        lastRecenter != null -> VisualizerStatus.RECENTERED
+        state.reloadHoldState.isReloadHeld -> VisualizerStatus.RECENTER_HELD
+        else -> VisualizerStatus.RECENTER_IDLE
+    }
+    return VisualizerStatus(
+        rawDebugEnabled = state.rawDebugEnabled,
+        aimZeroState = aimZeroState,
+        recenterState = recenterState,
+        lastRecenterElapsedNanos = lastRecenterElapsedNanos,
+        androidElapsedNanos = androidElapsedNanos,
+        captureElapsedNanos = state.lastMotionSample?.captureElapsedNanos ?: lastRecenter?.captureElapsedNanos,
+        sendElapsedNanos = null,
+        statusSequence = statusSequence,
+        recenterLabel = lastRecenter?.payload?.statusLabel
+            ?: lastRecenter?.payload?.message
+            ?: recenterState,
+        aimZeroLabel = when (aimZeroState) {
+            VisualizerStatus.AIM_ZERO_READY -> "aim baseline ready"
+            VisualizerStatus.AIM_ZERO_PENDING -> "aim baseline pending"
+            else -> VisualizerStatus.AIM_ZERO_UNAVAILABLE
+        },
+    )
+}
+
 class HostSessionService : Service() {
     private var adapter: IpegaBleGunAdapter? = null
     private val handler = Handler(Looper.getMainLooper())
@@ -318,6 +365,7 @@ class HostSessionService : Service() {
     private var udpInputSender: AndroidUdpInputSender? = null
     private var udpInputConfig: InputStreamConfig? = null
     private var lastUdpSnapshotSentElapsedNanos: Long? = null
+    private var visualizerStatusSequence: Long = 0L
     private val desktopHapticExecutor: DesktopHapticCommandExecutor by lazy {
         DesktopHapticCommandExecutor(
             phone = PhoneHaptics(this),
@@ -367,6 +415,7 @@ class HostSessionService : Service() {
             }
             val displayRotation = displayRotation()
             val displayRotationChanged = displayRotation != currentDisplayRotation
+            var aimBaselineChanged = false
             if (displayRotationChanged) {
                 rawAimTracker.reset()
             }
@@ -381,6 +430,7 @@ class HostSessionService : Service() {
                 hasLiveAimBaseline = true
                 currentDisplayRotation = displayRotation
                 currentRawOrigin = rawAbsolute
+                aimBaselineChanged = true
             }
             currentRawAim = rawAbsolute
             if (currentRawOrigin == null) {
@@ -394,6 +444,7 @@ class HostSessionService : Service() {
                 aimBaseline = currentAimBaseline,
                 aimCalibrationState = aimCalibrationSession.state,
             ))
+            publishVisualizerStatus(meaningfulChange = aimBaselineChanged)
             currentState = hidSessionController.fanOutLiveInput(currentState)
             sendUdpSnapshot(throttled = true)
         }
@@ -541,6 +592,7 @@ class HostSessionService : Service() {
     private fun reloadActiveProfile() {
         currentState = profileRuntime.reloadActiveProfile(currentState)
         desktopControlClient?.let { sendActiveProfileMetadata(it) }
+        publishVisualizerStatus()
         currentState = hidSessionController.fanOutLiveInput(currentState)
         sendUdpSnapshot(throttled = false)
     }
@@ -724,6 +776,7 @@ class HostSessionService : Service() {
                             desktopLinkState = desktopLinkStateForRequest(client.currentLinkState(), request),
                         )
                         sendActiveProfileMetadata(client)
+                        publishVisualizerStatus()
                         startDesktopLiveness(client)
                     }
                 },
@@ -1313,6 +1366,27 @@ class HostSessionService : Service() {
             }
         }
         currentState = nextState.copy(aimCalibrationState = aimCalibrationSession.state)
+        publishVisualizerStatus()
+    }
+
+    private fun publishVisualizerStatus(meaningfulChange: Boolean = true) {
+        val client = desktopControlClient ?: return
+        if (
+            !shouldPublishVisualizerStatus(
+                hasTrustedDesktopConnection = currentState.desktopLinkState.phase in TRUSTED_DESKTOP_PHASES,
+                meaningfulChange = meaningfulChange,
+            )
+        ) {
+            return
+        }
+        visualizerStatusSequence += 1L
+        client.sendVisualizerStatus(
+            hostVisualizerStatusFor(
+                state = currentState,
+                androidElapsedNanos = SystemClock.elapsedRealtimeNanos(),
+                statusSequence = visualizerStatusSequence,
+            ),
+        )
     }
 
     private fun scheduleReloadHoldTick() {
@@ -1455,6 +1529,7 @@ class HostSessionService : Service() {
         private const val FINGERPRINT_SUFFIX_LENGTH: Int = 8
         private const val DESKTOP_LIVENESS_POLL_MILLIS: Long = 500L
         private const val TAG = "BtGunHostSession"
+        private val TRUSTED_DESKTOP_PHASES = setOf(DesktopLinkPhase.CONNECTED, DesktopLinkPhase.DEGRADED)
 
         @Volatile
         var latestState: HostSessionState = HostSessionState()
