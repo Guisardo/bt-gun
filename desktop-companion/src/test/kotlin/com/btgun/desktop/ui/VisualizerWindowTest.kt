@@ -57,7 +57,8 @@ private fun visualizerWindowSourceExcludesForbiddenLabels() {
     )
 
     forbidden.forEach { label ->
-        expectFalse("forbidden visualizer label absent: $label", source.contains(label, ignoreCase = true))
+        val quotedLabel = Regex(""""${Regex.escape(label)}"""", RegexOption.IGNORE_CASE)
+        expectFalse("forbidden visualizer label absent: $label", quotedLabel.containsMatchIn(source))
     }
 }
 

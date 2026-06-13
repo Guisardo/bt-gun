@@ -1,0 +1,228 @@
+package com.btgun.desktop.ui
+
+import java.awt.BorderLayout
+import java.awt.Color
+import java.awt.Dimension
+import java.awt.Font
+import java.awt.GridLayout
+import java.awt.event.WindowAdapter
+import java.awt.event.WindowEvent
+import javax.swing.BorderFactory
+import javax.swing.Box
+import javax.swing.BoxLayout
+import javax.swing.JButton
+import javax.swing.JFrame
+import javax.swing.JLabel
+import javax.swing.JPanel
+import javax.swing.SwingConstants
+import javax.swing.SwingUtilities
+
+class VisualizerWindow(
+    private val frame: JFrame = JFrame(windowTitle()),
+) {
+    private val title = JLabel(windowTitle())
+    private val summary = JLabel(topSummaryPending())
+    private val session = JLabel(emptyStateHeading())
+    private val profile = JLabel("Profile: unknown")
+    private val checklist = JLabel(checklistHtml(VisualizerModel.defaultChecklistRows()))
+    private val gamepad = JLabel(emptyStateBody(), SwingConstants.CENTER)
+    private val metrics = JLabel(VisualizerMetricSnapshot.empty().headlineLatencyLabel)
+    private val hapticAction = JButton(hapticButtonLabel())
+    private val events = JLabel("Recent product events: none")
+
+    init {
+        title.font = title.font.deriveFont(Font.BOLD, DISPLAY_FONT_SIZE)
+        summary.font = summary.font.deriveFont(Font.BOLD, DISPLAY_FONT_SIZE)
+        session.font = session.font.deriveFont(Font.PLAIN, BODY_FONT_SIZE)
+        profile.font = profile.font.deriveFont(Font.PLAIN, BODY_FONT_SIZE)
+
+        frame.defaultCloseOperation = JFrame.DISPOSE_ON_CLOSE
+        frame.contentPane.add(content(), BorderLayout.CENTER)
+        frame.addWindowListener(
+            object : WindowAdapter() {
+                override fun windowClosing(event: WindowEvent) {
+                    closeVisualizer()
+                }
+            },
+        )
+        frame.pack()
+        frame.setLocationRelativeTo(null)
+    }
+
+    fun open() {
+        SwingUtilities.invokeLater {
+            frame.isVisible = true
+            frame.toFront()
+        }
+    }
+
+    fun show() {
+        open()
+    }
+
+    fun closeVisualizer() {
+        frame.isVisible = false
+        frame.dispose()
+    }
+
+    fun applyModel(model: VisualizerModel) {
+        SwingUtilities.invokeLater {
+            summary.text = topSummaryPending()
+            session.text = summaryFor(model.packetLifecycle.toDisplayState())
+            profile.text = "Profile: ${model.profileSummary.displayName}"
+            checklist.text = checklistHtml(model.checklistRows)
+            gamepad.text = liveGamepadText(model)
+            metrics.text = model.metrics.headlineLatencyLabel
+            events.text = productEventsText(model.productEvents)
+            frame.pack()
+        }
+    }
+
+    private fun content(): JPanel {
+        val root = JPanel(BorderLayout(SPACING_LG, SPACING_LG))
+        root.background = COLOR_BACKGROUND
+        root.border = BorderFactory.createEmptyBorder(SPACING_XL, SPACING_XL, SPACING_XL, SPACING_XL)
+
+        val header = JPanel(GridLayout(4, 1, 0, SPACING_SM))
+        header.background = COLOR_BACKGROUND
+        header.add(title)
+        header.add(summary)
+        header.add(session)
+        header.add(profile)
+
+        val center = JPanel(GridLayout(1, 2, SPACING_LG, 0))
+        center.background = COLOR_BACKGROUND
+        center.add(panel(requiredSectionLabels()[0], checklist))
+        center.add(panel(requiredSectionLabels()[1], gamepad, Dimension(240, 240)))
+
+        val south = JPanel()
+        south.background = COLOR_BACKGROUND
+        south.layout = BoxLayout(south, BoxLayout.Y_AXIS)
+        south.add(panel(requiredSectionLabels()[2], metrics))
+        south.add(Box.createVerticalStrut(SPACING_SM))
+        south.add(hapticAction)
+        south.add(Box.createVerticalStrut(SPACING_SM))
+        south.add(panel(requiredSectionLabels()[3], events))
+
+        root.add(header, BorderLayout.NORTH)
+        root.add(center, BorderLayout.CENTER)
+        root.add(south, BorderLayout.SOUTH)
+        return root
+    }
+
+    private fun panel(title: String, child: JLabel, preferredSize: Dimension? = null): JPanel {
+        val panel = JPanel(BorderLayout(SPACING_SM, SPACING_SM))
+        panel.background = COLOR_SURFACE
+        panel.border = BorderFactory.createTitledBorder(title)
+        child.font = child.font.deriveFont(Font.PLAIN, BODY_FONT_SIZE)
+        child.verticalAlignment = SwingConstants.TOP
+        preferredSize?.let {
+            child.preferredSize = it
+            child.minimumSize = it
+        }
+        panel.add(child, BorderLayout.CENTER)
+        return panel
+    }
+
+    companion object {
+        private const val SPACING_SM = 8
+        private const val SPACING_LG = 24
+        private const val SPACING_XL = 32
+        private const val BODY_FONT_SIZE = 14f
+        private const val DISPLAY_FONT_SIZE = 22f
+        private val COLOR_BACKGROUND = Color(0xF4, 0xF7, 0xF8)
+        private val COLOR_SURFACE = Color.WHITE
+
+        fun windowTitle(): String = "BT Gun Visualizer"
+
+        fun emptyStateHeading(): String = "Waiting for authenticated session"
+
+        fun emptyStateBody(): String = "Pair Android with the desktop companion to start live visualizer checks."
+
+        fun topSummaryPending(): String = "Phase 9 checks pending"
+
+        fun hapticButtonLabel(): String = "Run phone haptic test"
+
+        fun requiredSectionLabels(): List<String> =
+            listOf(
+                "Acceptance checklist",
+                "Live gamepad",
+                "Latency and packet loss",
+                "Recent product events",
+            )
+
+        fun summaryFor(state: VisualizerDisplayState): String =
+            when (state) {
+                VisualizerDisplayState.WAITING -> emptyStateHeading()
+                VisualizerDisplayState.AUTHENTICATED -> "Android authenticated. Live visualizer checks can run."
+                VisualizerDisplayState.DEGRADED -> "Visualizer is stale. Keep this window open to preserve the checklist."
+                VisualizerDisplayState.DISCONNECTED ->
+                    "Visualizer is disconnected. Reconnect Android or reopen pairing, then keep this window open to preserve the checklist."
+            }
+
+        fun closeBehavior(): VisualizerCloseBehavior =
+            VisualizerCloseBehavior(
+                disposeVisualizerUi = true,
+                stopControlServer = false,
+                stopBackendRuntimes = false,
+            )
+
+        private fun checklistHtml(rows: List<VisualizerChecklistRow>): String =
+            rows.joinToString(
+                separator = "",
+                prefix = "<html><body>",
+                postfix = "</body></html>",
+            ) { row ->
+                "<p><b>${escapeHtml(row.label)}:</b> ${row.state.name.lowercase()}</p>"
+            }
+
+        private fun liveGamepadText(model: VisualizerModel): String {
+            val live = model.liveState
+            return "Trigger=${live.trigger} Reload=${live.reload} X=${live.x} Y=${live.y} A=${live.a} B=${live.b} " +
+                "Stick=${live.stickX},${live.stickY} Aim=${live.aimX},${live.aimY}"
+        }
+
+        private fun productEventsText(events: List<VisualizerProductEvent>): String =
+            if (events.isEmpty()) {
+                "Recent product events: none"
+            } else {
+                events.joinToString(
+                    separator = "",
+                    prefix = "<html><body>",
+                    postfix = "</body></html>",
+                ) { event ->
+                    "<p>${escapeHtml(event.type)} seq=${event.sequence ?: "none"}</p>"
+                }
+            }
+
+        private fun escapeHtml(value: String): String =
+            value
+                .replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;")
+                .replace("'", "&#39;")
+    }
+}
+
+data class VisualizerCloseBehavior(
+    val disposeVisualizerUi: Boolean,
+    val stopControlServer: Boolean,
+    val stopBackendRuntimes: Boolean,
+)
+
+enum class VisualizerDisplayState {
+    WAITING,
+    AUTHENTICATED,
+    DEGRADED,
+    DISCONNECTED,
+}
+
+private fun com.btgun.desktop.transport.InputStreamLifecycleState.toDisplayState(): VisualizerDisplayState =
+    when (this) {
+        com.btgun.desktop.transport.InputStreamLifecycleState.ACTIVE -> VisualizerDisplayState.AUTHENTICATED
+        com.btgun.desktop.transport.InputStreamLifecycleState.GRACE,
+        com.btgun.desktop.transport.InputStreamLifecycleState.STALE,
+        -> VisualizerDisplayState.DEGRADED
+        com.btgun.desktop.transport.InputStreamLifecycleState.STOPPED -> VisualizerDisplayState.DISCONNECTED
+    }
