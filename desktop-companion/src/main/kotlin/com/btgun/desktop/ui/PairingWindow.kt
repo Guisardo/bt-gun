@@ -45,6 +45,7 @@ class PairingWindow(
     private val windowsBackendStartupDiagnostic: String = "disabled",
     private val macosBackendRuntime: MacosBackendRuntime? = null,
     private val macosBackendStartupDiagnostic: String = "disabled",
+    private val openVisualizer: () -> Unit = {},
 ) {
     private val frame = JFrame("BT Gun Desktop")
     private val title = JLabel("BT Gun Desktop")
@@ -55,6 +56,7 @@ class PairingWindow(
     private val manual = JLabel("Manual fallback: inactive")
     private val diagnostics = JLabel(diagnosticsHtml(DesktopSessionUiState.IDLE, lastControlError = null))
     private val action = JButton("Start pairing")
+    private val visualizerAction = createVisualizerOpenButton(openVisualizer)
     private val hapticAction = JButton("Test haptic")
     private var session: PairingSession? = null
     private var displayState = DesktopSessionUiState.IDLE
@@ -184,6 +186,8 @@ class PairingWindow(
         side.add(diagnostics)
         side.add(Box.createVerticalStrut(16))
         side.add(action)
+        side.add(Box.createVerticalStrut(8))
+        side.add(visualizerAction)
         side.add(Box.createVerticalStrut(8))
         side.add(hapticAction)
 
@@ -378,6 +382,15 @@ class PairingWindow(
                 durationMs = 80L,
                 ttlMs = 500L,
             )
+
+        internal fun visualizerButtonLabel(): String = "Open visualizer"
+
+        internal fun createVisualizerOpenButton(openVisualizer: () -> Unit): JButton =
+            JButton(visualizerButtonLabel()).apply {
+                addActionListener {
+                    openVisualizer()
+                }
+            }
 
         internal fun hapticButtonEnabled(state: DesktopSessionUiState): Boolean =
             hapticButtonEnabled(state, serverAuthenticated = state == DesktopSessionUiState.AUTHENTICATED)
