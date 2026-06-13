@@ -1,15 +1,47 @@
 package com.btgun.desktop.ui
 
+import com.btgun.desktop.control.VisualizerStatus
 import com.btgun.desktop.transport.UdpInputFrameType
 import com.btgun.desktop.transport.UdpReceivedInput
 import com.btgun.desktop.transport.UdpReceivedMotion
 
 fun main() {
+    offsetQualityStartsUnavailableThenUsesStatusAndUdpSamples()
     sequenceGapRecordsCurrentSessionExpectedAndMissed()
     omittedRejectedFramesDoNotAffectAcceptedPacketLossCounters()
     latencyUsesExplicitClockOffsetInsteadOfDirectClockSubtraction()
     metricsLabelsExposeUiSpecCopy()
     packetCountersResetOnControlOrStreamSessionChange()
+}
+
+private fun offsetQualityStartsUnavailableThenUsesStatusAndUdpSamples() {
+    val metrics = VisualizerMetrics()
+
+    expectEquals("initial offset unavailable", VisualizerClockOffsetQuality.UNAVAILABLE, metrics.snapshot().offsetQuality)
+
+    val statusOffset = metrics.recordStatus(
+        status = VisualizerStatus(
+            rawDebugEnabled = false,
+            aimZeroState = "ready",
+            recenterState = "idle",
+            androidElapsedNanos = 1_000_000_000L,
+        ),
+        desktopReceivedElapsedNanos = 10_000_000_000L,
+    )
+    val statusSnapshot = metrics.record(
+        input = acceptedInput(sequence = 1L, captureElapsedNanos = 1_005_000_000L, sendElapsedNanos = 1_010_000_000L),
+        desktopRenderElapsedNanos = 10_030_000_000L,
+    )
+    val udpOnly = VisualizerMetrics().record(
+        input = acceptedInput(sequence = 1L, captureElapsedNanos = 1_000_000_000L, sendElapsedNanos = 1_010_000_000L, receivedElapsedNanos = 10_020_000_000L),
+        desktopRenderElapsedNanos = 10_030_000_000L,
+    )
+
+    expectEquals("status offset quality", VisualizerClockOffsetQuality.GOOD, statusOffset.quality)
+    expectEquals("status-derived offset", VisualizerClockOffsetQuality.GOOD, statusSnapshot.offsetQuality)
+    expectEquals("status headline latency", 25L, statusSnapshot.headlineLatencyMillis)
+    expectEquals("udp offset quality", VisualizerClockOffsetQuality.ESTIMATED, udpOnly.offsetQuality)
+    expectEquals("udp estimated headline latency", 20L, udpOnly.headlineLatencyMillis)
 }
 
 private fun sequenceGapRecordsCurrentSessionExpectedAndMissed() {
