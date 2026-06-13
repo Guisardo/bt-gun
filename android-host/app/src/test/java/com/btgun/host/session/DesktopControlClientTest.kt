@@ -34,6 +34,7 @@ fun main() {
     clientUpdatesLinkStateFromHeartbeatDiagnosticsAndErrors()
     profileMetadataModelContainsOnlyRequiredFields()
     clientSendsAndroidProfileMetadataAfterSessionReady()
+    clientSendsVisualizerStatusAsTrustedDiagnostics()
     desktopControlClientHasNoRawStreamRequestPath()
     controlEnvelopeAllowsHeartbeatDiagnosticsAndProfileTypes()
     controlEnvelopeAllowsInputStreamConfigType()
@@ -621,6 +622,56 @@ private fun clientSendsAndroidProfileMetadataAfterSessionReady() {
     expectEquals("revision", "7", envelope.envelope.body["revision"]?.jsonPrimitive?.content)
     expectEquals("source", "android", envelope.envelope.body["source"]?.jsonPrimitive?.content)
     expectEquals("raw debug", "true", envelope.envelope.body["rawDebugEnabled"]?.jsonPrimitive?.content)
+}
+
+private fun clientSendsVisualizerStatusAsTrustedDiagnostics() {
+    val socket = FakeSocket()
+    var listener: WebSocketListener? = null
+    val client = DesktopControlClient(
+        config = DesktopControlClientConfig(
+            url = "wss://192.168.50.25:41731/control",
+            expectedDesktopSpkiSha256 = FINGERPRINT,
+            maxMessageBytes = 768,
+        ),
+        socketFactory = { _, socketListener ->
+            listener = socketListener
+            socket
+        },
+        elapsedRealtimeNanos = { 8_500_000_000L },
+    )
+    val status = VisualizerStatus(
+        rawDebugEnabled = true,
+        aimZeroState = VisualizerStatus.AIM_ZERO_READY,
+        recenterState = VisualizerStatus.RECENTERED,
+        lastRecenterElapsedNanos = 8_000_000_000L,
+        androidElapsedNanos = 8_400_000_000L,
+        statusSequence = 9L,
+        recenterLabel = "reload hold recentered",
+        aimZeroLabel = "aim baseline ready",
+    )
+
+    client.connect(authRequest = proofRequest())
+    expectEquals(
+        "pre-ready status blocked",
+        DesktopControlSendResult.NotConnected,
+        client.sendVisualizerStatus(status),
+    )
+    listener?.onMessage(NOOP_WEB_SOCKET, readyEnvelope(sessionId = "sid-1"))
+
+    val result = client.sendVisualizerStatus(status)
+
+    expectEquals("status sent", DesktopControlSendResult.Sent, result)
+    val envelope = ControlEnvelopeCodec.decode(socket.sent.single()) as ControlDecodeResult.Accepted
+    val visualizerStatus = envelope.envelope.body[VisualizerStatus.BODY_KEY] as JsonObject
+    expectEquals("status type", ControlMessageType.DIAGNOSTICS, envelope.envelope.type)
+    expectEquals("status sid", "sid-1", envelope.envelope.sessionId)
+    expectEquals("sent elapsed", 8_500_000_000L, envelope.envelope.sentElapsedNanos)
+    expectEquals("status raw debug", "true", visualizerStatus["rawDebugEnabled"]?.jsonPrimitive?.content)
+    expectEquals("status aim zero", "ready", visualizerStatus["aimZeroState"]?.jsonPrimitive?.content)
+    expectEquals("status recenter", "recentered", visualizerStatus["recenterState"]?.jsonPrimitive?.content)
+    listOf("secret", "hmac", "privateKey", "rawPacket", "deviceId", "rawLog").forEach { token ->
+        expectFalse("status no $token", envelope.envelope.body.toString().contains(token, ignoreCase = true))
+    }
 }
 
 private fun desktopControlClientHasNoRawStreamRequestPath() {
