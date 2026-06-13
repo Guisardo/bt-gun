@@ -314,8 +314,8 @@ internal fun hostVisualizerStatusFor(
         else -> VisualizerStatus.AIM_ZERO_UNAVAILABLE
     }
     val recenterState = when {
-        lastRecenter != null -> VisualizerStatus.RECENTERED
         state.reloadHoldState.isReloadHeld -> VisualizerStatus.RECENTER_HELD
+        lastRecenter != null -> VisualizerStatus.RECENTERED
         else -> VisualizerStatus.RECENTER_IDLE
     }
     return VisualizerStatus(
@@ -1477,12 +1477,16 @@ class HostSessionService : Service() {
         }
 
         val gunInputState = currentState.gunInputState.apply(envelope.payload)
+        val feedsRecenterHold = envelope.payload.pressed != null &&
+            shouldFeedRecenterHold(currentState.activeProfile, envelope.payload.name)
+        var recenterHoldChanged = false
         if (
             envelope.payload.pressed != null &&
-            shouldFeedRecenterHold(currentState.activeProfile, envelope.payload.name)
+            feedsRecenterHold
         ) {
             val wasHeld = recenter.state.isReloadHeld
             recenter.onReload(envelope.payload.pressed, envelope.captureElapsedNanos)
+            recenterHoldChanged = wasHeld != recenter.state.isReloadHeld
             if (envelope.payload.pressed) {
                 if (!wasHeld) {
                     scheduleReloadHoldTick()
@@ -1498,6 +1502,9 @@ class HostSessionService : Service() {
             aimCalibrationState = aimCalibrationSession.state,
         ))
         currentState = hidSessionController.fanOutLiveInput(currentState)
+        if (recenterHoldChanged) {
+            publishVisualizerStatus()
+        }
         sendUdpEdge(envelope)
     }
 

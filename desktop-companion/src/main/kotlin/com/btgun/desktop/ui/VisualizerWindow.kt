@@ -127,7 +127,7 @@ class VisualizerWindow(
             gamepad.updateModel(model)
             metrics.text = labelsHtml(VisualizerPanels.metricsLabels(model.metrics))
             recenter.text = labelsHtml(recenterStatusLabels(model))
-            hapticAction.isEnabled = controlServer != null && model.packetLifecycle == com.btgun.desktop.transport.InputStreamLifecycleState.ACTIVE
+            hapticAction.isEnabled = controlServer != null && hapticButtonEnabled(model.controlSessionState)
             events.text = labelsHtml(
                 VisualizerPanels.eventStripLabels(
                     events = model.productEvents,
@@ -423,6 +423,7 @@ class VisualizerWindowCoordinator(
     ) {
         metrics.recordStatus(status = status, desktopReceivedElapsedNanos = observedElapsedNanos)
         model = modelForVisualizerStatus(model, status, observedElapsedNanos)
+            .withMetrics(metrics.snapshot())
         windowFactory.applyModel(model)
     }
 
@@ -474,16 +475,7 @@ class VisualizerWindowCoordinator(
             model: VisualizerModel,
             sessionState: com.btgun.desktop.control.ControlServerSessionState,
         ): VisualizerModel =
-            when (sessionState) {
-                com.btgun.desktop.control.ControlServerSessionState.AUTHENTICATED ->
-                    model.withPacketLifecycle(com.btgun.desktop.transport.InputStreamLifecycleState.ACTIVE)
-                com.btgun.desktop.control.ControlServerSessionState.DEGRADED ->
-                    model.withPacketLifecycle(com.btgun.desktop.transport.InputStreamLifecycleState.STALE)
-                com.btgun.desktop.control.ControlServerSessionState.DISCONNECTED,
-                com.btgun.desktop.control.ControlServerSessionState.STOPPED,
-                -> model.withPacketLifecycle(com.btgun.desktop.transport.InputStreamLifecycleState.STOPPED)
-                else -> model
-            }
+            model.withControlSessionState(sessionState)
     }
 }
 
