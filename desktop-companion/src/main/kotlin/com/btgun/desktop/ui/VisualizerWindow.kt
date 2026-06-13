@@ -17,9 +17,14 @@ import javax.swing.JPanel
 import javax.swing.SwingConstants
 import javax.swing.SwingUtilities
 
+interface VisualizerWindowHandle {
+    fun open()
+    fun applyModel(model: VisualizerModel)
+}
+
 class VisualizerWindow(
     private val frame: JFrame = JFrame(windowTitle()),
-) {
+) : VisualizerWindowHandle {
     private val title = JLabel(windowTitle())
     private val summary = JLabel(topSummaryPending())
     private val session = JLabel(emptyStateHeading())
@@ -49,7 +54,7 @@ class VisualizerWindow(
         frame.setLocationRelativeTo(null)
     }
 
-    fun open() {
+    override fun open() {
         SwingUtilities.invokeLater {
             frame.isVisible = true
             frame.toFront()
@@ -65,7 +70,7 @@ class VisualizerWindow(
         frame.dispose()
     }
 
-    fun applyModel(model: VisualizerModel) {
+    override fun applyModel(model: VisualizerModel) {
         SwingUtilities.invokeLater {
             summary.text = topSummaryPending()
             session.text = summaryFor(model.packetLifecycle.toDisplayState())
@@ -202,6 +207,63 @@ class VisualizerWindow(
                 .replace(">", "&gt;")
                 .replace("\"", "&quot;")
                 .replace("'", "&#39;")
+    }
+}
+
+class VisualizerWindowFactory(
+    private val createWindow: () -> VisualizerWindowHandle = { VisualizerWindow() },
+) {
+    private var window: VisualizerWindowHandle? = null
+
+    fun open(): VisualizerWindowHandle {
+        val current = window ?: createWindow().also { created ->
+            window = created
+        }
+        current.open()
+        return current
+    }
+
+    fun applyModel(model: VisualizerModel) {
+        window?.applyModel(model)
+    }
+}
+
+class VisualizerWindowCoordinator(
+    private val windowFactory: VisualizerWindowFactory,
+) {
+    private var openedForAuthenticatedSession = false
+    var model: VisualizerModel = VisualizerModel.initial()
+        private set
+
+    fun openVisualizer() {
+        windowFactory.open()
+        windowFactory.applyModel(model)
+    }
+
+    fun onSessionStateChanged(sessionState: com.btgun.desktop.control.ControlServerSessionState) {
+        model = modelForSessionState(model, sessionState)
+        if (sessionState == com.btgun.desktop.control.ControlServerSessionState.AUTHENTICATED && !openedForAuthenticatedSession) {
+            openedForAuthenticatedSession = true
+            windowFactory.open()
+        }
+        windowFactory.applyModel(model)
+    }
+
+    companion object {
+        fun modelForSessionState(
+            model: VisualizerModel,
+            sessionState: com.btgun.desktop.control.ControlServerSessionState,
+        ): VisualizerModel =
+            when (sessionState) {
+                com.btgun.desktop.control.ControlServerSessionState.AUTHENTICATED ->
+                    model.withPacketLifecycle(com.btgun.desktop.transport.InputStreamLifecycleState.ACTIVE)
+                com.btgun.desktop.control.ControlServerSessionState.DEGRADED ->
+                    model.withPacketLifecycle(com.btgun.desktop.transport.InputStreamLifecycleState.STALE)
+                com.btgun.desktop.control.ControlServerSessionState.DISCONNECTED,
+                com.btgun.desktop.control.ControlServerSessionState.STOPPED,
+                -> model.withPacketLifecycle(com.btgun.desktop.transport.InputStreamLifecycleState.STOPPED)
+                else -> model
+            }
     }
 }
 

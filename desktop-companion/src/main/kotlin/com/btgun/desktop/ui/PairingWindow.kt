@@ -46,6 +46,7 @@ class PairingWindow(
     private val macosBackendRuntime: MacosBackendRuntime? = null,
     private val macosBackendStartupDiagnostic: String = "disabled",
     private val openVisualizer: () -> Unit = {},
+    private val eventHub: DesktopUiEventHub? = null,
 ) {
     private val frame = JFrame("BT Gun Desktop")
     private val title = JLabel("BT Gun Desktop")
@@ -70,6 +71,7 @@ class PairingWindow(
     private var lastRawDebugEnabled: Boolean = false
     private var windowsBackendDiagnostics: WindowsBackendRuntimeDiagnostics? = windowsBackendRuntime?.diagnostics()
     private var macosBackendDiagnostics: MacosBackendRuntimeDiagnostics? = macosBackendRuntime?.diagnostics()
+    private var eventHubRegistration: AutoCloseable? = null
 
     init {
         title.font = title.font.deriveFont(Font.BOLD, 22f)
@@ -80,43 +82,50 @@ class PairingWindow(
         diagnostics.verticalAlignment = SwingConstants.TOP
         diagnostics.border = BorderFactory.createTitledBorder("Control state")
 
-        controlServer.onSessionStateChanged = { serverState ->
-            SwingUtilities.invokeLater {
-                applyServerState(serverState)
-            }
-        }
-        controlServer.onUdpInputStateChanged = { streamState ->
-            SwingUtilities.invokeLater {
-                packetStreamState = streamState
-                updateDiagnostics()
-            }
-        }
-        controlServer.onProfileMetadataReceived = { metadata ->
-            SwingUtilities.invokeLater {
-                activeProfileMetadata = metadata
-                lastProfileUpdateElapsedNanos = System.nanoTime()
-                lastRawDebugEnabled = metadata.rawDebugEnabled
-                updateDiagnostics()
-            }
-        }
-        controlServer.onUdpInputReceived = { input ->
-            SwingUtilities.invokeLater {
-                lastMappedProductStream = input.mappedProductStream
-                lastRawDebugEnabled = input.rawDebugEnabled
-                updateDiagnostics()
-            }
-        }
-        controlServer.onUdpInputRejected = { reason ->
-            SwingUtilities.invokeLater {
-                lastControlError = "UDP input rejected: ${reason.name.lowercase()}"
-                updateDiagnostics()
-            }
-        }
-        controlServer.onHapticResultReceived = { result ->
-            SwingUtilities.invokeLater {
-                lastHapticStatus = hapticStatusText(result)
-                updateDiagnostics()
-            }
+        val uiListener = DesktopUiEventListener(
+            onSessionStateChanged = { serverState ->
+                SwingUtilities.invokeLater {
+                    applyServerState(serverState)
+                }
+            },
+            onUdpInputStateChanged = { streamState ->
+                SwingUtilities.invokeLater {
+                    packetStreamState = streamState
+                    updateDiagnostics()
+                }
+            },
+            onProfileMetadataReceived = { metadata ->
+                SwingUtilities.invokeLater {
+                    activeProfileMetadata = metadata
+                    lastProfileUpdateElapsedNanos = System.nanoTime()
+                    lastRawDebugEnabled = metadata.rawDebugEnabled
+                    updateDiagnostics()
+                }
+            },
+            onUdpInputReceived = { input ->
+                SwingUtilities.invokeLater {
+                    lastMappedProductStream = input.mappedProductStream
+                    lastRawDebugEnabled = input.rawDebugEnabled
+                    updateDiagnostics()
+                }
+            },
+            onUdpInputRejected = { reason ->
+                SwingUtilities.invokeLater {
+                    lastControlError = "UDP input rejected: ${reason.name.lowercase()}"
+                    updateDiagnostics()
+                }
+            },
+            onHapticResultReceived = { result ->
+                SwingUtilities.invokeLater {
+                    lastHapticStatus = hapticStatusText(result)
+                    updateDiagnostics()
+                }
+            },
+        )
+        if (eventHub == null) {
+            attachDirectControlCallbacks(uiListener)
+        } else {
+            eventHubRegistration = eventHub.listen(uiListener)
         }
         windowsBackendRuntime?.onDiagnosticsChanged = { backendDiagnostics ->
             SwingUtilities.invokeLater {
@@ -146,6 +155,7 @@ class PairingWindow(
         frame.addWindowListener(
             object : WindowAdapter() {
                 override fun windowClosing(event: WindowEvent) {
+                    eventHubRegistration?.close()
                     macosBackendRuntime?.close()
                     windowsBackendRuntime?.close()
                     controlServer.stop()
@@ -201,6 +211,15 @@ class PairingWindow(
         session = registry.startPairing()
         val current = session ?: return
         renderSession(current)
+    }
+
+    private fun attachDirectControlCallbacks(listener: DesktopUiEventListener) {
+        controlServer.onSessionStateChanged = listener.onSessionStateChanged
+        controlServer.onUdpInputStateChanged = listener.onUdpInputStateChanged
+        controlServer.onProfileMetadataReceived = listener.onProfileMetadataReceived
+        controlServer.onUdpInputReceived = listener.onUdpInputReceived
+        controlServer.onUdpInputRejected = listener.onUdpInputRejected
+        controlServer.onHapticResultReceived = listener.onHapticResultReceived
     }
 
     private fun renderSession(current: PairingSession) {
