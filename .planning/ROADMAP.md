@@ -339,7 +339,29 @@ Plans:
   4. User can press a haptic test control that vibrates the Android phone and shows ack or fail result.
   5. Visualizer path measures Android capture timestamp to desktop update and targets under 50 ms on normal local Wi-Fi.
 
-**Plans:** TBD
+Plans:
+
+**Wave 0**
+
+- [ ] 09-01-PLAN.md — Wave 0 desktop event hub, visualizer metrics, and immutable model contracts.
+
+**Wave 1** *(blocked on Wave 0 completion)*
+
+- [ ] 09-02-PLAN.md — Separate Swing visualizer shell, manual reopen action, and authenticated auto-open path.
+
+**Wave 2** *(blocked on Wave 1 for 09-03; blocked on Wave 0 for 09-04)*
+
+- [ ] 09-03-PLAN.md — Live gamepad panels, metrics display, raw-debug drawer, event strip, and LAN phone haptic action.
+- [ ] 09-04-PLAN.md — Android sanitized visualizer status diagnostics for recenter, aim-zero, raw-debug, and clock context.
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 09-05-PLAN.md — Desktop visualizerStatus parser, callback fanout, model integration, and recenter/aim-zero rendering.
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 09-06-PLAN.md — Final guided checklist rows, backend proof status, and sanitized Phase 9 manual proof guide.
+
 **UI hint**: yes
 
 ### Phase 10: Diagnostics, Replay, and v1 Docs
