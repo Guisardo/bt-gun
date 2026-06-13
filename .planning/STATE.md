@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 09-01-PLAN.md
-last_updated: "2026-06-13T01:59:54.294Z"
+stopped_at: Completed 09-02-PLAN.md
+last_updated: "2026-06-13T02:19:08.589Z"
 last_activity: 2026-06-13 -- Phase 09 execution started
 progress:
   total_phases: 10
   completed_phases: 8
   total_plans: 55
-  completed_plans: 50
-  percent: 80
+  completed_plans: 51
+  percent: 93
 ---
 
 # Project State
@@ -26,12 +26,12 @@ See: .planning/PROJECT.md (updated 2026-06-09)
 ## Current Position
 
 Phase: 09 (visualizer-acceptance-path) — EXECUTING
-Plan: 2 of 6
+Plan: 3 of 6
 Next phase: Execute Phase 09 visualizer acceptance path
 Status: Ready to execute
 Last activity: 2026-06-13 -- Phase 09 execution started
 
-Progress: [█████████░] 49/55 active planned plans complete. Phase 08 is complete; Phase 09 is planned.
+Progress: [█████████░] 51/55 active planned plans complete. Phase 09 is executing.
 
 ## Performance Metrics
 
@@ -110,6 +110,7 @@ Progress: [█████████░] 49/55 active planned plans complete. 
 | Phase 08 P06 | 16m | 3 tasks | 11 files |
 | Phase 08 P07 | hardware-interactive | 3 tasks | 3 files |
 | Phase 09 P01 | 13 min | 3 tasks | 7 files |
+| Phase 09 P02 | 14 min | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -235,6 +236,9 @@ Recent decisions affecting current work:
 - [Phase 09]: Use DesktopUiEventHub fanout before VisualizerWindow — Prevents PairingWindow, backend runtime, and visualizer callbacks from clobbering each other.
 - [Phase 09]: Compute visualizer latency through explicit Android-to-desktop clock offset — Android elapsedRealtimeNanos and desktop System.nanoTime have unrelated origins, so direct subtraction is invalid.
 - [Phase 09]: Separate observed checklist state from user-confirmed proof state — Physical, OS-visible, and phone-haptic rows need manual confirmation even when live state is observed.
+- [Phase 09]: Use VisualizerWindowFactory plus VisualizerWindowCoordinator so authenticated sessions and manual reopen share one visualizer instance. Rationale: Prevents duplicate frame floods and keeps pairing/status UI separate from visualizer lifecycle.
+- [Phase 09]: Route PairingWindow UI callbacks through DesktopUiEventHub when Main injects one, preserving backend and visualizer fanout. Rationale: Prevents PairingWindow from replacing shared ControlServer callbacks in the visualizer opening path.
+- [Phase 09]: Keep PairingWindow as pairing/status UI; visualizer-only checklist and gamepad labels stay in VisualizerWindow. Rationale: Preserves Phase 9 D-05 and D-07 ownership boundaries.
 
 ### Pending Todos
 
@@ -264,6 +268,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-13T01:59:23.870Z
-Stopped at: Completed 09-01-PLAN.md
+Last session: 2026-06-13T02:19:08.571Z
+Stopped at: Completed 09-02-PLAN.md
 Resume file: None
