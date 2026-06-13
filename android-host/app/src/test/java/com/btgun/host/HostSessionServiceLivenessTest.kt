@@ -31,6 +31,7 @@ import com.btgun.host.profile.SaveProfileResult
 import com.btgun.host.profile.SmoothingMode
 import com.btgun.host.profile.VirtualButton
 import com.btgun.host.recenter.ReloadHoldRecenter
+import com.btgun.host.recenter.ReloadHoldState
 import com.btgun.host.session.VisualizerStatus
 
 fun main() {
@@ -50,6 +51,7 @@ fun main() {
     recenterUsesSelectedPhysicalControlWhileVirtualReloadPublishes()
     visualizerStatusReflectsRecenterAimZeroAndRawDebug()
     visualizerStatusDoesNotReportReadyBeforeLiveMotion()
+    visualizerStatusReportsHeldEvenAfterPriorRecenter()
     visualizerStatusNoopsWithoutTrustedDesktopConnection()
     reloadDownUpEventsStillFanOutAroundRecenterStatus()
 }
@@ -421,6 +423,37 @@ private fun visualizerStatusDoesNotReportReadyBeforeLiveMotion() {
 
     expectEquals("baseline alone not ready", VisualizerStatus.AIM_ZERO_UNAVAILABLE, status.aimZeroState)
     expectEquals("unavailable provider not ready", VisualizerStatus.AIM_ZERO_UNAVAILABLE, unavailableMotionStatus.aimZeroState)
+}
+
+private fun visualizerStatusReportsHeldEvenAfterPriorRecenter() {
+    val recenter = statusEnvelope(
+        name = ReloadHoldRecenter.RECENTER_EVENT_NAME,
+        label = "recenter emitted",
+        elapsedNanos = 4_000_000_000L,
+    )
+    val status = hostVisualizerStatusFor(
+        state = HostSessionState(
+            lastRecenterStatus = recenter,
+            reloadHoldState = ReloadHoldState(
+                isReloadHeld = true,
+                pressedElapsedNanos = 6_000_000_000L,
+                recenterEmitted = false,
+                calibrationEmitted = false,
+            ),
+            lastMotionSample = motionEnvelope(liveMotionSample()),
+            aimBaseline = com.btgun.host.motion.AimBaseline(
+                yaw = 1f,
+                pitch = 2f,
+                roll = 3f,
+                elapsedNanos = 4_000_000_000L,
+            ),
+        ),
+        androidElapsedNanos = 6_100_000_000L,
+        statusSequence = 6L,
+    )
+
+    expectEquals("held state wins over prior recenter", VisualizerStatus.RECENTER_HELD, status.recenterState)
+    expectEquals("prior recenter timestamp preserved", 4_000_000_000L, status.lastRecenterElapsedNanos)
 }
 
 private fun visualizerStatusNoopsWithoutTrustedDesktopConnection() {

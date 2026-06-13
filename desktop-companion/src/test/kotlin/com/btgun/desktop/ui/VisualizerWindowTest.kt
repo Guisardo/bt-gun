@@ -8,6 +8,7 @@ import com.btgun.desktop.backend.BackendLifecycleState
 import com.btgun.desktop.backend.BackendPublishResult
 import com.btgun.desktop.backend.macos.MacosBackendRuntimeDiagnostics
 import com.btgun.desktop.backend.windows.WindowsBackendRuntimeDiagnostics
+import com.btgun.desktop.haptics.HapticResult
 import com.btgun.desktop.haptics.HapticResultStatus
 import com.btgun.desktop.transport.InputReplayRejectReason
 import com.btgun.desktop.transport.InputStreamLifecycleState
@@ -26,12 +27,14 @@ fun main() {
     visualizerHapticStatusCopyMatchesUiSpec()
     visualizerWindowRendersRecenterAndRawDebugStatusLabels()
     visualizerCoordinatorAppliesVisualizerStatusWithoutClearingState()
+    visualizerCoordinatorRefreshesMetricsFromVisualizerStatus()
     visualizerCoordinatorAppliesBackendDiagnostics()
     backendProofLabelsAreSanitized()
     manualProofGuideNamesRowsAndKeepsChecklistPrimary()
     visualizerWindowSourceExcludesForbiddenLabels()
     visualizerFactoryReusesExistingWindow()
     visualizerCoordinatorOpensOnceOnAuthenticatedSession()
+    visualizerCoordinatorKeepsHapticAvailableWhenUdpStale()
     visualizerCoordinatorAppliesLiveInputProfileMetricsAndRejections()
     visualizerCoordinatorPreservesChecklistAndContextOnDisconnect()
     mainWiresEventHubVisualizerFactoryAndPairingWindow()
@@ -221,6 +224,14 @@ private fun visualizerWindowRendersRecenterAndRawDebugStatusLabels() {
 
 private fun visualizerCoordinatorAppliesVisualizerStatusWithoutClearingState() {
     val existing = VisualizerModel.initial()
+        .withHapticResult(
+            HapticResult(
+                commandId = "visualizer-haptic-1",
+                status = HapticResultStatus.STARTED,
+                detail = "phone pulse started",
+                observedElapsedNanos = 5_000_000_000L,
+            ),
+        )
         .confirmRow(VisualizerChecklistRowId.LAN_PHONE_HAPTIC)
         .withAcceptedInput(
             acceptedInputForWindow(sequence = 9L, aimX = 0.25f, aimY = -0.5f),
@@ -246,6 +257,33 @@ private fun visualizerCoordinatorAppliesVisualizerStatusWithoutClearingState() {
     expectEquals("live aim x preserved", 0.25f, updated.liveState.aimX)
     expectEquals("haptic confirmation preserved", VisualizerChecklistState.CONFIRMED, updated.row(VisualizerChecklistRowId.LAN_PHONE_HAPTIC).state)
     expectEquals("recenter observed", VisualizerChecklistState.OBSERVED, updated.row(VisualizerChecklistRowId.RECENTER_AIM_ZERO).state)
+}
+
+private fun visualizerCoordinatorRefreshesMetricsFromVisualizerStatus() {
+    val coordinator = VisualizerWindowCoordinator(
+        windowFactory = VisualizerWindowFactory {
+            object : VisualizerWindowHandle {
+                override fun open() = Unit
+                override fun applyModel(model: VisualizerModel) = Unit
+            }
+        },
+    )
+    coordinator.onUdpInputReceived(
+        acceptedInputForWindow(sequence = 1L, aimX = 0.25f, aimY = -0.5f),
+        observedElapsedNanos = 10_030_000_000L,
+    )
+    coordinator.onVisualizerStatusReceived(
+        status = VisualizerStatus(
+            rawDebugEnabled = false,
+            aimZeroState = "ready",
+            recenterState = "idle",
+            androidElapsedNanos = 1_000_000_000L,
+        ),
+        observedElapsedNanos = 10_000_000_000L,
+    )
+
+    expectEquals("status offset rendered into model", VisualizerClockOffsetQuality.GOOD, coordinator.model.metrics.offsetQuality)
+    expectEquals("status metrics preserve packet proof", VisualizerChecklistState.OBSERVED, coordinator.model.row(VisualizerChecklistRowId.PACKET_LOSS).state)
 }
 
 private fun visualizerCoordinatorAppliesBackendDiagnostics() {
@@ -402,6 +440,24 @@ private fun visualizerCoordinatorOpensOnceOnAuthenticatedSession() {
     )
 }
 
+private fun visualizerCoordinatorKeepsHapticAvailableWhenUdpStale() {
+    val coordinator = VisualizerWindowCoordinator(
+        windowFactory = VisualizerWindowFactory {
+            object : VisualizerWindowHandle {
+                override fun open() = Unit
+                override fun applyModel(model: VisualizerModel) = Unit
+            }
+        },
+    )
+
+    coordinator.onSessionStateChanged(ControlServerSessionState.AUTHENTICATED)
+    coordinator.onUdpInputStateChanged(InputStreamLifecycleState.STALE)
+
+    expectEquals("control session remains authenticated", ControlServerSessionState.AUTHENTICATED, coordinator.model.controlSessionState)
+    expectEquals("udp lifecycle stale", InputStreamLifecycleState.STALE, coordinator.model.packetLifecycle)
+    expectTrue("authenticated control enables haptic despite stale udp", VisualizerWindow.hapticButtonEnabled(coordinator.model.controlSessionState))
+}
+
 private fun visualizerCoordinatorAppliesLiveInputProfileMetricsAndRejections() {
     val applied = mutableListOf<VisualizerModel>()
     val coordinator = VisualizerWindowCoordinator(
@@ -445,6 +501,16 @@ private fun visualizerCoordinatorAppliesLiveInputProfileMetricsAndRejections() {
 
 private fun visualizerCoordinatorPreservesChecklistAndContextOnDisconnect() {
     val existing = VisualizerModel.initial()
+        .withVisualizerStatus(
+            status = VisualizerStatus(
+                rawDebugEnabled = false,
+                aimZeroState = "ready",
+                recenterState = "recentered",
+                lastRecenterElapsedNanos = 3_000_000_000L,
+                androidElapsedNanos = 5_000_000_000L,
+            ),
+            observedElapsedNanos = 6_000_000_000L,
+        )
         .confirmRow(VisualizerChecklistRowId.RECENTER_AIM_ZERO)
         .copy(lastAcceptedAimX = 0.4f, lastAcceptedAimY = -0.2f)
 

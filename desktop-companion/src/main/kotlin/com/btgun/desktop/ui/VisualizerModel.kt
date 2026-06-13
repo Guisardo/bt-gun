@@ -6,6 +6,7 @@ import com.btgun.desktop.backend.BackendLifecycleState
 import com.btgun.desktop.backend.BackendPublishResult
 import com.btgun.desktop.backend.macos.MacosBackendRuntimeDiagnostics
 import com.btgun.desktop.backend.windows.WindowsBackendRuntimeDiagnostics
+import com.btgun.desktop.control.ControlServerSessionState
 import com.btgun.desktop.control.HapticSendResult
 import com.btgun.desktop.control.ProfileMetadata
 import com.btgun.desktop.control.VisualizerStatus
@@ -111,6 +112,7 @@ data class VisualizerHapticStatus(
 data class VisualizerModel(
     val liveState: SemanticControllerState = SemanticControllerState(),
     val profileSummary: VisualizerProfileSummary = VisualizerProfileSummary(),
+    val controlSessionState: ControlServerSessionState = ControlServerSessionState.STOPPED,
     val packetLifecycle: InputStreamLifecycleState = InputStreamLifecycleState.STOPPED,
     val hapticStatus: VisualizerHapticStatus = VisualizerHapticStatus(
         commandId = null,
@@ -173,6 +175,19 @@ data class VisualizerModel(
     fun withPacketLifecycle(state: InputStreamLifecycleState): VisualizerModel =
         copy(packetLifecycle = state)
 
+    fun withControlSessionState(state: ControlServerSessionState): VisualizerModel =
+        copy(
+            controlSessionState = state,
+            packetLifecycle = when (state) {
+                ControlServerSessionState.AUTHENTICATED -> InputStreamLifecycleState.ACTIVE
+                ControlServerSessionState.DEGRADED -> InputStreamLifecycleState.STALE
+                ControlServerSessionState.DISCONNECTED,
+                ControlServerSessionState.STOPPED,
+                -> InputStreamLifecycleState.STOPPED
+                else -> packetLifecycle
+            },
+        )
+
     fun withProfileMetadata(metadata: ProfileMetadata): VisualizerModel =
         copy(profileSummary = VisualizerProfileSummary.from(metadata))
 
@@ -227,8 +242,9 @@ data class VisualizerModel(
                     source = "current-session latency sample under target",
                     observedElapsedNanos = null,
                 )
-                .markObserved(
+                .markObservedIf(
                     id = VisualizerChecklistRowId.PACKET_LOSS,
+                    condition = snapshot.packetExpected > 0L,
                     source = "current-session accepted sequence counters",
                     observedElapsedNanos = null,
                 ),
@@ -353,17 +369,24 @@ data class VisualizerModel(
     fun confirmRow(id: VisualizerChecklistRowId): VisualizerModel =
         copy(
             checklistRows = checklistRows.update(id) { row ->
-                row.copy(
-                    state = VisualizerChecklistState.CONFIRMED,
-                    observedSource = row.observedSource ?: "user-confirmed observation",
-                )
+                if (row.state == VisualizerChecklistState.OBSERVED) {
+                    row.copy(
+                        state = VisualizerChecklistState.CONFIRMED,
+                        observedSource = row.observedSource ?: "user-confirmed observation",
+                    )
+                } else if (id == VisualizerChecklistRowId.MACOS_HID_INPUT && row.state == VisualizerChecklistState.WAITING) {
+                    row.copy(
+                        state = VisualizerChecklistState.CONFIRMED,
+                        observedSource = "user-confirmed macOS Android HID input",
+                    )
+                } else {
+                    row
+                }
             },
         )
 
     fun confirmNextObservedRow(): VisualizerModel {
-        val next = checklistRows.firstOrNull { row ->
-            row.requiresUserConfirmation && row.state == VisualizerChecklistState.OBSERVED
-        } ?: return this
+        val next = checklistRows.firstOrNull { row -> row.isConfirmableByUser() } ?: return this
         return confirmRow(next.id)
     }
 
@@ -426,6 +449,13 @@ private fun VisualizerChecklistRow.isAcceptedForPass(): Boolean =
             state == VisualizerChecklistState.OBSERVED || state == VisualizerChecklistState.CONFIRMED
         }
     }
+
+private fun VisualizerChecklistRow.isConfirmableByUser(): Boolean =
+    requiresUserConfirmation &&
+        (
+            state == VisualizerChecklistState.OBSERVED ||
+                (id == VisualizerChecklistRowId.MACOS_HID_INPUT && state == VisualizerChecklistState.WAITING)
+            )
 
 private fun lastRecenterLabel(status: VisualizerStatus): String {
     val last = status.lastRecenterElapsedNanos ?: return "Last recenter: none"

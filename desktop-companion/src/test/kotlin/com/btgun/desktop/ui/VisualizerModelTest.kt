@@ -16,6 +16,7 @@ import com.btgun.desktop.haptics.HapticResultStatus
 fun main() {
     finalChecklistCannotPassUntilRequiredRowsReachAcceptedStates()
     macosAndWindowsInputRowsAreIndependentAndBothRequired()
+    manualConfirmationRequiresObservedPrerequisitesExceptMacosInput()
     resetChecklistClearsProofOnlyAndPreservesLiveSessionState()
     windowsBackendDiagnosticsObserveInputButStillRequireConfirmation()
     windowsHapticDiagnosticsRequireRoutedOutputAndUserConfirmation()
@@ -50,6 +51,25 @@ private fun finalChecklistCannotPassUntilRequiredRowsReachAcceptedStates() {
         .withMetrics(
             VisualizerMetricSnapshot.empty().copy(
                 targetStatus = "pass",
+                packetExpected = 1L,
+            ),
+        )
+        .withWindowsBackendDiagnostics(
+            diagnostics = WindowsBackendRuntimeDiagnostics(
+                lifecycleState = BackendLifecycleState.STARTED,
+                lastPublishResult = BackendPublishResult.Published,
+                lastSourceSequence = 1L,
+                lastHapticSendResult = HapticSendResult.Sent,
+                outputHapticCommandsRouted = 1L,
+            ),
+            observedElapsedNanos = 4_000_000L,
+        )
+        .withHapticResult(
+            HapticResult(
+                commandId = "visualizer-haptic-1",
+                status = HapticResultStatus.STARTED,
+                detail = "phone pulse started",
+                observedElapsedNanos = 5_000_000L,
             ),
         )
 
@@ -78,9 +98,43 @@ private fun macosAndWindowsInputRowsAreIndependentAndBothRequired() {
 
     val onlyWindows = VisualizerModel.initial()
         .confirmRow(VisualizerChecklistRowId.WINDOWS_VHF_INPUT)
-    expectEquals("Windows row confirmed", VisualizerChecklistState.CONFIRMED, onlyWindows.row(VisualizerChecklistRowId.WINDOWS_VHF_INPUT).state)
+    expectEquals("Windows row still needs observation", VisualizerChecklistState.WAITING, onlyWindows.row(VisualizerChecklistRowId.WINDOWS_VHF_INPUT).state)
     expectEquals("macOS row still waiting", VisualizerChecklistState.WAITING, onlyWindows.row(VisualizerChecklistRowId.MACOS_HID_INPUT).state)
     expectEquals("other OS path insufficient", VisualizerChecklistSummary.PENDING, onlyWindows.checklistSummary())
+
+    val confirmedWindows = VisualizerModel.initial()
+        .withWindowsBackendDiagnostics(
+            diagnostics = WindowsBackendRuntimeDiagnostics(
+                lifecycleState = BackendLifecycleState.STARTED,
+                lastPublishResult = BackendPublishResult.Published,
+                lastSourceSequence = 22L,
+            ),
+            observedElapsedNanos = 3_000_000L,
+        )
+        .confirmRow(VisualizerChecklistRowId.WINDOWS_VHF_INPUT)
+    expectEquals("Windows row confirms after observation", VisualizerChecklistState.CONFIRMED, confirmedWindows.row(VisualizerChecklistRowId.WINDOWS_VHF_INPUT).state)
+}
+
+private fun manualConfirmationRequiresObservedPrerequisitesExceptMacosInput() {
+    val unobserved = VisualizerModel.initial()
+        .confirmRow(VisualizerChecklistRowId.RECENTER_AIM_ZERO)
+        .confirmRow(VisualizerChecklistRowId.WINDOWS_VHF_INPUT)
+        .confirmRow(VisualizerChecklistRowId.LAN_PHONE_HAPTIC)
+        .confirmRow(VisualizerChecklistRowId.WINDOWS_VHF_HAPTIC)
+
+    listOf(
+        VisualizerChecklistRowId.RECENTER_AIM_ZERO,
+        VisualizerChecklistRowId.WINDOWS_VHF_INPUT,
+        VisualizerChecklistRowId.LAN_PHONE_HAPTIC,
+        VisualizerChecklistRowId.WINDOWS_VHF_HAPTIC,
+    ).forEach { rowId ->
+        expectEquals("unobserved row remains waiting: ${rowId.wireId}", VisualizerChecklistState.WAITING, unobserved.row(rowId).state)
+    }
+    expectEquals(
+        "guided confirm can accept external macOS proof",
+        VisualizerChecklistState.CONFIRMED,
+        VisualizerModel.initial().confirmNextObservedRow().row(VisualizerChecklistRowId.MACOS_HID_INPUT).state,
+    )
 }
 
 private fun resetChecklistClearsProofOnlyAndPreservesLiveSessionState() {
