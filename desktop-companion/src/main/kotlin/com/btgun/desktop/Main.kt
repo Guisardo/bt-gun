@@ -7,7 +7,11 @@ import com.btgun.desktop.backend.windows.WindowsBackendRuntime
 import com.btgun.desktop.backend.windows.WindowsBackendRuntimeConfig
 import com.btgun.desktop.pairing.PairingSessionRegistry
 import com.btgun.desktop.security.DesktopIdentityStore
+import com.btgun.desktop.ui.DesktopUiEventHub
+import com.btgun.desktop.ui.DesktopUiEventListener
 import com.btgun.desktop.ui.PairingWindow
+import com.btgun.desktop.ui.VisualizerWindowCoordinator
+import com.btgun.desktop.ui.VisualizerWindowFactory
 import javax.swing.SwingUtilities
 
 fun main() {
@@ -20,6 +24,14 @@ private fun createPairingWindow(): PairingWindow {
     val identityStore = DesktopIdentityStore.default()
     val registry = PairingSessionRegistry(identityStore = identityStore)
     val controlServer = ControlServer(registry = registry)
+    val eventHub = DesktopUiEventHub(controlServer).attach()
+    val visualizerFactory = VisualizerWindowFactory()
+    val coordinator = VisualizerWindowCoordinator(visualizerFactory)
+    eventHub.listen(
+        DesktopUiEventListener(
+            onSessionStateChanged = coordinator::onSessionStateChanged,
+        ),
+    )
     val windowsBackendLaunch = createWindowsBackendLaunch()
     val macosBackendLaunch = createMacosBackendLaunch()
     return PairingWindow(
@@ -29,6 +41,8 @@ private fun createPairingWindow(): PairingWindow {
         windowsBackendStartupDiagnostic = windowsBackendLaunch.diagnostic,
         macosBackendRuntime = macosBackendLaunch.runtime,
         macosBackendStartupDiagnostic = macosBackendLaunch.diagnostic,
+        openVisualizer = coordinator::openVisualizer,
+        eventHub = eventHub,
     )
 }
 
