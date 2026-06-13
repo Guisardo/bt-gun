@@ -278,7 +278,9 @@ class ControlServer(
             ControlMessageType.INPUT_STREAM_CONFIG,
             -> onControlEnvelopeAccepted(envelope)
             ControlMessageType.DIAGNOSTICS -> {
-                visualizerStatusFromJsonBody(envelope.body)?.let(onVisualizerStatusReceived)
+                visualizerStatusFromJsonBody(envelope.body)
+                    ?.copy(controlSessionId = envelope.sessionId)
+                    ?.let(onVisualizerStatusReceived)
                 onControlEnvelopeAccepted(envelope)
             }
             ControlMessageType.PROFILE_METADATA -> {

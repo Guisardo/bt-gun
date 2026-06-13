@@ -13,6 +13,7 @@ fun main() {
     metricsLabelsExposeUiSpecCopy()
     packetCountersResetOnControlOrStreamSessionChange()
     clockOffsetClearsOnControlOrStreamSessionChange()
+    pendingStatusOffsetAppliesToMatchingNewControlSession()
 }
 
 private fun offsetQualityStartsUnavailableThenUsesStatusAndUdpSamples() {
@@ -172,6 +173,38 @@ private fun clockOffsetClearsOnControlOrStreamSessionChange() {
 
     expectEquals("new session uses UDP estimated offset", VisualizerClockOffsetQuality.ESTIMATED, reset.offsetQuality)
     expectEquals("new session does not reuse stale good offset", 20L, reset.headlineLatencyMillis)
+}
+
+private fun pendingStatusOffsetAppliesToMatchingNewControlSession() {
+    val metrics = VisualizerMetrics()
+    metrics.record(
+        acceptedInput(sequence = 1L, captureElapsedNanos = 1_000_000_000L, sendElapsedNanos = 1_010_000_000L),
+        desktopRenderElapsedNanos = 10_030_000_000L,
+    )
+    metrics.recordStatus(
+        status = VisualizerStatus(
+            controlSessionId = "control-sid-2",
+            rawDebugEnabled = false,
+            aimZeroState = "ready",
+            recenterState = "idle",
+            androidElapsedNanos = 2_000_000_000L,
+        ),
+        desktopReceivedElapsedNanos = 20_000_000_000L,
+    )
+
+    val snapshot = metrics.record(
+        acceptedInput(
+            controlSessionId = "control-sid-2",
+            sequence = 1L,
+            captureElapsedNanos = 2_005_000_000L,
+            sendElapsedNanos = 2_010_000_000L,
+            receivedElapsedNanos = 20_040_000_000L,
+        ),
+        desktopRenderElapsedNanos = 20_030_000_000L,
+    )
+
+    expectEquals("new session uses pending status offset", VisualizerClockOffsetQuality.GOOD, snapshot.offsetQuality)
+    expectEquals("new session pending status latency", 25L, snapshot.headlineLatencyMillis)
 }
 
 private fun acceptedInput(

@@ -304,9 +304,13 @@ internal fun hostVisualizerStatusFor(
         ?.payload
         ?.baselineElapsedNanos
         ?: lastRecenter?.captureElapsedNanos
+    val hasLiveMotionSample = state.lastMotionSample
+        ?.payload
+        ?.let { sample -> sample.provider != MotionProvider.UNAVAILABLE && sample.providerName != MotionProvider.UNAVAILABLE.wireName }
+        ?: false
     val aimZeroState = when {
-        state.aimBaseline != null -> VisualizerStatus.AIM_ZERO_READY
-        state.lastMotionSample != null -> VisualizerStatus.AIM_ZERO_PENDING
+        state.aimBaseline != null && hasLiveMotionSample -> VisualizerStatus.AIM_ZERO_READY
+        hasLiveMotionSample -> VisualizerStatus.AIM_ZERO_PENDING
         else -> VisualizerStatus.AIM_ZERO_UNAVAILABLE
     }
     val recenterState = when {
