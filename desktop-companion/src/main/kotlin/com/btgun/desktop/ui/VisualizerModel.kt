@@ -2,6 +2,10 @@ package com.btgun.desktop.ui
 
 import com.btgun.desktop.backend.SemanticControllerState
 import com.btgun.desktop.backend.UdpControllerStateAdapter
+import com.btgun.desktop.backend.BackendLifecycleState
+import com.btgun.desktop.backend.BackendPublishResult
+import com.btgun.desktop.backend.macos.MacosBackendRuntimeDiagnostics
+import com.btgun.desktop.backend.windows.WindowsBackendRuntimeDiagnostics
 import com.btgun.desktop.control.HapticSendResult
 import com.btgun.desktop.control.ProfileMetadata
 import com.btgun.desktop.control.VisualizerStatus
@@ -294,6 +298,53 @@ data class VisualizerModel(
             )
         }
         return copy(hapticStatus = nextStatus)
+    }
+
+    fun withWindowsBackendDiagnostics(
+        diagnostics: WindowsBackendRuntimeDiagnostics,
+        observedElapsedNanos: Long,
+    ): VisualizerModel {
+        var rows = checklistRows
+        if (
+            diagnostics.lifecycleState == BackendLifecycleState.STARTED &&
+            diagnostics.lastPublishResult == BackendPublishResult.Published &&
+            diagnostics.lastSourceSequence != null
+        ) {
+            rows = rows.markObserved(
+                id = VisualizerChecklistRowId.WINDOWS_VHF_INPUT,
+                source = "Phase 6 Windows VHF backend published seq=${diagnostics.lastSourceSequence}",
+                observedElapsedNanos = observedElapsedNanos,
+            )
+        }
+        if (
+            diagnostics.outputHapticCommandsRouted > 0L &&
+            diagnostics.lastHapticSendResult == HapticSendResult.Sent
+        ) {
+            rows = rows.markObserved(
+                id = VisualizerChecklistRowId.WINDOWS_VHF_HAPTIC,
+                source = "Phase 6 Windows VHF output routed to phone haptic",
+                observedElapsedNanos = observedElapsedNanos,
+            )
+        }
+        return copy(checklistRows = rows)
+    }
+
+    fun withMacosBackendDiagnostics(
+        diagnostics: MacosBackendRuntimeDiagnostics,
+        observedElapsedNanos: Long,
+    ): VisualizerModel {
+        val source = if (diagnostics.outputHapticCommandsRouted > 0L) {
+            "macOS HID haptic unsupported/deferred; LAN and Windows phone haptics remain available"
+        } else {
+            "macOS HID haptic unsupported/deferred by Phase 7 evidence"
+        }
+        return copy(
+            checklistRows = checklistRows.markObserved(
+                id = VisualizerChecklistRowId.MACOS_HID_HAPTIC_LIMIT,
+                source = source,
+                observedElapsedNanos = observedElapsedNanos,
+            ),
+        )
     }
 
     fun confirmRow(id: VisualizerChecklistRowId): VisualizerModel =

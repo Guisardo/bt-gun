@@ -4,6 +4,8 @@ import com.btgun.desktop.control.ControlServer
 import com.btgun.desktop.control.ControlServerSessionState
 import com.btgun.desktop.control.HapticSendResult
 import com.btgun.desktop.control.VisualizerStatus
+import com.btgun.desktop.backend.macos.MacosBackendRuntimeDiagnostics
+import com.btgun.desktop.backend.windows.WindowsBackendRuntimeDiagnostics
 import com.btgun.desktop.haptics.HapticCommand
 import com.btgun.desktop.haptics.HapticResult
 import com.btgun.desktop.haptics.HapticResultStatus
@@ -274,6 +276,20 @@ class VisualizerWindow(
                 model.recenter.lastRecenterLabel,
             )
 
+        fun backendProofLabels(
+            windowsDiagnostics: WindowsBackendRuntimeDiagnostics?,
+            macosDiagnostics: MacosBackendRuntimeDiagnostics?,
+        ): List<String> =
+            listOfNotNull(
+                windowsDiagnostics?.let { diagnostics ->
+                    val sequence = diagnostics.lastSourceSequence?.let { " seq=$it" }.orEmpty()
+                    "Phase 6 Windows VHF: lifecycle=${diagnostics.lifecycleState.name.lowercase()}$sequence routed=${diagnostics.outputHapticCommandsRouted}"
+                },
+                macosDiagnostics?.let {
+                    "macOS HID haptic unsupported/deferred; LAN and Windows phone haptics remain available."
+                },
+            )
+
         fun requiredSectionLabels(): List<String> =
             listOf(
                 "Acceptance checklist",
@@ -378,6 +394,22 @@ class VisualizerWindowCoordinator(
         windowFactory.applyModel(model)
     }
 
+    fun onWindowsBackendDiagnosticsChanged(
+        diagnostics: WindowsBackendRuntimeDiagnostics,
+        observedElapsedNanos: Long = System.nanoTime(),
+    ) {
+        model = modelForWindowsBackendDiagnostics(model, diagnostics, observedElapsedNanos)
+        windowFactory.applyModel(model)
+    }
+
+    fun onMacosBackendDiagnosticsChanged(
+        diagnostics: MacosBackendRuntimeDiagnostics,
+        observedElapsedNanos: Long = System.nanoTime(),
+    ) {
+        model = modelForMacosBackendDiagnostics(model, diagnostics, observedElapsedNanos)
+        windowFactory.applyModel(model)
+    }
+
     companion object {
         fun modelForVisualizerStatus(
             model: VisualizerModel,
@@ -385,6 +417,26 @@ class VisualizerWindowCoordinator(
             observedElapsedNanos: Long,
         ): VisualizerModel =
             model.withVisualizerStatus(status = status, observedElapsedNanos = observedElapsedNanos)
+
+        fun modelForWindowsBackendDiagnostics(
+            model: VisualizerModel,
+            diagnostics: WindowsBackendRuntimeDiagnostics,
+            observedElapsedNanos: Long,
+        ): VisualizerModel =
+            model.withWindowsBackendDiagnostics(
+                diagnostics = diagnostics,
+                observedElapsedNanos = observedElapsedNanos,
+            )
+
+        fun modelForMacosBackendDiagnostics(
+            model: VisualizerModel,
+            diagnostics: MacosBackendRuntimeDiagnostics,
+            observedElapsedNanos: Long,
+        ): VisualizerModel =
+            model.withMacosBackendDiagnostics(
+                diagnostics = diagnostics,
+                observedElapsedNanos = observedElapsedNanos,
+            )
 
         fun modelForSessionState(
             model: VisualizerModel,
