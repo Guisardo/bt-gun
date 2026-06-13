@@ -1,5 +1,10 @@
 package com.btgun.desktop.ui
 
+import com.btgun.desktop.backend.BackendLifecycleState
+import com.btgun.desktop.backend.BackendPublishResult
+import com.btgun.desktop.backend.macos.MacosBackendRuntimeDiagnostics
+import com.btgun.desktop.backend.windows.WindowsBackendRuntimeDiagnostics
+import com.btgun.desktop.control.HapticSendResult
 import com.btgun.desktop.control.VisualizerStatus
 import com.btgun.desktop.transport.UdpInputFrameType
 import com.btgun.desktop.transport.UdpReceivedInput
@@ -12,6 +17,9 @@ fun main() {
     finalChecklistCannotPassUntilRequiredRowsReachAcceptedStates()
     macosAndWindowsInputRowsAreIndependentAndBothRequired()
     resetChecklistClearsProofOnlyAndPreservesLiveSessionState()
+    windowsBackendDiagnosticsObserveInputButStillRequireConfirmation()
+    windowsHapticDiagnosticsRequireRoutedOutputAndUserConfirmation()
+    macosHidHapticLimitationRequiresLimitationConfirmation()
     eventStripKeepsExactlyTenNewestProductEvents()
     eventStripLabelsIncludeSequenceAndAge()
     rawDebugDrawerStartsCollapsedAndShowsWhitelistedFieldsOnlyWhenEnabled()
@@ -91,6 +99,79 @@ private fun resetChecklistClearsProofOnlyAndPreservesLiveSessionState() {
         expectEquals("row reset ${rowId.wireId}", VisualizerChecklistState.WAITING, reset.row(rowId).state)
         expectEquals("row observed source cleared ${rowId.wireId}", null, reset.row(rowId).observedSource)
     }
+}
+
+private fun windowsBackendDiagnosticsObserveInputButStillRequireConfirmation() {
+    val model = VisualizerModel.initial().withWindowsBackendDiagnostics(
+        diagnostics = WindowsBackendRuntimeDiagnostics(
+            lifecycleState = BackendLifecycleState.STARTED,
+            lastPublishResult = BackendPublishResult.Published,
+            stale = false,
+            lastSourceSequence = 42L,
+        ),
+        observedElapsedNanos = 9_000_000L,
+    )
+
+    val row = model.row(VisualizerChecklistRowId.WINDOWS_VHF_INPUT)
+    expectEquals("Windows row observed", VisualizerChecklistState.OBSERVED, row.state)
+    expectEquals("Windows source label", "Phase 6 Windows VHF backend published seq=42", row.observedSource)
+    expectTrue("Windows input still needs user confirmation", row.requiresUserConfirmation)
+    expectEquals("Windows observed is not enough", VisualizerChecklistSummary.PENDING, model.checklistSummary())
+}
+
+private fun windowsHapticDiagnosticsRequireRoutedOutputAndUserConfirmation() {
+    val observed = VisualizerModel.initial().withWindowsBackendDiagnostics(
+        diagnostics = WindowsBackendRuntimeDiagnostics(
+            lifecycleState = BackendLifecycleState.STARTED,
+            lastPublishResult = BackendPublishResult.Published,
+            lastHapticSendResult = HapticSendResult.Sent,
+            outputHapticCommandsRouted = 1L,
+        ),
+        observedElapsedNanos = 10_000_000L,
+    )
+
+    expectEquals(
+        "Windows haptic observed",
+        VisualizerChecklistState.OBSERVED,
+        observed.row(VisualizerChecklistRowId.WINDOWS_VHF_HAPTIC).state,
+    )
+    expectTrue("Windows haptic still requires phone vibration confirmation", observed.row(VisualizerChecklistRowId.WINDOWS_VHF_HAPTIC).requiresUserConfirmation)
+
+    val confirmed = observed.confirmRow(VisualizerChecklistRowId.WINDOWS_VHF_HAPTIC)
+    expectEquals(
+        "Windows haptic confirmed",
+        VisualizerChecklistState.CONFIRMED,
+        confirmed.row(VisualizerChecklistRowId.WINDOWS_VHF_HAPTIC).state,
+    )
+}
+
+private fun macosHidHapticLimitationRequiresLimitationConfirmation() {
+    val evidence = VisualizerModel.initial().withMacosBackendDiagnostics(
+        diagnostics = MacosBackendRuntimeDiagnostics(),
+        observedElapsedNanos = 11_000_000L,
+    )
+
+    expectEquals(
+        "macOS haptic row waits for limitation confirmation",
+        VisualizerChecklistState.OBSERVED,
+        evidence.row(VisualizerChecklistRowId.MACOS_HID_HAPTIC_LIMIT).state,
+    )
+    expectContains(
+        "macOS haptic source shows deferred evidence",
+        evidence.row(VisualizerChecklistRowId.MACOS_HID_HAPTIC_LIMIT).observedSource.orEmpty(),
+        "unsupported/deferred",
+    )
+
+    val accepted = evidence.confirmLimitation(VisualizerChecklistRowId.MACOS_HID_HAPTIC_LIMIT)
+    expectEquals(
+        "macOS haptic accepted only as limitation",
+        VisualizerChecklistState.UNSUPPORTED_DEFERRED,
+        accepted.row(VisualizerChecklistRowId.MACOS_HID_HAPTIC_LIMIT).state,
+    )
+    expectFalse(
+        "macOS HID input not inferred from virtual helper diagnostics",
+        accepted.row(VisualizerChecklistRowId.MACOS_HID_INPUT).state == VisualizerChecklistState.CONFIRMED,
+    )
 }
 
 private fun eventStripKeepsExactlyTenNewestProductEvents() {
@@ -317,6 +398,12 @@ private fun acceptedInput(
 private fun expectEquals(label: String, expected: Any?, actual: Any?) {
     if (expected != actual) {
         throw AssertionError("$label expected <$expected> but was <$actual>")
+    }
+}
+
+private fun expectContains(label: String, actual: String, expectedPart: String) {
+    if (!actual.contains(expectedPart, ignoreCase = true)) {
+        throw AssertionError("$label expected <$actual> to contain <$expectedPart>")
     }
 }
 
