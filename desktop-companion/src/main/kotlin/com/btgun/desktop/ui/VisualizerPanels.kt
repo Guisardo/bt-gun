@@ -89,6 +89,38 @@ object VisualizerPanels {
         return !stale || (display.x == lastAcceptedAimX && display.y == lastAcceptedAimY)
     }
 
+    fun metricsLabels(snapshot: VisualizerMetricSnapshot): List<String> =
+        listOf(
+            snapshot.headlineLatencyLabel,
+            "Clock offset: ${snapshot.offsetQuality.name.lowercase()}",
+            "Capture to send: ${snapshot.captureToSendMillis} ms",
+            "Receive to render: ${snapshot.receiveToRenderMillis} ms",
+            "Last input: ${snapshot.sampleAgeMillis} ms ago",
+            snapshot.packetLossLabel,
+        )
+
+    fun eventStripLabels(
+        events: List<VisualizerProductEvent>,
+        nowElapsedNanos: Long,
+    ): List<String> =
+        events.take(VisualizerModel.MAX_PRODUCT_EVENTS).map { event ->
+            val ageMillis = ((nowElapsedNanos - event.ageSourceElapsedNanos).coerceAtLeast(0L)) / 1_000_000L
+            "${event.type} seq=${event.sequence ?: "none"} age=$ageMillis ms"
+        }
+
+    fun rawDebugLabels(rawDebug: VisualizerRawDebugState): List<String> {
+        if (!rawDebug.enabled) return listOf("Raw debug off")
+        val labels = mutableListOf("Raw debug on")
+        if (rawDebug.collapsed) return labels
+        labels += "Provider: ${rawDebug.provider ?: "unavailable"}"
+        labels += "Yaw: ${formatAxis(rawDebug.yaw ?: 0.0f)} | Pitch: ${formatAxis(rawDebug.pitch ?: 0.0f)} | Roll: ${formatAxis(rawDebug.roll ?: 0.0f)}"
+        labels += "Raw aim: x=${formatAxis(rawDebug.rawAimX ?: 0.0f)} y=${formatAxis(rawDebug.rawAimY ?: 0.0f)}"
+        rawDebug.lastRejection?.let { reason ->
+            labels += "Last rejection: ${sanitizeLabel(reason)}"
+        }
+        return labels
+    }
+
     fun liveGamepadPanel(model: VisualizerModel = VisualizerModel.initial()): LiveGamepadPanel =
         LiveGamepadPanel(model)
 
@@ -233,10 +265,14 @@ object VisualizerPanels {
     private fun formatAxis(value: Float): String =
         "%.2f".format(java.util.Locale.US, value)
 
+    private fun sanitizeLabel(value: String): String =
+        FORBIDDEN_DIAGNOSTIC_TERMS.fold(value) { current, term ->
+            current.replace(Regex("(?i)${Regex.escape(term)}[^\\s<]*"), "redacted")
+        }.take(80)
+
     private fun com.btgun.desktop.transport.InputStreamLifecycleState.isDisconnected(): Boolean =
         this == com.btgun.desktop.transport.InputStreamLifecycleState.STOPPED
 
-    private val COLOR_BACKGROUND = Color(0xF4, 0xF7, 0xF8)
     private val COLOR_SURFACE = Color.WHITE
     private val COLOR_TEXT = Color(0x18, 0x1F, 0x29)
     private val COLOR_MUTED_TEXT = Color(0x59, 0x65, 0x73)
@@ -247,4 +283,11 @@ object VisualizerPanels {
     private val COLOR_WARNING_BACKGROUND = Color(0xFF, 0xF4, 0xE8)
     private val COLOR_WARNING_TEXT = Color(0xB3, 0x50, 0x00)
     private val COLOR_OVERLAY = Color(0xFF, 0xF4, 0xE8, 210)
+    private val FORBIDDEN_DIAGNOSTIC_TERMS = listOf(
+        "sec" + "ret",
+        "hm" + "ac",
+        "private" + " key",
+        "pairing" + " material",
+        "stream" + " key",
+    )
 }

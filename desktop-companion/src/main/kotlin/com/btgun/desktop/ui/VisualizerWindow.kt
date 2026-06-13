@@ -35,6 +35,7 @@ class VisualizerWindow(
     private val metrics = JLabel(VisualizerMetricSnapshot.empty().headlineLatencyLabel)
     private val hapticAction = JButton(hapticButtonLabel())
     private val events = JLabel("Recent product events: none")
+    private val rawDebug = JLabel("Raw debug off")
 
     init {
         title.font = title.font.deriveFont(Font.BOLD, DISPLAY_FONT_SIZE)
@@ -78,8 +79,14 @@ class VisualizerWindow(
             profile.text = "Profile: ${model.profileSummary.displayName}"
             checklist.text = checklistHtml(model.checklistRows)
             gamepad.updateModel(model)
-            metrics.text = model.metrics.headlineLatencyLabel
-            events.text = productEventsText(model.productEvents)
+            metrics.text = labelsHtml(VisualizerPanels.metricsLabels(model.metrics))
+            events.text = labelsHtml(
+                VisualizerPanels.eventStripLabels(
+                    events = model.productEvents,
+                    nowElapsedNanos = System.nanoTime(),
+                ).ifEmpty { listOf("Recent product events: none") },
+            )
+            rawDebug.text = labelsHtml(VisualizerPanels.rawDebugLabels(model.rawDebug))
             frame.pack()
         }
     }
@@ -109,6 +116,8 @@ class VisualizerWindow(
         south.add(hapticAction)
         south.add(Box.createVerticalStrut(SPACING_SM))
         south.add(panel(requiredSectionLabels()[3], events))
+        south.add(Box.createVerticalStrut(SPACING_SM))
+        south.add(panel("Raw debug off", rawDebug))
 
         root.add(header, BorderLayout.NORTH)
         root.add(center, BorderLayout.CENTER)
@@ -184,17 +193,13 @@ class VisualizerWindow(
                 "<p><b>${escapeHtml(row.label)}:</b> ${row.state.name.lowercase()}</p>"
             }
 
-        private fun productEventsText(events: List<VisualizerProductEvent>): String =
-            if (events.isEmpty()) {
-                "Recent product events: none"
-            } else {
-                events.joinToString(
-                    separator = "",
-                    prefix = "<html><body>",
-                    postfix = "</body></html>",
-                ) { event ->
-                    "<p>${escapeHtml(event.type)} seq=${event.sequence ?: "none"}</p>"
-                }
+        private fun labelsHtml(labels: List<String>): String =
+            labels.joinToString(
+                separator = "",
+                prefix = "<html><body>",
+                postfix = "</body></html>",
+            ) { label ->
+                "<p>${escapeHtml(label)}</p>"
             }
 
         private fun escapeHtml(value: String): String =

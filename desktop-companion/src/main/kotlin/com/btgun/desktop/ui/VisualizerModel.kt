@@ -117,7 +117,7 @@ data class VisualizerModel(
         val state = UdpControllerStateAdapter.toState(input)
         val nextRawDebug = VisualizerRawDebugState(
             enabled = input.rawDebugEnabled,
-            collapsed = true,
+            collapsed = !input.rawDebugEnabled,
             provider = if (input.rawDebugEnabled) input.motion.provider else null,
             yaw = if (input.rawDebugEnabled) input.motion.yaw else null,
             pitch = if (input.rawDebugEnabled) input.motion.pitch else null,
@@ -148,6 +148,11 @@ data class VisualizerModel(
 
     fun withProfileMetadata(metadata: ProfileMetadata): VisualizerModel =
         copy(profileSummary = VisualizerProfileSummary.from(metadata))
+
+    fun withInputRejection(reason: String): VisualizerModel =
+        copy(
+            rawDebug = rawDebug.copy(lastRejection = reason.take(80)),
+        )
 
     fun withMetrics(snapshot: VisualizerMetricSnapshot): VisualizerModel =
         copy(
