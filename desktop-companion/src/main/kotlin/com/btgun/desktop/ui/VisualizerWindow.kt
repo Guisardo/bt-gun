@@ -3,6 +3,7 @@ package com.btgun.desktop.ui
 import com.btgun.desktop.control.ControlServer
 import com.btgun.desktop.control.ControlServerSessionState
 import com.btgun.desktop.control.HapticSendResult
+import com.btgun.desktop.control.VisualizerStatus
 import com.btgun.desktop.haptics.HapticCommand
 import com.btgun.desktop.haptics.HapticResult
 import com.btgun.desktop.haptics.HapticResultStatus
@@ -40,6 +41,7 @@ class VisualizerWindow(
     private val checklist = JLabel(checklistHtml(VisualizerModel.defaultChecklistRows()))
     private val gamepad = VisualizerPanels.liveGamepadPanel()
     private val metrics = JLabel(VisualizerMetricSnapshot.empty().headlineLatencyLabel)
+    private val recenter = JLabel(labelsHtml(recenterStatusLabels(VisualizerModel.initial())))
     private val hapticAction = JButton(hapticButtonLabel())
     private val events = JLabel("Recent product events: none")
     private val rawDebug = JLabel("Raw debug off")
@@ -93,6 +95,7 @@ class VisualizerWindow(
             checklist.text = checklistHtml(model.checklistRows)
             gamepad.updateModel(model)
             metrics.text = labelsHtml(VisualizerPanels.metricsLabels(model.metrics))
+            recenter.text = labelsHtml(recenterStatusLabels(model))
             hapticAction.isEnabled = controlServer != null && model.packetLifecycle == com.btgun.desktop.transport.InputStreamLifecycleState.ACTIVE
             events.text = labelsHtml(
                 VisualizerPanels.eventStripLabels(
@@ -139,6 +142,8 @@ class VisualizerWindow(
         south.background = COLOR_BACKGROUND
         south.layout = BoxLayout(south, BoxLayout.Y_AXIS)
         south.add(panel(requiredSectionLabels()[2], metrics))
+        south.add(Box.createVerticalStrut(SPACING_SM))
+        south.add(panel("Recenter status", recenter))
         south.add(Box.createVerticalStrut(SPACING_SM))
         south.add(hapticAction)
         south.add(Box.createVerticalStrut(SPACING_SM))
@@ -216,6 +221,13 @@ class VisualizerWindow(
                 HapticResultStatus.CANCELLED,
                 -> "Phone haptic failed. Check Android session and try again."
             }
+
+        fun recenterStatusLabels(model: VisualizerModel): List<String> =
+            listOf(
+                model.recenter.aimZeroLabel,
+                model.recenter.recenterInstruction,
+                model.recenter.lastRecenterLabel,
+            )
 
         fun requiredSectionLabels(): List<String> =
             listOf(
@@ -313,7 +325,22 @@ class VisualizerWindowCoordinator(
         windowFactory.applyModel(model)
     }
 
+    fun onVisualizerStatusReceived(
+        status: VisualizerStatus,
+        observedElapsedNanos: Long = System.nanoTime(),
+    ) {
+        model = modelForVisualizerStatus(model, status, observedElapsedNanos)
+        windowFactory.applyModel(model)
+    }
+
     companion object {
+        fun modelForVisualizerStatus(
+            model: VisualizerModel,
+            status: VisualizerStatus,
+            observedElapsedNanos: Long,
+        ): VisualizerModel =
+            model.withVisualizerStatus(status = status, observedElapsedNanos = observedElapsedNanos)
+
         fun modelForSessionState(
             model: VisualizerModel,
             sessionState: com.btgun.desktop.control.ControlServerSessionState,
