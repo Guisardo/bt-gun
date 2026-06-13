@@ -34,6 +34,9 @@ fun main() {
     controlServerAuthenticatesManualCodeWithoutSidOrNonce()
     controlServerRetainsTrustedSessionForMultipleEnvelopes()
     controlServerRespondsToHeartbeatAndSurfacesTrustedMetadata()
+    controlServerAcceptsVisualizerStatusFromTrustedDiagnostics()
+    controlServerIgnoresMalformedVisualizerStatusDiagnostics()
+    visualizerStatusBodyIsSanitized()
     heartbeatMonitorTransitionsConnectedDegradedDisconnected()
     heartbeatPingAndPongRefreshLiveness()
     diagnosticsPayloadContainsOnlyControlFields()
@@ -196,6 +199,144 @@ private fun controlServerRespondsToHeartbeatAndSurfacesTrustedMetadata() = runBl
     expectEquals("pong emitted", ControlMessageType.HEARTBEAT_PONG, sent.single().type)
     expectEquals("liveness state", ControlServerSessionState.AUTHENTICATED, states.single())
     expectEquals("metadata callback", ControlMessageType.DIAGNOSTICS, accepted.single().type)
+}
+
+private fun controlServerAcceptsVisualizerStatusFromTrustedDiagnostics() = runBlocking {
+    val server = ControlServer(registry = testRegistry(), maxMessageBytes = 1024)
+    val accepted = mutableListOf<ControlEnvelope>()
+    val statuses = mutableListOf<VisualizerStatus>()
+    server.onControlEnvelopeAccepted = accepted::add
+    server.onVisualizerStatusReceived = statuses::add
+
+    server.handleAcceptedEnvelope(
+        envelope = envelope(
+            ControlMessageType.DIAGNOSTICS,
+            sessionId = "sid-1",
+            body = JsonObject(
+                mapOf(
+                    "visualizerStatus" to JsonObject(
+                        mapOf(
+                            "rawDebugEnabled" to JsonPrimitive(true),
+                            "aimZeroState" to JsonPrimitive("ready"),
+                            "recenterState" to JsonPrimitive("recentered"),
+                            "lastRecenterElapsedNanos" to JsonPrimitive(1_900_000_000L),
+                            "androidElapsedNanos" to JsonPrimitive(2_000_000_000L),
+                            "captureElapsedNanos" to JsonPrimitive(1_950_000_000L),
+                            "sendElapsedNanos" to JsonPrimitive(1_960_000_000L),
+                            "statusSequence" to JsonPrimitive(7L),
+                            "recenterLabel" to JsonPrimitive("recentered"),
+                            "aimZeroLabel" to JsonPrimitive("ready"),
+                        ),
+                    ),
+                ),
+            ),
+        ),
+        heartbeat = HeartbeatMonitor(),
+        nowElapsedNanos = 3_000_000_000L,
+    )
+
+    expectEquals("generic diagnostics accepted", ControlMessageType.DIAGNOSTICS, accepted.single().type)
+    expectEquals(
+        "visualizer status callback",
+        VisualizerStatus(
+            rawDebugEnabled = true,
+            aimZeroState = "ready",
+            recenterState = "recentered",
+            lastRecenterElapsedNanos = 1_900_000_000L,
+            androidElapsedNanos = 2_000_000_000L,
+            captureElapsedNanos = 1_950_000_000L,
+            sendElapsedNanos = 1_960_000_000L,
+            statusSequence = 7L,
+            recenterLabel = "recentered",
+            aimZeroLabel = "ready",
+        ),
+        statuses.single(),
+    )
+}
+
+private fun controlServerIgnoresMalformedVisualizerStatusDiagnostics() = runBlocking {
+    val server = ControlServer(registry = testRegistry(), maxMessageBytes = 1024)
+    val accepted = mutableListOf<ControlEnvelope>()
+    val statuses = mutableListOf<VisualizerStatus>()
+    server.onControlEnvelopeAccepted = accepted::add
+    server.onVisualizerStatusReceived = statuses::add
+
+    server.handleAcceptedEnvelope(
+        envelope = envelope(
+            ControlMessageType.DIAGNOSTICS,
+            sessionId = "sid-1",
+            body = JsonObject(
+                mapOf(
+                    "visualizerStatus" to JsonObject(
+                        mapOf(
+                            "rawDebugEnabled" to JsonPrimitive(false),
+                            "aimZeroState" to JsonPrimitive("ready"),
+                            "recenterState" to JsonPrimitive("idle"),
+                            "androidElapsedNanos" to JsonPrimitive(-1L),
+                        ),
+                    ),
+                ),
+            ),
+        ),
+        heartbeat = HeartbeatMonitor(),
+        nowElapsedNanos = 3_000_000_000L,
+    )
+
+    expectEquals("malformed diagnostics still accepted generically", ControlMessageType.DIAGNOSTICS, accepted.single().type)
+    expectEquals("malformed status ignored", emptyList<VisualizerStatus>(), statuses)
+}
+
+private fun visualizerStatusBodyIsSanitized() {
+    val valid = visualizerStatusFromJsonBody(
+        JsonObject(
+            mapOf(
+                "visualizerStatus" to JsonObject(
+                    mapOf(
+                        "rawDebugEnabled" to JsonPrimitive(false),
+                        "aimZeroState" to JsonPrimitive("pending"),
+                        "recenterState" to JsonPrimitive("idle"),
+                        "androidElapsedNanos" to JsonPrimitive(2_000_000_000L),
+                    ),
+                ),
+            ),
+        ),
+    )
+    val invalidElapsed = visualizerStatusFromJsonBody(
+        JsonObject(
+            mapOf(
+                "visualizerStatus" to JsonObject(
+                    mapOf(
+                        "rawDebugEnabled" to JsonPrimitive(false),
+                        "aimZeroState" to JsonPrimitive("pending"),
+                        "recenterState" to JsonPrimitive("idle"),
+                        "androidElapsedNanos" to JsonPrimitive(-1L),
+                    ),
+                ),
+            ),
+        ),
+    )
+
+    expectEquals("valid status parsed", "pending", valid?.aimZeroState)
+    expectEquals("negative elapsed rejected", null, invalidElapsed)
+    expectEquals(
+        "visualizer status fields",
+        listOf(
+            "rawDebugEnabled",
+            "aimZeroState",
+            "recenterState",
+            "lastRecenterElapsedNanos",
+            "androidElapsedNanos",
+            "captureElapsedNanos",
+            "sendElapsedNanos",
+            "statusSequence",
+            "recenterLabel",
+            "aimZeroLabel",
+        ),
+        dataFieldNames(VisualizerStatus::class.java),
+    )
+    listOf("secret", "key", "hmac", "pairing", "proof", "deviceId").forEach { forbidden ->
+        expectFalse("status field excludes $forbidden", dataFieldNames(VisualizerStatus::class.java).any { it.contains(forbidden, ignoreCase = true) })
+    }
 }
 
 private fun heartbeatMonitorTransitionsConnectedDegradedDisconnected() {
