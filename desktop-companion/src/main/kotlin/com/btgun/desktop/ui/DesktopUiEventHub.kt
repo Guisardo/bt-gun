@@ -4,6 +4,7 @@ import com.btgun.desktop.control.ControlEnvelope
 import com.btgun.desktop.control.ControlServer
 import com.btgun.desktop.control.ControlServerSessionState
 import com.btgun.desktop.control.ProfileMetadata
+import com.btgun.desktop.control.VisualizerStatus
 import com.btgun.desktop.haptics.HapticResult
 import com.btgun.desktop.transport.InputReplayRejectReason
 import com.btgun.desktop.transport.InputStreamLifecycleState
@@ -13,6 +14,7 @@ data class DesktopUiEventListener(
     val onSessionStateChanged: (ControlServerSessionState) -> Unit = {},
     val onControlEnvelopeAccepted: (ControlEnvelope) -> Unit = {},
     val onProfileMetadataReceived: (ProfileMetadata) -> Unit = {},
+    val onVisualizerStatusReceived: (VisualizerStatus) -> Unit = {},
     val onUdpInputReceived: (UdpReceivedInput) -> Unit = {},
     val onUdpInputRejected: (InputReplayRejectReason) -> Unit = {},
     val onUdpInputStateChanged: (InputStreamLifecycleState) -> Unit = {},
@@ -29,6 +31,7 @@ class DesktopUiEventHub(
     private var previousSessionStateChanged: ((ControlServerSessionState) -> Unit)? = null
     private var previousControlEnvelopeAccepted: ((ControlEnvelope) -> Unit)? = null
     private var previousProfileMetadataReceived: ((ProfileMetadata) -> Unit)? = null
+    private var previousVisualizerStatusReceived: ((VisualizerStatus) -> Unit)? = null
     private var previousUdpInputReceived: ((UdpReceivedInput) -> Unit)? = null
     private var previousUdpInputRejected: ((InputReplayRejectReason) -> Unit)? = null
     private var previousUdpInputStateChanged: ((InputStreamLifecycleState) -> Unit)? = null
@@ -45,6 +48,10 @@ class DesktopUiEventHub(
     private val profileMetadataCallback: (ProfileMetadata) -> Unit = { metadata ->
         previousProfileMetadataReceived?.invoke(metadata)
         listenerSnapshot().forEach { it.onProfileMetadataReceived(metadata) }
+    }
+    private val visualizerStatusCallback: (VisualizerStatus) -> Unit = { status ->
+        previousVisualizerStatusReceived?.invoke(status)
+        listenerSnapshot().forEach { it.onVisualizerStatusReceived(status) }
     }
     private val udpInputCallback: (UdpReceivedInput) -> Unit = { input ->
         previousUdpInputReceived?.invoke(input)
@@ -69,6 +76,7 @@ class DesktopUiEventHub(
             previousSessionStateChanged = controlServer.onSessionStateChanged
             previousControlEnvelopeAccepted = controlServer.onControlEnvelopeAccepted
             previousProfileMetadataReceived = controlServer.onProfileMetadataReceived
+            previousVisualizerStatusReceived = controlServer.onVisualizerStatusReceived
             previousUdpInputReceived = controlServer.onUdpInputReceived
             previousUdpInputRejected = controlServer.onUdpInputRejected
             previousUdpInputStateChanged = controlServer.onUdpInputStateChanged
@@ -77,6 +85,7 @@ class DesktopUiEventHub(
             controlServer.onSessionStateChanged = sessionStateCallback
             controlServer.onControlEnvelopeAccepted = controlEnvelopeCallback
             controlServer.onProfileMetadataReceived = profileMetadataCallback
+            controlServer.onVisualizerStatusReceived = visualizerStatusCallback
             controlServer.onUdpInputReceived = udpInputCallback
             controlServer.onUdpInputRejected = udpRejectedCallback
             controlServer.onUdpInputStateChanged = udpStateCallback
@@ -108,6 +117,7 @@ class DesktopUiEventHub(
                     onSessionStateChanged = previousSessionStateChanged,
                     onControlEnvelopeAccepted = previousControlEnvelopeAccepted,
                     onProfileMetadataReceived = previousProfileMetadataReceived,
+                    onVisualizerStatusReceived = previousVisualizerStatusReceived,
                     onUdpInputReceived = previousUdpInputReceived,
                     onUdpInputRejected = previousUdpInputRejected,
                     onUdpInputStateChanged = previousUdpInputStateChanged,
@@ -116,6 +126,7 @@ class DesktopUiEventHub(
                     previousSessionStateChanged = null
                     previousControlEnvelopeAccepted = null
                     previousProfileMetadataReceived = null
+                    previousVisualizerStatusReceived = null
                     previousUdpInputReceived = null
                     previousUdpInputRejected = null
                     previousUdpInputStateChanged = null
@@ -132,6 +143,9 @@ class DesktopUiEventHub(
         }
         if (controlServer.onProfileMetadataReceived === profileMetadataCallback) {
             controlServer.onProfileMetadataReceived = restore.onProfileMetadataReceived ?: {}
+        }
+        if (controlServer.onVisualizerStatusReceived === visualizerStatusCallback) {
+            controlServer.onVisualizerStatusReceived = restore.onVisualizerStatusReceived ?: {}
         }
         if (controlServer.onUdpInputReceived === udpInputCallback) {
             controlServer.onUdpInputReceived = restore.onUdpInputReceived ?: {}
@@ -155,6 +169,7 @@ private data class RestoreCallbacks(
     val onSessionStateChanged: ((ControlServerSessionState) -> Unit)?,
     val onControlEnvelopeAccepted: ((ControlEnvelope) -> Unit)?,
     val onProfileMetadataReceived: ((ProfileMetadata) -> Unit)?,
+    val onVisualizerStatusReceived: ((VisualizerStatus) -> Unit)?,
     val onUdpInputReceived: ((UdpReceivedInput) -> Unit)?,
     val onUdpInputRejected: ((InputReplayRejectReason) -> Unit)?,
     val onUdpInputStateChanged: ((InputStreamLifecycleState) -> Unit)?,
