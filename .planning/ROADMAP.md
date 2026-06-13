@@ -21,7 +21,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 6: Windows Virtual Joystick Path** - Windows 11 x64 exposes the gun stream as a regular gamepad-style joystick with output-to-phone-haptic forwarding, retained as fallback if Android Bluetooth HID gamepad integration is blocked. (completed 2026-06-10)
 - [x] **Phase 7: Android Bluetooth HID Gamepad Path** - Android phone exposes the gun stream directly to macOS as a Bluetooth HID gamepad, with output-report-to-phone-haptic proof or clear compatibility limits. (completed 2026-06-11)
 - [x] **Phase 8: Desktop Profiles and Mapping** - Users configure Android-owned aim and button profiles that apply at runtime; desktop only displays active Android profile metadata. (completed 2026-06-12)
-- [ ] **Phase 9: Visualizer Acceptance Path** - The simple visualizer proves controls, aim, recentering, latency, packet loss, and phone haptic round trip.
+- [x] **Phase 9: Visualizer Acceptance Path** - The simple visualizer proves controls, aim, recentering, latency, packet loss, and phone haptic round trip. (completed 2026-06-13)
 - [ ] **Phase 10: Diagnostics, Replay, and v1 Docs** - Replay tests, diagnostic logs, setup docs, protocol docs, and known limits make the MVP repeatable.
 
 ## Phase Details
@@ -360,7 +360,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 09-06-PLAN.md — Final guided checklist rows, backend proof status, and sanitized Phase 9 manual proof guide.
+- [x] 09-06-PLAN.md — Final guided checklist rows, backend proof status, and sanitized Phase 9 manual proof guide.
 
 **UI hint**: yes
 
@@ -377,7 +377,7 @@ Plans:
   3. Repository documents Android build tooling, device testing workflow, LAN protocol schemas, pairing flow, and security model.
   4. Repository documents v1 limitations, including no direct desktop Bluetooth, deferred physical gun motor rumble, and no game-specific presets.
 
-**Plans:** 5/6 plans executed
+**Plans:** 6/6 plans complete
 
 ## Progress
 
@@ -394,5 +394,5 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 | 6. Windows Virtual Joystick Path | 6/6 | Complete | 2026-06-10 |
 | 7. Android Bluetooth HID Gamepad Path | 6/6 | Complete    | 2026-06-11 |
 | 8. Desktop Profiles and Mapping | 7/7 | Complete    | 2026-06-12 |
-| 9. Visualizer Acceptance Path | 5/6 | In Progress|  |
+| 9. Visualizer Acceptance Path | 6/6 | Complete   | 2026-06-13 |
 | 10. Diagnostics, Replay, and v1 Docs | 0/TBD | Not started | - |
