@@ -17,6 +17,8 @@ fun main() {
     pairingWindowFormatsMacosBackendDiagnostics()
     pairingWindowFormatsReadOnlyAndroidProfileDiagnostics()
     pairingWindowFreshProfileDiagnosticsAreNeutral()
+    pairingWindowExposesVisualizerReopenActionWithoutLaunchingSwing()
+    pairingWindowDoesNotRenderVisualizerOnlyPanels()
     pairingWindowForbiddenDesktopProfileControlsAbsent()
 }
 
@@ -136,6 +138,37 @@ private fun pairingWindowFreshProfileDiagnosticsAreNeutral() {
     expectContains("fresh profile source", html, "Profile source:</b> unknown")
     expectContains("fresh mapped stream", html, "stopped | mapped=false | raw_debug=off")
     expectContains("fresh profile update", html, "Last profile update:</b> none")
+}
+
+private fun pairingWindowExposesVisualizerReopenActionWithoutLaunchingSwing() {
+    var opens = 0
+    val button = PairingWindow.createVisualizerOpenButton { opens += 1 }
+
+    expectEquals("visualizer action label", "Open visualizer", PairingWindow.visualizerButtonLabel())
+    expectEquals("button text", "Open visualizer", button.text)
+
+    button.doClick()
+
+    expectEquals("opener invoked once", 1, opens)
+}
+
+private fun pairingWindowDoesNotRenderVisualizerOnlyPanels() {
+    val source = File("src/main/kotlin/com/btgun/desktop/ui/PairingWindow.kt")
+        .takeIf { it.exists() }
+        ?.readText()
+        .orEmpty()
+    val visualizerOnlyLabels = listOf(
+        "Acceptance checklist",
+        "Live gamepad",
+        "Latency and packet loss",
+        "Recent product events",
+        "Run phone haptic test",
+    )
+
+    visualizerOnlyLabels.forEach { label ->
+        val quotedLabel = Regex(""""${Regex.escape(label)}"""", RegexOption.IGNORE_CASE)
+        expectFalse("pairing window excludes visualizer-only label: $label", quotedLabel.containsMatchIn(source))
+    }
 }
 
 private fun pairingWindowForbiddenDesktopProfileControlsAbsent() {
