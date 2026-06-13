@@ -1,5 +1,11 @@
 package com.btgun.desktop.ui
 
+import com.btgun.desktop.control.ControlServer
+import com.btgun.desktop.control.ControlServerSessionState
+import com.btgun.desktop.control.HapticSendResult
+import com.btgun.desktop.haptics.HapticCommand
+import com.btgun.desktop.haptics.HapticResult
+import com.btgun.desktop.haptics.HapticResultStatus
 import java.awt.BorderLayout
 import java.awt.Color
 import java.awt.Dimension
@@ -24,6 +30,7 @@ interface VisualizerWindowHandle {
 }
 
 class VisualizerWindow(
+    private val controlServer: ControlServer? = null,
     private val frame: JFrame = JFrame(windowTitle()),
 ) : VisualizerWindowHandle {
     private val title = JLabel(windowTitle())
@@ -36,6 +43,7 @@ class VisualizerWindow(
     private val hapticAction = JButton(hapticButtonLabel())
     private val events = JLabel("Recent product events: none")
     private val rawDebug = JLabel("Raw debug off")
+    private var currentModel = VisualizerModel.initial()
 
     init {
         title.font = title.font.deriveFont(Font.BOLD, DISPLAY_FONT_SIZE)
@@ -44,6 +52,10 @@ class VisualizerWindow(
         profile.font = profile.font.deriveFont(Font.PLAIN, BODY_FONT_SIZE)
 
         frame.defaultCloseOperation = JFrame.DISPOSE_ON_CLOSE
+        hapticAction.isEnabled = false
+        hapticAction.addActionListener {
+            runPhoneHapticTest()
+        }
         frame.contentPane.add(content(), BorderLayout.CENTER)
         frame.addWindowListener(
             object : WindowAdapter() {
@@ -74,12 +86,14 @@ class VisualizerWindow(
 
     override fun applyModel(model: VisualizerModel) {
         SwingUtilities.invokeLater {
+            currentModel = model
             summary.text = topSummaryPending()
             session.text = summaryFor(model.packetLifecycle.toDisplayState())
             profile.text = "Profile: ${model.profileSummary.displayName}"
             checklist.text = checklistHtml(model.checklistRows)
             gamepad.updateModel(model)
             metrics.text = labelsHtml(VisualizerPanels.metricsLabels(model.metrics))
+            hapticAction.isEnabled = controlServer != null && model.packetLifecycle == com.btgun.desktop.transport.InputStreamLifecycleState.ACTIVE
             events.text = labelsHtml(
                 VisualizerPanels.eventStripLabels(
                     events = model.productEvents,
@@ -89,6 +103,19 @@ class VisualizerWindow(
             rawDebug.text = labelsHtml(VisualizerPanels.rawDebugLabels(model.rawDebug))
             frame.pack()
         }
+    }
+
+    private fun runPhoneHapticTest() {
+        val now = System.nanoTime()
+        val command = visualizerHapticCommand(nowElapsedNanos = now)
+        val result = controlServer?.sendHapticCommand(command, nowElapsedNanos = now)
+            ?: HapticSendResult.NoActiveSession
+        currentModel = currentModel.withHapticSendResult(
+            result = result,
+            commandId = command.commandId,
+            observedElapsedNanos = now,
+        )
+        applyModel(currentModel)
     }
 
     private fun content(): JPanel {
@@ -159,6 +186,36 @@ class VisualizerWindow(
         fun topSummaryPending(): String = "Phase 9 checks pending"
 
         fun hapticButtonLabel(): String = "Run phone haptic test"
+
+        fun hapticButtonEnabled(state: ControlServerSessionState): Boolean =
+            state == ControlServerSessionState.AUTHENTICATED
+
+        fun visualizerHapticCommand(nowElapsedNanos: Long): HapticCommand =
+            HapticCommand(
+                commandId = "visualizer-haptic-$nowElapsedNanos",
+                strength = 0.6,
+                durationMs = 80L,
+                ttlMs = 500L,
+            )
+
+        fun hapticSendStatusText(result: HapticSendResult, commandId: String?): String =
+            when (result) {
+                HapticSendResult.Sent -> "Phone haptic queued"
+                HapticSendResult.NoActiveSession -> "No active Android session. Pair Android before running haptic proof."
+                is HapticSendResult.Rejected -> "Phone haptic failed. Check Android session and try again."
+                is HapticSendResult.Failed -> "Phone haptic failed. Check Android session and try again."
+            }
+
+        fun hapticResultStatusText(status: HapticResultStatus): String =
+            when (status) {
+                HapticResultStatus.STARTED -> "Phone haptic confirmed"
+                HapticResultStatus.EXPIRED,
+                HapticResultStatus.UNSUPPORTED,
+                HapticResultStatus.PERMISSION_BLOCKED,
+                HapticResultStatus.FAILED,
+                HapticResultStatus.CANCELLED,
+                -> "Phone haptic failed. Check Android session and try again."
+            }
 
         fun requiredSectionLabels(): List<String> =
             listOf(
@@ -248,6 +305,11 @@ class VisualizerWindowCoordinator(
             openedForAuthenticatedSession = true
             windowFactory.open()
         }
+        windowFactory.applyModel(model)
+    }
+
+    fun onHapticResultReceived(result: HapticResult) {
+        model = model.withHapticResult(result)
         windowFactory.applyModel(model)
     }
 

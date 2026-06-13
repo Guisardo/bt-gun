@@ -2,8 +2,10 @@ package com.btgun.desktop.ui
 
 import com.btgun.desktop.backend.SemanticControllerState
 import com.btgun.desktop.backend.UdpControllerStateAdapter
+import com.btgun.desktop.control.HapticSendResult
 import com.btgun.desktop.control.ProfileMetadata
 import com.btgun.desktop.haptics.HapticResult
+import com.btgun.desktop.haptics.HapticResultStatus
 import com.btgun.desktop.transport.InputStreamLifecycleState
 import com.btgun.desktop.transport.UdpReceivedInput
 
@@ -163,21 +165,69 @@ data class VisualizerModel(
         )
 
     fun withHapticResult(result: HapticResult): VisualizerModel =
-        copy(
-            hapticStatus = VisualizerHapticStatus(
-                commandId = result.commandId,
-                status = result.status.wireName,
-                detail = result.detail,
-                observedElapsedNanos = result.observedElapsedNanos,
-            ),
-            checklistRows = checklistRows.markObserved(VisualizerChecklistRowId.LAN_PHONE_HAPTIC),
-        ).withProductEvent(
+        if (result.status == HapticResultStatus.STARTED) {
+            copy(
+                hapticStatus = VisualizerHapticStatus(
+                    commandId = result.commandId,
+                    status = "confirmed",
+                    detail = VisualizerWindow.hapticResultStatusText(result.status),
+                    observedElapsedNanos = result.observedElapsedNanos,
+                ),
+                checklistRows = checklistRows.markObserved(VisualizerChecklistRowId.LAN_PHONE_HAPTIC),
+            )
+        } else {
+            copy(
+                hapticStatus = VisualizerHapticStatus(
+                    commandId = result.commandId,
+                    status = "failed",
+                    detail = VisualizerWindow.hapticResultStatusText(result.status),
+                    observedElapsedNanos = result.observedElapsedNanos,
+                ),
+                checklistRows = checklistRows.update(VisualizerChecklistRowId.LAN_PHONE_HAPTIC) { row ->
+                    if (row.state == VisualizerChecklistState.CONFIRMED) row else row.copy(state = VisualizerChecklistState.FAILED)
+                },
+            )
+        }.withProductEvent(
             VisualizerProductEvent(
                 type = "haptic_${result.status.wireName}",
                 sequence = null,
                 ageSourceElapsedNanos = result.observedElapsedNanos,
             ),
         )
+
+    fun withHapticSendResult(
+        result: HapticSendResult,
+        commandId: String?,
+        observedElapsedNanos: Long,
+    ): VisualizerModel {
+        val nextStatus = when (result) {
+            HapticSendResult.Sent -> VisualizerHapticStatus(
+                commandId = commandId,
+                status = "queued",
+                detail = VisualizerWindow.hapticSendStatusText(result, commandId),
+                observedElapsedNanos = observedElapsedNanos,
+            )
+            HapticSendResult.NoActiveSession -> VisualizerHapticStatus(
+                commandId = null,
+                status = "no-session",
+                detail = VisualizerWindow.hapticSendStatusText(result, commandId),
+                observedElapsedNanos = observedElapsedNanos,
+            )
+            is HapticSendResult.Rejected -> VisualizerHapticStatus(
+                commandId = commandId,
+                status = "failed",
+                detail = VisualizerWindow.hapticSendStatusText(result, commandId),
+                observedElapsedNanos = observedElapsedNanos,
+            )
+            is HapticSendResult.Failed -> VisualizerHapticStatus(
+                commandId = commandId,
+                status = "failed",
+                detail = VisualizerWindow.hapticSendStatusText(result, commandId),
+                observedElapsedNanos = observedElapsedNanos,
+            )
+        }
+        return copy(hapticStatus = nextStatus)
+    }
 
     fun confirmRow(id: VisualizerChecklistRowId): VisualizerModel =
         copy(checklistRows = checklistRows.update(id) { row -> row.copy(state = VisualizerChecklistState.CONFIRMED) })

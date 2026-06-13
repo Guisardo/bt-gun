@@ -25,11 +25,14 @@ private fun createPairingWindow(): PairingWindow {
     val registry = PairingSessionRegistry(identityStore = identityStore)
     val controlServer = ControlServer(registry = registry)
     val eventHub = DesktopUiEventHub(controlServer).attach()
-    val visualizerFactory = VisualizerWindowFactory()
+    val visualizerFactory = VisualizerWindowFactory {
+        com.btgun.desktop.ui.VisualizerWindow(controlServer = controlServer)
+    }
     val coordinator = VisualizerWindowCoordinator(visualizerFactory)
     eventHub.listen(
         DesktopUiEventListener(
             onSessionStateChanged = coordinator::onSessionStateChanged,
+            onHapticResultReceived = coordinator::onHapticResultReceived,
         ),
     )
     val windowsBackendLaunch = createWindowsBackendLaunch()
