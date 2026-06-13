@@ -7,6 +7,8 @@ import com.btgun.desktop.transport.UdpReceivedMotion
 
 fun main() {
     eventStripKeepsExactlyTenNewestProductEvents()
+    eventStripLabelsIncludeSequenceAndAge()
+    rawDebugDrawerStartsCollapsedAndShowsWhitelistedFieldsOnlyWhenEnabled()
     observedLanStreamDoesNotConfirmManualProofRows()
     modelLabelsExcludeDesktopProfileControlsAndSecretFields()
     staleInputPreservesLastAcceptedAimContext()
@@ -28,6 +30,60 @@ private fun eventStripKeepsExactlyTenNewestProductEvents() {
     expectEquals("oldest retained sequence", 3L, model.productEvents.last().sequence)
     expectEquals("event type retained", "input", model.productEvents.first().type)
     expectEquals("age source retained", 12_000_000L, model.productEvents.first().ageSourceElapsedNanos)
+}
+
+private fun eventStripLabelsIncludeSequenceAndAge() {
+    val model = (1L..12L).fold(VisualizerModel.initial()) { current, sequence ->
+        current.withProductEvent(
+            VisualizerProductEvent(
+                type = "input",
+                sequence = sequence,
+                ageSourceElapsedNanos = sequence * 1_000_000L,
+            ),
+        )
+    }
+
+    val labels = VisualizerPanels.eventStripLabels(
+        events = model.productEvents,
+        nowElapsedNanos = 15_000_000L,
+    )
+
+    expectEquals("event slot count", 10, labels.size)
+    expectEquals("newest event label", "input seq=12 age=3 ms", labels.first())
+    expectEquals("oldest retained event label", "input seq=3 age=12 ms", labels.last())
+}
+
+private fun rawDebugDrawerStartsCollapsedAndShowsWhitelistedFieldsOnlyWhenEnabled() {
+    val off = VisualizerPanels.rawDebugLabels(VisualizerRawDebugState(enabled = false))
+    expectEquals("raw drawer off", listOf("Raw debug off"), off)
+
+    val on = VisualizerPanels.rawDebugLabels(
+        VisualizerRawDebugState(
+            enabled = true,
+            collapsed = false,
+            provider = 2,
+            yaw = 1.25f,
+            pitch = -2.5f,
+            roll = 3.75f,
+            rawAimX = 0.4f,
+            rawAimY = -0.6f,
+            lastRejection = "old_sequence",
+        ),
+    )
+    expectEquals(
+        "raw drawer on labels",
+        listOf(
+            "Raw debug on",
+            "Provider: 2",
+            "Yaw: 1.25 | Pitch: -2.50 | Roll: 3.75",
+            "Raw aim: x=0.40 y=-0.60",
+            "Last rejection: old_sequence",
+        ),
+        on,
+    )
+    listOf("secret", "pairing", "hmac", "private key", "device id", "stream key").forEach { forbidden ->
+        expectFalse("raw drawer excludes $forbidden", on.joinToString("\n").contains(forbidden, ignoreCase = true))
+    }
 }
 
 private fun observedLanStreamDoesNotConfirmManualProofRows() {

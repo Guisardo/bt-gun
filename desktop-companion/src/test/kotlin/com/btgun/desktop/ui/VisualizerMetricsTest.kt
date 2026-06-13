@@ -8,6 +8,7 @@ fun main() {
     sequenceGapRecordsCurrentSessionExpectedAndMissed()
     omittedRejectedFramesDoNotAffectAcceptedPacketLossCounters()
     latencyUsesExplicitClockOffsetInsteadOfDirectClockSubtraction()
+    metricsLabelsExposeUiSpecCopy()
     packetCountersResetOnControlOrStreamSessionChange()
 }
 
@@ -56,6 +57,37 @@ private fun latencyUsesExplicitClockOffsetInsteadOfDirectClockSubtraction() {
     expectEquals("headline label", "Latency: 50 ms | target <50 ms | warn", snapshot.headlineLatencyLabel)
     expectEquals("capture to send", 12L, snapshot.captureToSendMillis)
     expectEquals("receive to render", 5L, snapshot.receiveToRenderMillis)
+}
+
+private fun metricsLabelsExposeUiSpecCopy() {
+    val snapshot = VisualizerMetricSnapshot(
+        headlineLatencyMillis = 42L,
+        headlineLatencyLabel = "Latency: 42 ms | target <50 ms | pass",
+        offsetQuality = VisualizerClockOffsetQuality.ESTIMATED,
+        captureToSendMillis = 7L,
+        receiveToRenderMillis = 4L,
+        sampleAgeMillis = 5L,
+        packetExpected = 11L,
+        packetMissed = 2L,
+        packetLossPercent = 18.2,
+        packetLossLabel = "Packet loss: 2/11 (18.2%)",
+        targetStatus = "pass",
+        controlSessionId = "control-sid-1",
+        streamSessionIdHex = "00112233445566778899aabbccddeeff",
+    )
+
+    expectEquals(
+        "metric labels",
+        listOf(
+            "Latency: 42 ms | target <50 ms | pass",
+            "Clock offset: estimated",
+            "Capture to send: 7 ms",
+            "Receive to render: 4 ms",
+            "Last input: 5 ms ago",
+            "Packet loss: 2/11 (18.2%)",
+        ),
+        VisualizerPanels.metricsLabels(snapshot),
+    )
 }
 
 private fun packetCountersResetOnControlOrStreamSessionChange() {
