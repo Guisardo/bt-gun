@@ -3,12 +3,16 @@ package com.btgun.desktop.ui
 import com.btgun.desktop.control.ControlServer
 import com.btgun.desktop.control.ControlServerSessionState
 import com.btgun.desktop.control.HapticSendResult
+import com.btgun.desktop.control.ProfileMetadata
 import com.btgun.desktop.control.VisualizerStatus
 import com.btgun.desktop.backend.macos.MacosBackendRuntimeDiagnostics
 import com.btgun.desktop.backend.windows.WindowsBackendRuntimeDiagnostics
 import com.btgun.desktop.haptics.HapticCommand
 import com.btgun.desktop.haptics.HapticResult
 import com.btgun.desktop.haptics.HapticResultStatus
+import com.btgun.desktop.transport.InputReplayRejectReason
+import com.btgun.desktop.transport.InputStreamLifecycleState
+import com.btgun.desktop.transport.UdpReceivedInput
 import java.awt.BorderLayout
 import java.awt.Color
 import java.awt.Dimension
@@ -362,6 +366,7 @@ class VisualizerWindowFactory(
 
 class VisualizerWindowCoordinator(
     private val windowFactory: VisualizerWindowFactory,
+    private val metrics: VisualizerMetrics = VisualizerMetrics(),
 ) {
     private var openedForAuthenticatedSession = false
     var model: VisualizerModel = VisualizerModel.initial()
@@ -386,10 +391,37 @@ class VisualizerWindowCoordinator(
         windowFactory.applyModel(model)
     }
 
+    fun onProfileMetadataReceived(metadata: ProfileMetadata) {
+        model = model.withProfileMetadata(metadata)
+        windowFactory.applyModel(model)
+    }
+
+    fun onUdpInputReceived(
+        input: UdpReceivedInput,
+        observedElapsedNanos: Long = System.nanoTime(),
+    ) {
+        val snapshot = metrics.record(input = input, desktopRenderElapsedNanos = observedElapsedNanos)
+        model = model
+            .withAcceptedInput(input = input, observedElapsedNanos = observedElapsedNanos)
+            .withMetrics(snapshot)
+        windowFactory.applyModel(model)
+    }
+
+    fun onUdpInputRejected(reason: InputReplayRejectReason) {
+        model = model.withInputRejection(reason.name.lowercase())
+        windowFactory.applyModel(model)
+    }
+
+    fun onUdpInputStateChanged(state: InputStreamLifecycleState) {
+        model = model.withPacketLifecycle(state)
+        windowFactory.applyModel(model)
+    }
+
     fun onVisualizerStatusReceived(
         status: VisualizerStatus,
         observedElapsedNanos: Long = System.nanoTime(),
     ) {
+        metrics.recordStatus(status = status, desktopReceivedElapsedNanos = observedElapsedNanos)
         model = modelForVisualizerStatus(model, status, observedElapsedNanos)
         windowFactory.applyModel(model)
     }

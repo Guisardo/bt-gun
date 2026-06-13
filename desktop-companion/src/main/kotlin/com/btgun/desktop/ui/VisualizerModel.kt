@@ -181,8 +181,9 @@ data class VisualizerModel(
             rawDebug = rawDebug.copy(lastRejection = reason.take(80)),
         )
 
-    fun withVisualizerStatus(status: VisualizerStatus, observedElapsedNanos: Long): VisualizerModel =
-        copy(
+    fun withVisualizerStatus(status: VisualizerStatus, observedElapsedNanos: Long): VisualizerModel {
+        val recentered = status.recenterState == "recentered" && status.lastRecenterElapsedNanos != null
+        return copy(
             recenter = VisualizerRecenterState(
                 aimZeroLabel = "Aim zero: ${status.aimZeroLabel}",
                 recenterInstruction = recenter.recenterInstruction,
@@ -201,8 +202,9 @@ data class VisualizerModel(
                 rawAimX = if (status.rawDebugEnabled) rawDebug.rawAimX else null,
                 rawAimY = if (status.rawDebugEnabled) rawDebug.rawAimY else null,
             ),
-            checklistRows = checklistRows.markObserved(
+            checklistRows = checklistRows.markObservedIf(
                 id = VisualizerChecklistRowId.RECENTER_AIM_ZERO,
+                condition = recentered,
                 source = "Android visualizer recenter status",
                 observedElapsedNanos = observedElapsedNanos,
             ),
@@ -213,6 +215,7 @@ data class VisualizerModel(
                 ageSourceElapsedNanos = observedElapsedNanos,
             ),
         )
+    }
 
     fun withMetrics(snapshot: VisualizerMetricSnapshot): VisualizerModel =
         copy(

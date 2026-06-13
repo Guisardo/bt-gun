@@ -2,12 +2,14 @@ package com.btgun.desktop.ui
 
 import com.btgun.desktop.control.ControlServerSessionState
 import com.btgun.desktop.control.HapticSendResult
+import com.btgun.desktop.control.ProfileMetadata
 import com.btgun.desktop.control.VisualizerStatus
 import com.btgun.desktop.backend.BackendLifecycleState
 import com.btgun.desktop.backend.BackendPublishResult
 import com.btgun.desktop.backend.macos.MacosBackendRuntimeDiagnostics
 import com.btgun.desktop.backend.windows.WindowsBackendRuntimeDiagnostics
 import com.btgun.desktop.haptics.HapticResultStatus
+import com.btgun.desktop.transport.InputReplayRejectReason
 import com.btgun.desktop.transport.InputStreamLifecycleState
 import java.io.File
 
@@ -30,6 +32,7 @@ fun main() {
     visualizerWindowSourceExcludesForbiddenLabels()
     visualizerFactoryReusesExistingWindow()
     visualizerCoordinatorOpensOnceOnAuthenticatedSession()
+    visualizerCoordinatorAppliesLiveInputProfileMetricsAndRejections()
     visualizerCoordinatorPreservesChecklistAndContextOnDisconnect()
     mainWiresEventHubVisualizerFactoryAndPairingWindow()
 }
@@ -399,6 +402,47 @@ private fun visualizerCoordinatorOpensOnceOnAuthenticatedSession() {
     )
 }
 
+private fun visualizerCoordinatorAppliesLiveInputProfileMetricsAndRejections() {
+    val applied = mutableListOf<VisualizerModel>()
+    val coordinator = VisualizerWindowCoordinator(
+        windowFactory = VisualizerWindowFactory {
+            object : VisualizerWindowHandle {
+                override fun open() = Unit
+
+                override fun applyModel(model: VisualizerModel) {
+                    applied.add(model)
+                }
+            }
+        },
+    )
+    coordinator.openVisualizer()
+
+    coordinator.onProfileMetadataReceived(
+        ProfileMetadata(
+            profileId = "default_visualizer",
+            displayName = "Default Visualizer",
+            revision = 2L,
+            source = "android",
+            rawDebugEnabled = true,
+        ),
+    )
+    coordinator.onUdpInputReceived(
+        acceptedInputForWindow(sequence = 7L, aimX = 0.33f, aimY = -0.44f),
+        observedElapsedNanos = 10_000_000L,
+    )
+    coordinator.onUdpInputRejected(InputReplayRejectReason.OLD_SEQUENCE)
+    coordinator.onUdpInputStateChanged(InputStreamLifecycleState.STALE)
+
+    val model = coordinator.model
+    expectEquals("profile metadata applied", "Default Visualizer", model.profileSummary.displayName)
+    expectEquals("live trigger applied", true, model.liveState.trigger)
+    expectEquals("live aim x applied", 0.33f, model.liveState.aimX)
+    expectEquals("latency target observed from metrics", VisualizerChecklistState.OBSERVED, model.row(VisualizerChecklistRowId.LATENCY_TARGET).state)
+    expectEquals("packet lifecycle applied", InputStreamLifecycleState.STALE, model.packetLifecycle)
+    expectEquals("rejection label applied", "old_sequence", model.rawDebug.lastRejection)
+    expectTrue("window received model updates", applied.size >= 4)
+}
+
 private fun visualizerCoordinatorPreservesChecklistAndContextOnDisconnect() {
     val existing = VisualizerModel.initial()
         .confirmRow(VisualizerChecklistRowId.RECENTER_AIM_ZERO)
@@ -433,6 +477,10 @@ private fun mainWiresEventHubVisualizerFactoryAndPairingWindow() {
         "eventHub = eventHub",
         "openVisualizer = coordinator::openVisualizer",
         "onVisualizerStatusReceived = coordinator::onVisualizerStatusReceived",
+        "onProfileMetadataReceived = coordinator::onProfileMetadataReceived",
+        "onUdpInputReceived = coordinator::onUdpInputReceived",
+        "onUdpInputRejected = coordinator::onUdpInputRejected",
+        "onUdpInputStateChanged = coordinator::onUdpInputStateChanged",
         "onWindowsBackendDiagnosticsChanged = coordinator::onWindowsBackendDiagnosticsChanged",
         "onMacosBackendDiagnosticsChanged = coordinator::onMacosBackendDiagnosticsChanged",
     ).forEach { expected ->
