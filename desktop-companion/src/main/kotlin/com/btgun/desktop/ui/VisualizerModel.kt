@@ -259,7 +259,7 @@ data class VisualizerModel(
                     detail = VisualizerWindow.hapticResultStatusText(result.status),
                     observedElapsedNanos = result.observedElapsedNanos,
                 ),
-                checklistRows = checklistRows.markObserved(
+                checklistRows = checklistRows.markObservedAfterRetry(
                     id = VisualizerChecklistRowId.LAN_PHONE_HAPTIC,
                     source = "authenticated LAN phone haptic ack",
                     observedElapsedNanos = result.observedElapsedNanos,
@@ -477,6 +477,24 @@ private fun List<VisualizerChecklistRow>.markObserved(
             )
         } else {
             row
+        }
+    }
+
+private fun List<VisualizerChecklistRow>.markObservedAfterRetry(
+    id: VisualizerChecklistRowId,
+    source: String,
+    observedElapsedNanos: Long?,
+): List<VisualizerChecklistRow> =
+    update(id) { row ->
+        when (row.state) {
+            VisualizerChecklistState.WAITING,
+            VisualizerChecklistState.FAILED,
+            -> row.copy(
+                state = VisualizerChecklistState.OBSERVED,
+                observedSource = source,
+                observedElapsedNanos = observedElapsedNanos,
+            )
+            else -> row
         }
     }
 

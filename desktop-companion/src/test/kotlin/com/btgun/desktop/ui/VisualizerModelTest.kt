@@ -27,6 +27,7 @@ fun main() {
     visualizerStatusUpdatesRecenterAimZeroAndRawDebugWithoutConfirming()
     idleVisualizerStatusDoesNotObserveRecenterProof()
     hapticAckObservesLanRowButDoesNotConfirmPhoneVibration()
+    hapticRetryRecoversFailedLanPhoneHapticRow()
     observedLanStreamDoesNotConfirmManualProofRows()
     modelLabelsExcludeDesktopProfileControlsAndSecretFields()
     staleInputPreservesLastAcceptedAimContext()
@@ -369,6 +370,31 @@ private fun hapticAckObservesLanRowButDoesNotConfirmPhoneVibration() {
         model.row(VisualizerChecklistRowId.LAN_PHONE_HAPTIC).state,
     )
     expectTrue("lan haptic still needs user confirmation", model.row(VisualizerChecklistRowId.LAN_PHONE_HAPTIC).requiresUserConfirmation)
+}
+
+private fun hapticRetryRecoversFailedLanPhoneHapticRow() {
+    val failed = VisualizerModel.initial().withHapticResult(
+        HapticResult(
+            commandId = "visualizer-haptic-123",
+            status = HapticResultStatus.PERMISSION_BLOCKED,
+            detail = "permission blocked",
+            observedElapsedNanos = 10_000_000L,
+        ),
+    )
+    val recovered = failed.withHapticResult(
+        HapticResult(
+            commandId = "visualizer-haptic-124",
+            status = HapticResultStatus.STARTED,
+            detail = "phone pulse started",
+            observedElapsedNanos = 11_000_000L,
+        ),
+    )
+    val confirmed = recovered.confirmRow(VisualizerChecklistRowId.LAN_PHONE_HAPTIC)
+
+    expectEquals("failed haptic marks row failed", VisualizerChecklistState.FAILED, failed.row(VisualizerChecklistRowId.LAN_PHONE_HAPTIC).state)
+    expectEquals("successful retry recovers row", VisualizerChecklistState.OBSERVED, recovered.row(VisualizerChecklistRowId.LAN_PHONE_HAPTIC).state)
+    expectEquals("recovered row can be confirmed", VisualizerChecklistState.CONFIRMED, confirmed.row(VisualizerChecklistRowId.LAN_PHONE_HAPTIC).state)
+    expectEquals("recovered checklist no longer failed", VisualizerChecklistSummary.PENDING, confirmed.checklistSummary())
 }
 
 private fun observedLanStreamDoesNotConfirmManualProofRows() {
