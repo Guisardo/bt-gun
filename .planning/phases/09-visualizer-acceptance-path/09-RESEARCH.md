@@ -416,22 +416,22 @@ private fun sendLanPhoneHaptic() {
 | A10 | Proposed Wave 0 test file names and boundaries are the best fit for existing test style. | Validation Architecture | Planner may choose different names but must preserve coverage. |
 | A11 | Research validity windows are estimates. | Metadata | Tool/hardware availability can change sooner than expected. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Exact Android status payload shape**
+1. **Exact Android status payload shape** — RESOLVED
    - What we know: Android owns recenter/aim baseline and current mapped aim status. [VERIFIED: `HostSessionService.kt`; VERIFIED: `ProfileMapper.kt`; VERIFIED: `ReloadHoldRecenter.kt`]
    - What's unclear: Whether planner should encode it as generic `diagnostics` body fields or add a typed helper model while keeping the existing wire type. [VERIFIED: `ControlEnvelope.kt`; ASSUMED]
-   - Recommendation: Use existing `diagnostics` control type with a strict parser for non-secret `visualizerStatus` fields and tests on both Android and desktop. [ASSUMED]
+   - Resolution: Use existing `diagnostics` control type with a strict parser for non-secret `visualizerStatus` fields and tests on both Android and desktop. [ASSUMED]
 
-2. **Latency precision acceptance**
+2. **Latency precision acceptance** — RESOLVED
    - What we know: Requirement target is under 50 ms from Android capture to desktop visualizer update; direct clock subtraction is invalid. [VERIFIED: `.planning/REQUIREMENTS.md`; VERIFIED: `docs/protocol/lan-pairing-v1.md`]
    - What's unclear: How much offset-estimation error is acceptable for user sign-off. [ASSUMED]
-   - Recommendation: Plan `estimated` headline metric with offset quality and secondary exact Android-local capture-to-send; require manual local-Wi-Fi test rather than automated pass/fail only. [ASSUMED]
+   - Resolution: Plan `estimated` headline metric with offset quality and secondary exact Android-local capture-to-send; require manual local-Wi-Fi test rather than automated pass/fail only. [ASSUMED]
 
-3. **Manual checklist persistence**
+3. **Manual checklist persistence** — RESOLVED
    - What we know: D-04 makes guided manual checklist primary and evidence must be sanitized. [VERIFIED: `09-CONTEXT.md`; VERIFIED: `docs/setup/android-bluetooth-hid-gamepad.md`; VERIFIED: `docs/windows/phase6-proof-checklist.md`]
    - What's unclear: Whether checklist state must persist across app restarts. [ASSUMED]
-   - Recommendation: Keep persistence out unless planner finds existing simple local preference pattern; preserving state while window remains open satisfies D-08. [ASSUMED]
+   - Resolution: Keep persistence out; preserving state while window remains open satisfies D-08 and the Phase 09 UI-SPEC lifecycle contract. [ASSUMED]
 
 ## Environment Availability
 
