@@ -15,6 +15,7 @@ fun main() {
     pairingWindowSecurityExceptionSurfacesBlockedStatus()
     staleProxyCallbacksAfterStopDoNotRegisterHidMode()
     olderProxyCallbacksDoNotOverrideNewStart()
+    stopDisconnectAndUnplugSendNeutralReleaseReport()
     unregisterAndCloseAreIdempotent()
 }
 
@@ -174,6 +175,39 @@ private fun olderProxyCallbacksDoNotOverrideNewStart() {
     expectEquals("current status available", BtGunHidProxyState.AVAILABLE, gamepad.status.proxy)
 }
 
+private fun stopDisconnectAndUnplugSendNeutralReleaseReport() {
+    val stopConnector = FakeHidProfileConnector()
+    val stopGamepad = AndroidBluetoothHidGamepad(connector = stopConnector, hapticHandler = { null })
+    startRegisteredAndConnected(stopGamepad, stopConnector)
+    stopGamepad.sendInput(state(), motion(), stale = false)
+    expectEquals("stop active report is pressed", true, stopConnector.proxy.sentReports.first().payload.any { it != 0.toByte() })
+
+    stopGamepad.stopGamepadMode()
+
+    expectEquals("stop sent pressed plus neutral", 2, stopConnector.proxy.sentReports.size)
+    expectNeutralReport("stop neutral report", stopConnector.proxy.sentReports.last())
+
+    val disconnectConnector = FakeHidProfileConnector()
+    val disconnectGamepad = AndroidBluetoothHidGamepad(connector = disconnectConnector, hapticHandler = { null })
+    startRegisteredAndConnected(disconnectGamepad, disconnectConnector)
+    disconnectGamepad.sendInput(state(), motion(), stale = false)
+
+    disconnectConnector.proxy.callback?.onConnectionStateChanged(FakeHost, BtGunHidConnectionStates.DISCONNECTED)
+
+    expectEquals("disconnect sent pressed plus neutral", 2, disconnectConnector.proxy.sentReports.size)
+    expectNeutralReport("disconnect neutral report", disconnectConnector.proxy.sentReports.last())
+
+    val unplugConnector = FakeHidProfileConnector()
+    val unplugGamepad = AndroidBluetoothHidGamepad(connector = unplugConnector, hapticHandler = { null })
+    startRegisteredAndConnected(unplugGamepad, unplugConnector)
+    unplugGamepad.sendInput(state(), motion(), stale = false)
+
+    unplugConnector.proxy.callback?.onVirtualCableUnplug(FakeHost)
+
+    expectEquals("unplug sent pressed plus neutral", 2, unplugConnector.proxy.sentReports.size)
+    expectNeutralReport("unplug neutral report", unplugConnector.proxy.sentReports.last())
+}
+
 private fun unregisterAndCloseAreIdempotent() {
     val connector = FakeHidProfileConnector()
     val gamepad = AndroidBluetoothHidGamepad(connector = connector, hapticHandler = { null })
@@ -188,6 +222,11 @@ private fun unregisterAndCloseAreIdempotent() {
     expectEquals("connector closed once", 1, connector.closeCount)
     expectEquals("status unregistered", BtGunHidRegistrationState.NOT_REGISTERED, gamepad.status.registration)
     expectEquals("send after close no proxy", BtGunHidInputSendResult.NO_PROXY, gamepad.sendInput(state(), motion(), stale = false))
+}
+
+private fun expectNeutralReport(label: String, report: SentReport) {
+    expectEquals("$label id", BtGunHidDescriptor.INPUT_REPORT_ID, report.reportId)
+    expectByteArray("$label payload", ByteArray(BtGunHidDescriptor.INPUT_REPORT_PAYLOAD_LENGTH_BYTES), report.payload)
 }
 
 private fun startRegisteredAndConnected(

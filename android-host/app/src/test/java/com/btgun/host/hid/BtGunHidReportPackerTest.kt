@@ -15,6 +15,7 @@ fun main() {
     centersAimWhenMotionIsMissing()
     staleReportClearsButtonsAndStickButKeepsSelectedAim()
     staleMappedReportClearsButtonsAndStickButKeepsMappedAim()
+    neutralReportClearsButtonsStickAndAim()
     descriptorBytesRemainPinnedForMappedState()
     hidPackageDoesNotDependOnDesktopModules()
 }
@@ -35,7 +36,7 @@ private fun packsButtonsAndAxesIntoPinnedInputPayload() {
     expectByteArray(
         "golden input payload",
         byteArrayOf(
-            0b1100_0101.toByte(),
+            0b0001_0111.toByte(),
             0x00, 0x40,
             0x00, 0x20,
             0x00, 0x20,
@@ -43,7 +44,7 @@ private fun packsButtonsAndAxesIntoPinnedInputPayload() {
         ),
         report.bytes,
     )
-    expectEquals("button bits", 0b1100_0101.toByte(), report.bytes[0])
+    expectEquals("button bits", 0b0001_0111.toByte(), report.bytes[0])
     expectEquals("stickX", 16_384, report.bytes.readInt16Le(1))
     expectEquals("stickY inverted for HID", 8_192, report.bytes.readInt16Le(3))
     expectEquals("aimX calibrated", 8_192, report.bytes.readInt16Le(5))
@@ -70,7 +71,7 @@ private fun packsMappedButtonsAndAxesIntoPinnedInputPayload() {
     expectByteArray(
         "mapped golden payload",
         byteArrayOf(
-            0b1100_0101.toByte(),
+            0b0001_0111.toByte(),
             0x00, 0x40,
             0x00, 0x20,
             0x00, 0x20,
@@ -104,7 +105,7 @@ private fun clampsAxesAndFallsBackToRawAim() {
         stale = false,
     )
 
-    expectEquals("button bits ignore unknown", 0b0000_1010.toByte(), report.bytes[0])
+    expectEquals("button bits ignore unknown", 0b0010_1000.toByte(), report.bytes[0])
     expectEquals("stickX clamp", 32_767, report.bytes.readInt16Le(1))
     expectEquals("stickY inverted clamp", 32_767, report.bytes.readInt16Le(3))
     expectEquals("raw aimX clamp", 32_767, report.bytes.readInt16Le(5))
@@ -119,7 +120,7 @@ private fun centersAimWhenMotionIsMissing() {
         stale = false,
     )
 
-    expectEquals("button bits", 0b1000_0000.toByte(), report.bytes[0])
+    expectEquals("button bits", 0b0000_0001.toByte(), report.bytes[0])
     expectEquals("stickX min", -32_768, report.bytes.readInt16Le(1))
     expectEquals("stickY inverted min", -32_768, report.bytes.readInt16Le(3))
     expectEquals("aimX center", 0, report.bytes.readInt16Le(5))
@@ -169,19 +170,28 @@ private fun staleMappedReportClearsButtonsAndStickButKeepsMappedAim() {
     expectEquals("mapped stale metadata", true, report.stale)
 }
 
+private fun neutralReportClearsButtonsStickAndAim() {
+    val report = BtGunHidReportPacker.neutralInputReport()
+
+    expectEquals("neutral report id", BtGunHidDescriptor.INPUT_REPORT_ID, report.reportId)
+    expectByteArray("neutral payload", ByteArray(BtGunHidDescriptor.INPUT_REPORT_PAYLOAD_LENGTH_BYTES), report.bytes)
+    expectEquals("neutral aim source", "neutral", report.aimSource)
+    expectEquals("neutral stale metadata", true, report.stale)
+}
+
 private fun descriptorBytesRemainPinnedForMappedState() {
     expectEquals("descriptor payload length", 9, BtGunHidDescriptor.INPUT_REPORT_PAYLOAD_LENGTH_BYTES)
     expectByteArray(
         "descriptor bytes pinned",
         byteArrayOf(
             0x05, 0x01, 0x09, 0x05, 0xa1.toByte(), 0x01, 0x85.toByte(), 0x01,
-            0x05, 0x09, 0x19, 0x01, 0x29, 0x08, 0x15, 0x00, 0x25, 0x01,
-            0x95.toByte(), 0x08, 0x75, 0x01, 0x81.toByte(), 0x02, 0x05, 0x01,
-            0x16, 0x00, 0x80.toByte(), 0x26, 0xff.toByte(), 0x7f, 0x75, 0x10,
-            0x95.toByte(), 0x04, 0x09, 0x30, 0x09, 0x31, 0x09, 0x32, 0x09, 0x33,
-            0x81.toByte(), 0x02, 0x85.toByte(), 0x02, 0x05, 0x01, 0x09, 0x00,
-            0x15, 0x00, 0x26, 0xff.toByte(), 0x00, 0x75, 0x08, 0x95.toByte(), 0x08,
-            0x91.toByte(), 0x02, 0xc0.toByte(),
+            0x05, 0x09, 0x19, 0x01, 0x29, 0x06, 0x15, 0x00, 0x25, 0x01,
+            0x95.toByte(), 0x06, 0x75, 0x01, 0x81.toByte(), 0x02, 0x95.toByte(), 0x02,
+            0x75, 0x01, 0x81.toByte(), 0x03, 0x05, 0x01, 0x16, 0x00, 0x80.toByte(),
+            0x26, 0xff.toByte(), 0x7f, 0x75, 0x10, 0x95.toByte(), 0x04, 0x09, 0x30,
+            0x09, 0x31, 0x09, 0x32, 0x09, 0x33, 0x81.toByte(), 0x02, 0x85.toByte(),
+            0x02, 0x05, 0x01, 0x09, 0x00, 0x15, 0x00, 0x26, 0xff.toByte(), 0x00,
+            0x75, 0x08, 0x95.toByte(), 0x08, 0x91.toByte(), 0x02, 0xc0.toByte(),
         ),
         BtGunHidDescriptor.DESCRIPTOR_BYTES,
     )
