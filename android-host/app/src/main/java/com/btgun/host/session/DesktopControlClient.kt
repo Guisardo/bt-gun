@@ -314,6 +314,11 @@ class DesktopControlClient(
         return send(profileMetadataEnvelope(sessionId, profile))
     }
 
+    fun sendVisualizerStatus(status: VisualizerStatus): DesktopControlSendResult {
+        val sessionId = trustedSessionId ?: return DesktopControlSendResult.NotConnected
+        return send(visualizerStatusEnvelope(sessionId, status))
+    }
+
     fun close() {
         socket?.close()
         socket = null
@@ -508,6 +513,17 @@ class DesktopControlClient(
                     "rawDebugEnabled" to JsonPrimitive(profile.rawDebugEnabled),
                 ),
             ),
+        )
+
+    private fun visualizerStatusEnvelope(sessionId: String, status: VisualizerStatus): ControlEnvelope =
+        ControlEnvelope(
+            v = 1,
+            type = ControlMessageType.DIAGNOSTICS,
+            msgId = "android-visualizer-status-${status.statusSequence ?: elapsedRealtimeNanos()}",
+            sessionId = sessionId,
+            seq = 0L,
+            sentElapsedNanos = elapsedRealtimeNanos(),
+            body = VisualizerStatus.body(status),
         )
 
     private fun JsonObject.toDiagnostics(): ControlDiagnostics? {
