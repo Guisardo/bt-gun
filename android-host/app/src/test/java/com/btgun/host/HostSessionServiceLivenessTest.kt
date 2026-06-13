@@ -30,6 +30,8 @@ import com.btgun.host.profile.ProfileStore
 import com.btgun.host.profile.SaveProfileResult
 import com.btgun.host.profile.SmoothingMode
 import com.btgun.host.profile.VirtualButton
+import com.btgun.host.recenter.ReloadHoldRecenter
+import com.btgun.host.session.VisualizerStatus
 
 fun main() {
     heartbeatTimeoutClearSchedulesUdpDisconnectGrace()
@@ -46,6 +48,9 @@ fun main() {
     hostProfileRuntimeReloadsSelectedProfileWithoutRestart()
     hidFanoutUsesMappedStateAfterServiceMapping()
     recenterUsesSelectedPhysicalControlWhileVirtualReloadPublishes()
+    visualizerStatusReflectsRecenterAimZeroAndRawDebug()
+    visualizerStatusNoopsWithoutTrustedDesktopConnection()
+    reloadDownUpEventsStillFanOutAroundRecenterStatus()
 }
 
 private fun heartbeatTimeoutClearSchedulesUdpDisconnectGrace() {
@@ -349,6 +354,87 @@ private fun recenterUsesSelectedPhysicalControlWhileVirtualReloadPublishes() {
     expectEquals("button a starts hold", true, mapper.isRecenterPressed(profile, rawState))
     expectEquals("virtual reload still publishes", true, "reload" in mapped.pressedVirtualControls)
 }
+
+private fun visualizerStatusReflectsRecenterAimZeroAndRawDebug() {
+    val profile = BtGunProfile.defaultVisualizer().copy(rawDebugEnabled = true)
+    val recenter = statusEnvelope(
+        name = ReloadHoldRecenter.RECENTER_EVENT_NAME,
+        label = "recenter emitted",
+        elapsedNanos = 4_000_000_000L,
+    )
+    val state = HostSessionState(
+        activeProfile = profile,
+        lastRecenterStatus = recenter,
+        aimBaseline = com.btgun.host.motion.AimBaseline(
+            yaw = 1f,
+            pitch = 2f,
+            roll = 3f,
+            elapsedNanos = 4_000_000_000L,
+        ),
+    )
+
+    val status = hostVisualizerStatusFor(
+        state = state,
+        androidElapsedNanos = 4_100_000_000L,
+        statusSequence = 3L,
+    )
+    val body = status.toJsonBody()
+
+    expectEquals("raw debug follows profile", true, status.rawDebugEnabled)
+    expectEquals("aim-zero ready", VisualizerStatus.AIM_ZERO_READY, status.aimZeroState)
+    expectEquals("recentered", VisualizerStatus.RECENTERED, status.recenterState)
+    expectEquals("last recenter", 4_000_000_000L, status.lastRecenterElapsedNanos)
+    expectEquals("sequence", 3L, status.statusSequence)
+    expectFalse("no raw yaw status", body.containsKey("yaw"))
+    expectFalse("no raw pitch status", body.containsKey("pitch"))
+    expectFalse("no raw roll status", body.containsKey("roll"))
+}
+
+private fun visualizerStatusNoopsWithoutTrustedDesktopConnection() {
+    expectFalse(
+        "no desktop no status",
+        shouldPublishVisualizerStatus(hasTrustedDesktopConnection = false, meaningfulChange = true),
+    )
+    expectFalse(
+        "no change no status",
+        shouldPublishVisualizerStatus(hasTrustedDesktopConnection = true, meaningfulChange = false),
+    )
+    expectTrue(
+        "trusted change publishes",
+        shouldPublishVisualizerStatus(hasTrustedDesktopConnection = true, meaningfulChange = true),
+    )
+}
+
+private fun reloadDownUpEventsStillFanOutAroundRecenterStatus() {
+    val recenter = ReloadHoldRecenter()
+
+    val down = recenter.onReload(pressed = true, nowElapsedNanos = 1_000_000_000L)
+    val status = recenter.onTick(3_100_000_000L)
+    val up = recenter.onReload(pressed = false, nowElapsedNanos = 3_200_000_000L)
+
+    expectEquals("reload down event", "reload", down.single().payload.name)
+    expectEquals("reload down pressed", true, down.single().payload.pressed)
+    expectEquals("recenter status", ReloadHoldRecenter.RECENTER_EVENT_NAME, status.single().payload.name)
+    expectEquals("reload up event", "reload", up.single().payload.name)
+    expectEquals("reload up pressed", false, up.single().payload.pressed)
+}
+
+private fun statusEnvelope(
+    name: String,
+    label: String,
+    elapsedNanos: Long,
+) = com.btgun.host.model.LiveEnvelope(
+    stream = com.btgun.host.model.StreamKind.STATUS,
+    seq = 1L,
+    captureElapsedNanos = elapsedNanos,
+    emittedElapsedNanos = elapsedNanos,
+    payload = com.btgun.host.model.StatusEvent(
+        name = name,
+        message = label,
+        baselineElapsedNanos = elapsedNanos,
+        statusLabel = label,
+    ),
+)
 
 private fun motionEnvelope(payload: MotionSample) =
     com.btgun.host.model.LiveEnvelope(
