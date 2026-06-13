@@ -2,6 +2,7 @@ package com.btgun.desktop.ui
 
 import com.btgun.desktop.control.ControlServerSessionState
 import com.btgun.desktop.control.HapticSendResult
+import com.btgun.desktop.control.VisualizerStatus
 import com.btgun.desktop.haptics.HapticResultStatus
 import com.btgun.desktop.transport.InputStreamLifecycleState
 import java.io.File
@@ -16,6 +17,8 @@ fun main() {
     visualizerHapticButtonRequiresAuthenticatedSession()
     visualizerHapticCommandUsesSafeShape()
     visualizerHapticStatusCopyMatchesUiSpec()
+    visualizerWindowRendersRecenterAndRawDebugStatusLabels()
+    visualizerCoordinatorAppliesVisualizerStatusWithoutClearingState()
     visualizerWindowSourceExcludesForbiddenLabels()
     visualizerFactoryReusesExistingWindow()
     visualizerCoordinatorOpensOnceOnAuthenticatedSession()
@@ -165,6 +168,62 @@ private fun visualizerHapticStatusCopyMatchesUiSpec() {
     )
 }
 
+private fun visualizerWindowRendersRecenterAndRawDebugStatusLabels() {
+    val model = VisualizerModel.initial().withVisualizerStatus(
+        status = VisualizerStatus(
+            rawDebugEnabled = true,
+            aimZeroState = "ready",
+            recenterState = "recentered",
+            lastRecenterElapsedNanos = 3_000_000_000L,
+            androidElapsedNanos = 5_000_000_000L,
+            statusSequence = 44L,
+            recenterLabel = "recentered",
+            aimZeroLabel = "ready",
+        ),
+        observedElapsedNanos = 6_000_000_000L,
+    )
+
+    expectEquals(
+        "recenter labels",
+        listOf(
+            "Aim zero: ready",
+            "Recenter: hold reload for 2000ms",
+            "Last recenter: 2000 ms ago",
+        ),
+        VisualizerWindow.recenterStatusLabels(model),
+    )
+    expectTrue("raw debug on label visible", VisualizerPanels.rawDebugLabels(model.rawDebug).contains("Raw debug on"))
+}
+
+private fun visualizerCoordinatorAppliesVisualizerStatusWithoutClearingState() {
+    val existing = VisualizerModel.initial()
+        .confirmRow(VisualizerChecklistRowId.LAN_PHONE_HAPTIC)
+        .withAcceptedInput(
+            acceptedInputForWindow(sequence = 9L, aimX = 0.25f, aimY = -0.5f),
+            observedElapsedNanos = 6_000_000_000L,
+        )
+
+    val updated = VisualizerWindowCoordinator.modelForVisualizerStatus(
+        model = existing,
+        status = VisualizerStatus(
+            rawDebugEnabled = true,
+            aimZeroState = "ready",
+            recenterState = "recentered",
+            lastRecenterElapsedNanos = 3_000_000_000L,
+            androidElapsedNanos = 5_000_000_000L,
+            statusSequence = 44L,
+            recenterLabel = "recentered",
+            aimZeroLabel = "ready",
+        ),
+        observedElapsedNanos = 6_000_000_000L,
+    )
+
+    expectEquals("live trigger preserved", true, updated.liveState.trigger)
+    expectEquals("live aim x preserved", 0.25f, updated.liveState.aimX)
+    expectEquals("haptic confirmation preserved", VisualizerChecklistState.CONFIRMED, updated.row(VisualizerChecklistRowId.LAN_PHONE_HAPTIC).state)
+    expectEquals("recenter observed", VisualizerChecklistState.OBSERVED, updated.row(VisualizerChecklistRowId.RECENTER_AIM_ZERO).state)
+}
+
 private fun visualizerWindowSourceExcludesForbiddenLabels() {
     val source = File("src/main/kotlin/com/btgun/desktop/ui/VisualizerWindow.kt")
         .takeIf { it.exists() }
@@ -276,10 +335,44 @@ private fun mainWiresEventHubVisualizerFactoryAndPairingWindow() {
         "PairingWindow(",
         "eventHub = eventHub",
         "openVisualizer = coordinator::openVisualizer",
+        "onVisualizerStatusReceived = coordinator::onVisualizerStatusReceived",
     ).forEach { expected ->
         expectContains("main wiring contains $expected", source, expected)
     }
 }
+
+private fun acceptedInputForWindow(
+    sequence: Long,
+    aimX: Float,
+    aimY: Float,
+): com.btgun.desktop.transport.UdpReceivedInput =
+    com.btgun.desktop.transport.UdpReceivedInput(
+        controlSessionId = "control-sid-1",
+        streamSessionIdHex = "00112233445566778899aabbccddeeff",
+        frameType = com.btgun.desktop.transport.UdpInputFrameType.SNAPSHOT,
+        buttons = 0x01,
+        pressedControls = setOf("trigger"),
+        stickX = 12,
+        stickY = -12,
+        motion = com.btgun.desktop.transport.UdpReceivedMotion(
+            provider = 2,
+            capabilityFlags = 3,
+            yaw = 1.0f,
+            pitch = 2.0f,
+            roll = 3.0f,
+            rawAimX = aimX,
+            rawAimY = aimY,
+            sourceSensorElapsedNanos = 1_000_000L,
+        ),
+        mappedAim = com.btgun.desktop.transport.UdpReceivedMappedAim(aimX = aimX, aimY = aimY),
+        mappedProductStream = true,
+        rawDebugEnabled = false,
+        captureElapsedNanos = 2_000_000L,
+        sendElapsedNanos = 3_000_000L,
+        receivedElapsedNanos = 4_000_000L,
+        stale = false,
+        lastAcceptedSequence = sequence,
+    )
 
 private fun expectEquals(label: String, expected: Any?, actual: Any?) {
     if (expected != actual) {
