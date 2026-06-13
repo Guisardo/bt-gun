@@ -7,6 +7,10 @@ import java.io.File
 fun main() {
     visualizerWindowExposesUiSpecCopyWithoutLaunchingSwing()
     visualizerWindowExposesLifecycleHelpersWithoutOwningTransport()
+    visualizerPanelsExposeRequiredGamepadHelpers()
+    visualizerCrosshairHelpersClampAndInvertYAxis()
+    visualizerStaleOverlayPreservesLastAimCopy()
+    visualizerWindowSourceUsesEdtFriendlyRendering()
     visualizerWindowSourceExcludesForbiddenLabels()
     visualizerFactoryReusesExistingWindow()
     visualizerCoordinatorOpensOnceOnAuthenticatedSession()
@@ -44,6 +48,61 @@ private fun visualizerWindowExposesLifecycleHelpersWithoutOwningTransport() {
         "open method exposed",
         VisualizerWindow::class.java.methods.any { method -> method.name == "open" },
     )
+}
+
+private fun visualizerPanelsExposeRequiredGamepadHelpers() {
+    expectEquals(
+        "button indicator labels",
+        listOf("Trigger", "Reload", "X", "Y", "A", "B"),
+        VisualizerPanels.buttonIndicatorLabels(),
+    )
+    expectEquals("stick surface size", 200, VisualizerPanels.stickCrosshairSpec().sizePx)
+    expectEquals("aim surface size", 220, VisualizerPanels.aimCrosshairSpec().sizePx)
+}
+
+private fun visualizerCrosshairHelpersClampAndInvertYAxis() {
+    val stick = VisualizerPanels.stickCrosshairSpec()
+    val topRight = stick.pointFor(x = 2.0f, y = 2.0f)
+    val bottomLeft = stick.pointFor(x = -2.0f, y = -2.0f)
+    val center = stick.pointFor(x = 0.0f, y = 0.0f)
+
+    expectEquals("clamp positive x to right edge", stick.maxPlotPx, topRight.x)
+    expectEquals("invert positive y to top edge", stick.minPlotPx, topRight.y)
+    expectEquals("clamp negative x to left edge", stick.minPlotPx, bottomLeft.x)
+    expectEquals("invert negative y to bottom edge", stick.maxPlotPx, bottomLeft.y)
+    expectEquals("center x", stick.centerPx, center.x)
+    expectEquals("center y", stick.centerPx, center.y)
+}
+
+private fun visualizerStaleOverlayPreservesLastAimCopy() {
+    expectEquals("stale overlay copy", "stale", VisualizerPanels.staleOverlayText(stale = true, disconnected = false))
+    expectEquals(
+        "disconnected overlay copy",
+        "disconnected",
+        VisualizerPanels.staleOverlayText(stale = false, disconnected = true),
+    )
+    expectEquals("live overlay hidden", null, VisualizerPanels.staleOverlayText(stale = false, disconnected = false))
+    expectTrue(
+        "stale aim display preserves last accepted aim",
+        VisualizerPanels.usesLastAcceptedAimWhenStale(
+            currentAimX = 0.0f,
+            currentAimY = 0.0f,
+            lastAcceptedAimX = 0.35f,
+            lastAcceptedAimY = -0.45f,
+            stale = true,
+        ),
+    )
+}
+
+private fun visualizerWindowSourceUsesEdtFriendlyRendering() {
+    val source = File("src/main/kotlin/com/btgun/desktop/ui/VisualizerWindow.kt")
+        .takeIf { it.exists() }
+        ?.readText()
+        .orEmpty()
+    expectContains("render through helper panel", source, "VisualizerPanels")
+    expectContains("EDT repaint flow", source, "SwingUtilities.invokeLater")
+    expectFalse("no blocking sleep in visualizer window", source.contains("Thread.sleep("))
+    expectFalse("no blocking network io in visualizer window", source.contains("java.net."))
 }
 
 private fun visualizerWindowSourceExcludesForbiddenLabels() {
