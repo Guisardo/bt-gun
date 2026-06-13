@@ -69,6 +69,7 @@ tasks.withType<Test>().configureEach {
             "com.btgun.desktop.ui.DesktopUiEventHubTestKt",
             "com.btgun.desktop.ui.VisualizerMetricsTestKt",
             "com.btgun.desktop.ui.VisualizerModelTestKt",
+            "com.btgun.desktop.ui.VisualizerWindowTestKt",
             "com.btgun.desktop.backend.BackendContractTestKt",
             "com.btgun.desktop.backend.BackendCapabilitiesTestKt",
             "com.btgun.desktop.backend.UdpControllerStateAdapterTestKt",
