@@ -9,6 +9,7 @@ import java.io.File
 
 fun main() {
     visualizerWindowExposesUiSpecCopyWithoutLaunchingSwing()
+    visualizerWindowExposesFinalChecklistActionCopy()
     visualizerWindowExposesLifecycleHelpersWithoutOwningTransport()
     visualizerPanelsExposeRequiredGamepadHelpers()
     visualizerCrosshairHelpersClampAndInvertYAxis()
@@ -41,6 +42,19 @@ private fun visualizerWindowExposesUiSpecCopyWithoutLaunchingSwing() {
         VisualizerWindow.requiredSectionLabels(),
     )
     expectEquals("haptic action", "Run phone haptic test", VisualizerWindow.hapticButtonLabel())
+}
+
+private fun visualizerWindowExposesFinalChecklistActionCopy() {
+    expectEquals("top passing summary", "Phase 9 checks passing", VisualizerWindow.topSummaryPassing())
+    expectEquals("top failed summary", "Phase 9 checks need attention", VisualizerWindow.topSummaryFailed())
+    expectEquals("confirm observed copy", "Confirm observed", VisualizerWindow.confirmObservedLabel())
+    expectEquals("confirm limitation copy", "Confirm limitation", VisualizerWindow.confirmLimitationLabel())
+    expectEquals("reset copy", "Reset checklist", VisualizerWindow.resetChecklistLabel())
+    expectEquals(
+        "reset confirmation copy",
+        "Reset checklist: Reset Phase 9 checklist progress for this session? Live input and pairing state are unchanged.",
+        VisualizerWindow.resetChecklistConfirmationCopy(),
+    )
 }
 
 private fun visualizerWindowExposesLifecycleHelpersWithoutOwningTransport() {

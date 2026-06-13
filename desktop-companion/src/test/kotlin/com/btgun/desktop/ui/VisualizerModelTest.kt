@@ -9,6 +9,9 @@ import com.btgun.desktop.haptics.HapticResult
 import com.btgun.desktop.haptics.HapticResultStatus
 
 fun main() {
+    finalChecklistCannotPassUntilRequiredRowsReachAcceptedStates()
+    macosAndWindowsInputRowsAreIndependentAndBothRequired()
+    resetChecklistClearsProofOnlyAndPreservesLiveSessionState()
     eventStripKeepsExactlyTenNewestProductEvents()
     eventStripLabelsIncludeSequenceAndAge()
     rawDebugDrawerStartsCollapsedAndShowsWhitelistedFieldsOnlyWhenEnabled()
@@ -17,6 +20,77 @@ fun main() {
     observedLanStreamDoesNotConfirmManualProofRows()
     modelLabelsExcludeDesktopProfileControlsAndSecretFields()
     staleInputPreservesLastAcceptedAimContext()
+}
+
+private fun finalChecklistCannotPassUntilRequiredRowsReachAcceptedStates() {
+    val observed = VisualizerModel.initial()
+        .withAcceptedInput(acceptedInput(sequence = 1L), observedElapsedNanos = 2_000_000L)
+        .withVisualizerStatus(
+            status = VisualizerStatus(
+                rawDebugEnabled = false,
+                aimZeroState = "ready",
+                recenterState = "recentered",
+                lastRecenterElapsedNanos = 1_000_000L,
+                androidElapsedNanos = 2_000_000L,
+                statusSequence = 2L,
+                recenterLabel = "recentered",
+                aimZeroLabel = "ready",
+            ),
+            observedElapsedNanos = 3_000_000L,
+        )
+        .withMetrics(
+            VisualizerMetricSnapshot.empty().copy(
+                targetStatus = "pass",
+            ),
+        )
+
+    expectEquals("observed still pending", VisualizerChecklistSummary.PENDING, observed.checklistSummary())
+
+    val almost = observed
+        .confirmRow(VisualizerChecklistRowId.RECENTER_AIM_ZERO)
+        .confirmRow(VisualizerChecklistRowId.MACOS_HID_INPUT)
+        .confirmRow(VisualizerChecklistRowId.WINDOWS_VHF_INPUT)
+        .confirmRow(VisualizerChecklistRowId.LAN_PHONE_HAPTIC)
+        .confirmRow(VisualizerChecklistRowId.WINDOWS_VHF_HAPTIC)
+
+    expectEquals("macOS limitation still needed", VisualizerChecklistSummary.PENDING, almost.checklistSummary())
+
+    val passing = almost.confirmLimitation(VisualizerChecklistRowId.MACOS_HID_HAPTIC_LIMIT)
+    expectEquals("all required proof accepted", VisualizerChecklistSummary.PASSING, passing.checklistSummary())
+    expectEquals("passing label", VisualizerWindow.topSummaryPassing(), passing.topSummaryLabel())
+}
+
+private fun macosAndWindowsInputRowsAreIndependentAndBothRequired() {
+    val onlyMacos = VisualizerModel.initial()
+        .confirmRow(VisualizerChecklistRowId.MACOS_HID_INPUT)
+    expectEquals("macOS row confirmed", VisualizerChecklistState.CONFIRMED, onlyMacos.row(VisualizerChecklistRowId.MACOS_HID_INPUT).state)
+    expectEquals("Windows row still waiting", VisualizerChecklistState.WAITING, onlyMacos.row(VisualizerChecklistRowId.WINDOWS_VHF_INPUT).state)
+    expectEquals("one OS path insufficient", VisualizerChecklistSummary.PENDING, onlyMacos.checklistSummary())
+
+    val onlyWindows = VisualizerModel.initial()
+        .confirmRow(VisualizerChecklistRowId.WINDOWS_VHF_INPUT)
+    expectEquals("Windows row confirmed", VisualizerChecklistState.CONFIRMED, onlyWindows.row(VisualizerChecklistRowId.WINDOWS_VHF_INPUT).state)
+    expectEquals("macOS row still waiting", VisualizerChecklistState.WAITING, onlyWindows.row(VisualizerChecklistRowId.MACOS_HID_INPUT).state)
+    expectEquals("other OS path insufficient", VisualizerChecklistSummary.PENDING, onlyWindows.checklistSummary())
+}
+
+private fun resetChecklistClearsProofOnlyAndPreservesLiveSessionState() {
+    val live = VisualizerModel.initial()
+        .withPacketLifecycle(com.btgun.desktop.transport.InputStreamLifecycleState.ACTIVE)
+        .withAcceptedInput(acceptedInput(sequence = 7L, aimX = 0.5f, aimY = -0.25f), observedElapsedNanos = 8_000_000L)
+        .confirmRow(VisualizerChecklistRowId.MACOS_HID_INPUT)
+        .confirmLimitation(VisualizerChecklistRowId.MACOS_HID_HAPTIC_LIMIT)
+
+    val reset = live.resetChecklist()
+
+    expectEquals("live lifecycle preserved", live.packetLifecycle, reset.packetLifecycle)
+    expectEquals("live trigger preserved", live.liveState.trigger, reset.liveState.trigger)
+    expectEquals("live aim preserved", live.liveState.aimX, reset.liveState.aimX)
+    expectEquals("events preserved", live.productEvents, reset.productEvents)
+    VisualizerChecklistRowId.entries.forEach { rowId ->
+        expectEquals("row reset ${rowId.wireId}", VisualizerChecklistState.WAITING, reset.row(rowId).state)
+        expectEquals("row observed source cleared ${rowId.wireId}", null, reset.row(rowId).observedSource)
+    }
 }
 
 private fun eventStripKeepsExactlyTenNewestProductEvents() {
