@@ -343,7 +343,7 @@ Plans:
 
 **Wave 0**
 
-- [ ] 09-01-PLAN.md — Wave 0 desktop event hub, visualizer metrics, and immutable model contracts.
+- [x] 09-01-PLAN.md — Wave 0 desktop event hub, visualizer metrics, and immutable model contracts.
 
 **Wave 1** *(blocked on Wave 0 completion)*
 
@@ -377,7 +377,7 @@ Plans:
   3. Repository documents Android build tooling, device testing workflow, LAN protocol schemas, pairing flow, and security model.
   4. Repository documents v1 limitations, including no direct desktop Bluetooth, deferred physical gun motor rumble, and no game-specific presets.
 
-**Plans:** TBD
+**Plans:** 1/6 plans executed
 
 ## Progress
 
@@ -394,5 +394,5 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 | 6. Windows Virtual Joystick Path | 6/6 | Complete | 2026-06-10 |
 | 7. Android Bluetooth HID Gamepad Path | 6/6 | Complete    | 2026-06-11 |
 | 8. Desktop Profiles and Mapping | 7/7 | Complete    | 2026-06-12 |
-| 9. Visualizer Acceptance Path | 0/TBD | Not started | - |
+| 9. Visualizer Acceptance Path | 1/6 | In Progress|  |
 | 10. Diagnostics, Replay, and v1 Docs | 0/TBD | Not started | - |

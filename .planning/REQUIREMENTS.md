@@ -72,17 +72,17 @@ Retained for diagnostics, pairing/control experiments, and Windows virtual-contr
 
 ### Visualizer
 
-- [ ] **VIS-01**: User can open a simple joystick visualizer that connects to the desktop companion pipeline.
-- [ ] **VIS-02**: Visualizer displays trigger, reload, joystick, X/Y/A/B, and aim axes in real time.
+- [x] **VIS-01**: User can open a simple joystick visualizer that connects to the desktop companion pipeline.
+- [x] **VIS-02**: Visualizer displays trigger, reload, joystick, X/Y/A/B, and aim axes in real time.
 - [ ] **VIS-03**: Visualizer displays recenter events and current aim-zero state.
-- [ ] **VIS-04**: Visualizer displays Android connection, desktop virtual controller, packet stream, and haptic status.
+- [x] **VIS-04**: Visualizer displays Android connection, desktop virtual controller, packet stream, and haptic status.
 - [ ] **VIS-05**: Visualizer includes a haptic test control that vibrates the Android phone and shows ack/fail result.
-- [ ] **VIS-06**: Visualizer displays latency and packet loss metrics for the current session.
+- [x] **VIS-06**: Visualizer displays latency and packet loss metrics for the current session.
 
 ### Performance and Reliability
 
-- [ ] **PERF-01**: End-to-end input path can be measured from Android capture timestamp to desktop visualizer update.
-- [ ] **PERF-02**: v1 visualizer path targets under 50 ms end-to-end latency during normal local Wi-Fi testing.
+- [x] **PERF-01**: End-to-end input path can be measured from Android capture timestamp to desktop visualizer update.
+- [x] **PERF-02**: v1 visualizer path targets under 50 ms end-to-end latency during normal local Wi-Fi testing.
 - [x] **PERF-03**: Desktop drops stale or replayed UDP input frames instead of applying old aim/control data.
 - [ ] **PERF-04**: Packet logs can be replayed in tests to verify parser, profile mapping, and visualizer output.
 - [ ] **PERF-05**: Android and desktop expose enough diagnostic logs to distinguish gun, sensor, LAN, profile, and virtual-driver failures.
@@ -197,14 +197,14 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PROF-04 | Phase 8 | Complete |
 | PROF-05 | Phase 8 | Complete |
 | PROF-06 | Phase 8 | Complete |
-| VIS-01 | Phase 9 | Pending |
-| VIS-02 | Phase 9 | Pending |
+| VIS-01 | Phase 9 | Complete |
+| VIS-02 | Phase 9 | Complete |
 | VIS-03 | Phase 9 | Pending |
-| VIS-04 | Phase 9 | Pending |
+| VIS-04 | Phase 9 | Complete |
 | VIS-05 | Phase 9 | Pending |
-| VIS-06 | Phase 9 | Pending |
-| PERF-01 | Phase 9 | Pending |
-| PERF-02 | Phase 9 | Pending |
+| VIS-06 | Phase 9 | Complete |
+| PERF-01 | Phase 9 | Complete |
+| PERF-02 | Phase 9 | Complete |
 | PERF-03 | Phase 4 | Complete |
 | PERF-04 | Phase 10 | Pending |
 | PERF-05 | Phase 10 | Pending |
