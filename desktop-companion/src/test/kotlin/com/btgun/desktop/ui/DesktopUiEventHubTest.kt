@@ -5,6 +5,7 @@ import com.btgun.desktop.control.ControlMessageType
 import com.btgun.desktop.control.ControlServer
 import com.btgun.desktop.control.ControlServerSessionState
 import com.btgun.desktop.control.ProfileMetadata
+import com.btgun.desktop.control.VisualizerStatus
 import com.btgun.desktop.haptics.HapticResult
 import com.btgun.desktop.haptics.HapticResultStatus
 import com.btgun.desktop.pairing.LocalEndpointSelector
@@ -19,6 +20,7 @@ import com.btgun.desktop.transport.UdpReceivedMotion
 
 fun main() {
     hubFansOutUdpToMultipleListenersAndPreviousCallback()
+    hubFansOutVisualizerStatusToMultipleListenersAndPreviousCallback()
     hubFansOutEveryControlServerUiEvent()
     hubCloseRestoresPreviousCallbackWhenItStillOwnsCallback()
     hubDoesNotOwnNetworkingHidProfileEditingOrHaptics()
@@ -41,6 +43,26 @@ private fun hubFansOutUdpToMultipleListenersAndPreviousCallback() {
     expectEquals("previous callback still receives udp", listOf(input), previous)
     expectEquals("first listener receives udp", listOf(input), first)
     expectEquals("second listener receives udp", listOf(input), second)
+    hub.close()
+}
+
+private fun hubFansOutVisualizerStatusToMultipleListenersAndPreviousCallback() {
+    val server = ControlServer(registry = testRegistry())
+    val status = visualizerStatus()
+    val previous = mutableListOf<VisualizerStatus>()
+    val first = mutableListOf<VisualizerStatus>()
+    val second = mutableListOf<VisualizerStatus>()
+    server.onVisualizerStatusReceived = previous::add
+
+    val hub = DesktopUiEventHub(server).attach()
+    hub.listen(DesktopUiEventListener(onVisualizerStatusReceived = first::add))
+    hub.listen(DesktopUiEventListener(onVisualizerStatusReceived = second::add))
+
+    server.onVisualizerStatusReceived(status)
+
+    expectEquals("previous callback still receives status", listOf(status), previous)
+    expectEquals("first listener receives status", listOf(status), first)
+    expectEquals("second listener receives status", listOf(status), second)
     hub.close()
 }
 
@@ -134,6 +156,18 @@ private fun hubDoesNotOwnNetworkingHidProfileEditingOrHaptics() {
             expectFalse("hub excludes $forbidden", source.contains(forbidden))
         }
 }
+
+private fun visualizerStatus(): VisualizerStatus =
+    VisualizerStatus(
+        rawDebugEnabled = true,
+        aimZeroState = "ready",
+        recenterState = "recentered",
+        lastRecenterElapsedNanos = 1_000_000_000L,
+        androidElapsedNanos = 2_000_000_000L,
+        statusSequence = 3L,
+        recenterLabel = "recentered",
+        aimZeroLabel = "ready",
+    )
 
 private fun receivedInput(sequence: Long): UdpReceivedInput =
     UdpReceivedInput(

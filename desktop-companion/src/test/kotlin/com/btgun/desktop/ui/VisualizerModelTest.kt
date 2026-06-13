@@ -1,5 +1,6 @@
 package com.btgun.desktop.ui
 
+import com.btgun.desktop.control.VisualizerStatus
 import com.btgun.desktop.transport.UdpInputFrameType
 import com.btgun.desktop.transport.UdpReceivedInput
 import com.btgun.desktop.transport.UdpReceivedMappedAim
@@ -11,6 +12,7 @@ fun main() {
     eventStripKeepsExactlyTenNewestProductEvents()
     eventStripLabelsIncludeSequenceAndAge()
     rawDebugDrawerStartsCollapsedAndShowsWhitelistedFieldsOnlyWhenEnabled()
+    visualizerStatusUpdatesRecenterAimZeroAndRawDebugWithoutConfirming()
     hapticAckObservesLanRowButDoesNotConfirmPhoneVibration()
     observedLanStreamDoesNotConfirmManualProofRows()
     modelLabelsExcludeDesktopProfileControlsAndSecretFields()
@@ -87,6 +89,37 @@ private fun rawDebugDrawerStartsCollapsedAndShowsWhitelistedFieldsOnlyWhenEnable
     listOf("secret", "pairing", "hmac", "private key", "device id", "stream key").forEach { forbidden ->
         expectFalse("raw drawer excludes $forbidden", on.joinToString("\n").contains(forbidden, ignoreCase = true))
     }
+}
+
+private fun visualizerStatusUpdatesRecenterAimZeroAndRawDebugWithoutConfirming() {
+    val model = VisualizerModel.initial().withVisualizerStatus(
+        status = VisualizerStatus(
+            rawDebugEnabled = true,
+            aimZeroState = "ready",
+            recenterState = "recentered",
+            lastRecenterElapsedNanos = 3_000_000_000L,
+            androidElapsedNanos = 5_000_000_000L,
+            statusSequence = 44L,
+            recenterLabel = "recentered",
+            aimZeroLabel = "ready",
+        ),
+        observedElapsedNanos = 6_000_000_000L,
+    )
+
+    expectEquals("aim zero label", "Aim zero: ready", model.recenter.aimZeroLabel)
+    expectEquals("recenter instruction", "Recenter: hold reload for 2000ms", model.recenter.recenterInstruction)
+    expectEquals("last recenter label", "Last recenter: 2000 ms ago", model.recenter.lastRecenterLabel)
+    expectEquals("raw debug enabled", true, model.rawDebug.enabled)
+    expectEquals("raw debug expanded by enabled status", false, model.rawDebug.collapsed)
+    expectEquals(
+        "recenter row observed",
+        VisualizerChecklistState.OBSERVED,
+        model.row(VisualizerChecklistRowId.RECENTER_AIM_ZERO).state,
+    )
+    expectTrue("recenter still needs user confirmation", model.row(VisualizerChecklistRowId.RECENTER_AIM_ZERO).requiresUserConfirmation)
+    expectFalse("recenter not auto-confirmed", model.row(VisualizerChecklistRowId.RECENTER_AIM_ZERO).state == VisualizerChecklistState.CONFIRMED)
+    expectEquals("status event type", "recenter_recentered", model.productEvents.first().type)
+    expectEquals("status event sequence", 44L, model.productEvents.first().sequence)
 }
 
 private fun hapticAckObservesLanRowButDoesNotConfirmPhoneVibration() {
