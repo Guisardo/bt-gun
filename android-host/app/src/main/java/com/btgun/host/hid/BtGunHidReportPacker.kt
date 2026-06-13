@@ -22,6 +22,14 @@ data class BtGunHidInputReport(
 }
 
 object BtGunHidReportPacker {
+    fun neutralInputReport(): BtGunHidInputReport =
+        BtGunHidInputReport(
+            reportId = BtGunHidDescriptor.INPUT_REPORT_ID,
+            bytes = ByteArray(BtGunHidDescriptor.INPUT_REPORT_PAYLOAD_LENGTH_BYTES),
+            stale = true,
+            aimSource = "neutral",
+        )
+
     fun packInputReport(
         state: GunInputState,
         motion: MotionSample?,
@@ -71,12 +79,12 @@ object BtGunHidReportPacker {
         var bits = 0
         pressedControls.forEach { control ->
             bits = bits or when (control) {
-                "button_a" -> 1 shl 0
-                "button_b" -> 1 shl 1
+                "trigger" -> 1 shl 0
+                "reload" -> 1 shl 1
                 "button_x" -> 1 shl 2
                 "button_y" -> 1 shl 3
-                "reload" -> 1 shl 6
-                "trigger" -> 1 shl 7
+                "button_a" -> 1 shl 4
+                "button_b" -> 1 shl 5
                 else -> 0
             }
         }

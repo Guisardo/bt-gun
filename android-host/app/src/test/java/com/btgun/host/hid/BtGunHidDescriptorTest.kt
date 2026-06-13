@@ -15,12 +15,15 @@ private fun descriptorBytesArePinned() {
         0x85.toByte(), 0x01,
         0x05, 0x09,
         0x19, 0x01,
-        0x29, 0x08,
+        0x29, 0x06,
         0x15, 0x00,
         0x25, 0x01,
-        0x95.toByte(), 0x08,
+        0x95.toByte(), 0x06,
         0x75, 0x01,
         0x81.toByte(), 0x02,
+        0x95.toByte(), 0x02,
+        0x75, 0x01,
+        0x81.toByte(), 0x03,
         0x05, 0x01,
         0x16, 0x00, 0x80.toByte(),
         0x26, 0xff.toByte(), 0x7f,
@@ -49,12 +52,13 @@ private fun descriptorMirrorsBtGunV1Semantics() {
     expectEquals("device kind", "gamepad_like_joystick", BtGunHidDescriptor.DEVICE_KIND)
     expectEquals(
         "buttons",
-        listOf("button_a", "button_b", "button_x", "button_y", "leftShoulder", "rightShoulder", "reload", "trigger"),
+        listOf("trigger", "reload", "button_x", "button_y", "button_a", "button_b"),
         BtGunHidDescriptor.BUTTONS,
     )
     expectEquals("axes", listOf("stickX", "stickY", "aimX", "aimY"), BtGunHidDescriptor.AXES)
     expectEquals("trigger kind", "digital_button_usages", BtGunHidDescriptor.TRIGGER_KIND)
-    expectEquals("button count", 8, BtGunHidDescriptor.BUTTON_COUNT)
+    expectEquals("button count", 6, BtGunHidDescriptor.BUTTON_COUNT)
+    expectEquals("button padding count", 2, BtGunHidDescriptor.BUTTON_PADDING_COUNT)
     expectEquals("axis count", 4, BtGunHidDescriptor.AXIS_COUNT)
 }
 
