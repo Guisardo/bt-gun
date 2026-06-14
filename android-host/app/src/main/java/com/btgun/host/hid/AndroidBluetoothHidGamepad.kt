@@ -51,6 +51,7 @@ interface BtGunHidDeviceCallback {
 interface BtGunHidDeviceProxy {
     fun registerApp(settings: BtGunHidSdpSettings, callback: BtGunHidDeviceCallback): Boolean
     fun unregisterApp(): Boolean
+    fun disconnect(host: BtGunHidHost): Boolean
     fun sendReport(host: BtGunHidHost, reportId: Int, payload: ByteArray): Boolean
     fun replyReport(host: BtGunHidHost, reportType: Int, reportId: Int, payload: ByteArray): Boolean
     fun reportError(host: BtGunHidHost, error: Byte): Boolean
@@ -81,6 +82,13 @@ class AndroidBluetoothHidGamepad(
         if (closed || started) return
         AndroidLog.i(TAG, "startGamepadMode")
         started = true
+        if (proxy != null && registered) {
+            status = status.copy(
+                proxy = BtGunHidProxyState.AVAILABLE,
+                registration = BtGunHidRegistrationState.REGISTERED,
+            )
+            return
+        }
         requestGeneration += 1
         val generation = requestGeneration
         status = status.copy(proxy = BtGunHidProxyState.REQUESTING, registration = BtGunHidRegistrationState.NOT_REGISTERED)
@@ -90,19 +98,22 @@ class AndroidBluetoothHidGamepad(
     fun stopGamepadMode() {
         AndroidLog.i(TAG, "stopGamepadMode registered=$registered proxy=${proxy != null}")
         val activeProxy = proxy
-        sendNeutralInputReport(activeProxy, connectedHost)
-        if (registered && activeProxy != null) {
-            activeProxy.unregisterApp()
+        val host = connectedHost
+        sendNeutralInputReport(activeProxy, host)
+        if (activeProxy != null && host != null) {
+            activeProxy.disconnect(host)
         }
-        registered = false
-        proxy = null
-        callback = null
         connectedHost = null
         started = false
-        requestGeneration += 1
         status = status.copy(
-            proxy = if (closed) BtGunHidProxyState.CLOSED else BtGunHidProxyState.NOT_REQUESTED,
-            registration = BtGunHidRegistrationState.NOT_REGISTERED,
+            proxy = if (closed) {
+                BtGunHidProxyState.CLOSED
+            } else if (activeProxy != null) {
+                BtGunHidProxyState.AVAILABLE
+            } else {
+                BtGunHidProxyState.NOT_REQUESTED
+            },
+            registration = if (registered) BtGunHidRegistrationState.REGISTERED else BtGunHidRegistrationState.NOT_REGISTERED,
             hostConnection = BtGunHidHostConnectionState.NOT_CONNECTED,
         )
     }
@@ -169,10 +180,15 @@ class AndroidBluetoothHidGamepad(
 
     override fun close() {
         if (closed) return
-        stopGamepadMode()
+        AndroidLog.i(TAG, "close registered=$registered proxy=${proxy != null}")
+        releaseRegisteredApp()
         connector.close()
         closed = true
-        status = status.copy(proxy = BtGunHidProxyState.CLOSED)
+        status = status.copy(
+            proxy = BtGunHidProxyState.CLOSED,
+            registration = BtGunHidRegistrationState.NOT_REGISTERED,
+            hostConnection = BtGunHidHostConnectionState.NOT_CONNECTED,
+        )
     }
 
     private fun onProxyAvailable(newProxy: BtGunHidDeviceProxy, generation: Int) {
@@ -354,6 +370,24 @@ class AndroidBluetoothHidGamepad(
         return recordInputResult(result, report)
     }
 
+    private fun releaseRegisteredApp() {
+        val activeProxy = proxy
+        val host = connectedHost
+        sendNeutralInputReport(activeProxy, host)
+        if (activeProxy != null && host != null) {
+            activeProxy.disconnect(host)
+        }
+        if (registered && activeProxy != null) {
+            activeProxy.unregisterApp()
+        }
+        registered = false
+        proxy = null
+        callback = null
+        connectedHost = null
+        started = false
+        requestGeneration += 1
+    }
+
     private fun isActiveGeneration(generation: Int): Boolean =
         !closed && started && generation == requestGeneration
 
@@ -506,6 +540,13 @@ private class AndroidBtGunHidDeviceProxy(
         runCatchingSecurity {
             hidDevice.unregisterApp()
         }
+
+    override fun disconnect(host: BtGunHidHost): Boolean {
+        val device = host.bluetoothDeviceOrNull() ?: return false
+        return runCatchingSecurity {
+            hidDevice.disconnect(device)
+        }
+    }
 
     override fun sendReport(host: BtGunHidHost, reportId: Int, payload: ByteArray): Boolean {
         val device = host.bluetoothDeviceOrNull() ?: return false

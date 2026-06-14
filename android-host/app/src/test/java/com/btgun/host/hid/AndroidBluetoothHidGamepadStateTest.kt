@@ -16,6 +16,7 @@ fun main() {
     staleProxyCallbacksAfterStopDoNotRegisterHidMode()
     olderProxyCallbacksDoNotOverrideNewStart()
     stopDisconnectAndUnplugSendNeutralReleaseReport()
+    stopKeepsRegistrationForPairedMacosReconnect()
     unregisterAndCloseAreIdempotent()
 }
 
@@ -186,6 +187,7 @@ private fun stopDisconnectAndUnplugSendNeutralReleaseReport() {
 
     expectEquals("stop sent pressed plus neutral", 2, stopConnector.proxy.sentReports.size)
     expectNeutralReport("stop neutral report", stopConnector.proxy.sentReports.last())
+    expectEquals("stop disconnected host", 1, stopConnector.proxy.disconnectedHosts.size)
 
     val disconnectConnector = FakeHidProfileConnector()
     val disconnectGamepad = AndroidBluetoothHidGamepad(connector = disconnectConnector, hapticHandler = { null })
@@ -208,6 +210,27 @@ private fun stopDisconnectAndUnplugSendNeutralReleaseReport() {
     expectNeutralReport("unplug neutral report", unplugConnector.proxy.sentReports.last())
 }
 
+private fun stopKeepsRegistrationForPairedMacosReconnect() {
+    val connector = FakeHidProfileConnector()
+    val gamepad = AndroidBluetoothHidGamepad(connector = connector, hapticHandler = { null })
+    startRegisteredAndConnected(gamepad, connector)
+
+    gamepad.stopGamepadMode()
+
+    expectEquals("stop does not unregister registered HID app", 0, connector.proxy.unregisterCount)
+    expectEquals("stop disconnects current host", listOf(FakeHost), connector.proxy.disconnectedHosts)
+    expectEquals("stop keeps registration status", BtGunHidRegistrationState.REGISTERED, gamepad.status.registration)
+    expectEquals("stop clears host status", BtGunHidHostConnectionState.NOT_CONNECTED, gamepad.status.hostConnection)
+
+    gamepad.startGamepadMode()
+    connector.proxy.callback?.onConnectionStateChanged(FakeHost, BtGunHidConnectionStates.CONNECTED)
+    val result = gamepad.sendInput(state(), motion(), stale = false)
+
+    expectEquals("restart reuses existing registration", 1, connector.proxy.registeredSettings.size)
+    expectEquals("restart accepts reconnect", BtGunHidHostConnectionState.CONNECTED, gamepad.status.hostConnection)
+    expectEquals("restart sends after reconnect", BtGunHidInputSendResult.SENT, result)
+}
+
 private fun unregisterAndCloseAreIdempotent() {
     val connector = FakeHidProfileConnector()
     val gamepad = AndroidBluetoothHidGamepad(connector = connector, hapticHandler = { null })
@@ -219,6 +242,7 @@ private fun unregisterAndCloseAreIdempotent() {
     gamepad.close()
 
     expectEquals("unregister once", 1, connector.proxy.unregisterCount)
+    expectEquals("disconnect on explicit stop only", 1, connector.proxy.disconnectedHosts.size)
     expectEquals("connector closed once", 1, connector.closeCount)
     expectEquals("status unregistered", BtGunHidRegistrationState.NOT_REGISTERED, gamepad.status.registration)
     expectEquals("send after close no proxy", BtGunHidInputSendResult.NO_PROXY, gamepad.sendInput(state(), motion(), stale = false))
@@ -301,6 +325,7 @@ private class FakeHidDeviceProxy : BtGunHidDeviceProxy {
     val sentReports = mutableListOf<SentReport>()
     val replyReports = mutableListOf<ReplyReport>()
     val reportErrors = mutableListOf<ReportError>()
+    val disconnectedHosts = mutableListOf<BtGunHidHost>()
     var unregisterCount = 0
 
     override fun registerApp(settings: BtGunHidSdpSettings, callback: BtGunHidDeviceCallback): Boolean {
@@ -311,6 +336,11 @@ private class FakeHidDeviceProxy : BtGunHidDeviceProxy {
 
     override fun unregisterApp(): Boolean {
         unregisterCount += 1
+        return true
+    }
+
+    override fun disconnect(host: BtGunHidHost): Boolean {
+        disconnectedHosts += host
         return true
     }
 
