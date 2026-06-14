@@ -46,6 +46,7 @@ fun main() {
     bluetoothGamepadStopSessionAndDestroyCloseHidMode()
     liveInputFanoutOnlySendsWhenHidHostConnected()
     hidFanoutDropsDuplicatesAndPrioritizesButtonEdges()
+    fastAimFanoutDoesNotFloodButtonEdges()
     bleConnectionLossClearsLatchedGunInput()
     hidOutputCallbackRoutesThroughPhoneHapticExecutorStatus()
     hostProfileRuntimeLoadsActiveProfileAndMapsCurrentInput()
@@ -276,6 +277,41 @@ private fun hidFanoutDropsDuplicatesAndPrioritizesButtonEdges() {
     expectEquals("button edge bypasses aim throttle", setOf("jp_button_b3"), driver.sentMappedInputs[1].state.pressedVirtualControls)
     expectEquals("release edge bypasses aim throttle", emptySet<String>(), driver.sentMappedInputs[2].state.pressedVirtualControls)
     expectEquals("aim frame after interval", 0.2f, driver.sentMappedInputs[3].state.aimAxisX)
+}
+
+private fun fastAimFanoutDoesNotFloodButtonEdges() {
+    val driver = RecordingHostHidGamepadDriver()
+    var nowElapsedNanos = 0L
+    val controller = HostSessionHidController(
+        driverFactory = { driver },
+        elapsedRealtimeNanos = { nowElapsedNanos },
+        maxMotionReportHz = 30,
+    )
+    controller.startBluetoothGamepad(HostSessionState())
+    driver.status = driver.status.copy(hostConnection = BtGunHidHostConnectionState.CONNECTED)
+    val base = defaultMappedState()
+
+    controller.fanOutLiveInput(HostSessionState(mappedControllerState = base.copy(aimAxisX = 0f)))
+    for (millis in 1L..120L) {
+        nowElapsedNanos = millis * 1_000_000L
+        val controls = when (millis) {
+            50L -> setOf("jp_button_b3")
+            else -> emptySet()
+        }
+        controller.fanOutLiveInput(
+            HostSessionState(
+                mappedControllerState = base.copy(
+                    aimAxisX = (millis / 120f).coerceIn(0f, 1f),
+                    aimAxisY = (millis / 240f).coerceIn(0f, 1f),
+                    pressedVirtualControls = controls,
+                ),
+            ),
+        )
+    }
+
+    expectEquals("fast aim sends bounded report count", 6, driver.sentMappedInputs.size)
+    expectEquals("button press still immediate", setOf("jp_button_b3"), driver.sentMappedInputs[2].state.pressedVirtualControls)
+    expectEquals("button release still immediate", emptySet<String>(), driver.sentMappedInputs[3].state.pressedVirtualControls)
 }
 
 private fun bleConnectionLossClearsLatchedGunInput() {
