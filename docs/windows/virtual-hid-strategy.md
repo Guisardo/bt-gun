@@ -21,11 +21,12 @@ The driver is intentionally small. It owns VHF lifecycle, the `Root\BTGunVJoy` H
 
 - Device: `BT Gun VJoy`
 - Hardware id: `Root\BTGunVJoy`
-- VHF HID identity: `VID_1209&PID_B706`, version `0x0602`
+- VHF HID identity: `VID_18D1&PID_9400`, version `0x0603`
 - Legacy game-controller display name: `BT Gun VJoy` via DirectInput OEM registry data
 - Top-level collection: regular gamepad-style virtual joystick
 - Input report: report ID 1, 10 bytes
-- Output report: report ID 2, 9 bytes
+- Native output report: report ID 2, 9 bytes
+- Chrome haptic output report: report ID 5, 5 bytes including report id
 
 Report ID 1 layout:
 
@@ -49,7 +50,23 @@ Report ID 2 layout maps to v1 Android phone haptics:
 | 5-6 | TTL milliseconds, uint16 little-endian |
 | 7-8 | Reserved, must be zero |
 
+Report ID 5 maps Chrome/Stadia-style rumble to report ID 2:
+
+| Byte(s) | Value |
+|---------|-------|
+| 0 | Report id `5` |
+| 1-2 | Strong/left motor magnitude, uint16 little-endian |
+| 3-4 | Weak/right motor magnitude, uint16 little-endian |
+
+The driver converts the larger motor magnitude to report ID 2 strength `0..255`. Nonzero rumble uses the v1 maximum phone-pulse duration and TTL. A zero-magnitude report maps to strength `0`, duration `1`, and cancels active Android phone haptics.
+
 The desktop companion converts valid output reports to `HapticCommand` and sends them through the authenticated control channel. Physical gun motor rumble remains deferred.
+
+Browser Gamepad API note:
+
+- Report ID 2 remains the native HID output-report path for Windows/VHF proof, `joy.cpl`-adjacent tools, and `btgun-hid-output-sender.exe`.
+- Report ID 5 follows the Google Stadia rumble shape used by Joypad OS: `VID_18D1&PID_9400`, output report `0x05`, and two little-endian `uint16` motor magnitudes.
+- Chrome standard Gamepad API pages should expose `vibrationActuator` after the updated package is installed and the old `VID_1209&PID_B706` package is removed. If Chrome still reports `No Vibration`, verify the installed HID identity, reconnect/restart Chrome, then capture native report ID 2 proof as a fallback.
 
 ## Build and Package Path
 

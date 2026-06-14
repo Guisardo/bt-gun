@@ -36,6 +36,15 @@ const UCHAR BtGunVJoyReportDescriptor[] = {
     0x75, 0x08,       //   Report Size (8)
     0x95, 0x08,       //   Report Count (8)
     0x91, 0x02,       //   Output (Data,Var,Abs)
+    0x85, 0x05,       //   Report ID (5)
+    0x06, 0x00, 0xFF, //   Usage Page (Vendor Defined)
+    0x09, 0x05,       //   Usage (Vendor 5) strong/left motor
+    0x09, 0x06,       //   Usage (Vendor 6) weak/right motor
+    0x15, 0x00,       //   Logical Minimum (0)
+    0x27, 0xFF, 0xFF, 0x00, 0x00, // Logical Maximum (65535)
+    0x75, 0x10,       //   Report Size (16)
+    0x95, 0x02,       //   Report Count (2)
+    0x91, 0x02,       //   Output (Data,Var,Abs)
     0xC0              // End Collection
 };
 

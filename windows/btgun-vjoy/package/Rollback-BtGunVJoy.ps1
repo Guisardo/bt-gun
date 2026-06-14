@@ -69,6 +69,7 @@ Invoke-ApprovedCommand `
     -Message "Remove BT Gun VJoy DirectInput OEMName registry key." `
     -Approved $ApproveDriverDelete.IsPresent `
     -Command {
+        Remove-Item -Path "HKLM:\SYSTEM\CurrentControlSet\Control\MediaProperties\PrivateProperties\Joystick\OEM\VID_18D1&PID_9400" -Force -ErrorAction SilentlyContinue
         Remove-Item -Path "HKLM:\SYSTEM\CurrentControlSet\Control\MediaProperties\PrivateProperties\Joystick\OEM\VID_1209&PID_B706" -Force -ErrorAction SilentlyContinue
     }
 

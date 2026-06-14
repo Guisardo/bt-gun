@@ -111,6 +111,10 @@ private fun windowsVhfCapabilitiesDeclareRealOutputReportPath() {
                 it.detail.contains("pattern", ignoreCase = true)
         },
     )
+    expectTrue(
+        "Chrome Gamepad API vibration not marked unsupported",
+        capabilities.haptics.unsupported.none { it.feature == "chrome-gamepad-api-vibration" },
+    )
     val allDetails = (capabilities.limitations + capabilities.haptics.unsupported).joinToString(" ") { it.detail }
     expectTrue("not Phase 5 stub behavior", !allDetails.contains("stub", ignoreCase = true))
     expectTrue("no fake device limitation", capabilities.limitations.none { it.feature == "os-visible-device" })

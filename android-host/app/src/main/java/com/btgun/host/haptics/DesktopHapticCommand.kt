@@ -115,6 +115,11 @@ class DesktopHapticCommandExecutor(
         if (command.pattern != null) {
             return result(command.commandId, HapticResultStatus.UNSUPPORTED, "haptic pattern playback unsupported", now)
         }
+        if (command.strength <= 0.0) {
+            active = null
+            val status = phone.cancel()
+            return result(command.commandId, status, cancelDetail(status), elapsedRealtimeNanos())
+        }
         if (active != null) {
             phone.cancel()
             active = null

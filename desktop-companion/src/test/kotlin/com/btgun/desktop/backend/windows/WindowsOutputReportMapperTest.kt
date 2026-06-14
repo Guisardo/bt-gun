@@ -2,6 +2,7 @@ package com.btgun.desktop.backend.windows
 
 fun main() {
     mapsValidOutputReportIdTwoToHapticCommand()
+    mapsZeroStrengthOutputReportToCancelCommand()
     rejectsMalformedOutputReportsBeforeHapticCommand()
 }
 
@@ -21,6 +22,20 @@ private fun mapsValidOutputReportIdTwoToHapticCommand() {
     expectEquals("duration", 120L, command.durationMs)
     expectEquals("ttl", 500L, command.ttlMs)
     expectEquals("pattern", null, command.pattern)
+}
+
+private fun mapsZeroStrengthOutputReportToCancelCommand() {
+    val command = requireNotNull(
+        WindowsOutputReportMapper.toHapticCommand(
+            reportBytes = outputReport(strength = 0, durationMs = 1, ttlMs = 500),
+            commandId = "windows-output-stop",
+        ),
+    )
+
+    expectEquals("command id", "windows-output-stop", command.commandId)
+    expectClose("strength", 0.0, command.strength)
+    expectEquals("duration", 1L, command.durationMs)
+    expectEquals("ttl", 500L, command.ttlMs)
 }
 
 private fun rejectsMalformedOutputReportsBeforeHapticCommand() {

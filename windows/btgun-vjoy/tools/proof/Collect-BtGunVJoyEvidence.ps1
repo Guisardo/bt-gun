@@ -58,11 +58,12 @@ function Get-FileHashRecord {
 
 $script:OutDir = New-ProofDirectory -Path $OutputDirectory
 $manifestPath = Join-Path $script:OutDir "phase6-windows-target-cli-evidence.json"
+$script:BtGunHidIdentityPattern = "VID_18D1&PID_9400|VID_1209&PID_B706"
 
 $captures = @()
 $captures += Invoke-Capture -Name "bcdedit-enum" -Command { & bcdedit /enum }
 $captures += Invoke-Capture -Name "pnputil-drivers-btgun" -Command { & pnputil /enum-drivers | Select-String -Pattern "btgun|BtGun|BTGUN" -Context 3,6 }
-$captures += Invoke-Capture -Name "pnputil-devices-btgun" -Command { & pnputil /enum-devices /connected | Select-String -Pattern "BT Gun|BTGun|BTGUN|Root\\BTGunVJoy|ROOT\\BTGUNVJOY|VID_1209&PID_B706" -Context 2,6 }
+$captures += Invoke-Capture -Name "pnputil-devices-btgun" -Command { & pnputil /enum-devices /connected | Select-String -Pattern "BT Gun|BTGun|BTGUN|Root\\BTGunVJoy|ROOT\\BTGUNVJOY|$script:BtGunHidIdentityPattern" -Context 2,6 }
 $captures += Invoke-Capture -Name "pnpdevice-btgun" -Command {
     Get-PnpDevice -PresentOnly |
         Where-Object {
@@ -70,7 +71,7 @@ $captures += Invoke-Capture -Name "pnpdevice-btgun" -Command {
             $_.FriendlyName -like "*BTGun*" -or
             $_.InstanceId -like "*BTGUNVJOY*" -or
             $_.InstanceId -like "*BTGunVJoy*" -or
-            $_.InstanceId -like "*VID_1209&PID_B706*"
+            $_.InstanceId -match $script:BtGunHidIdentityPattern
         } |
         Format-List *
 }
@@ -81,14 +82,17 @@ $captures += Invoke-Capture -Name "hid-game-controller-pnp" -Command {
                 $_.FriendlyName -like "*BT Gun*" -or
                 $_.FriendlyName -like "*BTGun*" -or
                 $_.InstanceId -like "*BTGUNVJOY*" -or
-                $_.InstanceId -like "*VID_1209&PID_B706*"
+                $_.InstanceId -match $script:BtGunHidIdentityPattern
             )
         } |
         Select-Object Status, Class, FriendlyName, InstanceId |
         Format-Table -AutoSize
 }
 $captures += Invoke-Capture -Name "directinput-oem-name-btgun" -Command {
-    Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\MediaProperties\PrivateProperties\Joystick\OEM\VID_1209&PID_B706" -ErrorAction SilentlyContinue |
+    @("VID_18D1&PID_9400", "VID_1209&PID_B706") |
+        ForEach-Object {
+            Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\MediaProperties\PrivateProperties\Joystick\OEM\$_" -ErrorAction SilentlyContinue
+        } |
         Select-Object PSPath, OEMName |
         Format-List *
 }
@@ -98,7 +102,7 @@ $captures += Invoke-Capture -Name "signed-driver-btgun" -Command {
             $_.DeviceName -like "*BT Gun*" -or
             $_.DeviceName -like "*BTGun*" -or
             $_.InfName -like "*btgun*" -or
-            $_.HardwareID -match "BTGUNVJOY|BTGunVJoy|VID_1209&PID_B706"
+            $_.HardwareID -match "BTGUNVJOY|BTGunVJoy|$script:BtGunHidIdentityPattern"
         } |
         Select-Object DeviceName, DriverVersion, DriverProviderName, InfName, IsSigned, Signer, HardwareID |
         Format-List *

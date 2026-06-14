@@ -4,6 +4,8 @@ Target: `192.168.1.100` only. Use Administrator PowerShell with the CI artifact 
 
 Phase 6 approval was recorded on 2026-06-10 after installing package version `0.6.2.2` as `oem45.inf`, confirming the VHF HID identity `VID_1209&PID_B706`, validating `joy.cpl`, and receiving user sign-off.
 
+Chrome Gamepad API haptic compatibility requires package version `0.6.3.0` or newer. That package changes the VHF HID identity to `VID_18D1&PID_9400` and adds Stadia-compatible haptic output report `0x05` while preserving native BT Gun output report `0x02`.
+
 Do not install Git, Visual Studio, MSBuild, WDK, `signtool`, `inf2cat`, `devcon`, or build tools on the target.
 
 ## Approval Gate
@@ -60,6 +62,7 @@ Get-PnpDevice -PresentOnly | Where-Object { $_.FriendlyName -like "*BT Gun*" -or
 
 - Try `joy.cpl` output/rumble first.
 - If `joy.cpl` cannot send output for this descriptor, document that limitation.
+- Chrome standard Gamepad API test pages should expose vibration after `0.6.3.0` is installed and Chrome reconnects to `VID_18D1&PID_9400`. If they still report `No Vibration`, capture the installed identity and browser state, then use native report ID 2 as fallback proof.
 - Then run fallback:
 
 ```powershell

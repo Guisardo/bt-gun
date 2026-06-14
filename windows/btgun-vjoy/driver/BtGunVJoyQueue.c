@@ -30,6 +30,117 @@ BtGunVJoyRecordMalformedInput(
     Context->LastNtStatus = Status;
 }
 
+static
+VOID
+BtGunVJoyPutUInt16Le(
+    _Out_writes_bytes_(2) BTGVJOY_UINT8* Bytes,
+    _In_ BTGVJOY_UINT16 Value)
+{
+    Bytes[0] = (BTGVJOY_UINT8)(Value & 0xffu);
+    Bytes[1] = (BTGVJOY_UINT8)((Value >> 8) & 0xffu);
+}
+
+static
+BTGVJOY_UINT8
+BtGunVJoyChromeHapticMagnitudeToStrength(
+    _In_ BTGVJOY_UINT16 Magnitude)
+{
+    ULONG scaled;
+
+    if (Magnitude == 0) {
+        return (BTGVJOY_UINT8)0u;
+    }
+
+    scaled = (((ULONG)Magnitude * 255u) + 32767u) / 65535u;
+    if (scaled == 0) {
+        return (BTGVJOY_UINT8)1u;
+    }
+    if (scaled > 255u) {
+        return (BTGVJOY_UINT8)255u;
+    }
+    return (BTGVJOY_UINT8)scaled;
+}
+
+static
+BOOLEAN
+BtGunVJoyCopyNativeOutputReport(
+    _In_ PHID_XFER_PACKET HidTransferPacket,
+    _Inout_ BTGVJOY_OUTPUT_REPORT* OutputReport,
+    _Out_ NTSTATUS* Status)
+{
+    if (HidTransferPacket->reportBufferLen == BTGVJOY_OUTPUT_REPORT_LENGTH_BYTES &&
+        HidTransferPacket->reportBuffer[0] == BTGVJOY_OUTPUT_REPORT_ID) {
+        RtlCopyMemory(
+            OutputReport->HidReport,
+            HidTransferPacket->reportBuffer,
+            BTGVJOY_OUTPUT_REPORT_LENGTH_BYTES);
+    } else if (HidTransferPacket->reportBufferLen == (BTGVJOY_OUTPUT_REPORT_LENGTH_BYTES - 1)) {
+        OutputReport->HidReport[0] = BTGVJOY_OUTPUT_REPORT_ID;
+        RtlCopyMemory(
+            &OutputReport->HidReport[1],
+            HidTransferPacket->reportBuffer,
+            BTGVJOY_OUTPUT_REPORT_LENGTH_BYTES - 1);
+    } else {
+        *Status = STATUS_INFO_LENGTH_MISMATCH;
+        return FALSE;
+    }
+
+    if (OutputReport->HidReport[1] != BTGVJOY_OUTPUT_REPORT_VERSION) {
+        *Status = STATUS_INVALID_PARAMETER;
+        return FALSE;
+    }
+
+    return TRUE;
+}
+
+static
+BOOLEAN
+BtGunVJoyMapChromeHapticReport(
+    _In_ PHID_XFER_PACKET HidTransferPacket,
+    _Inout_ BTGVJOY_OUTPUT_REPORT* OutputReport,
+    _Out_ NTSTATUS* Status)
+{
+    const BTGVJOY_UINT8* payload;
+    BTGVJOY_UINT16 strongMagnitude;
+    BTGVJOY_UINT16 weakMagnitude;
+    BTGVJOY_UINT16 maxMagnitude;
+    BTGVJOY_UINT8 strength;
+    BTGVJOY_UINT16 durationMs;
+
+    if (HidTransferPacket->reportBufferLen == BTGVJOY_CHROME_HAPTIC_REPORT_LENGTH_BYTES &&
+        HidTransferPacket->reportBuffer[0] == BTGVJOY_CHROME_HAPTIC_REPORT_ID) {
+        payload = &HidTransferPacket->reportBuffer[1];
+    } else if (HidTransferPacket->reportBufferLen == BTGVJOY_CHROME_HAPTIC_PAYLOAD_LENGTH_BYTES) {
+        payload = HidTransferPacket->reportBuffer;
+    } else {
+        *Status = STATUS_INFO_LENGTH_MISMATCH;
+        return FALSE;
+    }
+
+    strongMagnitude = (BTGVJOY_UINT16)(payload[0] | ((BTGVJOY_UINT16)payload[1] << 8));
+    weakMagnitude = (BTGVJOY_UINT16)(payload[2] | ((BTGVJOY_UINT16)payload[3] << 8));
+    if (strongMagnitude > weakMagnitude) {
+        maxMagnitude = strongMagnitude;
+    } else {
+        maxMagnitude = weakMagnitude;
+    }
+    strength = BtGunVJoyChromeHapticMagnitudeToStrength(maxMagnitude);
+    durationMs = strength == 0 ?
+        (BTGVJOY_UINT16)1u :
+        (BTGVJOY_UINT16)BTGVJOY_CHROME_HAPTIC_DURATION_MS;
+
+    OutputReport->HidReport[0] = BTGVJOY_OUTPUT_REPORT_ID;
+    OutputReport->HidReport[1] = BTGVJOY_OUTPUT_REPORT_VERSION;
+    OutputReport->HidReport[2] = strength;
+    BtGunVJoyPutUInt16Le(&OutputReport->HidReport[3], durationMs);
+    BtGunVJoyPutUInt16Le(
+        &OutputReport->HidReport[5],
+        (BTGVJOY_UINT16)BTGVJOY_CHROME_HAPTIC_TTL_MS);
+    OutputReport->HidReport[7] = 0;
+    OutputReport->HidReport[8] = 0;
+    return TRUE;
+}
+
 VOID
 BtGunVJoyEvtIoDeviceControl(
     _In_ WDFQUEUE Queue,
@@ -222,33 +333,25 @@ BtGunVJoyHandleWriteReport(
         goto CompleteOperation;
     }
 
-    if (HidTransferPacket->reportId != BTGVJOY_OUTPUT_REPORT_ID) {
-        status = STATUS_INVALID_PARAMETER;
-        goto RecordMalformed;
-    }
-
     RtlZeroMemory(&outputReport, sizeof(outputReport));
     outputReport.Size = sizeof(BTGVJOY_OUTPUT_REPORT);
     outputReport.Version = BTGVJOY_ABI_VERSION;
 
-    if (HidTransferPacket->reportBufferLen == BTGVJOY_OUTPUT_REPORT_LENGTH_BYTES &&
-        HidTransferPacket->reportBuffer[0] == BTGVJOY_OUTPUT_REPORT_ID) {
-        RtlCopyMemory(
-            outputReport.HidReport,
-            HidTransferPacket->reportBuffer,
-            BTGVJOY_OUTPUT_REPORT_LENGTH_BYTES);
-    } else if (HidTransferPacket->reportBufferLen == (BTGVJOY_OUTPUT_REPORT_LENGTH_BYTES - 1)) {
-        outputReport.HidReport[0] = BTGVJOY_OUTPUT_REPORT_ID;
-        RtlCopyMemory(
-            &outputReport.HidReport[1],
-            HidTransferPacket->reportBuffer,
-            BTGVJOY_OUTPUT_REPORT_LENGTH_BYTES - 1);
+    if (HidTransferPacket->reportId == BTGVJOY_OUTPUT_REPORT_ID ||
+        (HidTransferPacket->reportId == 0 &&
+            HidTransferPacket->reportBufferLen > 0 &&
+            HidTransferPacket->reportBuffer[0] == BTGVJOY_OUTPUT_REPORT_ID)) {
+        if (!BtGunVJoyCopyNativeOutputReport(HidTransferPacket, &outputReport, &status)) {
+            goto RecordMalformed;
+        }
+    } else if (HidTransferPacket->reportId == BTGVJOY_CHROME_HAPTIC_REPORT_ID ||
+        (HidTransferPacket->reportId == 0 &&
+            HidTransferPacket->reportBufferLen > 0 &&
+            HidTransferPacket->reportBuffer[0] == BTGVJOY_CHROME_HAPTIC_REPORT_ID)) {
+        if (!BtGunVJoyMapChromeHapticReport(HidTransferPacket, &outputReport, &status)) {
+            goto RecordMalformed;
+        }
     } else {
-        status = STATUS_INFO_LENGTH_MISMATCH;
-        goto RecordMalformed;
-    }
-
-    if (outputReport.HidReport[1] != BTGVJOY_OUTPUT_REPORT_VERSION) {
         status = STATUS_INVALID_PARAMETER;
         goto RecordMalformed;
     }

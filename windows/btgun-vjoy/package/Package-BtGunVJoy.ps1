@@ -83,17 +83,18 @@ $metadata = [ordered]@{
     inf = "driver/btgunvjoy.inf"
     hardwareId = "Root\BTGunVJoy"
     hidIdentity = @{
-        vendorId = "VID_1209"
-        productId = "PID_B706"
-        versionNumber = "0x0602"
-        directInputOemKey = "HKLM:\SYSTEM\CurrentControlSet\Control\MediaProperties\PrivateProperties\Joystick\OEM\VID_1209&PID_B706"
+        vendorId = "VID_18D1"
+        productId = "PID_9400"
+        versionNumber = "0x0603"
+        directInputOemKey = "HKLM:\SYSTEM\CurrentControlSet\Control\MediaProperties\PrivateProperties\Joystick\OEM\VID_18D1&PID_9400"
         displayName = "BT Gun VJoy"
     }
     devnodeTool = "tools/btgun-devnode.exe"
     proofCollector = "tools/proof/Collect-BtGunVJoyEvidence.ps1"
     reportIds = @{
         input = 1
-        output = 2
+        nativeOutput = 2
+        chromeHapticOutput = 5
     }
     signing = @{
         mode = "test-signed"
