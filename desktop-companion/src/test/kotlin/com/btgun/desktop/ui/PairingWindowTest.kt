@@ -10,9 +10,11 @@ import com.btgun.desktop.haptics.HapticResult
 import com.btgun.desktop.haptics.HapticResultStatus
 import com.btgun.desktop.transport.InputStreamLifecycleState
 import java.io.File
+import javax.swing.plaf.basic.BasicHTML
 
 fun main() {
     pairingWindowExposesOnlyConciseTransportStateLabels()
+    pairingWindowHtmlDocumentsAreRecognizedBySwing()
     pairingWindowExposesHapticSmokeStateWithoutLaunchingSwing()
     pairingWindowFormatsMacosBackendDiagnostics()
     pairingWindowFormatsReadOnlyAndroidProfileDiagnostics()
@@ -20,6 +22,7 @@ fun main() {
     pairingWindowExposesVisualizerReopenActionWithoutLaunchingSwing()
     pairingWindowDoesNotRenderVisualizerOnlyPanels()
     pairingWindowForbiddenDesktopProfileControlsAbsent()
+    pairingWindowBoundsSidePanelLabels()
 }
 
 private fun pairingWindowExposesOnlyConciseTransportStateLabels() {
@@ -33,6 +36,29 @@ private fun pairingWindowExposesOnlyConciseTransportStateLabels() {
     expectContains("stale visible", diagnostics, "Packet stream: stale")
     listOf("latency", "packet loss", "virtual joystick", "profile mapping", "HID").forEach { forbidden ->
         expectFalse("no later-phase label $forbidden", diagnostics.contains(forbidden, ignoreCase = true))
+    }
+}
+
+private fun pairingWindowHtmlDocumentsAreRecognizedBySwing() {
+    val transport = PairingWindow.transportDiagnosticsHtml(InputStreamLifecycleState.STALE)
+    val manual = PairingWindow.manualFallbackHtml(
+        com.btgun.desktop.pairing.ManualPairingPayload(
+            host = "192.168.1.100",
+            port = 8443,
+            code = "123456",
+            desktopSpkiSha256Suffix = "abcdef12",
+        ),
+    )
+    val diagnostics = PairingWindow.diagnosticsHtml(
+        state = DesktopSessionUiState.IDLE,
+        lastControlError = null,
+        windowsBackendStatus = "lifecycle=started, lastPublish=none",
+    )
+
+    listOf(transport, manual, diagnostics).forEach { html ->
+        expectTrue("starts with exact html prefix", html.startsWith("<html><body>"))
+        expectTrue("recognized by Swing BasicHTML", BasicHTML.isHTMLString(html))
+        expectFalse("no visible closing tag prefix", html.contains("\n<html", ignoreCase = true))
     }
 }
 
@@ -187,6 +213,22 @@ private fun pairingWindowForbiddenDesktopProfileControlsAbsent() {
 
     forbidden.forEach { label ->
         expectFalse("forbidden desktop control absent: $label", source.contains(label, ignoreCase = true))
+    }
+}
+
+private fun pairingWindowBoundsSidePanelLabels() {
+    val source = File("src/main/kotlin/com/btgun/desktop/ui/PairingWindow.kt")
+        .takeIf { it.exists() }
+        ?.readText()
+        .orEmpty()
+
+    listOf(
+        "manual.preferredSize = Dimension(SIDE_PANEL_WIDTH, MANUAL_PANEL_HEIGHT)",
+        "diagnostics.preferredSize = Dimension(SIDE_PANEL_WIDTH, DIAGNOSTICS_PANEL_HEIGHT)",
+        "manual.minimumSize = Dimension(SIDE_PANEL_WIDTH, MANUAL_PANEL_HEIGHT)",
+        "diagnostics.minimumSize = Dimension(SIDE_PANEL_WIDTH, DIAGNOSTICS_PANEL_HEIGHT)",
+    ).forEach { expected ->
+        expectContains("side panel sizing contains $expected", source, expected)
     }
 }
 

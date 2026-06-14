@@ -11,6 +11,7 @@ import com.btgun.desktop.transport.UdpInputReceiverResult
 fun main() {
     snapshotFixtureReplaysThroughReceiverBeforeMapping()
     edgeFixtureMapsSemanticControlsAndNeutralizesNanAim()
+    virtualButtonIdsMapWithoutLegacyAliases()
     legacyUnmappedFrameIsIncompatibleWithProductPath()
     edgeFlagDoesNotBecomeButtonThree()
     staleReceiverInputClearsButtonsAndStickBeforeMapping()
@@ -58,6 +59,28 @@ private fun edgeFixtureMapsSemanticControlsAndNeutralizesNanAim() {
     expectEquals("aimX mapped", -0.5f, state.aimX)
     expectEquals("aimY mapped", 0.25f, state.aimY)
     expectEquals("sourceSequence", 43L, state.sourceSequence)
+}
+
+private fun virtualButtonIdsMapWithoutLegacyAliases() {
+    val state = UdpControllerStateAdapter.toState(
+        receivedInput(
+            pressedControls = setOf(
+                "jp_button_r2",
+                "jp_button_l2",
+                "jp_button_b3",
+                "jp_button_b4",
+                "jp_button_b1",
+                "jp_button_b2",
+            ),
+        ),
+    )
+
+    expectEquals("trigger virtual id", true, state.trigger)
+    expectEquals("reload virtual id", true, state.reload)
+    expectEquals("x virtual id", true, state.x)
+    expectEquals("y virtual id", true, state.y)
+    expectEquals("a virtual id", true, state.a)
+    expectEquals("b virtual id", true, state.b)
 }
 
 private fun legacyUnmappedFrameIsIncompatibleWithProductPath() {
@@ -132,6 +155,36 @@ private fun UdpInputReceiverResult.Accepted.toSemanticState(): SemanticControlle
 
 private fun UdpReceivedInput.toSemanticState(): SemanticControllerState =
     UdpControllerStateAdapter.toState(this)
+
+private fun receivedInput(
+    pressedControls: Set<String>,
+    mappedProductStream: Boolean = true,
+): UdpReceivedInput =
+    UdpReceivedInput(
+        controlSessionId = CONTROL_SESSION_ID,
+        streamSessionIdHex = STREAM_SESSION_ID_HEX,
+        frameType = UdpInputFrameType.SNAPSHOT,
+        buttons = 0,
+        pressedControls = pressedControls,
+        stickX = 0,
+        stickY = 0,
+        motion = com.btgun.desktop.transport.UdpReceivedMotion(
+            provider = 0,
+            capabilityFlags = 0,
+            yaw = 0.0f,
+            pitch = 0.0f,
+            roll = 0.0f,
+            rawAimX = Float.NaN,
+            rawAimY = Float.NaN,
+            sourceSensorElapsedNanos = 0L,
+        ),
+        mappedProductStream = mappedProductStream,
+        captureElapsedNanos = 1L,
+        sendElapsedNanos = 1L,
+        receivedElapsedNanos = 1L,
+        stale = false,
+        lastAcceptedSequence = 1L,
+    )
 
 private fun startedReceiver(): UdpInputReceiver =
     UdpInputReceiver().start(

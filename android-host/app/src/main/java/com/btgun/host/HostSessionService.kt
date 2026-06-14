@@ -367,8 +367,50 @@ internal class HostSessionProfileRuntime(
     }
 }
 
+private const val FACE_CONTROL_STUCK_RELEASE_NANOS: Long = 1_500_000_000L
+private const val PRIMARY_CONTROL_STUCK_RELEASE_NANOS: Long = 12_000_000_000L
+private const val RECENTER_CONTROL_STUCK_RELEASE_NANOS: Long = ReloadHoldRecenter.AIM_CALIBRATION_HOLD_NANOS + 2_000_000_000L
+
 internal fun shouldFeedRecenterHold(profile: BtGunProfile, controlName: String): Boolean =
     profile.recenterPhysicalControl?.id == controlName
+
+internal fun pressedControlReleaseTimeoutNanos(
+    controlName: String,
+    recenterControlName: String?,
+): Long =
+    when {
+        controlName == recenterControlName -> RECENTER_CONTROL_STUCK_RELEASE_NANOS
+        controlName == "trigger" || controlName == "reload" -> PRIMARY_CONTROL_STUCK_RELEASE_NANOS
+        else -> FACE_CONTROL_STUCK_RELEASE_NANOS
+    }
+
+internal fun expiredPressedControls(
+    pressedControls: Set<String>,
+    pressedSinceElapsedNanos: Map<String, Long>,
+    recenterControlName: String?,
+    nowElapsedNanos: Long,
+): Set<String> =
+    pressedControls.filterTo(mutableSetOf()) { controlName ->
+        val startedAt = pressedSinceElapsedNanos[controlName] ?: return@filterTo true
+        nowElapsedNanos - startedAt >= pressedControlReleaseTimeoutNanos(controlName, recenterControlName)
+    }
+
+internal fun nextPressedControlReleaseDelayMillis(
+    pressedControls: Set<String>,
+    pressedSinceElapsedNanos: Map<String, Long>,
+    recenterControlName: String?,
+    nowElapsedNanos: Long,
+): Long? {
+    val nextRemainingNanos = pressedControls
+        .map { controlName ->
+            val startedAt = pressedSinceElapsedNanos[controlName] ?: return@map 0L
+            val releaseAt = startedAt + pressedControlReleaseTimeoutNanos(controlName, recenterControlName)
+            (releaseAt - nowElapsedNanos).coerceAtLeast(0L)
+        }
+        .minOrNull()
+        ?: return null
+    return ((nextRemainingNanos + 999_999L) / 1_000_000L).coerceAtLeast(1L)
+}
 
 internal fun shouldPublishVisualizerStatus(
     hasTrustedDesktopConnection: Boolean,
@@ -462,6 +504,7 @@ class HostSessionService : Service() {
     private var udpInputConfig: InputStreamConfig? = null
     private var lastUdpSnapshotSentElapsedNanos: Long? = null
     private var visualizerStatusSequence: Long = 0L
+    private val pressedControlStartedAt = mutableMapOf<String, Long>()
     private val desktopHapticExecutor: DesktopHapticCommandExecutor by lazy {
         DesktopHapticCommandExecutor(
             phone = PhoneHaptics(this),
@@ -483,6 +526,10 @@ class HostSessionService : Service() {
 
     private val reloadHoldTick = Runnable {
         handleReloadHoldTick()
+    }
+
+    private val stuckControlReleaseTick = Runnable {
+        handleStuckControlReleaseTick()
     }
 
     private val desktopLivenessTick = Runnable {
@@ -608,6 +655,8 @@ class HostSessionService : Service() {
             return
         }
 
+        handler.removeCallbacks(stuckControlReleaseTick)
+        pressedControlStartedAt.clear()
         currentState = profileRuntime.loadActiveProfile(HostSessionState(phase = HostSessionPhase.STARTING))
         if (!startHostForegroundSafely()) {
             stopSelf()
@@ -623,6 +672,8 @@ class HostSessionService : Service() {
                 )
                 if (shouldClearGunInput) {
                     handler.removeCallbacks(reloadHoldTick)
+                    handler.removeCallbacks(stuckControlReleaseTick)
+                    pressedControlStartedAt.clear()
                     recenter.onReload(pressed = false, nowElapsedNanos = SystemClock.elapsedRealtimeNanos())
                 }
                 currentState = currentState.copy(
@@ -690,6 +741,8 @@ class HostSessionService : Service() {
         stopUdpInput()
         stopMotionCapture()
         handler.removeCallbacks(reloadHoldTick)
+        handler.removeCallbacks(stuckControlReleaseTick)
+        pressedControlStartedAt.clear()
         recenter.onReload(pressed = false, nowElapsedNanos = SystemClock.elapsedRealtimeNanos())
         adapter?.stopSession()
         adapter = null
@@ -1571,6 +1624,65 @@ class HostSessionService : Service() {
         handler.postDelayed(reloadHoldTick, delayMillis)
     }
 
+    private fun recordPressedControlState(event: GunEvent, captureElapsedNanos: Long) {
+        when (event.pressed) {
+            true -> pressedControlStartedAt[event.name] = captureElapsedNanos
+            false -> pressedControlStartedAt.remove(event.name)
+            null -> return
+        }
+        scheduleStuckControlReleaseTick()
+    }
+
+    private fun scheduleStuckControlReleaseTick() {
+        handler.removeCallbacks(stuckControlReleaseTick)
+        val delayMillis = nextPressedControlReleaseDelayMillis(
+            pressedControls = currentState.gunInputState.pressedControls,
+            pressedSinceElapsedNanos = pressedControlStartedAt,
+            recenterControlName = currentState.activeProfile.recenterPhysicalControl?.id,
+            nowElapsedNanos = SystemClock.elapsedRealtimeNanos(),
+        ) ?: return
+        handler.postDelayed(stuckControlReleaseTick, delayMillis)
+    }
+
+    private fun handleStuckControlReleaseTick() {
+        val nowElapsedNanos = SystemClock.elapsedRealtimeNanos()
+        val expiredControls = expiredPressedControls(
+            pressedControls = currentState.gunInputState.pressedControls,
+            pressedSinceElapsedNanos = pressedControlStartedAt,
+            recenterControlName = currentState.activeProfile.recenterPhysicalControl?.id,
+            nowElapsedNanos = nowElapsedNanos,
+        )
+        if (expiredControls.isEmpty()) {
+            scheduleStuckControlReleaseTick()
+            return
+        }
+
+        val wasRecenterHeld = recenter.state.isReloadHeld
+        val clearsRecenterControl = expiredControls.any { controlName ->
+            shouldFeedRecenterHold(currentState.activeProfile, controlName)
+        }
+        for (controlName in expiredControls) {
+            pressedControlStartedAt.remove(controlName)
+        }
+        if (clearsRecenterControl) {
+            handler.removeCallbacks(reloadHoldTick)
+            recenter.onReload(pressed = false, nowElapsedNanos = nowElapsedNanos)
+        }
+
+        currentState = profileRuntime.mapCurrentState(currentState.copy(
+            gunInputState = currentState.gunInputState.copy(
+                pressedControls = currentState.gunInputState.pressedControls - expiredControls,
+            ),
+            reloadHoldState = recenter.state,
+        ))
+        currentState = hidSessionController.fanOutLiveInput(currentState)
+        if (wasRecenterHeld != recenter.state.isReloadHeld) {
+            publishVisualizerStatus()
+        }
+        sendUdpSnapshot(throttled = false)
+        scheduleStuckControlReleaseTick()
+    }
+
     private fun startAimCalibration() {
         calibrationBaseRawOrigin = currentRawOrigin ?: currentRawAim
         aimCalibrationSession.start()
@@ -1633,6 +1745,7 @@ class HostSessionService : Service() {
                 gunInputState = gunInputState,
                 aimCalibrationState = aimCalibrationSession.state,
             ))
+            recordPressedControlState(envelope.payload, envelope.captureElapsedNanos)
             currentState = hidSessionController.fanOutLiveInput(currentState)
             sendUdpEdge(envelope)
             return
@@ -1663,6 +1776,7 @@ class HostSessionService : Service() {
             reloadHoldState = recenter.state,
             aimCalibrationState = aimCalibrationSession.state,
         ))
+        recordPressedControlState(envelope.payload, envelope.captureElapsedNanos)
         currentState = hidSessionController.fanOutLiveInput(currentState)
         if (recenterHoldChanged) {
             publishVisualizerStatus()
