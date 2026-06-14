@@ -11,6 +11,7 @@ import com.btgun.host.haptics.HapticResultStatus
 import com.btgun.host.hid.BtGunHidDescriptor
 import com.btgun.host.hid.BtGunHidHostConnectionState
 import com.btgun.host.hid.BtGunHidInputSendResult
+import com.btgun.host.hid.BtGunHidModeState
 import com.btgun.host.hid.BtGunHidOutputCallbackKind
 import com.btgun.host.hid.BtGunHidOutputValidationState
 import com.btgun.host.hid.BtGunHidReportTypes
@@ -38,6 +39,10 @@ import com.btgun.host.session.VisualizerStatus
 fun main() {
     heartbeatTimeoutClearSchedulesUdpDisconnectGrace()
     controlDisconnectWithoutUdpStreamStaysStopped()
+    foregroundNotificationStopActionSpecIsStable()
+    taskRemovalStopsForegroundOrActiveSessions()
+    activeStartSessionRequestsAreIgnored()
+    failedForegroundStartSessionRequestsRestart()
     bluetoothGamepadActionConstantsAreExplicit()
     profileReloadServiceActionOnlyRunsWhenForegroundActive()
     bluetoothGamepadStartRequiresConnectPermission()
@@ -117,6 +122,48 @@ private fun controlDisconnectWithoutUdpStreamStaysStopped() {
             controlDisconnectGraceMs = 1_500L,
         ),
     )
+}
+
+private fun foregroundNotificationStopActionSpecIsStable() {
+    val spec = stopSessionNotificationActionSpec()
+
+    expectEquals("stop notification label", "Stop session", spec.label)
+    expectEquals("stop notification action", HostSessionService.ACTION_STOP_SESSION, spec.serviceAction)
+    expectEquals("stop notification request", 1002, spec.requestCode)
+}
+
+private fun taskRemovalStopsForegroundOrActiveSessions() {
+    expectFalse("idle task removal no-op", shouldStopSessionOnTaskRemoved(HostSessionState()))
+    expectTrue("foreground task removal stops", shouldStopSessionOnTaskRemoved(HostSessionState(foregroundActive = true)))
+    expectTrue("active scan task removal stops", shouldStopSessionOnTaskRemoved(HostSessionState(phase = HostSessionPhase.SCANNING)))
+    expectTrue(
+        "hid task removal stops",
+        shouldStopSessionOnTaskRemoved(
+            HostSessionState(
+                hidGamepadStatus = BtGunHidStatus(mode = BtGunHidModeState.STARTING),
+            ),
+        ),
+    )
+}
+
+private fun activeStartSessionRequestsAreIgnored() {
+    expectFalse("idle start allowed", shouldIgnoreStartSessionRequest(HostSessionState()))
+    expectTrue("foreground start ignored", shouldIgnoreStartSessionRequest(HostSessionState(foregroundActive = true)))
+    expectTrue("scanning start ignored", shouldIgnoreStartSessionRequest(HostSessionState(phase = HostSessionPhase.SCANNING)))
+    expectTrue("stopping start ignored", shouldIgnoreStartSessionRequest(HostSessionState(phase = HostSessionPhase.STOPPING)))
+    expectFalse("error start allowed", shouldIgnoreStartSessionRequest(HostSessionState(phase = HostSessionPhase.ERROR)))
+}
+
+private fun failedForegroundStartSessionRequestsRestart() {
+    val failedForeground = HostSessionState(
+        phase = HostSessionPhase.ERROR,
+        foregroundActive = true,
+        lastError = "gatt disconnected status=133",
+    )
+
+    expectTrue("foreground error restarts", shouldRestartFailedSessionRequest(failedForeground))
+    expectFalse("foreground error not ignored", shouldIgnoreStartSessionRequest(failedForeground))
+    expectFalse("idle error no restart", shouldRestartFailedSessionRequest(HostSessionState(phase = HostSessionPhase.ERROR)))
 }
 
 private fun bluetoothGamepadActionConstantsAreExplicit() {
