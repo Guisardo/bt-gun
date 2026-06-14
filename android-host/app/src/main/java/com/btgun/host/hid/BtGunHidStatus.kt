@@ -3,6 +3,7 @@ package com.btgun.host.hid
 import com.btgun.host.haptics.HapticResult
 
 data class BtGunHidStatus(
+    val mode: BtGunHidModeState = BtGunHidModeState.STOPPED,
     val proxy: BtGunHidProxyState = BtGunHidProxyState.NOT_REQUESTED,
     val registration: BtGunHidRegistrationState = BtGunHidRegistrationState.NOT_REGISTERED,
     val hostConnection: BtGunHidHostConnectionState = BtGunHidHostConnectionState.NOT_CONNECTED,
@@ -13,6 +14,12 @@ data class BtGunHidStatus(
     val lastHapticResult: HapticResult? = null,
     val unsupportedReason: String? = null,
 )
+
+enum class BtGunHidModeState {
+    STOPPED,
+    STARTING,
+    STARTED,
+}
 
 enum class BtGunHidProxyState {
     NOT_REQUESTED,

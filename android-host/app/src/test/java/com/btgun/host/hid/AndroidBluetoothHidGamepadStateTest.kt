@@ -26,12 +26,14 @@ private fun doesNotSendBeforeProxyRegistrationAndHostConnection() {
 
     expectEquals("no proxy send", BtGunHidInputSendResult.NO_PROXY, gamepad.sendInput(state(), motion(), stale = false))
     gamepad.startGamepadMode()
+    expectEquals("pending mode", BtGunHidModeState.STARTING, gamepad.status.mode)
     expectEquals("pending proxy send", BtGunHidInputSendResult.NO_PROXY, gamepad.sendInput(state(), motion(), stale = false))
     connector.callback.onProxyAvailable(connector.proxy)
     expectEquals("registered command requested", 1, connector.proxy.registeredSettings.size)
     expectEquals("registered callback captured", true, connector.proxy.callback != null)
     expectEquals("before app registered", BtGunHidInputSendResult.NOT_REGISTERED, gamepad.sendInput(state(), motion(), stale = false))
     connector.proxy.callback?.onAppStatusChanged(null, registered = true)
+    expectEquals("registered mode", BtGunHidModeState.STARTED, gamepad.status.mode)
     expectEquals("no host send", BtGunHidInputSendResult.NO_HOST, gamepad.sendInput(state(), motion(), stale = false))
     connector.proxy.callback?.onConnectionStateChanged(FakeHost, BtGunHidConnectionStates.CONNECTED)
 
@@ -55,6 +57,7 @@ private fun startRequestsHidDeviceProxyAndRegistersGamepadSdp() {
     val settings = connector.proxy.registeredSettings.single()
     expectEquals("proxy requests", 1, connector.requestCount)
     expectEquals("status proxy available", BtGunHidProxyState.AVAILABLE, gamepad.status.proxy)
+    expectEquals("status mode starting", BtGunHidModeState.STARTING, gamepad.status.mode)
     expectEquals("sdp name", "BT Gun Gamepad", settings.name)
     expectEquals("sdp description", "BT Gun Android HID Gamepad", settings.description)
     expectEquals("sdp provider", "BT Gun", settings.provider)
@@ -154,6 +157,7 @@ private fun staleProxyCallbacksAfterStopDoNotRegisterHidMode() {
     expectEquals("stale callback did not register", 0, connector.proxy.registeredSettings.size)
     expectEquals("stale proxy unregistered", 1, connector.proxy.unregisterCount)
     expectEquals("stale status remains stopped", BtGunHidProxyState.NOT_REQUESTED, gamepad.status.proxy)
+    expectEquals("stale mode remains stopped", BtGunHidModeState.STOPPED, gamepad.status.mode)
     expectEquals("stale send has no proxy", BtGunHidInputSendResult.NO_PROXY, gamepad.sendInput(state(), motion(), stale = false))
 }
 
@@ -220,6 +224,7 @@ private fun stopKeepsRegistrationForPairedMacosReconnect() {
     expectEquals("stop does not unregister registered HID app", 0, connector.proxy.unregisterCount)
     expectEquals("stop disconnects current host", listOf(FakeHost), connector.proxy.disconnectedHosts)
     expectEquals("stop keeps registration status", BtGunHidRegistrationState.REGISTERED, gamepad.status.registration)
+    expectEquals("stop sets mode stopped", BtGunHidModeState.STOPPED, gamepad.status.mode)
     expectEquals("stop clears host status", BtGunHidHostConnectionState.NOT_CONNECTED, gamepad.status.hostConnection)
 
     gamepad.startGamepadMode()
@@ -227,6 +232,7 @@ private fun stopKeepsRegistrationForPairedMacosReconnect() {
     val result = gamepad.sendInput(state(), motion(), stale = false)
 
     expectEquals("restart reuses existing registration", 1, connector.proxy.registeredSettings.size)
+    expectEquals("restart sets mode started", BtGunHidModeState.STARTED, gamepad.status.mode)
     expectEquals("restart accepts reconnect", BtGunHidHostConnectionState.CONNECTED, gamepad.status.hostConnection)
     expectEquals("restart sends after reconnect", BtGunHidInputSendResult.SENT, result)
 }
