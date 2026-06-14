@@ -2,6 +2,8 @@
 
 Use only the CI artifact `btgun-vjoy-windows-x64-testsigned`. Do not build on `192.168.1.100`.
 
+Chrome Gamepad API haptics require package version `0.6.3.0` or newer. The updated VHF device uses `VID_18D1&PID_9400` and exposes Stadia-compatible haptic output report `0x05`; the native BT Gun haptic proof path remains report ID `0x02`.
+
 ## Inputs
 
 - Artifact from GitHub Actions workflow `windows-driver`.
@@ -78,6 +80,8 @@ For real HID output proof, try `joy.cpl` first. If it cannot send output for thi
 ```
 
 Then verify the desktop bridge drains report ID 2 and Android phone vibration occurs through the authenticated haptic path.
+
+Chrome standard Gamepad API vibration pages should expose vibration after the updated package is installed, the old `VID_1209&PID_B706` device is removed, and Chrome reconnects to `VID_18D1&PID_9400`. If Chrome still reports `No Vibration`, capture the installed identity and Chrome state, then use the native HID output sender or LAN visualizer haptic test as fallback proof.
 
 ## Rollback
 
