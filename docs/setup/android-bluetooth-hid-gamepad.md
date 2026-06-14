@@ -19,7 +19,7 @@ Required states before proof:
 | Pairing mode | User starts pairing window from the app | No discoverable/connectable window active |
 | Host connection | macOS connects as HID host | No host connected or host disconnected |
 
-The normal user flow starts with **Start Bluetooth gamepad**. This action is separate from the BLE gun/LAN session path; it starts the HID role probe and registers the gamepad SDP record. After registration is active, tap **Open pairing window** to start the discoverable pairing countdown. The app should show remaining pairing time and an explicit blocked reason instead of silently falling back.
+The normal user flow starts with **Start Bluetooth gamepad**. This action is separate from the BLE gun/LAN session path; it starts the HID role probe and registers the gamepad SDP record. After registration is active, tap **Open pairing window** to start the discoverable pairing countdown. **Stop Bluetooth gamepad** sends a neutral report and disconnects the current host, but keeps the HID app registered so an already-paired Mac can reconnect without forgetting the device. Full unregister happens only when the Android service closes. The app should show remaining pairing time and an explicit blocked reason instead of silently falling back.
 
 If the current phone blocks HID proxy, registration, macOS pairing, or input proof, test an alternate Android phone before selecting the Windows VHF fallback.
 
