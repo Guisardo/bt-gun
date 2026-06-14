@@ -235,7 +235,7 @@ private fun liveInputFanoutOnlySendsWhenHidHostConnected() {
     controller.fanOutLiveInput(mappedState)
 
     expectEquals("only connected send", 1, driver.sentMappedInputs.size)
-    expectEquals("sent mapped controls", setOf("trigger"), driver.sentMappedInputs.single().state.pressedVirtualControls)
+    expectEquals("sent mapped controls", setOf("jp_button_r2"), driver.sentMappedInputs.single().state.pressedVirtualControls)
     expectEquals("sent mapped stick x", inputState.stickAxisX, driver.sentMappedInputs.single().state.stickAxisX)
     expectEquals("sent mapped aim x", motion.aimX, driver.sentMappedInputs.single().state.aimAxisX)
 }
@@ -278,7 +278,7 @@ private fun hostProfileRuntimeLoadsActiveProfileAndMapsCurrentInput() {
     expectEquals("default active name", "Default Visualizer", state.activeProfileDisplayName)
     expectEquals("default active revision", 1L, state.activeProfileRevision)
     expectEquals("default raw debug", false, state.rawDebugEnabled)
-    expectEquals("mapped trigger", setOf("trigger"), state.mappedControllerState.pressedVirtualControls)
+    expectEquals("mapped trigger", setOf("jp_button_r2"), state.mappedControllerState.pressedVirtualControls)
     expectEquals("mapped stick x", 0.25f, state.mappedControllerState.stickAxisX)
     expectEquals("mapped stick y", -0.5f, state.mappedControllerState.stickAxisY)
     expectEquals("validation error clear", null, state.profileValidationError)
@@ -300,8 +300,8 @@ private fun hostProfileRuntimeReloadsSelectedProfileWithoutRestart() {
             displayName = "Reload Test",
             aim = AimMappingSettings(sensitivity = 2f, smoothing = SmoothingMode.OFF),
             buttonMapping = BtGunProfile.defaultButtonMapping() +
-                (PhysicalButton.TRIGGER to VirtualButton.BUTTON_X) +
-                (PhysicalButton.BUTTON_X to VirtualButton.TRIGGER),
+                (PhysicalButton.TRIGGER to VirtualButton.B3) +
+                (PhysicalButton.BUTTON_X to VirtualButton.R2),
             rawDebugEnabled = true,
         )
     store.saveProfile(copy)
@@ -316,7 +316,7 @@ private fun hostProfileRuntimeReloadsSelectedProfileWithoutRestart() {
     expectEquals("reloaded id", "user_profile", reloaded.activeProfileId)
     expectEquals("reloaded name", "Reload Test", reloaded.activeProfileDisplayName)
     expectEquals("reloaded raw debug", true, reloaded.rawDebugEnabled)
-    expectEquals("runtime remapped trigger", setOf("button_x"), reloaded.mappedControllerState.pressedVirtualControls)
+    expectEquals("runtime remapped trigger", setOf("jp_button_b3"), reloaded.mappedControllerState.pressedVirtualControls)
 }
 
 private fun hidFanoutUsesMappedStateAfterServiceMapping() {
@@ -325,7 +325,7 @@ private fun hidFanoutUsesMappedStateAfterServiceMapping() {
     controller.startBluetoothGamepad(HostSessionState())
     driver.status = driver.status.copy(hostConnection = BtGunHidHostConnectionState.CONNECTED)
     val mapped = defaultMappedState().copy(
-        pressedVirtualControls = setOf("button_x"),
+        pressedVirtualControls = setOf("jp_button_b3"),
         stickAxisX = 0.5f,
         stickAxisY = -0.25f,
         aimAxisX = 0.125f,
@@ -341,7 +341,7 @@ private fun hidFanoutUsesMappedStateAfterServiceMapping() {
 private fun recenterUsesSelectedPhysicalControlWhileVirtualReloadPublishes() {
     val profile = BtGunProfile.defaultVisualizer().copy(
         recenterPhysicalControl = PhysicalButton.BUTTON_A,
-        buttonMapping = BtGunProfile.defaultButtonMapping() + (PhysicalButton.BUTTON_A to VirtualButton.RELOAD),
+        buttonMapping = BtGunProfile.defaultButtonMapping() + (PhysicalButton.BUTTON_A to VirtualButton.L2),
     )
     val rawState = GunInputState(pressedControls = setOf("button_a"))
     val mapper = ProfileMapper()
@@ -355,7 +355,7 @@ private fun recenterUsesSelectedPhysicalControlWhileVirtualReloadPublishes() {
     expectEquals("physical recenter button", true, shouldFeedRecenterHold(profile, "button_a"))
     expectEquals("physical reload not recenter", false, shouldFeedRecenterHold(profile, "reload"))
     expectEquals("button a starts hold", true, mapper.isRecenterPressed(profile, rawState))
-    expectEquals("virtual reload still publishes", true, "reload" in mapped.pressedVirtualControls)
+    expectEquals("virtual reload still publishes", true, "jp_button_l2" in mapped.pressedVirtualControls)
 }
 
 private fun visualizerStatusReflectsRecenterAimZeroAndRawDebug() {

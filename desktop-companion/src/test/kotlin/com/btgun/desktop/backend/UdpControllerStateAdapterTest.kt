@@ -1,6 +1,9 @@
 package com.btgun.desktop.backend
 
 import com.btgun.desktop.transport.InputStreamConfig
+import com.btgun.desktop.transport.UdpInputFrame
+import com.btgun.desktop.transport.UdpInputFrameCodec
+import com.btgun.desktop.transport.UdpInputFrameType
 import com.btgun.desktop.transport.UdpReceivedInput
 import com.btgun.desktop.transport.UdpInputReceiver
 import com.btgun.desktop.transport.UdpInputReceiverResult
@@ -14,7 +17,8 @@ fun main() {
 }
 
 private fun snapshotFixtureReplaysThroughReceiverBeforeMapping() {
-    val state = acceptFixture(GOLDEN_SNAPSHOT_FRAME_HEX).toSemanticState()
+    val state = acceptFrame(productFrame(sequence = 42L, buttonBitmask = BUTTON_R2 or BUTTON_L2 or BUTTON_B2))
+        .toSemanticState()
 
     expectEquals("trigger", true, state.trigger)
     expectEquals("reload", true, state.reload)
@@ -31,7 +35,17 @@ private fun snapshotFixtureReplaysThroughReceiverBeforeMapping() {
 }
 
 private fun edgeFixtureMapsSemanticControlsAndNeutralizesNanAim() {
-    val state = acceptFixture(GOLDEN_EDGE_FRAME_HEX).toSemanticState()
+    val state = acceptFrame(
+        productFrame(
+            type = UdpInputFrameType.EDGE,
+            sequence = 43L,
+            buttonBitmask = BUTTON_R2 or EDGE_CONTROL_CHANGED,
+            stickX = Short.MIN_VALUE.toInt(),
+            stickY = Short.MAX_VALUE.toInt(),
+            productAimX = -0.5f,
+            productAimY = 0.25f,
+        ),
+    ).toSemanticState()
 
     expectEquals("trigger", true, state.trigger)
     expectEquals("reload", false, state.reload)
@@ -47,7 +61,7 @@ private fun edgeFixtureMapsSemanticControlsAndNeutralizesNanAim() {
 }
 
 private fun legacyUnmappedFrameIsIncompatibleWithProductPath() {
-    val accepted = acceptFixture(LEGACY_UNMAPPED_SNAPSHOT_FRAME_HEX)
+    val accepted = acceptFrame(productFrame(sequence = 42L, buttonBitmask = 0x23, streamFlags = 0))
     val input = accepted.input
     val state = accepted.toSemanticState()
 
@@ -63,16 +77,25 @@ private fun legacyUnmappedFrameIsIncompatibleWithProductPath() {
 }
 
 private fun edgeFlagDoesNotBecomeButtonThree() {
-    val input = acceptFixture(GOLDEN_EDGE_FRAME_HEX).input
+    val input = acceptFrame(
+        productFrame(
+            type = UdpInputFrameType.EDGE,
+            sequence = 43L,
+            buttonBitmask = BUTTON_R2 or EDGE_CONTROL_CHANGED,
+        ),
+    ).input
 
-    expectEquals("edge flag present", true, input.buttons and 0x100 != 0)
-    expectEquals("edge flag ignored for controls", setOf("trigger"), input.pressedControls)
+    expectEquals("edge flag present", true, input.buttons and EDGE_CONTROL_CHANGED != 0)
+    expectEquals("edge flag ignored for controls", setOf("jp_button_r2", "trigger"), input.pressedControls)
 }
 
 private fun staleReceiverInputClearsButtonsAndStickBeforeMapping() {
     val receiver = startedReceiver()
     val accepted = receiver.handleDatagram(
-        bytes = GOLDEN_SNAPSHOT_FRAME_HEX.hexToBytes(),
+        bytes = UdpInputFrameCodec.encode(
+            productFrame(sequence = 42L, buttonBitmask = BUTTON_R2 or BUTTON_L2 or BUTTON_B2),
+            fixtureConfig(),
+        ),
         receivedElapsedNanos = RECEIVED_ELAPSED_NANOS,
     )
     expectTrue("accepted before stale", accepted is UdpInputReceiverResult.Accepted)
@@ -93,9 +116,9 @@ private fun staleReceiverInputClearsButtonsAndStickBeforeMapping() {
     expectEquals("stale sourceSequence", 42L, state.sourceSequence)
 }
 
-private fun acceptFixture(hex: String): UdpInputReceiverResult.Accepted {
+private fun acceptFrame(frame: UdpInputFrame): UdpInputReceiverResult.Accepted {
     val result = startedReceiver().handleDatagram(
-        bytes = hex.hexToBytes(),
+        bytes = UdpInputFrameCodec.encode(frame, fixtureConfig()),
         receivedElapsedNanos = RECEIVED_ELAPSED_NANOS,
     )
     if (result !is UdpInputReceiverResult.Accepted) {
@@ -128,10 +151,38 @@ private fun fixtureConfig(): InputStreamConfig =
         controlDisconnectGraceMs = 1500,
     )
 
-private fun String.hexToBytes(): ByteArray {
-    require(length % 2 == 0) { "hex string must have even length" }
-    return chunked(2).map { it.toInt(16).toByte() }.toByteArray()
-}
+private fun productFrame(
+    type: UdpInputFrameType = UdpInputFrameType.SNAPSHOT,
+    sequence: Long,
+    buttonBitmask: Int,
+    stickX: Int = 12_345,
+    stickY: Int = -12_345,
+    productAimX: Float = 0.375f,
+    productAimY: Float = -0.625f,
+    streamFlags: Int = UdpInputFrame.FLAG_MAPPED_PRODUCT_STREAM or UdpInputFrame.FLAG_RAW_DEBUG_EXTRAS,
+): UdpInputFrame =
+    UdpInputFrame(
+        type = type,
+        streamSessionId = STREAM_SESSION_ID_HEX,
+        sequence = sequence,
+        captureElapsedNanos = 1_111_111_111L,
+        sendElapsedNanos = 1_111_111_222L,
+        buttonBitmask = buttonBitmask,
+        stickX = stickX,
+        stickY = stickY,
+        motionProvider = 2,
+        motionCapabilityFlags = 0x07,
+        yaw = productAimX,
+        pitch = productAimY,
+        roll = 0.75f,
+        rawAimX = 0.125f,
+        rawAimY = -0.25f,
+        sourceSensorElapsedNanos = 1_111_111_000L,
+        streamFlags = streamFlags,
+        productAimX = productAimX,
+        productAimY = productAimY,
+        rawRoll = 0.75f,
+    )
 
 private fun expectEquals(label: String, expected: Any?, actual: Any?) {
     if (expected != actual) {
@@ -149,12 +200,7 @@ private const val CONTROL_SESSION_ID = "control-sid-1"
 private const val STREAM_SESSION_ID_HEX = "00112233445566778899aabbccddeeff"
 private const val HMAC_KEY_BASE64URL = "ASNFZ4mrze_-3LqYdlQyEAEjRWeJq83v_ty6mHZUMhA"
 private const val RECEIVED_ELAPSED_NANOS = 1_111_111_333L
-
-private const val GOLDEN_SNAPSHOT_FRAME_HEX =
-    "425447490101000300112233445566778899aabbccddeeff000000000000002a00000000423a35c700000000423a3636000000233039cfc7020700003ec00000bf2000003f4000003e000000be80000000000000423a3558e5fe65b7e6e39c6eb8109901c44e1078e75277dded88c2c0732a5a15e517c6dc"
-
-private const val GOLDEN_EDGE_FRAME_HEX =
-    "425447490102000100112233445566778899aabbccddeeff000000000000002b00000000423a36a500000000423a37140000010180007fff03030000bf0000003e800000400000007fc000007fc0000000000000423a3684a5b9af27f6b97e7699e380efcfbc21fb7ce9dd851c9b632de938d6081ee4a669"
-
-private const val LEGACY_UNMAPPED_SNAPSHOT_FRAME_HEX =
-    "425447490101000000112233445566778899aabbccddeeff000000000000002a00000000423a35c700000000423a3636000000233039cfc7020700003fa00000c02000003f4000003e000000be80000000000000423a3558ad0f94e008b50a045111a7bbb25688c2f1d399a8de4b3b8f2e325c0f63fb7d5f"
+private const val BUTTON_B2 = 1 shl 1
+private const val BUTTON_L2 = 1 shl 6
+private const val BUTTON_R2 = 1 shl 7
+private const val EDGE_CONTROL_CHANGED = 1 shl 30

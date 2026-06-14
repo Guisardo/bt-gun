@@ -15,10 +15,10 @@ private fun descriptorBytesArePinned() {
         0x85.toByte(), 0x01,
         0x05, 0x09,
         0x19, 0x01,
-        0x29, 0x06,
+        0x29, 0x16,
         0x15, 0x00,
         0x25, 0x01,
-        0x95.toByte(), 0x06,
+        0x95.toByte(), 0x16,
         0x75, 0x01,
         0x81.toByte(), 0x02,
         0x95.toByte(), 0x02,
@@ -52,12 +52,35 @@ private fun descriptorMirrorsBtGunV1Semantics() {
     expectEquals("device kind", "gamepad_like_joystick", BtGunHidDescriptor.DEVICE_KIND)
     expectEquals(
         "buttons",
-        listOf("trigger", "reload", "button_x", "button_y", "button_a", "button_b"),
+        listOf(
+            "jp_button_b1",
+            "jp_button_b2",
+            "jp_button_b3",
+            "jp_button_b4",
+            "jp_button_l1",
+            "jp_button_r1",
+            "jp_button_l2",
+            "jp_button_r2",
+            "jp_button_s1",
+            "jp_button_s2",
+            "jp_button_l3",
+            "jp_button_r3",
+            "jp_button_du",
+            "jp_button_dd",
+            "jp_button_dl",
+            "jp_button_dr",
+            "jp_button_a1",
+            "jp_button_a2",
+            "jp_button_a3",
+            "jp_button_a4",
+            "jp_button_l4",
+            "jp_button_r4",
+        ),
         BtGunHidDescriptor.BUTTONS,
     )
     expectEquals("axes", listOf("stickX", "stickY", "aimX", "aimY"), BtGunHidDescriptor.AXES)
     expectEquals("trigger kind", "digital_button_usages", BtGunHidDescriptor.TRIGGER_KIND)
-    expectEquals("button count", 6, BtGunHidDescriptor.BUTTON_COUNT)
+    expectEquals("button count", 22, BtGunHidDescriptor.BUTTON_COUNT)
     expectEquals("button padding count", 2, BtGunHidDescriptor.BUTTON_PADDING_COUNT)
     expectEquals("axis count", 4, BtGunHidDescriptor.AXIS_COUNT)
     expectTrue("aim uses rotation pair", BtGunHidDescriptor.DESCRIPTOR_BYTES.containsSubsequence(0x09, 0x33, 0x09, 0x34))
@@ -68,7 +91,7 @@ private fun reportConstantsMatchBluetoothHidContract() {
     expectEquals("input report id", 0x01, BtGunHidDescriptor.INPUT_REPORT_ID)
     expectEquals("output report id", 0x02, BtGunHidDescriptor.OUTPUT_REPORT_ID)
     expectEquals("output report version", 0x01, BtGunHidDescriptor.OUTPUT_REPORT_VERSION)
-    expectEquals("input payload length", 9, BtGunHidDescriptor.INPUT_REPORT_PAYLOAD_LENGTH_BYTES)
+    expectEquals("input payload length", 11, BtGunHidDescriptor.INPUT_REPORT_PAYLOAD_LENGTH_BYTES)
     expectEquals("output payload length", 8, BtGunHidDescriptor.OUTPUT_REPORT_PAYLOAD_LENGTH_BYTES)
 }
 

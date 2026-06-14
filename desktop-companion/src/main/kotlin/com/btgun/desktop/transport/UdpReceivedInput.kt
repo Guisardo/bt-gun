@@ -72,10 +72,31 @@ internal fun UdpInputFrame.toReceivedInput(
 
 private fun pressedControlsFrom(buttons: Int): Set<String> =
     buildSet {
-        if (buttons and 0x01 != 0) add("trigger")
-        if (buttons and 0x02 != 0) add("reload")
-        if (buttons and 0x04 != 0) add("x")
-        if (buttons and 0x08 != 0) add("y")
-        if (buttons and 0x10 != 0) add("a")
-        if (buttons and 0x20 != 0) add("b")
+        addIfPressed(buttons, 0, "jp_button_b1", "a")
+        addIfPressed(buttons, 1, "jp_button_b2", "b")
+        addIfPressed(buttons, 2, "jp_button_b3", "x")
+        addIfPressed(buttons, 3, "jp_button_b4", "y")
+        addIfPressed(buttons, 4, "jp_button_l1")
+        addIfPressed(buttons, 5, "jp_button_r1")
+        addIfPressed(buttons, 6, "jp_button_l2", "reload")
+        addIfPressed(buttons, 7, "jp_button_r2", "trigger")
+        addIfPressed(buttons, 8, "jp_button_s1")
+        addIfPressed(buttons, 9, "jp_button_s2")
+        addIfPressed(buttons, 10, "jp_button_l3")
+        addIfPressed(buttons, 11, "jp_button_r3")
+        addIfPressed(buttons, 12, "jp_button_du")
+        addIfPressed(buttons, 13, "jp_button_dd")
+        addIfPressed(buttons, 14, "jp_button_dl")
+        addIfPressed(buttons, 15, "jp_button_dr")
+        addIfPressed(buttons, 16, "jp_button_a1")
+        addIfPressed(buttons, 17, "jp_button_a2")
+        addIfPressed(buttons, 18, "jp_button_a3")
+        addIfPressed(buttons, 19, "jp_button_a4")
+        addIfPressed(buttons, 20, "jp_button_l4")
+        addIfPressed(buttons, 21, "jp_button_r4")
     }
+
+private fun MutableSet<String>.addIfPressed(buttons: Int, bitIndex: Int, vararg labels: String) {
+    if (buttons and (1 shl bitIndex) == 0) return
+    labels.forEach(::add)
+}

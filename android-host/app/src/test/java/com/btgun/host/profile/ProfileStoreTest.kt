@@ -43,12 +43,12 @@ private fun defaultDocumentContainsImmutableDefaultVisualizer() {
     expectEquals(
         "button mapping",
         mapOf(
-            PhysicalButton.TRIGGER to VirtualButton.TRIGGER,
-            PhysicalButton.RELOAD to VirtualButton.RELOAD,
-            PhysicalButton.BUTTON_X to VirtualButton.BUTTON_X,
-            PhysicalButton.BUTTON_Y to VirtualButton.BUTTON_Y,
-            PhysicalButton.BUTTON_A to VirtualButton.BUTTON_A,
-            PhysicalButton.BUTTON_B to VirtualButton.BUTTON_B,
+            PhysicalButton.TRIGGER to VirtualButton.R2,
+            PhysicalButton.RELOAD to VirtualButton.L2,
+            PhysicalButton.BUTTON_X to VirtualButton.B3,
+            PhysicalButton.BUTTON_Y to VirtualButton.B4,
+            PhysicalButton.BUTTON_A to VirtualButton.B1,
+            PhysicalButton.BUTTON_B to VirtualButton.B2,
         ),
         profile.buttonMapping,
     )

@@ -539,8 +539,8 @@ class MainActivity : Activity() {
         profileListGroup.addView(profileText("Button mapping", bold = true))
         PhysicalButton.defaultOrder.forEach { physical ->
             val spinner = spinner(
-                values = VirtualButton.requiredOutputs.map { output -> output.destinationLabel },
-                selected = profile.buttonMapping[physical]?.destinationLabel ?: VirtualButton.TRIGGER.destinationLabel,
+                values = VirtualButton.destinationOptions.map { output -> output.destinationLabel },
+                selected = profile.buttonMapping[physical]?.destinationLabel ?: VirtualButton.R2.destinationLabel,
             )
             buttonMappingInputs[physical] = spinner
             addProfileControl("${physical.eventLabel} event destination", spinner)
@@ -683,7 +683,7 @@ class MainActivity : Activity() {
             },
             buttonMapping = PhysicalButton.defaultOrder.associateWith { physical ->
                 VirtualButton.fromDestination(buttonMappingInputs[physical]?.selectedItem?.toString().orEmpty())
-                    ?: VirtualButton.TRIGGER
+                    ?: VirtualButton.R2
             },
             recenterPhysicalControl = PhysicalButton.fromId(recenterButtonInput?.selectedItem?.toString().orEmpty()),
             rawDebugEnabled = rawDebugInput?.isChecked ?: false,
