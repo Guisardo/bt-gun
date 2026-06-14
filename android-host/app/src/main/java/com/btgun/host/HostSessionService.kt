@@ -252,7 +252,7 @@ internal class HostSessionHidController(
 
     private companion object {
         const val DEFAULT_PAIRING_WINDOW_SECONDS = 120
-        const val DEFAULT_MOTION_REPORT_HZ = 60
+        const val DEFAULT_MOTION_REPORT_HZ = 30
         const val BUTTON_AND_STICK_BYTE_COUNT = 7
         const val DUPLICATE_REFRESH_INTERVAL_NANOS = 250_000_000L
     }
