@@ -3,12 +3,14 @@ package com.btgun.host
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.app.Service
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.graphics.drawable.Icon
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
@@ -51,6 +53,7 @@ import com.btgun.host.hid.AndroidBtGunHidProfileConnector
 import com.btgun.host.hid.BtGunHidReportPacker
 import com.btgun.host.hid.BtGunHidHostConnectionState
 import com.btgun.host.hid.BtGunHidInputSendResult
+import com.btgun.host.hid.BtGunHidModeState
 import com.btgun.host.hid.BtGunHidPairingWindowStatus
 import com.btgun.host.hid.BtGunHidStatus
 import com.btgun.host.permissions.CapabilityState
@@ -112,6 +115,32 @@ internal fun hostPacketStreamStateAfterControlDisconnect(
         controlDisconnectGraceMs <= 0L -> InputStreamLifecycleState.STALE
         else -> InputStreamLifecycleState.GRACE
     }
+
+internal data class HostNotificationActionSpec(
+    val requestCode: Int,
+    val label: String,
+    val serviceAction: String,
+)
+
+internal fun stopSessionNotificationActionSpec(): HostNotificationActionSpec =
+    HostNotificationActionSpec(
+        requestCode = HostSessionService.NOTIFICATION_STOP_REQUEST_CODE,
+        label = HostSessionService.NOTIFICATION_STOP_ACTION_TITLE,
+        serviceAction = HostSessionService.ACTION_STOP_SESSION,
+    )
+
+internal fun shouldStopSessionOnTaskRemoved(state: HostSessionState): Boolean =
+    state.foregroundActive ||
+        state.isActive ||
+        state.hidGamepadStatus.mode == BtGunHidModeState.STARTING ||
+        state.hidGamepadStatus.mode == BtGunHidModeState.STARTED
+
+internal fun shouldIgnoreStartSessionRequest(state: HostSessionState): Boolean =
+    !shouldRestartFailedSessionRequest(state) &&
+        (state.foregroundActive || state.isActive || state.phase == HostSessionPhase.STOPPING)
+
+internal fun shouldRestartFailedSessionRequest(state: HostSessionState): Boolean =
+    state.phase == HostSessionPhase.ERROR && state.foregroundActive
 
 internal fun hidStartBlockedStatusFor(
     state: PermissionGateState,
@@ -544,7 +573,31 @@ class HostSessionService : Service() {
         super.onDestroy()
     }
 
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        AndroidLog.i(TAG, "onTaskRemoved stopSession=${shouldStopSessionOnTaskRemoved(currentState)}")
+        if (shouldStopSessionOnTaskRemoved(currentState)) {
+            stopSession()
+        } else {
+            stopSelf()
+        }
+        super.onTaskRemoved(rootIntent)
+    }
+
     private fun startSession() {
+        when {
+            shouldRestartFailedSessionRequest(currentState) -> {
+                AndroidLog.i(TAG, "startSession restarting failed foreground session")
+                releaseSessionResources(finalState = HostSessionState(phase = HostSessionPhase.STOPPED))
+            }
+            shouldIgnoreStartSessionRequest(currentState) -> {
+                AndroidLog.i(
+                    TAG,
+                    "startSession ignored phase=${currentState.phase} foreground=${currentState.foregroundActive}",
+                )
+                return
+            }
+        }
+
         val gate = permissionGateState()
         if (!canStartWithPermissionGate(gate)) {
             currentState = HostSessionState(
@@ -625,6 +678,12 @@ class HostSessionService : Service() {
         }
 
     private fun stopSession() {
+        releaseSessionResources(finalState = HostSessionState(phase = HostSessionPhase.STOPPED))
+        stopForegroundCompat()
+        stopSelf()
+    }
+
+    private fun releaseSessionResources(finalState: HostSessionState) {
         currentState = currentState.copy(phase = HostSessionPhase.STOPPING)
         hidSessionController.close()
         stopDesktopControl()
@@ -634,9 +693,7 @@ class HostSessionService : Service() {
         recenter.onReload(pressed = false, nowElapsedNanos = SystemClock.elapsedRealtimeNanos())
         adapter?.stopSession()
         adapter = null
-        currentState = HostSessionState(phase = HostSessionPhase.STOPPED)
-        stopForegroundCompat()
-        stopSelf()
+        currentState = finalState
     }
 
     private fun startBluetoothGamepad(openPairingWindow: Boolean = false) {
@@ -1224,14 +1281,43 @@ class HostSessionService : Service() {
             @Suppress("DEPRECATION")
             Notification.Builder(this)
         }
+        val stopAction = stopSessionNotificationActionSpec()
 
         return builder
             .setContentTitle(NOTIFICATION_TITLE)
             .setContentText(NOTIFICATION_TEXT)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setContentIntent(openAppPendingIntent())
             .setOngoing(true)
+            .addAction(
+                Notification.Action.Builder(
+                    Icon.createWithResource(this, android.R.drawable.ic_media_pause),
+                    stopAction.label,
+                    serviceActionPendingIntent(stopAction),
+                ).build(),
+            )
             .build()
     }
+
+    private fun openAppPendingIntent(): PendingIntent =
+        PendingIntent.getActivity(
+            this,
+            NOTIFICATION_OPEN_APP_REQUEST_CODE,
+            Intent(this, MainActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP),
+            PendingIntent.FLAG_UPDATE_CURRENT or immutablePendingIntentFlag(),
+        )
+
+    private fun serviceActionPendingIntent(action: HostNotificationActionSpec): PendingIntent =
+        PendingIntent.getService(
+            this,
+            action.requestCode,
+            Intent(this, HostSessionService::class.java).setAction(action.serviceAction),
+            PendingIntent.FLAG_UPDATE_CURRENT or immutablePendingIntentFlag(),
+        )
+
+    private fun immutablePendingIntentFlag(): Int =
+        if (Build.VERSION.SDK_INT >= 23) PendingIntent.FLAG_IMMUTABLE else 0
 
     private fun ensureNotificationChannel() {
         if (Build.VERSION.SDK_INT < 26) {
@@ -1291,7 +1377,9 @@ class HostSessionService : Service() {
             sensorManager.registerListener(sensorListener, sensor, SensorManager.SENSOR_DELAY_GAME)
         } == true
         if (!registered) {
-            currentState = profileRuntime.mapCurrentState(currentState.copy(lastMotionSample = provider.unavailableSample()))
+            currentState = profileRuntime.mapCurrentState(
+                currentState.copy(lastError = "Motion sensor registration failed: ${selection.providerName}"),
+            )
         }
     }
 
@@ -1610,6 +1698,9 @@ class HostSessionService : Service() {
         const val NOTIFICATION_CHANNEL_ID: String = "bt_gun_host_session"
         const val NOTIFICATION_TITLE: String = "BT Gun Host"
         const val NOTIFICATION_TEXT: String = "BT Gun Host running - live input active"
+        const val NOTIFICATION_STOP_ACTION_TITLE: String = "Stop session"
+        const val NOTIFICATION_STOP_REQUEST_CODE: Int = 1002
+        private const val NOTIFICATION_OPEN_APP_REQUEST_CODE: Int = 1003
         private const val NOTIFICATION_ID: Int = 1001
         private const val FINGERPRINT_SUFFIX_LENGTH: Int = 8
         private const val DESKTOP_LIVENESS_POLL_MILLIS: Long = 500L
