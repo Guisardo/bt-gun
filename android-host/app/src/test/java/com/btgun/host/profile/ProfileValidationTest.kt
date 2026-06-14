@@ -2,6 +2,7 @@ package com.btgun.host.profile
 
 fun main() {
     defaultVisualizerIsValid()
+    virtualOutputsUseJoypadGamepadDestinationOrder()
     validationReturnsUiSpecLabels()
     validationBlocksUnsupportedAxisMappings()
     validationBlocksInvalidAimSettings()
@@ -9,6 +10,24 @@ fun main() {
 
 private fun defaultVisualizerIsValid() {
     expectEquals("default errors", emptyList<String>(), ProfileValidator.validate(defaultProfile()).labels())
+}
+
+private fun virtualOutputsUseJoypadGamepadDestinationOrder() {
+    expectEquals(
+        "destination labels",
+        listOf(
+            "B1 - south face (A / Cross)",
+            "B2 - east face (B / Circle)",
+            "B3 - west face (X / Square)",
+            "B4 - north face (Y / Triangle)",
+            "L1 - left shoulder",
+            "R1 - right shoulder",
+        ),
+        VirtualButton.requiredOutputs.map { output -> output.destinationLabel },
+    )
+    expectEquals("legacy id still decodes", VirtualButton.TRIGGER, VirtualButton.fromDestination("trigger"))
+    expectEquals("destination label decodes", VirtualButton.BUTTON_A, VirtualButton.fromDestination("B1 - south face (A / Cross)"))
+    expectEquals("short label decodes", VirtualButton.RELOAD, VirtualButton.fromDestination("L1"))
 }
 
 private fun validationReturnsUiSpecLabels() {
