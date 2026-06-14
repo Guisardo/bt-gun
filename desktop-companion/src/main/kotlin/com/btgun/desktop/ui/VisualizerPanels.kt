@@ -108,6 +108,16 @@ object VisualizerPanels {
             "${event.type} seq=${event.sequence ?: "none"} age=$ageMillis ms"
         }
 
+    fun activeButtonLabels(state: SemanticControllerState): List<String> =
+        listOfNotNull(
+            "Trigger".takeIf { state.trigger },
+            "Reload".takeIf { state.reload },
+            "X".takeIf { state.x },
+            "Y".takeIf { state.y },
+            "A".takeIf { state.a },
+            "B".takeIf { state.b },
+        )
+
     fun rawDebugLabels(rawDebug: VisualizerRawDebugState): List<String> {
         if (!rawDebug.enabled) return listOf("Raw debug off")
         val labels = mutableListOf("Raw debug on")
@@ -183,7 +193,8 @@ object VisualizerPanels {
                 y = aim.y,
                 overlayText = staleOverlayText(stale = state.stale, disconnected = model.packetLifecycle.isDisconnected()),
             )
-            numericLabels.text = "Stick: ${state.stickX}, ${state.stickY} | Aim: ${formatAxis(aim.x)}, ${formatAxis(aim.y)}"
+            val activeButtons = activeButtonLabels(state).ifEmpty { listOf("none") }.joinToString(", ")
+            numericLabels.text = "Buttons: $activeButtons | Stick: ${state.stickX}, ${state.stickY} | Aim: ${formatAxis(aim.x)}, ${formatAxis(aim.y)}"
             repaint()
         }
     }

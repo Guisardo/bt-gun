@@ -53,6 +53,7 @@ fun main() {
     hidFanoutDropsDuplicatesAndPrioritizesButtonEdges()
     fastAimFanoutDoesNotFloodButtonEdges()
     bleConnectionLossClearsLatchedGunInput()
+    staleButtonReleaseWatchdogExpiresOnlyOverdueControls()
     hidOutputCallbackRoutesThroughPhoneHapticExecutorStatus()
     hostProfileRuntimeLoadsActiveProfileAndMapsCurrentInput()
     hostProfileRuntimeReloadsSelectedProfileWithoutRestart()
@@ -388,6 +389,75 @@ private fun bleConnectionLossClearsLatchedGunInput() {
         shouldClearGunInputOnBleConnectionPhase(
             phase = BleGunConnectionPhase.STOPPED,
             gunInputState = GunInputState(),
+        ),
+    )
+}
+
+private fun staleButtonReleaseWatchdogExpiresOnlyOverdueControls() {
+    val pressedSince = mapOf(
+        "button_a" to 1_000_000_000L,
+        "trigger" to 2_000_000_000L,
+        "reload" to 3_000_000_000L,
+    )
+
+    expectEquals(
+        "face control expires first",
+        setOf("button_a"),
+        expiredPressedControls(
+            pressedControls = setOf("button_a", "trigger", "reload"),
+            pressedSinceElapsedNanos = pressedSince,
+            recenterControlName = "reload",
+            nowElapsedNanos = 2_600_000_000L,
+        ),
+    )
+    expectEquals(
+        "primary control still holds",
+        emptySet<String>(),
+        expiredPressedControls(
+            pressedControls = setOf("trigger"),
+            pressedSinceElapsedNanos = pressedSince,
+            recenterControlName = "reload",
+            nowElapsedNanos = 13_999_999_999L,
+        ),
+    )
+    expectEquals(
+        "trigger expires after primary timeout",
+        setOf("trigger"),
+        expiredPressedControls(
+            pressedControls = setOf("trigger"),
+            pressedSinceElapsedNanos = pressedSince,
+            recenterControlName = "reload",
+            nowElapsedNanos = 14_000_000_000L,
+        ),
+    )
+    expectEquals(
+        "recenter control survives calibration hold window",
+        emptySet<String>(),
+        expiredPressedControls(
+            pressedControls = setOf("reload"),
+            pressedSinceElapsedNanos = pressedSince,
+            recenterControlName = "reload",
+            nowElapsedNanos = 14_999_999_999L,
+        ),
+    )
+    expectEquals(
+        "missing start time expires fail safe",
+        setOf("button_b"),
+        expiredPressedControls(
+            pressedControls = setOf("button_b"),
+            pressedSinceElapsedNanos = emptyMap(),
+            recenterControlName = "reload",
+            nowElapsedNanos = 5_000_000_000L,
+        ),
+    )
+    expectEquals(
+        "next delay points at earliest face release",
+        500L,
+        nextPressedControlReleaseDelayMillis(
+            pressedControls = setOf("button_a", "trigger"),
+            pressedSinceElapsedNanos = pressedSince,
+            recenterControlName = "reload",
+            nowElapsedNanos = 2_000_000_000L,
         ),
     )
 }

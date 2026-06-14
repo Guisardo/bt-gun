@@ -20,6 +20,8 @@ import java.awt.Font
 import java.awt.GridLayout
 import java.awt.event.WindowAdapter
 import java.awt.event.WindowEvent
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 import javax.swing.BorderFactory
 import javax.swing.Box
 import javax.swing.BoxLayout
@@ -58,6 +60,8 @@ class VisualizerWindow(
     private val resetChecklistAction = JButton(resetChecklistLabel())
     private val events = JLabel("Recent product events: none")
     private val rawDebug = JLabel("Raw debug off")
+    private val pendingRenderModel = AtomicReference<VisualizerModel?>(null)
+    private val renderScheduled = AtomicBoolean(false)
     private var currentModel = VisualizerModel.initial()
     private var resetArmed = false
 
@@ -123,25 +127,35 @@ class VisualizerWindow(
     }
 
     override fun applyModel(model: VisualizerModel) {
+        pendingRenderModel.set(model)
+        if (!renderScheduled.compareAndSet(false, true)) return
         SwingUtilities.invokeLater {
-            currentModel = model
-            summary.text = model.topSummaryLabel()
-            session.text = summaryFor(model.packetLifecycle.toDisplayState())
-            profile.text = "Profile: ${model.profileSummary.displayName}"
-            checklist.text = checklistHtml(model.checklistRows)
-            gamepad.updateModel(model)
-            metrics.text = labelsHtml(VisualizerPanels.metricsLabels(model.metrics))
-            recenter.text = labelsHtml(recenterStatusLabels(model))
-            hapticAction.isEnabled = controlServer != null && hapticButtonEnabled(model.controlSessionState)
-            events.text = labelsHtml(
-                VisualizerPanels.eventStripLabels(
-                    events = model.productEvents,
-                    nowElapsedNanos = System.nanoTime(),
-                ).ifEmpty { listOf("Recent product events: none") },
-            )
-            rawDebug.text = labelsHtml(VisualizerPanels.rawDebugLabels(model.rawDebug))
-            frame.pack()
+            val nextModel = pendingRenderModel.getAndSet(null) ?: currentModel
+            renderScheduled.set(false)
+            renderModel(nextModel)
+            if (pendingRenderModel.get() != null) {
+                applyModel(pendingRenderModel.get() ?: return@invokeLater)
+            }
         }
+    }
+
+    private fun renderModel(model: VisualizerModel) {
+        currentModel = model
+        summary.text = model.topSummaryLabel()
+        session.text = summaryFor(model.packetLifecycle.toDisplayState())
+        profile.text = "Profile: ${model.profileSummary.displayName}"
+        checklist.text = checklistHtml(model.checklistRows)
+        gamepad.updateModel(model)
+        metrics.text = labelsHtml(VisualizerPanels.metricsLabels(model.metrics))
+        recenter.text = labelsHtml(recenterStatusLabels(model))
+        hapticAction.isEnabled = controlServer != null && hapticButtonEnabled(model.controlSessionState)
+        events.text = labelsHtml(
+            VisualizerPanels.eventStripLabels(
+                events = model.productEvents,
+                nowElapsedNanos = System.nanoTime(),
+            ).ifEmpty { listOf("Recent product events: none") },
+        )
+        rawDebug.text = labelsHtml(VisualizerPanels.rawDebugLabels(model.rawDebug))
     }
 
     private fun runPhoneHapticTest() {

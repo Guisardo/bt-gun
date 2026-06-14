@@ -94,6 +94,13 @@ private fun visualizerPanelsExposeRequiredGamepadHelpers() {
     )
     expectEquals("stick surface size", 200, VisualizerPanels.stickCrosshairSpec().sizePx)
     expectEquals("aim surface size", 220, VisualizerPanels.aimCrosshairSpec().sizePx)
+    expectEquals(
+        "active button labels",
+        listOf("Trigger", "A"),
+        VisualizerPanels.activeButtonLabels(
+            com.btgun.desktop.backend.SemanticControllerState(trigger = true, a = true),
+        ),
+    )
 }
 
 private fun visualizerCrosshairHelpersClampAndInvertYAxis() {

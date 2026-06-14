@@ -81,8 +81,12 @@ class PairingWindow(
         qr.minimumSize = Dimension(QR_SIZE, QR_SIZE)
         manual.verticalAlignment = SwingConstants.TOP
         manual.border = BorderFactory.createTitledBorder("Manual fallback")
+        manual.preferredSize = Dimension(SIDE_PANEL_WIDTH, MANUAL_PANEL_HEIGHT)
+        manual.minimumSize = Dimension(SIDE_PANEL_WIDTH, MANUAL_PANEL_HEIGHT)
         diagnostics.verticalAlignment = SwingConstants.TOP
         diagnostics.border = BorderFactory.createTitledBorder("Control state")
+        diagnostics.preferredSize = Dimension(SIDE_PANEL_WIDTH, DIAGNOSTICS_PANEL_HEIGHT)
+        diagnostics.minimumSize = Dimension(SIDE_PANEL_WIDTH, DIAGNOSTICS_PANEL_HEIGHT)
 
         val uiListener = DesktopUiEventListener(
             onSessionStateChanged = { serverState ->
@@ -357,6 +361,9 @@ class PairingWindow(
 
     companion object {
         internal const val QR_SIZE = 420
+        private const val SIDE_PANEL_WIDTH = 420
+        private const val MANUAL_PANEL_HEIGHT = 210
+        private const val DIAGNOSTICS_PANEL_HEIGHT = 260
 
         internal fun requiredStateLabels(): List<String> =
             DesktopSessionUiState.entries.map { it.label }
@@ -365,13 +372,7 @@ class PairingWindow(
             InputStreamLifecycleState.entries.map { it.label }
 
         internal fun transportDiagnosticsHtml(state: InputStreamLifecycleState): String =
-            """
-                <html>
-                <body>
-                <p>Packet stream: ${state.label}</p>
-                </body>
-                </html>
-            """.trimIndent()
+            htmlDocument(paragraph("Packet stream: ${state.label}"))
 
         internal fun profileDiagnosticsHtml(
             profile: ProfileMetadata?,
@@ -381,12 +382,15 @@ class PairingWindow(
             lastProfileUpdateElapsedNanos: Long?,
             nowElapsedNanos: Long,
         ): String =
-            """
-                <p><b>Active Android profile:</b> ${activeProfileText(profile)}</p>
-                <p><b>Profile source:</b> ${escapeHtml(profile?.source ?: "unknown")}</p>
-                <p><b>Mapped stream:</b> ${packetState.label} | mapped=$mappedProductStream | raw_debug=${if (rawDebugEnabled) "on" else "off"}</p>
-                <p><b>Last profile update:</b> ${profileUpdateText(lastProfileUpdateElapsedNanos, nowElapsedNanos)}</p>
-            """.trimIndent()
+            listOf(
+                boldParagraph("Active Android profile", activeProfileText(profile)),
+                boldParagraph("Profile source", escapeHtml(profile?.source ?: "unknown")),
+                boldParagraph(
+                    "Mapped stream",
+                    "${packetState.label} | mapped=$mappedProductStream | raw_debug=${if (rawDebugEnabled) "on" else "off"}",
+                ),
+                boldParagraph("Last profile update", profileUpdateText(lastProfileUpdateElapsedNanos, nowElapsedNanos)),
+            ).joinToString(separator = "")
 
         internal fun freshProfileDiagnosticsHtml(nowElapsedNanos: Long = 0L): String =
             profileDiagnosticsHtml(
@@ -462,22 +466,18 @@ class PairingWindow(
         }
 
         internal fun manualFallbackHtml(payload: ManualPairingPayload): String =
-            """
-                <html>
-                <body>
-                <p>Use this endpoint and 6-digit code only if QR scan is unavailable.</p>
-                <p><b>Endpoint:</b> ${escapeHtml(payload.host)}:${payload.port}</p>
-                <p><b>Port:</b> ${payload.port}</p>
-                <p><b>6-digit code:</b> ${payload.code}</p>
-                <p><b>Fingerprint suffix:</b> ${escapeHtml(payload.desktopSpkiSha256Suffix)}</p>
-                </body>
-                </html>
-            """.trimIndent()
+            htmlDocument(
+                paragraph("Use this endpoint and 6-digit code only if QR scan is unavailable."),
+                boldParagraph("Endpoint", "${escapeHtml(payload.host)}:${payload.port}"),
+                boldParagraph("Port", payload.port.toString()),
+                boldParagraph("6-digit code", payload.code),
+                boldParagraph("Fingerprint suffix", escapeHtml(payload.desktopSpkiSha256Suffix)),
+            )
 
         private fun stateText(state: DesktopSessionUiState): String =
             "State: ${state.label}"
 
-        private fun diagnosticsHtml(
+        internal fun diagnosticsHtml(
             state: DesktopSessionUiState,
             packetState: InputStreamLifecycleState = InputStreamLifecycleState.STOPPED,
             lastControlError: String?,
@@ -499,20 +499,25 @@ class PairingWindow(
                 lastProfileUpdateElapsedNanos = lastProfileUpdateElapsedNanos,
                 nowElapsedNanos = nowElapsedNanos,
             )
-            return """
-                <html>
-                <body>
-                <p><b>Session:</b> ${state.label}</p>
-                <p>Packet stream: ${packetState.label}</p>
-                $profileRows
-                <p><b>Windows backend:</b> ${escapeHtml(windowsBackendStatus)}</p>
-                <p><b>macOS backend:</b> ${escapeHtml(macosBackendStatus)}</p>
-                <p><b>Last control error:</b> ${escapeHtml(safeError)}</p>
-                <p><b>Phone haptic:</b> ${escapeHtml(lastHapticStatus)}</p>
-                </body>
-                </html>
-            """.trimIndent()
+            return htmlDocument(
+                boldParagraph("Session", state.label),
+                paragraph("Packet stream: ${packetState.label}"),
+                profileRows,
+                boldParagraph("Windows backend", escapeHtml(windowsBackendStatus)),
+                boldParagraph("macOS backend", escapeHtml(macosBackendStatus)),
+                boldParagraph("Last control error", escapeHtml(safeError)),
+                boldParagraph("Phone haptic", escapeHtml(lastHapticStatus)),
+            )
         }
+
+        private fun htmlDocument(vararg rows: String): String =
+            rows.joinToString(separator = "", prefix = "<html><body>", postfix = "</body></html>")
+
+        private fun paragraph(value: String): String =
+            "<p>$value</p>"
+
+        private fun boldParagraph(label: String, value: String): String =
+            "<p><b>$label:</b> $value</p>"
 
         private fun activeProfileText(profile: ProfileMetadata?): String =
             if (profile == null) {

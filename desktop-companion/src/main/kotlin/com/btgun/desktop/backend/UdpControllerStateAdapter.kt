@@ -11,12 +11,12 @@ object UdpControllerStateAdapter {
             )
         } else {
             SemanticControllerState(
-                trigger = "trigger" in input.pressedControls,
-                reload = "reload" in input.pressedControls,
-                x = "x" in input.pressedControls,
-                y = "y" in input.pressedControls,
-                a = "a" in input.pressedControls,
-                b = "b" in input.pressedControls,
+                trigger = input.hasPressed("trigger", "jp_button_r2"),
+                reload = input.hasPressed("reload", "jp_button_l2"),
+                x = input.hasPressed("x", "jp_button_b3"),
+                y = input.hasPressed("y", "jp_button_b4"),
+                a = input.hasPressed("a", "jp_button_b1"),
+                b = input.hasPressed("b", "jp_button_b2"),
                 stickX = input.stickX,
                 stickY = input.stickY,
                 aimX = input.mappedAim.aimX.neutralIfNaN(),
@@ -28,4 +28,7 @@ object UdpControllerStateAdapter {
 
     private fun Float.neutralIfNaN(): Float =
         if (isNaN()) 0.0f else this
+
+    private fun UdpReceivedInput.hasPressed(vararg labels: String): Boolean =
+        labels.any { label -> label in pressedControls }
 }
