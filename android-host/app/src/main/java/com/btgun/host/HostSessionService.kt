@@ -48,6 +48,7 @@ import com.btgun.host.haptics.DesktopHapticCommandExecutor
 import com.btgun.host.haptics.PhoneHaptics
 import com.btgun.host.hid.AndroidBluetoothHidGamepad
 import com.btgun.host.hid.AndroidBtGunHidProfileConnector
+import com.btgun.host.hid.BtGunHidReportPacker
 import com.btgun.host.hid.BtGunHidHostConnectionState
 import com.btgun.host.hid.BtGunHidInputSendResult
 import com.btgun.host.hid.BtGunHidPairingWindowStatus
@@ -156,17 +157,27 @@ internal interface HostHidGamepadDriver : AutoCloseable {
 internal class HostSessionHidController(
     private val driverFactory: () -> HostHidGamepadDriver,
     private val pairingWindowSeconds: Int = DEFAULT_PAIRING_WINDOW_SECONDS,
+    private val elapsedRealtimeNanos: () -> Long = { System.nanoTime() },
+    private val maxMotionReportHz: Int = DEFAULT_MOTION_REPORT_HZ,
 ) : AutoCloseable {
     private var driver: HostHidGamepadDriver? = null
+    private var lastSentInputBytes: ByteArray? = null
+    private var lastSentElapsedNanos: Long? = null
+
+    init {
+        require(maxMotionReportHz > 0) { "maxMotionReportHz must be positive" }
+    }
 
     fun startBluetoothGamepad(state: HostSessionState): HostSessionState {
         val activeDriver = driver ?: driverFactory().also { driver = it }
+        resetFanoutGate()
         activeDriver.startGamepadMode()
         return refreshStatus(state)
     }
 
     fun openPairingWindow(state: HostSessionState): HostSessionState {
         val activeDriver = driver ?: driverFactory().also { driver = it }
+        resetFanoutGate()
         activeDriver.startGamepadMode()
         activeDriver.openPairingWindow(pairingWindowSeconds)
         return refreshStatus(state)
@@ -175,18 +186,32 @@ internal class HostSessionHidController(
     fun stopBluetoothGamepad(state: HostSessionState): HostSessionState {
         val activeDriver = driver ?: return state.copy(hidGamepadStatus = BtGunHidStatus())
         activeDriver.stopGamepadMode()
+        resetFanoutGate()
         return refreshStatus(state)
     }
 
     fun fanOutLiveInput(state: HostSessionState): HostSessionState {
         val activeDriver = driver ?: return state
         if (activeDriver.status.hostConnection != BtGunHidHostConnectionState.CONNECTED) {
+            resetFanoutGate()
             return refreshStatus(state)
         }
-        activeDriver.sendMappedInput(
+        val report = BtGunHidReportPacker.packInputReport(
+            mappedState = state.mappedControllerState,
+            stale = false,
+        )
+        val nowElapsedNanos = elapsedRealtimeNanos()
+        if (!shouldSendInputReport(report.bytes, nowElapsedNanos)) {
+            return refreshStatus(state)
+        }
+        val result = activeDriver.sendMappedInput(
             state = state.mappedControllerState,
             stale = false,
         )
+        if (result == BtGunHidInputSendResult.SENT) {
+            lastSentInputBytes = report.bytes.copyOf()
+            lastSentElapsedNanos = nowElapsedNanos
+        }
         return refreshStatus(state)
     }
 
@@ -198,10 +223,38 @@ internal class HostSessionHidController(
         activeDriver.stopGamepadMode()
         activeDriver.close()
         driver = null
+        resetFanoutGate()
+    }
+
+    private fun shouldSendInputReport(nextBytes: ByteArray, nowElapsedNanos: Long): Boolean {
+        val previousBytes = lastSentInputBytes ?: return true
+        if (previousBytes.contentEquals(nextBytes)) {
+            val previousElapsedNanos = lastSentElapsedNanos ?: return true
+            return nowElapsedNanos - previousElapsedNanos >= DUPLICATE_REFRESH_INTERVAL_NANOS
+        }
+        if (hasButtonOrStickChange(previousBytes, nextBytes)) {
+            return true
+        }
+        val previousElapsedNanos = lastSentElapsedNanos ?: return true
+        return nowElapsedNanos - previousElapsedNanos >= motionReportIntervalNanos()
+    }
+
+    private fun hasButtonOrStickChange(previousBytes: ByteArray, nextBytes: ByteArray): Boolean =
+        (0 until BUTTON_AND_STICK_BYTE_COUNT).any { index -> previousBytes[index] != nextBytes[index] }
+
+    private fun motionReportIntervalNanos(): Long =
+        (1_000_000_000L + maxMotionReportHz - 1L) / maxMotionReportHz
+
+    private fun resetFanoutGate() {
+        lastSentInputBytes = null
+        lastSentElapsedNanos = null
     }
 
     private companion object {
         const val DEFAULT_PAIRING_WINDOW_SECONDS = 120
+        const val DEFAULT_MOTION_REPORT_HZ = 60
+        const val BUTTON_AND_STICK_BYTE_COUNT = 7
+        const val DUPLICATE_REFRESH_INTERVAL_NANOS = 250_000_000L
     }
 }
 
@@ -293,6 +346,16 @@ internal fun shouldPublishVisualizerStatus(
     meaningfulChange: Boolean,
 ): Boolean =
     hasTrustedDesktopConnection && meaningfulChange
+
+internal fun shouldClearGunInputOnBleConnectionPhase(
+    phase: BleGunConnectionPhase,
+    gunInputState: GunInputState,
+): Boolean =
+    phase != BleGunConnectionPhase.CONNECTED && (
+        gunInputState.pressedControls.isNotEmpty() ||
+            gunInputState.stickAxisX != 0f ||
+            gunInputState.stickAxisY != 0f
+        )
 
 internal fun hostVisualizerStatusFor(
     state: HostSessionState,
@@ -501,6 +564,14 @@ class HostSessionService : Service() {
 
         val listener = object : IpegaBleGunAdapter.Listener {
             override fun onConnectionState(state: BleGunConnectionState) {
+                val shouldClearGunInput = shouldClearGunInputOnBleConnectionPhase(
+                    phase = state.phase,
+                    gunInputState = currentState.gunInputState,
+                )
+                if (shouldClearGunInput) {
+                    handler.removeCallbacks(reloadHoldTick)
+                    recenter.onReload(pressed = false, nowElapsedNanos = SystemClock.elapsedRealtimeNanos())
+                }
                 currentState = currentState.copy(
                     phase = state.phase.toHostSessionPhase(),
                     foregroundActive = currentState.foregroundActive,
@@ -508,6 +579,15 @@ class HostSessionService : Service() {
                     lastError = state.lastError,
                     lastBleConnectionState = state,
                 )
+                if (shouldClearGunInput) {
+                    currentState = profileRuntime.mapCurrentState(currentState.copy(
+                        gunInputState = GunInputState(),
+                        reloadHoldState = recenter.state,
+                    ))
+                    currentState = hidSessionController.fanOutLiveInput(currentState)
+                    sendUdpSnapshot(throttled = false)
+                    publishVisualizerStatus()
+                }
             }
 
             override fun onGunEvent(envelope: LiveEnvelope<GunEvent>) {
