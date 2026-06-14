@@ -1,5 +1,6 @@
 package com.btgun.host
 
+import com.btgun.host.ble.BleGunConnectionPhase
 import com.btgun.host.session.DesktopLinkPhase
 import com.btgun.host.session.DesktopLinkState
 import com.btgun.host.session.DesktopLivenessCoordinator
@@ -44,6 +45,8 @@ fun main() {
     bluetoothGamepadStartAndPairingWindowAreSeparateActions()
     bluetoothGamepadStopSessionAndDestroyCloseHidMode()
     liveInputFanoutOnlySendsWhenHidHostConnected()
+    hidFanoutDropsDuplicatesAndPrioritizesButtonEdges()
+    bleConnectionLossClearsLatchedGunInput()
     hidOutputCallbackRoutesThroughPhoneHapticExecutorStatus()
     hostProfileRuntimeLoadsActiveProfileAndMapsCurrentInput()
     hostProfileRuntimeReloadsSelectedProfileWithoutRestart()
@@ -238,6 +241,72 @@ private fun liveInputFanoutOnlySendsWhenHidHostConnected() {
     expectEquals("sent mapped controls", setOf("jp_button_r2"), driver.sentMappedInputs.single().state.pressedVirtualControls)
     expectEquals("sent mapped stick x", inputState.stickAxisX, driver.sentMappedInputs.single().state.stickAxisX)
     expectEquals("sent mapped aim x", motion.aimX, driver.sentMappedInputs.single().state.aimAxisX)
+}
+
+private fun hidFanoutDropsDuplicatesAndPrioritizesButtonEdges() {
+    val driver = RecordingHostHidGamepadDriver()
+    var nowElapsedNanos = 1_000_000_000L
+    val controller = HostSessionHidController(
+        driverFactory = { driver },
+        elapsedRealtimeNanos = { nowElapsedNanos },
+        maxMotionReportHz = 60,
+    )
+    controller.startBluetoothGamepad(HostSessionState())
+    driver.status = driver.status.copy(hostConnection = BtGunHidHostConnectionState.CONNECTED)
+    val base = defaultMappedState()
+
+    controller.fanOutLiveInput(HostSessionState(mappedControllerState = base.copy(aimAxisX = 0f)))
+    controller.fanOutLiveInput(HostSessionState(mappedControllerState = base.copy(aimAxisX = 0f)))
+    nowElapsedNanos += 1_000_000L
+    controller.fanOutLiveInput(HostSessionState(mappedControllerState = base.copy(aimAxisX = 0.1f)))
+    controller.fanOutLiveInput(
+        HostSessionState(
+            mappedControllerState = base.copy(
+                aimAxisX = 0.1f,
+                pressedVirtualControls = setOf("jp_button_b3"),
+            ),
+        ),
+    )
+    controller.fanOutLiveInput(HostSessionState(mappedControllerState = base.copy(aimAxisX = 0.1f)))
+    nowElapsedNanos += 17_000_000L
+    controller.fanOutLiveInput(HostSessionState(mappedControllerState = base.copy(aimAxisX = 0.2f)))
+
+    expectEquals("initial press release plus next aim frame", 4, driver.sentMappedInputs.size)
+    expectEquals("duplicate skipped", 0f, driver.sentMappedInputs[0].state.aimAxisX)
+    expectEquals("button edge bypasses aim throttle", setOf("jp_button_b3"), driver.sentMappedInputs[1].state.pressedVirtualControls)
+    expectEquals("release edge bypasses aim throttle", emptySet<String>(), driver.sentMappedInputs[2].state.pressedVirtualControls)
+    expectEquals("aim frame after interval", 0.2f, driver.sentMappedInputs[3].state.aimAxisX)
+}
+
+private fun bleConnectionLossClearsLatchedGunInput() {
+    expectFalse(
+        "connected keeps pressed control",
+        shouldClearGunInputOnBleConnectionPhase(
+            phase = BleGunConnectionPhase.CONNECTED,
+            gunInputState = GunInputState(pressedControls = setOf("trigger")),
+        ),
+    )
+    expectTrue(
+        "reconnect clears pressed control",
+        shouldClearGunInputOnBleConnectionPhase(
+            phase = BleGunConnectionPhase.RECONNECTING,
+            gunInputState = GunInputState(pressedControls = setOf("trigger")),
+        ),
+    )
+    expectTrue(
+        "error clears non-neutral stick",
+        shouldClearGunInputOnBleConnectionPhase(
+            phase = BleGunConnectionPhase.ERROR,
+            gunInputState = GunInputState(stickAxisX = 1f),
+        ),
+    )
+    expectFalse(
+        "neutral disconnected state does no extra work",
+        shouldClearGunInputOnBleConnectionPhase(
+            phase = BleGunConnectionPhase.STOPPED,
+            gunInputState = GunInputState(),
+        ),
+    )
 }
 
 private fun hidOutputCallbackRoutesThroughPhoneHapticExecutorStatus() {
