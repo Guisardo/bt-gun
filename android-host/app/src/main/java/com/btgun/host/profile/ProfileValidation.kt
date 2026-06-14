@@ -2,12 +2,12 @@ package com.btgun.host.profile
 
 enum class ProfileValidationError(val label: String) {
     NAME_REQUIRED("Name required"),
-    MISSING_TRIGGER_OUTPUT("Missing trigger output"),
-    MISSING_RELOAD_OUTPUT("Missing reload output"),
-    MISSING_X_OUTPUT("Missing X output"),
-    MISSING_Y_OUTPUT("Missing Y output"),
-    MISSING_A_OUTPUT("Missing A output"),
-    MISSING_B_OUTPUT("Missing B output"),
+    MISSING_TRIGGER_OUTPUT("Missing R1 output"),
+    MISSING_RELOAD_OUTPUT("Missing L1 output"),
+    MISSING_X_OUTPUT("Missing B3 output"),
+    MISSING_Y_OUTPUT("Missing B4 output"),
+    MISSING_A_OUTPUT("Missing B1 output"),
+    MISSING_B_OUTPUT("Missing B2 output"),
     DUPLICATE_OUTPUT("Duplicate output"),
     RECENTER_REQUIRED("Recenter required"),
     UNSUPPORTED_AXIS_MAPPING("Unsupported axis mapping"),

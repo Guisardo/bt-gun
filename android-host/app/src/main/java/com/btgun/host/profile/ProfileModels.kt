@@ -2,13 +2,13 @@ package com.btgun.host.profile
 
 const val DEFAULT_VISUALIZER_PROFILE_ID = "default_visualizer"
 
-enum class PhysicalButton(val id: String) {
-    TRIGGER("trigger"),
-    RELOAD("reload"),
-    BUTTON_X("button_x"),
-    BUTTON_Y("button_y"),
-    BUTTON_A("button_a"),
-    BUTTON_B("button_b");
+enum class PhysicalButton(val id: String, val eventLabel: String) {
+    TRIGGER("trigger", "Gun trigger"),
+    RELOAD("reload", "Gun reload"),
+    BUTTON_X("button_x", "Gun X"),
+    BUTTON_Y("button_y", "Gun Y"),
+    BUTTON_A("button_a", "Gun A"),
+    BUTTON_B("button_b", "Gun B");
 
     companion object {
         val defaultOrder: List<PhysicalButton> = entries
@@ -18,19 +18,39 @@ enum class PhysicalButton(val id: String) {
     }
 }
 
-enum class VirtualButton(val id: String, val validationName: String) {
-    TRIGGER("trigger", "trigger"),
-    RELOAD("reload", "reload"),
-    BUTTON_X("button_x", "X"),
-    BUTTON_Y("button_y", "Y"),
-    BUTTON_A("button_a", "A"),
-    BUTTON_B("button_b", "B");
+enum class VirtualButton(
+    val id: String,
+    val validationName: String,
+    val destinationLabel: String,
+) {
+    TRIGGER("trigger", "R1", "R1 - right shoulder"),
+    RELOAD("reload", "L1", "L1 - left shoulder"),
+    BUTTON_X("button_x", "B3", "B3 - west face (X / Square)"),
+    BUTTON_Y("button_y", "B4", "B4 - north face (Y / Triangle)"),
+    BUTTON_A("button_a", "B1", "B1 - south face (A / Cross)"),
+    BUTTON_B("button_b", "B2", "B2 - east face (B / Circle)");
 
     companion object {
-        val requiredOutputs: List<VirtualButton> = entries
+        val requiredOutputs: List<VirtualButton> = listOf(
+            BUTTON_A,
+            BUTTON_B,
+            BUTTON_X,
+            BUTTON_Y,
+            RELOAD,
+            TRIGGER,
+        )
 
         fun fromId(id: String): VirtualButton? =
             entries.firstOrNull { button -> button.id == id }
+
+        fun fromDestination(value: String): VirtualButton? {
+            val normalized = value.trim()
+            return entries.firstOrNull { button ->
+                button.id == normalized ||
+                    button.destinationLabel == normalized ||
+                    button.validationName == normalized
+            }
+        }
     }
 }
 

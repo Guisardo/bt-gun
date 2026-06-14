@@ -539,11 +539,11 @@ class MainActivity : Activity() {
         profileListGroup.addView(profileText("Button mapping", bold = true))
         PhysicalButton.defaultOrder.forEach { physical ->
             val spinner = spinner(
-                values = VirtualButton.requiredOutputs.map { output -> output.id },
-                selected = profile.buttonMapping[physical]?.id ?: VirtualButton.TRIGGER.id,
+                values = VirtualButton.requiredOutputs.map { output -> output.destinationLabel },
+                selected = profile.buttonMapping[physical]?.destinationLabel ?: VirtualButton.TRIGGER.destinationLabel,
             )
             buttonMappingInputs[physical] = spinner
-            addProfileControl("${physical.id} output", spinner)
+            addProfileControl("${physical.eventLabel} event destination", spinner)
         }
 
         profileListGroup.addView(profileText("Hold-to-recenter button", bold = true))
@@ -682,7 +682,7 @@ class MainActivity : Activity() {
                 )
             },
             buttonMapping = PhysicalButton.defaultOrder.associateWith { physical ->
-                VirtualButton.fromId(buttonMappingInputs[physical]?.selectedItem?.toString().orEmpty())
+                VirtualButton.fromDestination(buttonMappingInputs[physical]?.selectedItem?.toString().orEmpty())
                     ?: VirtualButton.TRIGGER
             },
             recenterPhysicalControl = PhysicalButton.fromId(recenterButtonInput?.selectedItem?.toString().orEmpty()),
