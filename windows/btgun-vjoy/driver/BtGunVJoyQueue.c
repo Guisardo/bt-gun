@@ -340,14 +340,19 @@ BtGunVJoyHandleWriteReport(
     if (HidTransferPacket->reportId == BTGVJOY_OUTPUT_REPORT_ID ||
         (HidTransferPacket->reportId == 0 &&
             HidTransferPacket->reportBufferLen > 0 &&
-            HidTransferPacket->reportBuffer[0] == BTGVJOY_OUTPUT_REPORT_ID)) {
+            HidTransferPacket->reportBuffer[0] == BTGVJOY_OUTPUT_REPORT_ID) ||
+        (HidTransferPacket->reportId == 0 &&
+            HidTransferPacket->reportBufferLen == (BTGVJOY_OUTPUT_REPORT_LENGTH_BYTES - 1) &&
+            HidTransferPacket->reportBuffer[0] == BTGVJOY_OUTPUT_REPORT_VERSION)) {
         if (!BtGunVJoyCopyNativeOutputReport(HidTransferPacket, &outputReport, &status)) {
             goto RecordMalformed;
         }
     } else if (HidTransferPacket->reportId == BTGVJOY_CHROME_HAPTIC_REPORT_ID ||
         (HidTransferPacket->reportId == 0 &&
             HidTransferPacket->reportBufferLen > 0 &&
-            HidTransferPacket->reportBuffer[0] == BTGVJOY_CHROME_HAPTIC_REPORT_ID)) {
+            HidTransferPacket->reportBuffer[0] == BTGVJOY_CHROME_HAPTIC_REPORT_ID) ||
+        (HidTransferPacket->reportId == 0 &&
+            HidTransferPacket->reportBufferLen == BTGVJOY_CHROME_HAPTIC_PAYLOAD_LENGTH_BYTES)) {
         if (!BtGunVJoyMapChromeHapticReport(HidTransferPacket, &outputReport, &status)) {
             goto RecordMalformed;
         }
