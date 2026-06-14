@@ -4,21 +4,37 @@ object BtGunHidDescriptor {
     const val INPUT_REPORT_ID: Int = 0x01
     const val OUTPUT_REPORT_ID: Int = 0x02
     const val OUTPUT_REPORT_VERSION: Int = 0x01
-    const val INPUT_REPORT_PAYLOAD_LENGTH_BYTES: Int = 9
+    const val INPUT_REPORT_PAYLOAD_LENGTH_BYTES: Int = 11
     const val OUTPUT_REPORT_PAYLOAD_LENGTH_BYTES: Int = 8
 
     const val DEVICE_KIND: String = "gamepad_like_joystick"
     val BUTTONS: List<String> = listOf(
-        "trigger",
-        "reload",
-        "button_x",
-        "button_y",
-        "button_a",
-        "button_b",
+        "jp_button_b1",
+        "jp_button_b2",
+        "jp_button_b3",
+        "jp_button_b4",
+        "jp_button_l1",
+        "jp_button_r1",
+        "jp_button_l2",
+        "jp_button_r2",
+        "jp_button_s1",
+        "jp_button_s2",
+        "jp_button_l3",
+        "jp_button_r3",
+        "jp_button_du",
+        "jp_button_dd",
+        "jp_button_dl",
+        "jp_button_dr",
+        "jp_button_a1",
+        "jp_button_a2",
+        "jp_button_a3",
+        "jp_button_a4",
+        "jp_button_l4",
+        "jp_button_r4",
     )
     val AXES: List<String> = listOf("stickX", "stickY", "aimX", "aimY")
     const val TRIGGER_KIND: String = "digital_button_usages"
-    const val BUTTON_COUNT: Int = 6
+    const val BUTTON_COUNT: Int = 22
     const val BUTTON_PADDING_COUNT: Int = 2
     const val AXIS_COUNT: Int = 4
 
@@ -29,10 +45,10 @@ object BtGunHidDescriptor {
         0x85.toByte(), INPUT_REPORT_ID.toByte(), // Report ID
         0x05, 0x09, // Usage Page (Button)
         0x19, 0x01, // Usage Minimum (Button 1)
-        0x29, BUTTON_COUNT.toByte(), // Usage Maximum (Button 6)
+        0x29, BUTTON_COUNT.toByte(), // Usage Maximum (Button 22)
         0x15, 0x00, // Logical Minimum (0)
         0x25, 0x01, // Logical Maximum (1)
-        0x95.toByte(), BUTTON_COUNT.toByte(), // Report Count (6)
+        0x95.toByte(), BUTTON_COUNT.toByte(), // Report Count (22)
         0x75, 0x01, // Report Size (1)
         0x81.toByte(), 0x02, // Input (Data,Var,Abs)
         0x95.toByte(), BUTTON_PADDING_COUNT.toByte(), // Report Count (2)

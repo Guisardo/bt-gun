@@ -102,7 +102,7 @@ private fun frame(sequence: Long): UdpInputFrame =
         sequence = sequence,
         captureElapsedNanos = 1_000_000_000L,
         sendElapsedNanos = 1_000_000_000L,
-        buttonBitmask = 0x01,
+        buttonBitmask = BUTTON_R2,
         stickX = 0,
         stickY = 0,
         motionProvider = 2,
@@ -136,3 +136,4 @@ private fun expectEquals(label: String, expected: Any?, actual: Any?) {
 private const val CONTROL_SESSION_ID = "control-sid-1"
 private const val STREAM_SESSION_ID_HEX = "00112233445566778899aabbccddeeff"
 private const val HMAC_KEY_BASE64URL = "ASNFZ4mrze_-3LqYdlQyEAEjRWeJq83v_ty6mHZUMhA"
+private const val BUTTON_R2 = 1 shl 7

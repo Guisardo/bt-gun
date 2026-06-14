@@ -169,12 +169,12 @@ private fun reportsSmoothingStatusAndClampsFiniteOutput() {
 private fun remapsPhysicalButtonsToVirtualOutputsOnly() {
     val profile = defaultProfile().copy(
         buttonMapping = mapOf(
-            PhysicalButton.TRIGGER to VirtualButton.BUTTON_X,
-            PhysicalButton.RELOAD to VirtualButton.TRIGGER,
-            PhysicalButton.BUTTON_X to VirtualButton.BUTTON_Y,
-            PhysicalButton.BUTTON_Y to VirtualButton.BUTTON_A,
-            PhysicalButton.BUTTON_A to VirtualButton.RELOAD,
-            PhysicalButton.BUTTON_B to VirtualButton.BUTTON_B,
+            PhysicalButton.TRIGGER to VirtualButton.B3,
+            PhysicalButton.RELOAD to VirtualButton.R2,
+            PhysicalButton.BUTTON_X to VirtualButton.B4,
+            PhysicalButton.BUTTON_Y to VirtualButton.B1,
+            PhysicalButton.BUTTON_A to VirtualButton.L2,
+            PhysicalButton.BUTTON_B to VirtualButton.B2,
         ),
     )
 
@@ -187,7 +187,7 @@ private fun remapsPhysicalButtonsToVirtualOutputsOnly() {
         nowElapsedNanos = 1_000_000L,
     )
 
-    expectEquals("remapped controls", setOf("button_x", "reload"), mapped.pressedVirtualControls)
+    expectEquals("remapped controls", setOf("jp_button_b3", "jp_button_l2"), mapped.pressedVirtualControls)
     expectEquals("no axis published as button", false, "stick_axis_x" in mapped.pressedVirtualControls)
 }
 
@@ -212,7 +212,7 @@ private fun stickAxesPassThroughWithoutAxisRemap() {
 private fun recenterPhysicalControlDoesNotSuppressVirtualReload() {
     val profile = defaultProfile().copy(
         recenterPhysicalControl = PhysicalButton.BUTTON_A,
-        buttonMapping = defaultProfile().buttonMapping + (PhysicalButton.BUTTON_A to VirtualButton.RELOAD),
+        buttonMapping = defaultProfile().buttonMapping + (PhysicalButton.BUTTON_A to VirtualButton.L2),
     )
     val rawState = GunInputState(pressedControls = setOf("button_a"))
     val mapper = ProfileMapper()
@@ -226,7 +226,7 @@ private fun recenterPhysicalControlDoesNotSuppressVirtualReload() {
 
     expectEquals("recenter control exposed", "button_a", mapped.recenterPhysicalControl)
     expectEquals("recenter physical pressed", true, mapper.isRecenterPressed(profile, rawState))
-    expectEquals("virtual reload preserved", true, "reload" in mapped.pressedVirtualControls)
+    expectEquals("virtual reload preserved", true, "jp_button_l2" in mapped.pressedVirtualControls)
 }
 
 private fun motion(

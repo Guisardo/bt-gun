@@ -22,12 +22,30 @@ private fun virtualOutputsUseJoypadGamepadDestinationOrder() {
             "B4 - north face (Y / Triangle)",
             "L1 - left shoulder",
             "R1 - right shoulder",
+            "L2 - left trigger",
+            "R2 - right trigger",
+            "S1 - back / select",
+            "S2 - start",
+            "L3 - left stick click",
+            "R3 - right stick click",
+            "DU - d-pad up",
+            "DD - d-pad down",
+            "DL - d-pad left",
+            "DR - d-pad right",
+            "A1 - guide / home",
+            "A2 - capture / touchpad",
+            "A3 - mute",
+            "A4 - auxiliary 4",
+            "L4 - left paddle",
+            "R4 - right paddle",
         ),
-        VirtualButton.requiredOutputs.map { output -> output.destinationLabel },
+        VirtualButton.destinationOptions.map { output -> output.destinationLabel },
     )
-    expectEquals("legacy id still decodes", VirtualButton.TRIGGER, VirtualButton.fromDestination("trigger"))
-    expectEquals("destination label decodes", VirtualButton.BUTTON_A, VirtualButton.fromDestination("B1 - south face (A / Cross)"))
-    expectEquals("short label decodes", VirtualButton.RELOAD, VirtualButton.fromDestination("L1"))
+    expectEquals("legacy trigger decodes", VirtualButton.R2, VirtualButton.fromDestination("trigger"))
+    expectEquals("legacy reload decodes", VirtualButton.L2, VirtualButton.fromDestination("reload"))
+    expectEquals("destination label decodes", VirtualButton.B1, VirtualButton.fromDestination("B1 - south face (A / Cross)"))
+    expectEquals("short label decodes", VirtualButton.L1, VirtualButton.fromDestination("L1"))
+    expectEquals("function buttons excluded", false, VirtualButton.destinationOptions.any { output -> output.id == "jp_button_f1" })
 }
 
 private fun validationReturnsUiSpecLabels() {
@@ -36,19 +54,18 @@ private fun validationReturnsUiSpecLabels() {
         listOf("Name required"),
         defaultProfile().copy(displayName = "  "),
     )
-    VirtualButton.requiredOutputs.forEach { output ->
-        val mapping = defaultProfile().buttonMapping.filterValues { mapped -> mapped != output }
-        expectContains(
-            "missing ${output.id}",
-            ProfileValidator.validate(defaultProfile().copy(buttonMapping = mapping)).labels(),
-            "Missing ${output.validationName} output",
-        )
-    }
+    expectContains(
+        "missing physical mapping",
+        ProfileValidator.validate(
+            defaultProfile().copy(buttonMapping = defaultProfile().buttonMapping - PhysicalButton.TRIGGER),
+        ).labels(),
+        "Missing button mapping",
+    )
     expectContains(
         "duplicate output",
         ProfileValidator.validate(
             defaultProfile().copy(
-                buttonMapping = defaultProfile().buttonMapping + (PhysicalButton.RELOAD to VirtualButton.TRIGGER),
+                buttonMapping = defaultProfile().buttonMapping + (PhysicalButton.RELOAD to VirtualButton.R2),
             ),
         ).labels(),
         "Duplicate output",

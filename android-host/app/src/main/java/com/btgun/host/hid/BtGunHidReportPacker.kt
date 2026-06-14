@@ -3,6 +3,7 @@ package com.btgun.host.hid
 import com.btgun.host.model.GunInputState
 import com.btgun.host.model.MotionSample
 import com.btgun.host.profile.MappedControllerState
+import com.btgun.host.profile.VirtualButton
 import kotlin.math.roundToInt
 
 data class BtGunHidInputReport(
@@ -38,11 +39,11 @@ object BtGunHidReportPacker {
         val report = ByteArray(BtGunHidDescriptor.INPUT_REPORT_PAYLOAD_LENGTH_BYTES)
         val aim = motion.selectAim()
 
-        report[0] = if (stale) 0 else state.faceButtonBits().toByte()
-        report.writeInt16Le(offset = 1, value = if (stale) 0 else state.stickAxisX.toSignedInt16Axis())
-        report.writeInt16Le(offset = 3, value = if (stale) 0 else (-state.stickAxisY).toSignedInt16Axis())
-        report.writeInt16Le(offset = 5, value = aim.x.toSignedInt16Axis())
-        report.writeInt16Le(offset = 7, value = (-aim.y).toSignedInt16Axis())
+        report.writeButtonBits(if (stale) 0 else state.faceButtonBits())
+        report.writeInt16Le(offset = 3, value = if (stale) 0 else state.stickAxisX.toSignedInt16Axis())
+        report.writeInt16Le(offset = 5, value = if (stale) 0 else (-state.stickAxisY).toSignedInt16Axis())
+        report.writeInt16Le(offset = 7, value = aim.x.toSignedInt16Axis())
+        report.writeInt16Le(offset = 9, value = (-aim.y).toSignedInt16Axis())
 
         return BtGunHidInputReport(
             reportId = BtGunHidDescriptor.INPUT_REPORT_ID,
@@ -58,11 +59,11 @@ object BtGunHidReportPacker {
     ): BtGunHidInputReport {
         val report = ByteArray(BtGunHidDescriptor.INPUT_REPORT_PAYLOAD_LENGTH_BYTES)
 
-        report[0] = if (stale) 0 else faceButtonBits(mappedState.pressedVirtualControls).toByte()
-        report.writeInt16Le(offset = 1, value = if (stale) 0 else mappedState.stickAxisX.toSignedInt16Axis())
-        report.writeInt16Le(offset = 3, value = if (stale) 0 else (-mappedState.stickAxisY).toSignedInt16Axis())
-        report.writeInt16Le(offset = 5, value = mappedState.aimAxisX.toSignedInt16Axis())
-        report.writeInt16Le(offset = 7, value = (-mappedState.aimAxisY).toSignedInt16Axis())
+        report.writeButtonBits(if (stale) 0 else faceButtonBits(mappedState.pressedVirtualControls))
+        report.writeInt16Le(offset = 3, value = if (stale) 0 else mappedState.stickAxisX.toSignedInt16Axis())
+        report.writeInt16Le(offset = 5, value = if (stale) 0 else (-mappedState.stickAxisY).toSignedInt16Axis())
+        report.writeInt16Le(offset = 7, value = mappedState.aimAxisX.toSignedInt16Axis())
+        report.writeInt16Le(offset = 9, value = (-mappedState.aimAxisY).toSignedInt16Axis())
 
         return BtGunHidInputReport(
             reportId = BtGunHidDescriptor.INPUT_REPORT_ID,
@@ -75,21 +76,8 @@ object BtGunHidReportPacker {
     private fun GunInputState.faceButtonBits(): Int =
         faceButtonBits(pressedControls)
 
-    private fun faceButtonBits(pressedControls: Set<String>): Int {
-        var bits = 0
-        pressedControls.forEach { control ->
-            bits = bits or when (control) {
-                "trigger" -> 1 shl 0
-                "reload" -> 1 shl 1
-                "button_x" -> 1 shl 2
-                "button_y" -> 1 shl 3
-                "button_a" -> 1 shl 4
-                "button_b" -> 1 shl 5
-                else -> 0
-            }
-        }
-        return bits
-    }
+    private fun faceButtonBits(pressedControls: Set<String>): Int =
+        VirtualButton.bitmaskForControlIds(pressedControls)
 
     private fun MotionSample?.selectAim(): SelectedAim =
         when {
@@ -118,6 +106,12 @@ object BtGunHidReportPacker {
         val clamped = value.coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt())
         this[offset] = (clamped and 0xff).toByte()
         this[offset + 1] = ((clamped ushr 8) and 0xff).toByte()
+    }
+
+    private fun ByteArray.writeButtonBits(bits: Int) {
+        this[0] = (bits and 0xff).toByte()
+        this[1] = ((bits ushr 8) and 0xff).toByte()
+        this[2] = ((bits ushr 16) and 0xff).toByte()
     }
 
     private data class SelectedAim(

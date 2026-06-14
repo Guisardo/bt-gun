@@ -19,6 +19,7 @@ fun main() {
     edgeUsesSharedMonotonicSequenceAndImmediateSend()
     senderCloseClosesDatagramSink()
     snapshotSendsMappedProductStreamWithRawDebugOffByDefault()
+    snapshotSendsExtendedJoypadDestinationBits()
     rawDebugOnAddsFlagAndRawMotionExtras()
     datagramPriorityReadsWireFrameType()
     socketSinkKeepsLatestSnapshotQueueContract()
@@ -213,6 +214,25 @@ private fun snapshotSendsMappedProductStreamWithRawDebugOffByDefault() {
     expectTrue("raw aim x absent", decoded.rawAimX.isNaN())
     expectTrue("raw aim y absent", decoded.rawAimY.isNaN())
     expectEquals("source sensor absent", 0L, decoded.sourceSensorElapsedNanos)
+}
+
+private fun snapshotSendsExtendedJoypadDestinationBits() {
+    val sink = RecordingDatagramSink()
+    val now = 6_500_000_000L
+    val sender = AndroidUdpInputSender(
+        datagramSink = sink,
+        elapsedRealtimeNanos = { now },
+    )
+
+    sender.start(fixtureConfig())
+    sender.sendSnapshot(
+        mappedState = mappedState(pressedVirtualControls = setOf("jp_button_a1", "jp_button_r4")),
+        motion = motionEnvelope(),
+        rawDebugEnabled = false,
+    )
+
+    val decoded = decodeSingle(sink)
+    expectEquals("extended mapped buttons", (1 shl 16) or (1 shl 21), decoded.buttonBitmask)
 }
 
 private fun rawDebugOnAddsFlagAndRawMotionExtras() {

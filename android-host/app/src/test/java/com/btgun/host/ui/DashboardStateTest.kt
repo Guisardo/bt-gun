@@ -647,7 +647,7 @@ private fun hidPairingHostAndInputProofRenderAsFirstClassFields() {
     expectEquals("registration field", "registered", state.hidGamepad.registration.value)
     expectEquals("pairing countdown", "open for 120s | pairing window open", state.hidGamepad.pairingWindow.value)
     expectEquals("host connection", "connected", state.hidGamepad.hostConnection.value)
-    expectEquals("last input", "sent | report=1 payload=9 aim=calibrated stale=false", state.hidGamepad.lastInputReport.value)
+    expectEquals("last input", "sent | report=1 payload=11 aim=calibrated stale=false", state.hidGamepad.lastInputReport.value)
 }
 
 private fun hidOutputProofFieldsStaySeparateFromLanHaptics() {

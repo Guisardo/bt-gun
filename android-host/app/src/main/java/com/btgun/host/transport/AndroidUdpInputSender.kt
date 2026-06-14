@@ -8,6 +8,7 @@ import com.btgun.host.model.MotionProvider
 import com.btgun.host.model.MotionSample
 import com.btgun.host.motion.MotionCapabilityFlags
 import com.btgun.host.profile.MappedControllerState
+import com.btgun.host.profile.VirtualButton
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
@@ -411,15 +412,7 @@ class AndroidUdpInputSender(
     }
 
     private fun bitForControl(control: String): Int =
-        when (control) {
-            "trigger" -> BUTTON_TRIGGER
-            "reload" -> BUTTON_RELOAD
-            "button_x" -> BUTTON_X
-            "button_y" -> BUTTON_Y
-            "button_a" -> BUTTON_A
-            "button_b" -> BUTTON_B
-            else -> 0
-        }
+        VirtualButton.fromId(control)?.bitMask ?: 0
 
     private fun Float.toInt16Axis(): Int =
         when {
@@ -449,13 +442,13 @@ class AndroidUdpInputSender(
     }
 
     companion object {
-        const val BUTTON_TRIGGER: Int = 1 shl 0
-        const val BUTTON_RELOAD: Int = 1 shl 1
+        const val BUTTON_A: Int = 1 shl 0
+        const val BUTTON_B: Int = 1 shl 1
         const val BUTTON_X: Int = 1 shl 2
         const val BUTTON_Y: Int = 1 shl 3
-        const val BUTTON_A: Int = 1 shl 4
-        const val BUTTON_B: Int = 1 shl 5
-        const val EDGE_CONTROL_CHANGED: Int = 1 shl 8
+        const val BUTTON_RELOAD: Int = 1 shl 6
+        const val BUTTON_TRIGGER: Int = 1 shl 7
+        const val EDGE_CONTROL_CHANGED: Int = 1 shl 30
 
         const val PROVIDER_UNAVAILABLE: Int = 0
         const val PROVIDER_GAME_ROTATION_VECTOR: Int = 1

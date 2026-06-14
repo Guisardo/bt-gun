@@ -2,12 +2,7 @@ package com.btgun.host.profile
 
 enum class ProfileValidationError(val label: String) {
     NAME_REQUIRED("Name required"),
-    MISSING_TRIGGER_OUTPUT("Missing R1 output"),
-    MISSING_RELOAD_OUTPUT("Missing L1 output"),
-    MISSING_X_OUTPUT("Missing B3 output"),
-    MISSING_Y_OUTPUT("Missing B4 output"),
-    MISSING_A_OUTPUT("Missing B1 output"),
-    MISSING_B_OUTPUT("Missing B2 output"),
+    MISSING_BUTTON_MAPPING("Missing button mapping"),
     DUPLICATE_OUTPUT("Duplicate output"),
     RECENTER_REQUIRED("Recenter required"),
     UNSUPPORTED_AXIS_MAPPING("Unsupported axis mapping"),
@@ -30,12 +25,10 @@ object ProfileValidator {
             errors += ProfileValidationError.RECENTER_REQUIRED
         }
 
-        val mappedOutputs = profile.buttonMapping.values
-        VirtualButton.requiredOutputs.forEach { output ->
-            if (output !in mappedOutputs) {
-                errors += missingOutputError(output)
-            }
+        if (PhysicalButton.defaultOrder.any { physical -> physical !in profile.buttonMapping }) {
+            errors += ProfileValidationError.MISSING_BUTTON_MAPPING
         }
+        val mappedOutputs = profile.buttonMapping.values
         if (hasDuplicateOutput(mappedOutputs)) {
             errors += ProfileValidationError.DUPLICATE_OUTPUT
         }
@@ -46,16 +39,6 @@ object ProfileValidator {
 
         return errors.distinct()
     }
-
-    private fun missingOutputError(output: VirtualButton): ProfileValidationError =
-        when (output) {
-            VirtualButton.TRIGGER -> ProfileValidationError.MISSING_TRIGGER_OUTPUT
-            VirtualButton.RELOAD -> ProfileValidationError.MISSING_RELOAD_OUTPUT
-            VirtualButton.BUTTON_X -> ProfileValidationError.MISSING_X_OUTPUT
-            VirtualButton.BUTTON_Y -> ProfileValidationError.MISSING_Y_OUTPUT
-            VirtualButton.BUTTON_A -> ProfileValidationError.MISSING_A_OUTPUT
-            VirtualButton.BUTTON_B -> ProfileValidationError.MISSING_B_OUTPUT
-        }
 
     private fun hasDuplicateOutput(outputs: Collection<VirtualButton>): Boolean {
         val seen = mutableSetOf<VirtualButton>()
