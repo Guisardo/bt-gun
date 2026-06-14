@@ -84,6 +84,7 @@ class AndroidBluetoothHidGamepad(
         started = true
         if (proxy != null && registered) {
             status = status.copy(
+                mode = BtGunHidModeState.STARTED,
                 proxy = BtGunHidProxyState.AVAILABLE,
                 registration = BtGunHidRegistrationState.REGISTERED,
             )
@@ -91,7 +92,11 @@ class AndroidBluetoothHidGamepad(
         }
         requestGeneration += 1
         val generation = requestGeneration
-        status = status.copy(proxy = BtGunHidProxyState.REQUESTING, registration = BtGunHidRegistrationState.NOT_REGISTERED)
+        status = status.copy(
+            mode = BtGunHidModeState.STARTING,
+            proxy = BtGunHidProxyState.REQUESTING,
+            registration = BtGunHidRegistrationState.NOT_REGISTERED,
+        )
         connector.requestHidDeviceProxy(ProfileCallback(generation))
     }
 
@@ -106,6 +111,7 @@ class AndroidBluetoothHidGamepad(
         connectedHost = null
         started = false
         status = status.copy(
+            mode = BtGunHidModeState.STOPPED,
             proxy = if (closed) {
                 BtGunHidProxyState.CLOSED
             } else if (activeProxy != null) {
@@ -185,6 +191,7 @@ class AndroidBluetoothHidGamepad(
         connector.close()
         closed = true
         status = status.copy(
+            mode = BtGunHidModeState.STOPPED,
             proxy = BtGunHidProxyState.CLOSED,
             registration = BtGunHidRegistrationState.NOT_REGISTERED,
             hostConnection = BtGunHidHostConnectionState.NOT_CONNECTED,
@@ -198,14 +205,19 @@ class AndroidBluetoothHidGamepad(
         }
         AndroidLog.i(TAG, "HID_DEVICE proxy available; registering app")
         proxy = newProxy
-        status = status.copy(proxy = BtGunHidProxyState.AVAILABLE, registration = BtGunHidRegistrationState.REGISTERING)
+        status = status.copy(
+            mode = BtGunHidModeState.STARTING,
+            proxy = BtGunHidProxyState.AVAILABLE,
+            registration = BtGunHidRegistrationState.REGISTERING,
+        )
         val newCallback = DeviceCallback(generation)
         callback = newCallback
         val accepted = newProxy.registerApp(gamepadSdpSettings(), newCallback)
         AndroidLog.i(TAG, "registerApp accepted=$accepted")
         if (!accepted) {
             registered = false
-            status = status.copy(registration = BtGunHidRegistrationState.FAILED)
+            started = false
+            status = status.copy(mode = BtGunHidModeState.STOPPED, registration = BtGunHidRegistrationState.FAILED)
         }
     }
 
@@ -214,7 +226,9 @@ class AndroidBluetoothHidGamepad(
         AndroidLog.w(TAG, "HID_DEVICE proxy unavailable: $reason")
         proxy = null
         registered = false
+        started = false
         status = status.copy(
+            mode = BtGunHidModeState.STOPPED,
             proxy = BtGunHidProxyState.UNAVAILABLE,
             registration = BtGunHidRegistrationState.FAILED,
             unsupportedReason = reason,
@@ -228,8 +242,10 @@ class AndroidBluetoothHidGamepad(
         if (!registered) {
             sendNeutralInputReport(proxy, host ?: connectedHost)
             connectedHost = null
+            started = false
         }
         status = status.copy(
+            mode = if (registered) BtGunHidModeState.STARTED else BtGunHidModeState.STOPPED,
             registration = if (registered) BtGunHidRegistrationState.REGISTERED else BtGunHidRegistrationState.FAILED,
             hostConnection = if (registered) status.hostConnection else BtGunHidHostConnectionState.NOT_CONNECTED,
         )
@@ -386,6 +402,7 @@ class AndroidBluetoothHidGamepad(
         connectedHost = null
         started = false
         requestGeneration += 1
+        status = status.copy(mode = BtGunHidModeState.STOPPED)
     }
 
     private fun isActiveGeneration(generation: Int): Boolean =

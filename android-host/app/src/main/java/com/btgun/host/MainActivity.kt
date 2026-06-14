@@ -25,6 +25,7 @@ import android.widget.TextView
 import com.btgun.host.haptics.PhoneHapticStatus
 import com.btgun.host.haptics.PhoneHaptics
 import com.btgun.host.hid.BtGunHidHostConnectionState
+import com.btgun.host.hid.BtGunHidModeState
 import com.btgun.host.hid.BtGunHidProxyState
 import com.btgun.host.hid.BtGunHidRegistrationState
 import com.btgun.host.motion.AimBaseline
@@ -82,8 +83,7 @@ class MainActivity : Activity() {
     private lateinit var hapticAction: Button
     private lateinit var editProfilesAction: Button
     private lateinit var profileListGroup: LinearLayout
-    private lateinit var startBluetoothGamepadAction: Button
-    private lateinit var stopBluetoothGamepadAction: Button
+    private lateinit var bluetoothGamepadAction: Button
     private lateinit var openHidPairingWindowAction: Button
     private lateinit var permissionAction: Button
     private lateinit var scanDesktopQrAction: Button
@@ -193,9 +193,8 @@ class MainActivity : Activity() {
         root.addView(profileListGroup, spacedParams(top = 4, bottom = 12))
 
         addSectionHeader("Bluetooth Gamepad")
-        startBluetoothGamepadAction = button("Start Bluetooth gamepad", ButtonStyle.PRIMARY) { startBluetoothGamepad() }
-        stopBluetoothGamepadAction = button("Stop Bluetooth gamepad") { stopBluetoothGamepad() }
-        addActionGroup(startBluetoothGamepadAction, stopBluetoothGamepadAction)
+        bluetoothGamepadAction = button("Start Bluetooth gamepad", ButtonStyle.PRIMARY) { toggleBluetoothGamepad() }
+        addActionGroup(bluetoothGamepadAction)
         openHidPairingWindowAction = button("Open pairing window") { openHidPairingWindow() }
         addActionGroup(openHidPairingWindowAction)
 
@@ -324,6 +323,7 @@ class MainActivity : Activity() {
         permissionAction.visibility = if (dashboard.permission.visible) View.VISIBLE else View.GONE
         primaryAction.text = dashboard.primaryActionLabel
         hapticAction.text = dashboard.hapticActionLabel
+        bluetoothGamepadAction.text = bluetoothGamepadActionLabel(serviceState.hidGamepadStatus.mode)
         debugModeAction.text = if (dashboard.eventMode == DashboardEventMode.PRODUCT_EVENTS) {
             "Product events"
         } else {
@@ -763,6 +763,14 @@ class MainActivity : Activity() {
         profileListGroup.addView(group)
     }
 
+    private fun toggleBluetoothGamepad() {
+        if (HostSessionService.latestState.hidGamepadStatus.mode.isGamepadStarted()) {
+            stopBluetoothGamepad()
+        } else {
+            startBluetoothGamepad()
+        }
+    }
+
     private fun startBluetoothGamepad() {
         AndroidLog.i(TAG, "Start Bluetooth gamepad tapped")
         startServiceAction(
@@ -778,6 +786,16 @@ class MainActivity : Activity() {
                 .setAction(HostSessionService.ACTION_STOP_BLUETOOTH_GAMEPAD),
         )
     }
+
+    private fun bluetoothGamepadActionLabel(mode: BtGunHidModeState): String =
+        if (mode.isGamepadStarted()) {
+            "Stop Bluetooth gamepad"
+        } else {
+            "Start Bluetooth gamepad"
+        }
+
+    private fun BtGunHidModeState.isGamepadStarted(): Boolean =
+        this == BtGunHidModeState.STARTING || this == BtGunHidModeState.STARTED
 
     private fun openHidPairingWindow() {
         AndroidLog.i(TAG, "Open HID pairing window tapped")

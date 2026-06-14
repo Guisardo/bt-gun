@@ -585,12 +585,6 @@ class HostSessionService : Service() {
     private fun stopBluetoothGamepad() {
         AndroidLog.i(TAG, "stopBluetoothGamepad")
         currentState = hidSessionController.stopBluetoothGamepad(currentState)
-        hidSessionController.close()
-        currentState = currentState.copy(hidGamepadStatus = BtGunHidStatus())
-        if (!currentState.isActive && currentState.desktopLinkState.phase == DesktopLinkPhase.IDLE) {
-            stopForegroundCompat()
-            stopSelf()
-        }
     }
 
     private fun reloadActiveProfile() {
