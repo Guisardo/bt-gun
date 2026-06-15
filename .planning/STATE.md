@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
-stopped_at: Completed 10-06-PLAN.md
-last_updated: "2026-06-15T19:39:13Z"
-last_activity: 2026-06-15 -- Phase 10 Plan 10-06 v1 docs guard completed
+status: verifying
+stopped_at: Completed 10-07-PLAN.md
+last_updated: "2026-06-15T19:50:46.094Z"
+last_activity: 2026-06-15 -- Phase 10 Plan 10-07 v1 index and closeout audit completed
 progress:
   total_phases: 10
-  completed_phases: 9
+  completed_phases: 10
   total_plans: 62
-  completed_plans: 61
-  percent: 98
+  completed_plans: 62
+  percent: 100
 ---
 
 # Project State
@@ -25,19 +25,19 @@ See: .planning/PROJECT.md (updated 2026-06-15)
 
 ## Current Position
 
-Phase: 10 (Diagnostics, Replay, and v1 Docs) — EXECUTING
+Phase: 10 (Diagnostics, Replay, and v1 Docs) — COMPLETE
 Plan: 7 of 7
-Next phase: Execute Phase 10 Diagnostics, Replay, and v1 Docs
-Status: Ready to execute
-Last activity: 2026-06-15 -- Phase 10 Plan 10-06 v1 docs guard completed
+Next phase: Verify Phase 10 Diagnostics, Replay, and v1 Docs
+Status: Phase complete — ready for verification
+Last activity: 2026-06-15 -- Phase 10 Plan 10-07 v1 index and closeout audit completed
 
-Progress: [████████████████████] 61/62 completed plans. Phase 10 has 6/7 plans executed.
+Progress: [████████████████████] 62/62 completed plans. Phase 10 has 7/7 plans executed.
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 61 of 62 active planned
+- Total plans completed: 62 of 62 active planned
 - Average duration: not tracked for hardware-interactive plans
 - Total execution time: not tracked after Plan 02
 
@@ -53,11 +53,12 @@ Progress: [████████████████████] 61/62 c
 | 07 | 6 | hardware-interactive | complete; Android HID input passed, macOS haptics deferred |
 | 08 | 7 | - | - |
 | 09 | 6 | - | - |
+| 10 | 7 | - | - |
 
 **Recent Trend:**
 
-- Recent completed execution plans: 07-P01 through 07-P06, 08-P01 through 08-P07, Phase 09 P01 through P06, and Phase 10 P01 through P06 complete; Phase 09 UAT, validation, and security are passed.
-- Trend: CoreHID and DriverKit are no longer primary for macOS because no-subscription virtual HID is blocked. Phase 07 completed Android phone Bluetooth HID gamepad proof, with Windows VHF retained as fallback and macOS browser/GameController haptics deferred. Phase 08 reroutes profiles to Android-owned storage/mapping with desktop read-only metadata. Phase 09 closes the end-to-end visualizer acceptance path, leaving Phase 10 for diagnostics, replay, and v1 docs.
+- Recent completed execution plans: 07-P01 through 07-P06, 08-P01 through 08-P07, Phase 09 P01 through P06, and Phase 10 P01 through P07 complete; Phase 10 is ready for verification.
+- Trend: CoreHID and DriverKit are no longer primary for macOS because no-subscription virtual HID is blocked. Phase 07 completed Android phone Bluetooth HID gamepad proof, with Windows VHF retained as fallback and macOS browser/GameController haptics deferred. Phase 08 reroutes profiles to Android-owned storage/mapping with desktop read-only metadata. Phase 09 closed the end-to-end visualizer acceptance path. Phase 10 closed replay, diagnostics, export, setup docs, protocol/security docs, known limits, v1 index, and validation audit.
 
 *Updated after each plan completion*
 | Phase 01 P01 | 10 min | 3 tasks | 6 files |
@@ -122,6 +123,7 @@ Progress: [████████████████████] 61/62 c
 | Phase 10 P04 | 24 min | 2 tasks | 5 files |
 | Phase 10 P05 | 10 min | 2 tasks | 7 files |
 | Phase 10 P06 | 8 min | 3 tasks | 9 files |
+| Phase 10 P07 | 4 min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -271,6 +273,9 @@ Recent decisions affecting current work:
 - [Phase 10]: Diagnostic export bundles default to sanitized diagnostics JSONL/manifests with replay refs; raw .evidence/phase10 is ignored and excluded by default. — Plan 10-05 redaction/export threat model requires issue bundles to be replay-ready without copying raw logs or screenshots.
 - [Phase 10]: SecretRedactor is the central export redaction gate for stream/HMAC material, device identifiers, and raw evidence markers. — Plan 10-05 extends the existing pairing redactor instead of adding one-off export regexes.
 - [Phase 10]: V1 docs are split into Android setup, LAN session security, replay troubleshooting, and known-limits matrix with a Gradle docs guard. — Plan 10-06 completes PACK-01/PACK-04/PACK-05 doc coverage and requires status, evidence, next proof, and forbidden-evidence scans.
+- [Phase 10]: Use `docs/v1.md` as the single v1 entry point for setup, OS-visible controller paths, LAN protocol/security, replay, diagnostics, evidence, and known limits.
+- [Phase 10]: macOS Android Bluetooth HID and Windows VHF are equal primary v1 OS-visible paths.
+- [Phase 10]: Close Phase 10 validation through artifact-backed rows; incomplete future proofs stay manual-gated rather than silently passing.
 
 ### Pending Todos
 
@@ -301,6 +306,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-15T19:39:13Z
-Stopped at: Completed 10-06-PLAN.md
+Last session: 2026-06-15T19:50:45.917Z
+Stopped at: Completed 10-07-PLAN.md
 Resume file: None
