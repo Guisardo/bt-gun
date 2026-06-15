@@ -1,10 +1,11 @@
 ---
 phase: 09
 slug: visualizer-acceptance-path
-status: draft
-nyquist_compliant: false
-wave_0_complete: false
+status: verified
+nyquist_compliant: true
+wave_0_complete: true
 created: 2026-06-12
+validated: 2026-06-15
 ---
 
 # Phase 09 - Validation Strategy
@@ -38,24 +39,24 @@ created: 2026-06-12
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 09-W0-01 | TBD | 0 | VIS-01, VIS-02, VIS-04 | T-09-01 / T-09-05 | UI event fanout does not clobber pairing window or backend callbacks. | unit | `gradle -p desktop-companion test --tests '*DesktopUiEventHub*' --tests '*PairingWindow*'` | W0 missing | pending |
-| 09-W0-02 | TBD | 0 | VIS-06, PERF-01, PERF-02 | T-09-02 / T-09-03 | Metrics use accepted UDP sequence gaps and estimated Android-to-desktop monotonic offset, not direct clock-origin subtraction. | unit | `gradle -p desktop-companion test --tests '*VisualizerMetrics*'` | W0 missing | pending |
-| 09-W0-03 | TBD | 0 | VIS-02, VIS-03, VIS-04, VIS-05 | T-09-01 / T-09-04 | Model separates observed live state from user-confirmed checklist rows and never exposes secrets. | unit | `gradle -p desktop-companion test --tests '*VisualizerModel*'` | W0 missing | pending |
-| 09-W0-04 | TBD | 0 | VIS-01, VIS-05 | T-09-04 | LAN haptic button is enabled only for authenticated active session and displays ack/fail from trusted result. | unit/UI model | `gradle -p desktop-companion test --tests '*VisualizerWindow*' --tests '*ControlChannel*'` | W0 missing | pending |
-| 09-W0-05 | TBD | 0 | VIS-03, VIS-04 | T-09-01 / T-09-06 | Android visualizer status diagnostics are sanitized and contain recenter/aim-zero state without pairing or stream secrets. | unit | `gradle -p android-host testDebugUnitTest --tests '*Visualizer*' --tests '*HostSessionService*'` | W0 missing | pending |
-| 09-MAN-01 | TBD | final | VIS-01..VIS-06, PERF-01, PERF-02 | T-09-02 / T-09-03 / T-09-04 | Final pass requires guided manual proof for LAN visualizer, macOS Android HID input, Windows VHF input, LAN haptic, Windows output-to-phone haptic, and macOS haptic unsupported/deferred row. | manual | Visualizer guided checklist plus full automated suites | Manual | pending |
+| 09-W0-01 | 09-01, 09-02 | 0 | VIS-01, VIS-02, VIS-04 | T-09-01 / T-09-05 | UI event fanout does not clobber pairing window or backend callbacks. | unit | `gradle -p desktop-companion test --tests '*DesktopUiEventHub*' --tests '*PairingWindow*'` | `DesktopUiEventHubTest.kt`, `PairingWindowTest.kt` | green |
+| 09-W0-02 | 09-01, 09-03, 09-05 | 0 | VIS-06, PERF-01, PERF-02 | T-09-02 / T-09-03 | Metrics use accepted UDP sequence gaps and estimated Android-to-desktop monotonic offset, not direct clock-origin subtraction. | unit | `gradle -p desktop-companion test --tests '*VisualizerMetrics*'` | `VisualizerMetricsTest.kt` | green |
+| 09-W0-03 | 09-01, 09-05, 09-06 | 0 | VIS-02, VIS-03, VIS-04, VIS-05 | T-09-01 / T-09-04 | Model separates observed live state from user-confirmed checklist rows and never exposes secrets. | unit | `gradle -p desktop-companion test --tests '*VisualizerModel*' --tests '*VisualizerWindow*'` | `VisualizerModelTest.kt`, `VisualizerWindowTest.kt` | green |
+| 09-W0-04 | 09-03 | 0 | VIS-01, VIS-05 | T-09-04 | LAN haptic button is enabled only for authenticated active session and displays ack/fail from trusted result. | unit/UI model | `gradle -p desktop-companion test --tests '*VisualizerWindow*' --tests '*ControlChannel*'` | `VisualizerWindowTest.kt`, `ControlChannelTest.kt` | green |
+| 09-W0-05 | 09-04, 09-05 | 0 | VIS-03, VIS-04 | T-09-01 / T-09-06 | Android visualizer status diagnostics are sanitized and contain recenter/aim-zero state without pairing or stream secrets. | unit | `gradle -p android-host testDebugUnitTest --tests '*VisualizerStatus*' --tests '*DesktopControlClient*' --tests '*HostSessionService*'` | `VisualizerStatusTest.kt`, `DesktopControlClientTest.kt`, `HostSessionServiceLivenessTest.kt` | green |
+| 09-MAN-01 | 09-06 | final | VIS-01..VIS-06, PERF-01, PERF-02 | T-09-02 / T-09-03 / T-09-04 | Final pass requires guided manual proof for LAN visualizer, macOS Android HID input, Windows VHF input, LAN haptic, Windows output-to-phone haptic, and macOS haptic unsupported/deferred row. | manual | Visualizer guided checklist plus full automated suites | `09-UAT.md` | passed |
 
-*Status: pending, green, red, flaky.*
+*Status: green, passed, red, flaky.*
 
 ---
 
 ## Wave 0 Requirements
 
-- [ ] `desktop-companion/src/test/kotlin/com/btgun/desktop/ui/DesktopUiEventHubTest.kt` - PairingWindow, VisualizerWindow, and backend runtimes all receive UDP/session/haptic events without callback clobber.
-- [ ] `desktop-companion/src/test/kotlin/com/btgun/desktop/ui/VisualizerMetricsTest.kt` - sequence-gap packet loss, session reset, offset latency math, and `<50 ms` target labels.
-- [ ] `desktop-companion/src/test/kotlin/com/btgun/desktop/ui/VisualizerModelTest.kt` - live gamepad state, stale overlay, raw-debug drawer state, haptic statuses, recenter/aim-zero rows, and checklist row transitions.
-- [ ] `desktop-companion/src/test/kotlin/com/btgun/desktop/ui/VisualizerWindowTest.kt` - auto-open/manual reopen seams, LAN haptic action gating, labels/actions/helpers, and forbidden desktop profile controls.
-- [ ] Android status diagnostics tests if planner adds `VisualizerStatus.kt`: recenter emitted, aim-zero/baseline state, raw debug flag, time-sync fields if any, and no secrets.
+- [x] `desktop-companion/src/test/kotlin/com/btgun/desktop/ui/DesktopUiEventHubTest.kt` - PairingWindow, VisualizerWindow, and backend runtimes all receive UDP/session/haptic events without callback clobber.
+- [x] `desktop-companion/src/test/kotlin/com/btgun/desktop/ui/VisualizerMetricsTest.kt` - sequence-gap packet loss, session reset, offset latency math, and `<50 ms` target labels.
+- [x] `desktop-companion/src/test/kotlin/com/btgun/desktop/ui/VisualizerModelTest.kt` - live gamepad state, stale overlay, raw-debug drawer state, haptic statuses, recenter/aim-zero rows, and checklist row transitions.
+- [x] `desktop-companion/src/test/kotlin/com/btgun/desktop/ui/VisualizerWindowTest.kt` - auto-open/manual reopen seams, LAN haptic action gating, labels/actions/helpers, and forbidden desktop profile controls.
+- [x] Android status diagnostics tests: recenter emitted, aim-zero/baseline state, raw debug flag, time-sync fields, and no secrets.
 
 ---
 
@@ -68,15 +69,27 @@ created: 2026-06-12
 | Windows VHF input and output-to-phone haptic | VIS-04, VIS-05 | Requires Windows 11 x64 target with VHF driver path and phone vibration observation. | Run Windows VHF proof using Phase 6 checklist, confirm virtual controller input, trigger output haptic to phone, mark guided checklist rows. |
 | macOS Bluetooth HID haptic unsupported/deferred row | VIS-05 | Current Phase 7 evidence allows unsupported/deferred output row when limitation is visible. | Show current unsupported/deferred evidence in visualizer row and confirm it does not block LAN or Windows haptic proof. |
 
+Manual proof status: `09-UAT.md` records 7/7 passed, 0 issues, 0 pending, 0 skipped, and 0 blocked.
+
+## Validation Audit 2026-06-15
+
+| Metric | Count |
+|--------|-------|
+| Gaps found | 0 code/test gaps; 8 stale validation rows |
+| Resolved | 8 stale rows |
+| Escalated | 0 |
+
+No generated test files were needed. Existing executable tests cover all automatable Phase 9 validation rows, and hardware/OS proof is recorded in `09-UAT.md`.
+
 ---
 
 ## Validation Sign-Off
 
-- [ ] All planned tasks have `<automated>` verify or Wave 0 dependencies.
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify.
-- [ ] Wave 0 covers all MISSING references.
-- [ ] No watch-mode flags.
-- [ ] Feedback latency target is under 4 minutes for automated gates.
-- [ ] `nyquist_compliant: true` set in frontmatter after Wave 0 tests exist and pass.
+- [x] All planned tasks have `<automated>` verify or Wave 0 dependencies.
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify.
+- [x] Wave 0 covers all MISSING references.
+- [x] No watch-mode flags.
+- [x] Feedback latency target is under 4 minutes for automated gates.
+- [x] `nyquist_compliant: true` set in frontmatter after Wave 0 tests exist and pass.
 
-**Approval:** pending Phase 09 planning.
+**Approval:** verified 2026-06-15.
