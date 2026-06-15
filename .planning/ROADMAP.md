@@ -379,13 +379,29 @@ Plans:
 
 **Plans:** 7 plans
 Plans:
+**Wave 1**
 
 - [ ] 10-01-PLAN.md - Replay fixtures and full-chain visualizer replay test.
-- [ ] 10-02-PLAN.md - Desktop diagnostic event schema and control adapter.
 - [ ] 10-03-PLAN.md - Android diagnostic reporter and dashboard rows.
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 10-02-PLAN.md - Desktop diagnostic event schema and control adapter.
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 10-04-PLAN.md - Desktop visualizer diagnostic rendering.
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
 - [ ] 10-05-PLAN.md - Sanitized diagnostic export and redaction gate.
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
 - [ ] 10-06-PLAN.md - Android setup, LAN security, replay troubleshooting, limits docs, and docs guard.
+
+**Wave 6** *(blocked on Wave 5 completion)*
+
 - [ ] 10-07-PLAN.md - Version 1 docs index and closeout validation audit.
 
 ## Progress
