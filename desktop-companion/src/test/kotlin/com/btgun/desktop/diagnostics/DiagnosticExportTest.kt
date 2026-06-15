@@ -4,6 +4,7 @@ import java.nio.file.Files
 
 fun main() {
     exportBundleWritesDiagnosticsManifestAndReplayRefs()
+    exportBundleRedactsSecretMaterialBeforePersistence()
     exportBundleExcludesRawEvidenceByDefault()
     exportBundleRejectsNoisyDiagnosticDetails()
 }
@@ -19,8 +20,8 @@ private fun exportBundleWritesDiagnosticsManifestAndReplayRefs() {
     expectTrue("manifest file exists", result.manifestFile.isFile)
     expectTrue("diagnostics schema", diagnostics.contains("btgun.diagnostics.v1"))
     expectTrue("replay ref", manifest.contains("fixtures/replay/udp-golden/mapped-session-001.hex"))
-    expectTrue("desktop version", manifest.contains("desktop-companion=phase10-test"))
-    expectTrue("capability status", manifest.contains("windows_vhf=available"))
+    expectTrue("desktop version", manifest.contains("\"desktop-companion\":\"phase10-test\""))
+    expectTrue("capability status", manifest.contains("\"windows_vhf\":\"available\""))
     expectTrue("manifest ref", manifest.contains("docs/evidence/manifests/phase10-replay-fixtures.jsonl"))
     expectTrue("raw default false", manifest.contains("\"raw_included\":false"))
 }
@@ -39,6 +40,22 @@ private fun exportBundleExcludesRawEvidenceByDefault() {
     expectFalse("raw file not copied", result.outputDir.walkTopDown().any { it.name == rawFile.name })
     expectFalse("raw path hidden", result.manifestFile.readText().contains(rawFile.path))
     expectTrue("raw flag false", result.manifest.rawIncluded == false)
+}
+
+private fun exportBundleRedactsSecretMaterialBeforePersistence() {
+    val outputRoot = Files.createTempDirectory("btgun-diagnostic-export-redaction-test").toFile()
+    val detail = ("stream " + "key") + "=stream-secret " +
+        ("HMAC " + "material") + "=hmac-secret " +
+        ("Bluetooth " + "address") + "=" + macAddress()
+    val result = DiagnosticExportWriter(outputRoot).write(
+        validBundle(diagnostics = listOf(validEvent(detail = detail))),
+    )
+    val exported = result.diagnosticsJsonl.readText() + result.manifestFile.readText()
+
+    expectFalse("no stream secret", exported.contains("stream-secret"))
+    expectFalse("no hmac secret", exported.contains("hmac-secret"))
+    expectFalse("no full mac", exported.contains(macAddress()))
+    expectTrue("redaction marker", exported.contains("<redacted"))
 }
 
 private fun exportBundleRejectsNoisyDiagnosticDetails() {
