@@ -1,0 +1,25 @@
+# Phase 1 local evidence and generated reverse-engineering output
+.evidence/phase1/raw/
+.evidence/phase1/hci/
+.evidence/phase1/decompile/
+.evidence/phase1/app-logs/
+.evidence/phase2/host-live-input/
+.evidence/phase4/input-haptic-transport/
+.evidence/phase8/android-profile-ui/
+.evidence/phase10/
+docs/refs/*.apk
+docs/refs/*.xapk
+
+# Throwaway Android diagnostic build output
+android-diagnostic/.gradle/
+android-diagnostic/.kotlin/
+android-diagnostic/build/
+android-diagnostic/app/build/
+
+# Desktop companion build output
+desktop-companion/.gradle/
+desktop-companion/.kotlin/
+desktop-companion/build/
+
+# Local macOS metadata
+.DS_Store

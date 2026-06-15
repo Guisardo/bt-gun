@@ -1,0 +1,322 @@
+name: windows-driver
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/windows-driver.yml"
+      - "windows/btgun-vjoy/**"
+
+permissions:
+  contents: read
+
+jobs:
+  build-sign-package:
+    name: Build, test-sign, and package BT Gun VJoy
+    runs-on: windows-2022
+    timeout-minutes: 45
+
+    env:
+      BUILD_CONFIGURATION: Release
+      BUILD_PLATFORM: x64
+      ARTIFACT_NAME: btgun-vjoy-windows-x64-testsigned
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Ensure Windows Driver Kit tools
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\Installer\vswhere.exe"
+          if (-not (Test-Path $vswhere)) {
+            throw "vswhere.exe was not found on the GitHub-hosted Windows runner."
+          }
+          $vsInstall = & $vswhere -latest -products * -requires Microsoft.Component.MSBuild -property installationPath
+          if (-not $vsInstall) {
+            throw "Visual Studio with MSBuild was not found on the GitHub-hosted Windows runner."
+          }
+          $wdkToolsetProps = Join-Path $vsInstall "MSBuild\Microsoft\VC\v170\Platforms\x64\PlatformToolsets\WindowsKernelModeDriver10.0\Toolset.props"
+          $kitsBin = Join-Path ${env:ProgramFiles(x86)} "Windows Kits\10\bin"
+          $kitsInclude = Join-Path ${env:ProgramFiles(x86)} "Windows Kits\10\Include"
+          $kitsLib = Join-Path ${env:ProgramFiles(x86)} "Windows Kits\10\Lib"
+          $inf2cat = Get-ChildItem $kitsBin -Recurse -Filter inf2cat.exe -ErrorAction SilentlyContinue |
+            Sort-Object @{ Expression = { if ($_.FullName -match "\\x64\\") { 0 } else { 1 } } }, FullName |
+            Select-Object -First 1
+          $signtool = Get-ChildItem $kitsBin -Recurse -Filter signtool.exe -ErrorAction SilentlyContinue |
+            Sort-Object @{ Expression = { if ($_.FullName -match "\\x64\\") { 0 } else { 1 } } }, FullName |
+            Select-Object -First 1
+          $ntddk = Get-ChildItem $kitsInclude -Recurse -Filter ntddk.h -ErrorAction SilentlyContinue | Select-Object -First 1
+          $vhfHeader = Get-ChildItem $kitsInclude -Recurse -Filter vhf.h -ErrorAction SilentlyContinue | Select-Object -First 1
+          $vhfLib = Get-ChildItem $kitsLib -Recurse -Filter vhfkm.lib -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -match "\\km\\x64\\vhfkm\.lib$" } |
+            Select-Object -First 1
+          if ($inf2cat -and $signtool -and $ntddk -and $vhfHeader -and $vhfLib -and (Test-Path $wdkToolsetProps)) {
+            "WDK tools already available on runner."
+            exit 0
+          }
+          if ((-not $inf2cat) -or (-not $signtool) -or (-not $ntddk) -or (-not $vhfHeader) -or (-not $vhfLib)) {
+            if (-not (Get-Command choco -ErrorAction SilentlyContinue)) {
+              throw "Chocolatey is required to install windowsdriverkit10 on the GitHub-hosted runner."
+            }
+            choco install windowsdriverkit10 -y --no-progress
+          }
+          if (-not (Test-Path $wdkToolsetProps)) {
+            $wdkVsixRoot = Join-Path ${env:ProgramFiles(x86)} "Windows Kits\10\Vsix\VS2022"
+            $wdkVsix = Get-ChildItem $wdkVsixRoot -Recurse -Filter WDK.vsix -ErrorAction SilentlyContinue |
+              Sort-Object FullName -Descending |
+              Select-Object -First 1
+            if (-not $wdkVsix) {
+              throw "WDK.vsix was not found under $wdkVsixRoot."
+            }
+            $vsixInstaller = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\Installer\resources\app\ServiceHub\Services\Microsoft.VisualStudio.Setup.Service\VSIXInstaller.exe"
+            if (-not (Test-Path $vsixInstaller)) {
+              $vsixInstaller = Join-Path $vsInstall "Common7\IDE\VSIXInstaller.exe"
+            }
+            if (-not (Test-Path $vsixInstaller)) {
+              throw "VSIXInstaller.exe was not found for WDK Visual Studio integration."
+            }
+            & $vsixInstaller /quiet /admin $wdkVsix.FullName
+            if ($LASTEXITCODE -ne 0) {
+              throw "WDK Visual Studio extension install failed with exit code $LASTEXITCODE."
+            }
+          }
+          if (-not (Test-Path $wdkToolsetProps)) {
+            throw "WindowsKernelModeDriver10.0 MSBuild toolset was not found after WDK Visual Studio extension install."
+          }
+
+      - name: Locate MSBuild and WDK tools
+        id: toolchain
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\Installer\vswhere.exe"
+          if (-not (Test-Path $vswhere)) {
+            throw "vswhere.exe was not found on the GitHub-hosted Windows runner."
+          }
+
+          $msbuild = & $vswhere -latest -products * -requires Microsoft.Component.MSBuild -find "MSBuild\**\Bin\MSBuild.exe" | Select-Object -First 1
+          $vsInstall = & $vswhere -latest -products * -requires Microsoft.Component.MSBuild -property installationPath
+          if (-not $msbuild -or -not (Test-Path $msbuild)) {
+            throw "MSBuild was not found on the GitHub-hosted Windows runner."
+          }
+          $vsDevCmd = Join-Path $vsInstall "Common7\Tools\VsDevCmd.bat"
+          if (-not (Test-Path $vsDevCmd)) {
+            throw "VsDevCmd.bat was not found under $vsInstall."
+          }
+
+          $kitsBin = Join-Path ${env:ProgramFiles(x86)} "Windows Kits\10\bin"
+          $kitsInclude = Join-Path ${env:ProgramFiles(x86)} "Windows Kits\10\Include"
+          $kitsLib = Join-Path ${env:ProgramFiles(x86)} "Windows Kits\10\Lib"
+          $inf2cat = Get-ChildItem $kitsBin -Recurse -Filter inf2cat.exe -ErrorAction SilentlyContinue |
+            Sort-Object @{ Expression = { if ($_.FullName -match "\\x64\\") { 0 } else { 1 } } }, FullName |
+            Select-Object -First 1
+          $signtool = Get-ChildItem $kitsBin -Recurse -Filter signtool.exe -ErrorAction SilentlyContinue |
+            Sort-Object @{ Expression = { if ($_.FullName -match "\\x64\\") { 0 } else { 1 } } }, FullName |
+            Select-Object -First 1
+          $ntddk = Get-ChildItem $kitsInclude -Recurse -Filter ntddk.h -ErrorAction SilentlyContinue |
+            Sort-Object FullName -Descending |
+            Select-Object -First 1
+          $vhfHeader = Get-ChildItem $kitsInclude -Recurse -Filter vhf.h -ErrorAction SilentlyContinue |
+            Sort-Object FullName -Descending |
+            Select-Object -First 1
+          $vhfLib = Get-ChildItem $kitsLib -Recurse -Filter vhfkm.lib -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -match "\\km\\x64\\vhfkm\.lib$" } |
+            Sort-Object FullName -Descending |
+            Select-Object -First 1
+          $wdkToolsetProps = Join-Path $vsInstall "MSBuild\Microsoft\VC\v170\Platforms\x64\PlatformToolsets\WindowsKernelModeDriver10.0\Toolset.props"
+          if (-not $inf2cat) {
+            throw "inf2cat was not found. GitHub runner must include Windows Kits/WDK tooling."
+          }
+          if (-not $signtool) {
+            throw "signtool was not found. GitHub runner must include Windows Kits/WDK tooling."
+          }
+          if (-not $ntddk) {
+            throw "ntddk.h was not found. GitHub runner must include Windows Driver Kit kernel headers."
+          }
+          if (-not $vhfHeader) {
+            throw "vhf.h was not found. GitHub runner must include Windows Driver Kit VHF headers."
+          }
+          if (-not $vhfLib) {
+            throw "vhfkm.lib was not found. GitHub runner must include Windows Driver Kit VHF libraries."
+          }
+          if (-not (Test-Path $wdkToolsetProps)) {
+            throw "WindowsKernelModeDriver10.0 MSBuild toolset was not found. GitHub runner must include WDK Visual Studio integration."
+          }
+          $kernelIncludeRoot = Split-Path $ntddk.DirectoryName -Parent
+          $windowsKitVersion = Split-Path $kernelIncludeRoot -Leaf
+
+          "MSBUILD=$msbuild" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "VSDEVCMD=$vsDevCmd" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "INF2CAT=$($inf2cat.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "SIGNTOOL=$($signtool.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "MSBUILD_VERSION=$(& $msbuild -version -nologo)" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "WDK_BIN_DIR=$($signtool.Directory.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "WDK_NTDDK_HEADER=$($ntddk.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "WDK_VHF_HEADER=$($vhfHeader.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "WDK_VHFKM_LIB=$($vhfLib.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "WDK_TOOLSET_PROPS=$wdkToolsetProps" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "WINDOWS_KIT_VERSION=$windowsKitVersion" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Decode test-signing certificate
+        shell: pwsh
+        env:
+          BTGUN_WINDOWS_TEST_CERT_PFX_BASE64: ${{ secrets.BTGUN_WINDOWS_TEST_CERT_PFX_BASE64 }}
+          BTGUN_WINDOWS_TEST_CERT_PASSWORD: ${{ secrets.BTGUN_WINDOWS_TEST_CERT_PASSWORD }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          if ([string]::IsNullOrWhiteSpace($env:BTGUN_WINDOWS_TEST_CERT_PFX_BASE64)) {
+            throw "BTGUN_WINDOWS_TEST_CERT_PFX_BASE64 secret is required."
+          }
+          if ([string]::IsNullOrWhiteSpace($env:BTGUN_WINDOWS_TEST_CERT_PASSWORD)) {
+            throw "BTGUN_WINDOWS_TEST_CERT_PASSWORD secret is required."
+          }
+          "::add-mask::$env:BTGUN_WINDOWS_TEST_CERT_PASSWORD"
+          $certPath = Join-Path $env:RUNNER_TEMP "btgun-test-signing.pfx"
+          [IO.File]::WriteAllBytes($certPath, [Convert]::FromBase64String($env:BTGUN_WINDOWS_TEST_CERT_PFX_BASE64))
+          "BTGUN_TEST_CERT_PFX=$certPath" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Build KMDF/VHF driver
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $driverOut = Join-Path $env:RUNNER_TEMP "btgun-driver-build"
+          New-Item -ItemType Directory -Force -Path $driverOut | Out-Null
+          & $env:MSBUILD "windows\btgun-vjoy\driver\BtGunVJoy.vcxproj" `
+            /m `
+            /p:Configuration=$env:BUILD_CONFIGURATION `
+            /p:Platform=$env:BUILD_PLATFORM `
+            /p:PlatformToolset=WindowsKernelModeDriver10.0 `
+            /p:WindowsTargetPlatformVersion=$env:WINDOWS_KIT_VERSION `
+            /p:SignMode=Off `
+            /p:OutDir="$driverOut\"
+
+      - name: Build user-mode helper tools
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $toolsOut = Join-Path $env:RUNNER_TEMP "btgun-tools"
+          New-Item -ItemType Directory -Force -Path $toolsOut | Out-Null
+          $driverBridge = Join-Path $toolsOut "btgun-driver-bridge.exe"
+          $outputSender = Join-Path $toolsOut "btgun-hid-output-sender.exe"
+          $devnodeTool = Join-Path $toolsOut "btgun-devnode.exe"
+          $cmdPath = Join-Path $env:RUNNER_TEMP "build-btgun-tools.cmd"
+          $cmd = @"
+          @echo on
+          call "$env:VSDEVCMD" -arch=amd64 -host_arch=amd64
+          cl /nologo /EHsc /std:c++17 /W4 /WX windows\btgun-vjoy\tools\driver-bridge\DriverBridge.cpp /Fe:"$driverBridge" setupapi.lib
+          if errorlevel 1 exit /b %errorlevel%
+          cl /nologo /EHsc /std:c++17 /W4 /WX windows\btgun-vjoy\tools\hid-output-sender\HidOutputSender.cpp /Fe:"$outputSender" setupapi.lib hid.lib
+          if errorlevel 1 exit /b %errorlevel%
+          cl /nologo /EHsc /std:c++17 /W4 /WX windows\btgun-vjoy\tools\devnode\Devnode.cpp /Fe:"$devnodeTool" setupapi.lib
+          if errorlevel 1 exit /b %errorlevel%
+          "@
+          Set-Content -Path $cmdPath -Value $cmd -Encoding ASCII
+          cmd.exe /c "`"$cmdPath`""
+          if ($LASTEXITCODE -ne 0) {
+            throw "helper tool build failed with exit code $LASTEXITCODE"
+          }
+          foreach ($tool in @($driverBridge, $outputSender, $devnodeTool)) {
+            if (-not (Test-Path $tool)) {
+              throw "helper tool build did not produce $tool"
+            }
+          }
+          "BTGUN_TOOLS_OUT=$toolsOut" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Create and sign driver catalog
+        shell: pwsh
+        env:
+          BTGUN_WINDOWS_TEST_CERT_PASSWORD: ${{ secrets.BTGUN_WINDOWS_TEST_CERT_PASSWORD }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $stage = Join-Path $env:RUNNER_TEMP "btgun-driver-stage"
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+          $sys = Get-ChildItem $env:RUNNER_TEMP -Recurse -Filter "BtGunVJoy.sys" | Select-Object -First 1
+          if (-not $sys) {
+            throw "BtGunVJoy.sys was not produced by MSBuild."
+          }
+          Copy-Item $sys.FullName (Join-Path $stage "BtGunVJoy.sys")
+          Copy-Item "windows\btgun-vjoy\package\btgunvjoy.inf" (Join-Path $stage "btgunvjoy.inf")
+
+          & $env:INF2CAT /driver:$stage /os:10_X64 /verbose
+          if ($LASTEXITCODE -ne 0) {
+            throw "inf2cat failed with exit code $LASTEXITCODE"
+          }
+
+          $filesToSign = @(
+            (Join-Path $stage "BtGunVJoy.sys"),
+            (Join-Path $stage "btgunvjoy.cat"),
+            (Join-Path $env:BTGUN_TOOLS_OUT "btgun-driver-bridge.exe"),
+            (Join-Path $env:BTGUN_TOOLS_OUT "btgun-hid-output-sender.exe"),
+            (Join-Path $env:BTGUN_TOOLS_OUT "btgun-devnode.exe")
+          )
+          foreach ($file in $filesToSign) {
+            & $env:SIGNTOOL sign /fd SHA256 /f $env:BTGUN_TEST_CERT_PFX /p $env:BTGUN_WINDOWS_TEST_CERT_PASSWORD $file
+            if ($LASTEXITCODE -ne 0) {
+              throw "signtool failed for $file with exit code $LASTEXITCODE"
+            }
+          }
+          "BTGUN_DRIVER_STAGE=$stage" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Package artifact
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $packageOut = Join-Path $env:RUNNER_TEMP $env:ARTIFACT_NAME
+          .\windows\btgun-vjoy\package\Package-BtGunVJoy.ps1 `
+            -RepoRoot $env:GITHUB_WORKSPACE `
+            -DriverPackageRoot $env:BTGUN_DRIVER_STAGE `
+            -ToolsOutputRoot $env:BTGUN_TOOLS_OUT `
+            -PackageOutputRoot $packageOut `
+            -Configuration $env:BUILD_CONFIGURATION `
+            -Platform $env:BUILD_PLATFORM `
+            -GitSha $env:GITHUB_SHA `
+            -GitRef $env:GITHUB_REF_NAME `
+            -MsBuildVersion $env:MSBUILD_VERSION `
+            -WdkBinDir $env:WDK_BIN_DIR
+          "BTGUN_PACKAGE_OUT=$packageOut" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Assert package contents
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $required = @(
+            "*.sys",
+            "*.inf",
+            "*.cat",
+            "BtGunVJoyIoctl.h",
+            "btgun-driver-bridge.exe",
+            "btgun-hid-output-sender.exe",
+            "btgun-devnode.exe",
+            "Collect-BtGunVJoyEvidence.ps1",
+            "Redact-BtGunVJoyEvidence.ps1",
+            "Install-BtGunVJoy.ps1",
+            "Rollback-BtGunVJoy.ps1",
+            "build-metadata.json"
+          )
+          foreach ($pattern in $required) {
+            if (-not (Get-ChildItem $env:BTGUN_PACKAGE_OUT -Recurse -Filter $pattern | Select-Object -First 1)) {
+              throw "Packaged artifact missing $pattern"
+            }
+          }
+          $forbidden = Get-ChildItem $env:BTGUN_PACKAGE_OUT -Recurse -Include *.pfx,*.p12,*.key,id_rsa -File
+          if ($forbidden) {
+            throw "Packaged artifact contains private key material."
+          }
+
+      - name: Remove transient certificate
+        if: always()
+        shell: pwsh
+        run: |
+          if ($env:BTGUN_TEST_CERT_PFX -and (Test-Path $env:BTGUN_TEST_CERT_PFX)) {
+            Remove-Item $env:BTGUN_TEST_CERT_PFX -Force
+          }
+
+      - name: Upload test-signed package
+        uses: actions/upload-artifact@v4
+        with:
+          name: btgun-vjoy-windows-x64-testsigned
+          path: ${{ env.BTGUN_PACKAGE_OUT }}
+          if-no-files-found: error
+          retention-days: 14

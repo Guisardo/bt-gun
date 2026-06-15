@@ -1,0 +1,9 @@
+{"capture_id":"phase8-automated-android-unit-suite","status":"pass","note":"Android unit suite passed with Java 17 and Android SDK"}
+{"capture_id":"phase8-automated-desktop-unit-suite","status":"pass","note":"Desktop unit suite passed with Java 17"}
+{"capture_id":"phase8-forbidden-label-guard","status":"pass","note":"Forbidden desktop edit raw request and storage labels absent"}
+{"capture_id":"phase8-raw-debug-default-guard","status":"pass","note":"Raw debug defaults off and no source default enables raw debug"}
+{"capture_id":"phase8-dashboard-profile-rows","status":"pass","note":"USB Android dashboard shows active profile mapped settings recenter rule raw debug off and no profile error"}
+{"capture_id":"phase8-profile-list-default","status":"pass","note":"USB Android profile list shows Default Visualizer built in active rev1 duplicate action and no delete action"}
+{"capture_id":"phase8-profile-editor-provider-overrides","status":"pass","note":"USB Android editor shows shared aim settings plus provider override groups with tilt continuation evidence"}
+{"capture_id":"phase8-validation-blocked-save","status":"pass","note":"USB Android invalid aim setting blocks save with Save blocked summary and inline Invalid aim settings error"}
+{"capture_id":"phase8-raw-debug-toggle","status":"pass","note":"USB Android editor shows Android-owned Send raw debug data toggle and session-only helper copy"}

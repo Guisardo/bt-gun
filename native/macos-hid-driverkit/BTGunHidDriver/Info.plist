@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "https://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleDisplayName</key>
+	<string>BT Gun HID Driver</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.btgun.driver.BTGunHidDriver</string>
+	<key>CFBundleName</key>
+	<string>BTGunHidDriver</string>
+	<key>CFBundlePackageType</key>
+	<string>DEXT</string>
+	<key>CFBundleShortVersionString</key>
+	<string>0.7.6</string>
+	<key>CFBundleVersion</key>
+	<string>0.7.6</string>
+	<key>IOKitPersonalities</key>
+	<dict>
+		<key>BTGunHidDriver</key>
+		<dict>
+			<key>CFBundleIdentifier</key>
+			<string>com.btgun.driver.BTGunHidDriver</string>
+			<key>HIDDefaultBehavior</key>
+			<true/>
+			<key>IOClass</key>
+			<string>IOUserService</string>
+			<key>IOProviderClass</key>
+			<string>IOResources</string>
+			<key>IOResourceMatch</key>
+			<string>IOKit</string>
+			<key>IOUserClass</key>
+			<string>BTGunHidDriver</string>
+			<key>Product</key>
+			<string>BT Gun Virtual Joystick</string>
+			<key>ProductID</key>
+			<integer>46855</integer>
+			<key>VendorID</key>
+			<integer>4617</integer>
+		</dict>
+	</dict>
+</dict>
+</plist>

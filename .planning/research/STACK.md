@@ -12,11 +12,15 @@
 |------------|---------|---------|-----------------|
 | Android native app, Kotlin | Pin during implementation | Bluetooth gun host, sensor capture, pairing UI, transport client | Native Android APIs expose Bluetooth, controller input events, sensors, permissions, foreground service behavior, and Wi-Fi/NSD without framework indirection. |
 | Android Bluetooth Classic + BLE APIs | Platform APIs | Connect to the iPega gun and reverse-engineered protocol | Reference apps request legacy Bluetooth permissions and include BLE evidence; Classic SPP fallback should stay available until hardware capture confirms actual transport. |
-| Android SensorManager | Platform APIs | Gyro, rotation vector, calibration, timestamped motion samples | Official Android sensor APIs provide gyroscope and rotation-vector streams with monotonic sensor timestamps. |
-| Local LAN transport | UDP + TCP/WebSocket | Low-latency input stream plus reliable control channel | UDP avoids TCP head-of-line stalls for high-rate aim/input samples; TCP/WebSocket is simpler for pairing, config, diagnostics, heartbeat, and rumble commands. |
+| Android SensorManager | Platform APIs | Motion aim, sensor fusion/fallback, calibration, timestamped motion samples | Official Android sensor APIs provide rotation-vector/game-rotation-vector, gyroscope, accelerometer, and gravity streams with monotonic sensor timestamps. |
+| Local LAN transport | UDP + TCP/WebSocket | Low-latency input stream plus reliable control channel | UDP avoids TCP head-of-line stalls for high-rate aim/input samples; TCP/WebSocket is simpler for pairing, config, diagnostics, heartbeat, and phone haptic commands. |
 | Windows KMDF + Virtual HID Framework | Windows 11 WDK | Product-grade virtual gamepad/joystick HID device | Microsoft VHF is the supported framework for HID source drivers and lets a driver enumerate virtual HID children. |
 | macOS CoreHID HIDVirtualDevice or HIDDriverKit | macOS target dependent | Product-grade virtual HID gamepad on Apple Silicon | CoreHID virtual device is preferred if target macOS/entitlements allow it; HIDDriverKit is the fallback for a system extension based virtual HID path. |
-| Simple desktop visualizer | Native desktop or cross-platform UI | First acceptance harness | A visualizer proves buttons, axes, gyro mapping, recenter, latency, and rumble before game-specific integration. |
+| Simple desktop visualizer | Native desktop or cross-platform UI | First acceptance harness | A visualizer proves buttons, axes, motion mapping, recenter, latency, and phone haptics before game-specific integration. |
+
+### Phase 8 Profile Reroute
+
+Android owns v1 profile storage, editing, validation, and runtime application because Android Bluetooth HID is the primary no-subscription macOS path after Phase 7. The desktop remains read-only for active Android profile metadata and mapped-stream diagnostics. Windows VHF fallback consumes Android-mapped LAN input instead of owning profile authority.
 
 ### Supporting Libraries
 
@@ -27,7 +31,7 @@
 | apktool | Installed locally | Decode Android manifests/resources | Use for reference APK/XAPK static analysis. |
 | jadx | Installed locally | Decompile Java/Kotlin bytecode | Use for Bluetooth bridge classes and protocol clues. |
 | AssetRipper or ILSpy | Pin during reverse-engineering phase | Extract/decompile Unity C# assemblies | Needed because reference apps are Unity/XAPK and protocol logic may live in Unity assets/assemblies. |
-| adb + btsnoop/HCI logs | Android SDK/device tools | Dynamic protocol validation | Use with physical iPega gun to confirm BLE/SPP services, packet bytes, and rumble behavior. |
+| adb + btsnoop/HCI logs | Android SDK/device tools | Dynamic protocol validation | Use with physical iPega gun to confirm BLE/SPP services and packet bytes; physical gun motor research is deferred. |
 | nRF Connect or equivalent BLE scanner | Current Android app | BLE service/characteristic inspection | Use before coding custom GATT handling. |
 
 ### Development Tools
@@ -38,7 +42,7 @@
 | Windows Driver Kit | Build/sign VHF driver | Driver signing, HVCI/Secure Boot behavior, and installer flow are first-class product risks. |
 | Xcode | Build macOS virtual HID helper/driver | CoreHID/DriverKit entitlement availability must be validated early. |
 | Wireshark or packet logger | Transport diagnostics | Capture UDP/TCP timing and packet loss during latency tests. |
-| Joystick visualizer | Acceptance test | Can start as an internal desktop tool, then become the first user-facing diagnostic. |
+| Joystick visualizer | Acceptance test | Can start as an internal desktop tool, then become the first user-facing diagnostic. It consumes Android-mapped state and active profile metadata. |
 
 ## Installation
 
@@ -78,7 +82,7 @@ Apple Developer account with required entitlements
 | Avoid | Why | Use Instead |
 |-------|-----|-------------|
 | Custom HID gun report for v1 | Compatibility risk with visualizers and games | Regular gamepad/joystick HID descriptor |
-| Direct desktop-to-gun Bluetooth in v1 | Original product relies on Android phone + gyro; desktop Bluetooth adds platform-specific complexity | Android host app as the gun bridge |
+| Direct desktop-to-gun Bluetooth in v1 | Original product relies on Android phone motion sensors; desktop Bluetooth adds platform-specific complexity | Android host app as the gun bridge |
 | ViGEmBus as mandatory core | Retired/archived project risk | Custom VHF HID driver as product path |
 | vJoy as mandatory core | Maintenance/signing uncertainty | VHF product path; vJoy only for prototypes |
 | Background-only Android service model | Modern Android can throttle or restrict background behavior, hurting latency | Foreground app/session with explicit active connection UI |
@@ -89,7 +93,7 @@ Apple Developer account with required entitlements
 
 **If the iPega gun exposes Android HID events:**
 - Read `InputDevice`, `KeyEvent`, and `MotionEvent` first.
-- Use Bluetooth protocol reverse engineering only for missing controls or rumble.
+- Use Bluetooth protocol reverse engineering for missing controls. Physical gun motor rumble is deferred for v1.
 
 **If the iPega gun requires proprietary BLE/GATT:**
 - Build a narrow Android protocol adapter around discovered service/characteristics and decoded frames.
@@ -100,8 +104,12 @@ Apple Developer account with required entitlements
 - Keep DriverKit as fallback for older target or entitlement constraints.
 
 **If macOS CoreHID path is blocked:**
-- Use DriverKit/HIDDriverKit packaged in a system extension app.
-- Plan for user approval, entitlement, signing, and installer work early.
+- Use Android Bluetooth HID as the primary no-subscription macOS input path already proven in Phase 7.
+- Keep DriverKit/HIDDriverKit only as retained fallback evidence unless a later plan explicitly revives it with approval.
+
+**If Windows fallback is active:**
+- Keep Windows VHF/KMDF as the OS-visible fallback backend.
+- Consume Android-mapped LAN input and active Android profile metadata; do not add desktop profile editing authority in Phase 8.
 
 ## Version Compatibility
 
@@ -115,7 +123,7 @@ Apple Developer account with required entitlements
 ## Sources
 
 - Android controller input docs - `KeyEvent`, `MotionEvent`, and controller `InputDevice` path.
-- Android motion sensor docs - gyroscope, rotation vector, and sensor framework.
+- Android motion sensor docs - gyroscope, accelerometer, gravity, rotation vector, game rotation vector, and sensor framework.
 - Android Bluetooth docs - platform Bluetooth stack and permissions.
 - Android NSD docs - local network service discovery on Wi-Fi/LAN.
 - Microsoft Virtual HID Framework docs - Windows HID source driver path.
