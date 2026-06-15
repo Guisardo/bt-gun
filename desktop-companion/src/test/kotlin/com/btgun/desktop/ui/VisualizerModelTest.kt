@@ -174,6 +174,10 @@ private fun finalChecklistCannotPassUntilRequiredRowsReachAcceptedStates() {
                 observedElapsedNanos = 5_000_000L,
             ),
         )
+        .withMacosBackendDiagnostics(
+            diagnostics = MacosBackendRuntimeDiagnostics(),
+            observedElapsedNanos = 6_000_000L,
+        )
 
     expectEquals("observed still pending", VisualizerChecklistSummary.PENDING, observed.checklistSummary())
 
@@ -185,6 +189,17 @@ private fun finalChecklistCannotPassUntilRequiredRowsReachAcceptedStates() {
         .confirmRow(VisualizerChecklistRowId.WINDOWS_VHF_HAPTIC)
 
     expectEquals("macOS limitation still needed", VisualizerChecklistSummary.PENDING, almost.checklistSummary())
+    val unobservedLimit = almost.copy(
+        checklistRows = almost.checklistRows.updateForTest(VisualizerChecklistRowId.MACOS_HID_HAPTIC_LIMIT) { row ->
+            row.copy(state = VisualizerChecklistState.WAITING, observedSource = null)
+        },
+    )
+    expectEquals(
+        "unobserved limitation cannot be confirmed",
+        VisualizerChecklistState.WAITING,
+        unobservedLimit.confirmLimitation(VisualizerChecklistRowId.MACOS_HID_HAPTIC_LIMIT)
+            .row(VisualizerChecklistRowId.MACOS_HID_HAPTIC_LIMIT).state,
+    )
 
     val passing = almost.confirmLimitation(VisualizerChecklistRowId.MACOS_HID_HAPTIC_LIMIT)
     expectEquals("all required proof accepted", VisualizerChecklistSummary.PASSING, passing.checklistSummary())
@@ -620,3 +635,9 @@ private fun expectTrue(label: String, condition: Boolean) {
         throw AssertionError(label)
     }
 }
+
+private fun List<VisualizerChecklistRow>.updateForTest(
+    id: VisualizerChecklistRowId,
+    transform: (VisualizerChecklistRow) -> VisualizerChecklistRow,
+): List<VisualizerChecklistRow> =
+    map { row -> if (row.id == id) transform(row) else row }

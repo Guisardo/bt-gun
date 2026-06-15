@@ -4,9 +4,11 @@ import java.nio.file.Files
 
 fun main() {
     exportBundleWritesDiagnosticsManifestAndReplayRefs()
+    exportBundleRejectsPathTraversalBundleIds()
     exportBundleRedactsSecretMaterialBeforePersistence()
     exportBundleExcludesRawEvidenceByDefault()
     exportBundleRejectsNoisyDiagnosticDetails()
+    exportBundleEscapesJsonControlCharacters()
 }
 
 private fun exportBundleWritesDiagnosticsManifestAndReplayRefs() {
@@ -24,6 +26,17 @@ private fun exportBundleWritesDiagnosticsManifestAndReplayRefs() {
     expectTrue("capability status", manifest.contains("\"windows_vhf\":\"available\""))
     expectTrue("manifest ref", manifest.contains("docs/evidence/manifests/phase10-replay-fixtures.jsonl"))
     expectTrue("raw default false", manifest.contains("\"raw_included\":false"))
+}
+
+private fun exportBundleRejectsPathTraversalBundleIds() {
+    val outputRoot = Files.createTempDirectory("btgun-diagnostic-export-traversal-test").toFile()
+
+    listOf(".", "..").forEach { bundleId ->
+        val result = DiagnosticExportWriter(outputRoot).write(validBundle(bundleId = bundleId))
+
+        expectEquals("fallback bundle id", "diagnostic-export", result.outputDir.name)
+        expectTrue("output stays under root", result.outputDir.canonicalPath.startsWith(outputRoot.canonicalPath))
+    }
 }
 
 private fun exportBundleExcludesRawEvidenceByDefault() {
@@ -58,6 +71,21 @@ private fun exportBundleRedactsSecretMaterialBeforePersistence() {
     expectTrue("redaction marker", exported.contains("<redacted"))
 }
 
+private fun exportBundleEscapesJsonControlCharacters() {
+    val outputRoot = Files.createTempDirectory("btgun-diagnostic-export-control-test").toFile()
+    val result = DiagnosticExportWriter(outputRoot).write(
+        validBundle(
+            diagnostics = listOf(validEvent(detail = "contains backspace \b and formfeed \u000c")),
+        ),
+    )
+
+    val exported = result.diagnosticsJsonl.readText()
+    expectTrue("backspace escaped", exported.contains("\\u0008"))
+    expectTrue("formfeed escaped", exported.contains("\\u000c"))
+    expectFalse("raw backspace absent", exported.contains('\b'))
+    expectFalse("raw formfeed absent", exported.contains('\u000c'))
+}
+
 private fun exportBundleRejectsNoisyDiagnosticDetails() {
     val outputRoot = Files.createTempDirectory("btgun-diagnostic-export-noisy-test").toFile()
     val noisy = validEvent(detail = "x".repeat(513))
@@ -70,11 +98,12 @@ private fun exportBundleRejectsNoisyDiagnosticDetails() {
 }
 
 private fun validBundle(
+    bundleId: String = "phase10-export-001",
     diagnostics: List<DiagnosticEvent> = listOf(validEvent()),
     rawEvidencePaths: List<String> = emptyList(),
 ): DiagnosticExportBundle =
     DiagnosticExportBundle(
-        bundleId = "phase10-export-001",
+        bundleId = bundleId,
         createdElapsed = 42_000L,
         diagnostics = diagnostics,
         replayRefs = listOf(

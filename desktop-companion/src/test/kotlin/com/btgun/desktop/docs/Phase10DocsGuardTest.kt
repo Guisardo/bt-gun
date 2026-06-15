@@ -20,6 +20,17 @@ private val requiredDocs = listOf(
     "docs/limits/v1-compatibility-limits.md",
 )
 
+private val phase10PublicArtifacts = requiredDocs + listOf(
+    "docs/v1.md",
+    "docs/evidence/manifests/phase10-diagnostic-export.jsonl",
+    "docs/evidence/manifests/phase10-replay-fixtures.jsonl",
+    "docs/evidence/manifests/phase10-v1-closeout.jsonl",
+    "fixtures/replay/README.md",
+    "fixtures/replay/udp-golden/mapped-session-001.hex",
+    "fixtures/replay/udp-golden/mapped-session-001.jsonl",
+    "fixtures/replay/expected/mapped-session-001-visualizer.json",
+)
+
 private fun requiredDocsExist() {
     requiredDocs.forEach { path ->
         expectTrue("required doc exists: $path", repoFile(path).isFile)
@@ -120,7 +131,7 @@ private fun knownLimitRowsRequireEvidenceAndNextProof() {
 }
 
 private fun docsExcludeForbiddenEvidenceTerms() {
-    val docs = requiredDocs.associateWith(::readDoc)
+    val docs = phase10PublicArtifacts.associateWith(::readDoc)
     val forbiddenLiterals = listOf(
         "qr_" + "secret",
         "manual " + "code",

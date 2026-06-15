@@ -152,6 +152,9 @@ class VisualizerWindow(
         recenter.text = labelsHtml(recenterStatusLabels(model))
         diagnostics.text = labelsHtml(diagnosticStatusLabels(model.diagnosticSummary))
         hapticAction.isEnabled = controlServer != null && hapticButtonEnabled(model.controlSessionState)
+        confirmLimitationAction.isEnabled = model.checklistRows
+            .firstOrNull { row -> row.id == VisualizerChecklistRowId.MACOS_HID_HAPTIC_LIMIT }
+            ?.state == VisualizerChecklistState.OBSERVED
         events.text = labelsHtml(
             VisualizerPanels.eventStripLabels(
                 events = model.productEvents,

@@ -78,6 +78,9 @@ private fun androidDiagnosticEventRejectsOrRedactsUnsafeValues() {
         context = mapOf(
             "qr_" + "secret" to "secret-value",
             "hmac_" + "key" to "hmac-value",
+            "android_id" to "pixel-123456",
+            "android-id" to "pixel-234567",
+            "Android ID" to "pixel-345678",
             "safe_hint" to "macOS output callback unsupported",
         ),
     ).toJsonBody().toString()
@@ -90,6 +93,9 @@ private fun androidDiagnosticEventRejectsOrRedactsUnsafeValues() {
         "feedface",
         "secret-value",
         "hmac-value",
+        "pixel-123456",
+        "pixel-234567",
+        "pixel-345678",
     ).forEach { forbidden ->
         expectFalse("redacts $forbidden", encoded.contains(forbidden, ignoreCase = true))
     }

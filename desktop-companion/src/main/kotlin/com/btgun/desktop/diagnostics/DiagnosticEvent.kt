@@ -65,6 +65,7 @@ data class DiagnosticEvent(
             if (schema != SCHEMA) add("invalid schema")
             if (tsElapsed < 0L) add("negative ts_elapsed")
             if (!REASON_CODE_PATTERN.matches(reasonCode)) add("invalid reason_code")
+            if (!reasonCode.startsWith(domain.wireName + ".")) add("reason_code domain mismatch")
             if (containsUnsafeText(detail)) add("unsafe detail")
             addAll(sessionRefs.validationErrors())
             if (safeContext().size != context.size || context.any { containsUnsafeText(it.key) || containsUnsafeText(it.value) }) {
@@ -135,12 +136,20 @@ private val REASON_CODE_PATTERN = Regex("[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+")
 private val UNSAFE_TEXT_PATTERN = Regex(
     "(?i)(qr[_ -]?secret|pairing[_ -]?proof|stream[_ -]?key|hmac[_ -]?key|private[_ -]?key|bluetooth[_ -]?address|android[_ -]?id|raw[_ -]?screenshot|raw[_ -]?log|[0-9a-f]{2}(:[0-9a-f]{2}){5})",
 )
+private val LONG_HEX_PATTERN = Regex("(?i)\\b[0-9a-f]{16,}\\b")
 
 private fun safeRef(value: String?): String? =
     value
         ?.trim()
         ?.takeIf { it.isNotEmpty() }
-        ?.let { SecretRedactor.redact(it).replace(UNSAFE_TEXT_PATTERN, "<redacted>").takeLast(MAX_REF_CHARS) }
+        ?.let {
+            SecretRedactor.redact(it)
+                .replace(LONG_HEX_PATTERN) { match -> "suffix-" + match.value.takeLast(8) }
+                .replace(UNSAFE_TEXT_PATTERN, "<redacted>")
+                .let { safe -> if (safe.length > MAX_REF_CHARS) safe.takeLast(MAX_REF_CHARS) else safe }
+        }
 
 private fun containsUnsafeText(value: String): Boolean =
-    UNSAFE_TEXT_PATTERN.containsMatchIn(value) || SecretRedactor.redact(value) != value
+    UNSAFE_TEXT_PATTERN.containsMatchIn(value) ||
+        LONG_HEX_PATTERN.containsMatchIn(value) ||
+        SecretRedactor.redact(value) != value
