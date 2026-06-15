@@ -1,0 +1,30 @@
+# v1 Compatibility Limits
+
+This matrix names what v1 supports, what it explicitly does not support, and what evidence is required to change any non-supported row. Status values are fixed: `supported`, `unsupported`, `fallback`, `deferred`.
+
+## Matrix
+
+| Area | Status | v1 behavior | Evidence | Next proof needed |
+|------|--------|-------------|----------|-------------------|
+| Android phone as Bluetooth HID gamepad for macOS input | supported | macOS Apple Silicon sees the Android phone as a normal gamepad-style joystick for gun controls and aim. | `docs/evidence/manifests/phase7-android-bluetooth-hid.jsonl#phase7-gamecontroller-input` | None for v1 input; rerun Phase 7 proof after descriptor changes. |
+| Windows VHF virtual joystick path | supported | Windows 11 x64 sees BT Gun VJoy as a regular gamepad-style joystick with output-to-phone-haptic path. | `docs/evidence/manifests/phase6-windows-virtual-joystick.jsonl#phase6-joy-cpl-visible` and `#phase6-hid-output-report-phone-haptic` | None for v1 fallback/primary Windows path; rerun target checklist after driver package changes. |
+| LAN visualizer and diagnostics path | supported | Desktop companion pairs over LAN, receives authenticated input, renders visualizer diagnostics, and sends phone haptics. | Phase 9 UAT plus `docs/evidence/manifests/phase10-replay-fixtures.jsonl` and `docs/evidence/manifests/phase10-diagnostic-export.jsonl` | Rerun visualizer UAT when control, UDP, profile, or visualizer model changes. |
+| Android setup/build/device testing workflow | supported | Repo documents Java 17, Android SDK, Gradle env workaround, install, permissions, USB capture, gun, HID, LAN, and blockers. | `docs/setup/android-build-device-testing.md` | Rerun Android build/install smoke after AGP, SDK, permission, or app entrypoint changes. |
+| LAN session protocol/security docs | supported | Repo links canonical schemas and documents pairing, authenticated control, replay guard, lifecycle, haptics, diagnostics, replay fixtures, and redaction. | `docs/protocol/lan-session-security-v1.md` | Rerun docs guard after protocol schema or control message changes. |
+| Direct desktop-to-gun Bluetooth | unsupported | v1 does not connect macOS or Windows directly to the iPega gun; Android remains the gun host and motion source. | `.planning/PROJECT.md` out-of-scope section; Phase 1 BLE evidence validates Android-hosted path. | New v2 plan with desktop Bluetooth stack, real hardware capture, normalized fixtures, and OS-specific connection proof. |
+| Physical gun motor rumble | deferred | v1 uses Android phone vibration. No verified motor command path exists for the physical gun. | `.planning/PROJECT.md` haptic decision; Phase 1 phone haptic fallback evidence. | Hardware capture showing motor command bytes, parser mapping, Android execution path, and physical confirmation. |
+| Game-specific presets | deferred | v1 ships Default Visualizer profile and Android profile editor behavior; no named game/emulator presets. | `.planning/REQUIREMENTS.md` out-of-scope `First-class game integrations`; Phase 8 Default Visualizer profile. | New game-profile requirements, per-game mapping evidence, and UAT against target game/emulator. |
+| macOS HID haptics | unsupported | macOS browser/GameController haptics through Android Bluetooth HID are not available for the stable descriptor. Use LAN or Windows VHF phone-haptic paths. | `docs/evidence/manifests/phase7-android-bluetooth-hid.jsonl#phase7-macos-output-unsupported` and `#phase7-20260611-macos-haptics-deferred`. | Host-origin output callback or haptic API proof on macOS that reaches Android and starts phone haptic without breaking input visibility. |
+| Android HID phone compatibility | fallback | The current phone passed HID proxy, registration, pairing, and macOS input. Other Android phones/OEMs can block HID Device role. | `docs/setup/android-bluetooth-hid-gamepad.md` compatibility gate; Phase 7 manifest current-phone pass rows. | Alternate-phone compatibility matrix with HID proxy/register/pair/input rows; select Windows VHF when target phone blocks. |
+| CoreHID or DriverKit macOS virtual HID | fallback | Retained only as blocked/fallback evidence. Android Bluetooth HID is the no-subscription macOS input path. | Phase 7 state decisions `corehid-runtime-blocked`; `docs/setup/macos-virtual-hid.md`; `docs/setup/macos-driverkit-fallback.md`. | Entitlement-capable or approved local-security proof with OS-visible input, rollback docs, and explicit new planning. |
+| Custom gun-specific HID report | unsupported | v1 exposes regular gamepad-style joystick shape for compatibility. | `.planning/PROJECT.md` constraint and Phase 5/6/7 descriptor decisions. | New compatibility research proving target games need custom report and that both macOS/Windows can accept it safely. |
+| Multi-gun sessions | deferred | v1 uses one active gun/session path. | `.planning/REQUIREMENTS.md` v2 `MD2-*` rows. | Identity, pairing, stream, diagnostics, visualizer, and OS backend work for multiple simultaneous devices. |
+
+## Interpretation Rules
+
+- `supported` means v1 has committed implementation, docs, and evidence pointers.
+- `unsupported` means do not advertise, implement around, or rely on the behavior in v1.
+- `fallback` means usable only under the stated condition or as a retained alternate path.
+- `deferred` means intentionally saved for a later requirement set.
+
+Every unsupported, fallback, or deferred row above has evidence and next proof text. Do not replace those with softer phrases or assumptions.
