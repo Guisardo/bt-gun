@@ -115,7 +115,7 @@ private data class ReplayResult(
 )
 
 private fun replayDatagrams(): List<ByteArray> {
-    val file = File("fixtures/replay/udp-golden/mapped-session-001.hex")
+    val file = repoFile("fixtures/replay/udp-golden/mapped-session-001.hex")
     if (!file.exists()) {
         throw AssertionError("missing replay hex fixture: ${file.path}")
     }
@@ -126,11 +126,19 @@ private fun replayDatagrams(): List<ByteArray> {
 }
 
 private fun expectedVisualizer(): JsonObject {
-    val file = File("fixtures/replay/expected/mapped-session-001-visualizer.json")
+    val file = repoFile("fixtures/replay/expected/mapped-session-001-visualizer.json")
     if (!file.exists()) {
         throw AssertionError("missing replay expected visualizer snapshot: ${file.path}")
     }
     return Json.parseToJsonElement(file.readText()).jsonObject
+}
+
+private fun repoFile(path: String): File {
+    val current = File(path)
+    if (current.exists()) return current
+    val parent = File("../$path")
+    if (parent.exists()) return parent
+    return current
 }
 
 private fun fixtureConfig(): InputStreamConfig =

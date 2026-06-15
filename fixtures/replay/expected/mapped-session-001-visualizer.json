@@ -1,0 +1,54 @@
+{
+  "schema": "btgun.replay.visualizer_expected.v1",
+  "fixture_id": "mapped-session-001",
+  "stream": {
+    "controlSessionRef": "control-session-fixture",
+    "streamSessionRef": "stream-session-suffix-ddeeff"
+  },
+  "mapped_state": {
+    "trigger": false,
+    "reload": false,
+    "a": true,
+    "b": true,
+    "x": false,
+    "y": false,
+    "stickX": 12345,
+    "stickY": -12345,
+    "aimX": 0.375,
+    "aimY": -0.625,
+    "sourceSequence": 42
+  },
+  "final_state": {
+    "trigger": false,
+    "reload": false,
+    "a": true,
+    "b": false,
+    "x": false,
+    "y": false,
+    "stickX": -32768,
+    "stickY": 32767,
+    "aimX": -0.5,
+    "aimY": 0.25,
+    "sourceSequence": 43
+  },
+  "metrics": {
+    "packetExpected": 2,
+    "packetMissed": 0,
+    "packetLossPercent": 0.0,
+    "targetStatus": "pass",
+    "offsetQuality": "estimated"
+  },
+  "checklist": {
+    "observedRows": [
+      "lan_visualizer_stream",
+      "live_controls",
+      "latency_target",
+      "packet_loss"
+    ]
+  },
+  "timing": {
+    "offsetQuality": "estimated",
+    "directAndroidToDesktopClockSubtraction": false,
+    "source": "udp_send_to_receive_estimate"
+  }
+}
