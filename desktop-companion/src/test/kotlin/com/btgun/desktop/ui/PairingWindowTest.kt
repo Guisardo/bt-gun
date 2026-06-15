@@ -9,6 +9,7 @@ import com.btgun.desktop.control.HapticSendResult
 import com.btgun.desktop.haptics.HapticResult
 import com.btgun.desktop.haptics.HapticResultStatus
 import com.btgun.desktop.transport.InputStreamLifecycleState
+import java.awt.Dimension
 import java.io.File
 import javax.swing.plaf.basic.BasicHTML
 
@@ -23,6 +24,7 @@ fun main() {
     pairingWindowDoesNotRenderVisualizerOnlyPanels()
     pairingWindowForbiddenDesktopProfileControlsAbsent()
     pairingWindowBoundsSidePanelLabels()
+    pairingWindowCapsPackedHeightToScreen()
 }
 
 private fun pairingWindowExposesOnlyConciseTransportStateLabels() {
@@ -230,6 +232,26 @@ private fun pairingWindowBoundsSidePanelLabels() {
     ).forEach { expected ->
         expectContains("side panel sizing contains $expected", source, expected)
     }
+}
+
+private fun pairingWindowCapsPackedHeightToScreen() {
+    val capped = DesktopWindowFit.constrainedFrameSize(
+        packedSize = Dimension(980, 980),
+        usableScreenSize = Dimension(1366, 768),
+    )
+    val compact = DesktopWindowFit.constrainedFrameSize(
+        packedSize = Dimension(900, 560),
+        usableScreenSize = Dimension(1366, 768),
+    )
+    val source = File("src/main/kotlin/com/btgun/desktop/ui/PairingWindow.kt")
+        .takeIf { it.exists() }
+        ?.readText()
+        .orEmpty()
+
+    expectEquals("caps height below 768p screen", 720, capped.height)
+    expectEquals("keeps compact height", 560, compact.height)
+    expectContains("pairing content scrolls", source, "DesktopWindowFit.scrollableContent(content())")
+    expectContains("pairing frame fits screen", source, "DesktopWindowFit.fitToScreen(frame)")
 }
 
 private fun expectEquals(label: String, expected: Any?, actual: Any?) {
