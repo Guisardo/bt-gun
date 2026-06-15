@@ -12,6 +12,7 @@ import com.btgun.desktop.haptics.HapticResult
 import com.btgun.desktop.haptics.HapticResultStatus
 import com.btgun.desktop.transport.InputReplayRejectReason
 import com.btgun.desktop.transport.InputStreamLifecycleState
+import java.awt.Dimension
 import java.io.File
 
 fun main() {
@@ -39,6 +40,7 @@ fun main() {
     visualizerCoordinatorAppliesLiveInputProfileMetricsAndRejections()
     visualizerCoordinatorPreservesChecklistAndContextOnDisconnect()
     mainWiresEventHubVisualizerFactoryAndPairingWindow()
+    visualizerWindowCapsPackedHeightToScreen()
 }
 
 private fun visualizerWindowExposesUiSpecCopyWithoutLaunchingSwing() {
@@ -595,6 +597,21 @@ private fun mainWiresEventHubVisualizerFactoryAndPairingWindow() {
     ).forEach { expected ->
         expectContains("main wiring contains $expected", source, expected)
     }
+}
+
+private fun visualizerWindowCapsPackedHeightToScreen() {
+    val capped = DesktopWindowFit.constrainedFrameSize(
+        packedSize = Dimension(1180, 1100),
+        usableScreenSize = Dimension(1366, 768),
+    )
+    val source = File("src/main/kotlin/com/btgun/desktop/ui/VisualizerWindow.kt")
+        .takeIf { it.exists() }
+        ?.readText()
+        .orEmpty()
+
+    expectEquals("caps visualizer height below 768p screen", 720, capped.height)
+    expectContains("visualizer content scrolls", source, "DesktopWindowFit.scrollableContent(content())")
+    expectContains("visualizer frame fits screen", source, "DesktopWindowFit.fitToScreen(frame)")
 }
 
 private fun acceptedInputForWindow(

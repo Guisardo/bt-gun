@@ -98,7 +98,7 @@ class VisualizerWindow(
                 session.text = resetChecklistConfirmationCopy()
             }
         }
-        frame.contentPane.add(content(), BorderLayout.CENTER)
+        frame.contentPane.add(DesktopWindowFit.scrollableContent(content()), BorderLayout.CENTER)
         frame.addWindowListener(
             object : WindowAdapter() {
                 override fun windowClosing(event: WindowEvent) {
@@ -107,6 +107,7 @@ class VisualizerWindow(
             },
         )
         frame.pack()
+        DesktopWindowFit.fitToScreen(frame)
         frame.setLocationRelativeTo(null)
     }
 

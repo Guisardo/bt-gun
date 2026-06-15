@@ -159,7 +159,7 @@ class PairingWindow(
         }
 
         frame.defaultCloseOperation = JFrame.EXIT_ON_CLOSE
-        frame.contentPane.add(content(), BorderLayout.CENTER)
+        frame.contentPane.add(DesktopWindowFit.scrollableContent(content()), BorderLayout.CENTER)
         frame.addWindowListener(
             object : WindowAdapter() {
                 override fun windowClosing(event: WindowEvent) {
@@ -171,6 +171,7 @@ class PairingWindow(
             },
         )
         frame.pack()
+        DesktopWindowFit.fitToScreen(frame)
         frame.setLocationRelativeTo(null)
 
         Timer(1_000) {
@@ -245,6 +246,7 @@ class PairingWindow(
         manual.text = manualFallbackHtml(current.manualPayload)
         refreshSession()
         frame.pack()
+        DesktopWindowFit.fitToScreen(frame)
     }
 
     private fun startControlServer(current: PairingSession) {
