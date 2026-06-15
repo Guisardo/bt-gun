@@ -8,8 +8,10 @@ fun main() {
     diagnosticEventExposesRequiredWireFields()
     diagnosticEventValidationRejectsUnsafeValues()
     diagnosticEventRejectsWrongDomainReasonCode()
+    diagnosticEventRedactsFullIdentifiersFromDetail()
     sessionRefsExposeRedactedFieldsOnly()
     sessionRefsTruncateLongHexIdentifiers()
+    sessionRefsTruncateUuidIdentifiers()
     controlDiagnosticsProducesLanControlDiagnosticEvent()
 }
 
@@ -63,6 +65,16 @@ private fun diagnosticEventRejectsWrongDomainReasonCode() {
     expectEquals("domain mismatch", listOf("reason_code domain mismatch"), event.validationErrors())
 }
 
+private fun diagnosticEventRedactsFullIdentifiersFromDetail() {
+    val event = validEvent(detail = "stream_session=00112233445566778899aabbccddeeff control_session=550e8400-e29b-41d4-a716-446655440000")
+    val wireDetail = event.toWireMap()["detail"].toString()
+
+    expectFalse("no full stream session in detail", wireDetail.contains("00112233445566778899aabbccddeeff"))
+    expectFalse("no full uuid session in detail", wireDetail.contains("550e8400-e29b-41d4-a716-446655440000"))
+    expectTrue("stream suffix in detail", wireDetail.contains("suffix-ccddeeff"))
+    expectTrue("uuid suffix in detail", wireDetail.contains("suffix-55440000"))
+}
+
 private fun sessionRefsExposeRedactedFieldsOnly() {
     val refs = DiagnosticSessionRefs(
         controlSessionRef = "sid-suffix-11223344",
@@ -89,6 +101,15 @@ private fun sessionRefsTruncateLongHexIdentifiers() {
 
     expectEquals("stream ref suffix only", "suffix-ccddeeff", refs.toWireMap()["stream_session_ref"])
     expectEquals("safe refs validate", emptyList<String>(), refs.validationErrors())
+}
+
+private fun sessionRefsTruncateUuidIdentifiers() {
+    val refs = DiagnosticSessionRefs(
+        controlSessionRef = "550e8400-e29b-41d4-a716-446655440000",
+    )
+
+    expectEquals("control uuid suffix only", "suffix-55440000", refs.toWireMap()["control_session_ref"])
+    expectEquals("safe uuid refs validate", emptyList<String>(), refs.validationErrors())
 }
 
 private fun controlDiagnosticsProducesLanControlDiagnosticEvent() {
@@ -136,5 +157,11 @@ private fun expectEquals(label: String, expected: Any?, actual: Any?) {
 private fun expectFalse(label: String, condition: Boolean) {
     if (condition) {
         throw AssertionError("$label expected false")
+    }
+}
+
+private fun expectTrue(label: String, condition: Boolean) {
+    if (!condition) {
+        throw AssertionError("$label expected true")
     }
 }

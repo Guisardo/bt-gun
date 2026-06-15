@@ -6,6 +6,7 @@ fun main() {
     exportBundleWritesDiagnosticsManifestAndReplayRefs()
     exportBundleRejectsPathTraversalBundleIds()
     exportBundleRedactsSecretMaterialBeforePersistence()
+    exportBundleRedactsFullSessionIdentifiersBeforePersistence()
     exportBundleExcludesRawEvidenceByDefault()
     exportBundleRejectsNoisyDiagnosticDetails()
     exportBundleEscapesJsonControlCharacters()
@@ -71,6 +72,29 @@ private fun exportBundleRedactsSecretMaterialBeforePersistence() {
     expectTrue("redaction marker", exported.contains("<redacted"))
 }
 
+private fun exportBundleRedactsFullSessionIdentifiersBeforePersistence() {
+    val outputRoot = Files.createTempDirectory("btgun-diagnostic-export-session-redaction-test").toFile()
+    val longSession = "00112233445566778899aabbccddeeff"
+    val uuidSession = "550e8400-e29b-41d4-a716-446655440000"
+    val result = DiagnosticExportWriter(outputRoot).write(
+        validBundle(
+            diagnostics = listOf(
+                validEvent(
+                    detail = "stream_session=$longSession control_session=$uuidSession",
+                    controlSessionRef = uuidSession,
+                    streamSessionRef = longSession,
+                ),
+            ),
+        ),
+    )
+
+    val exported = result.diagnosticsJsonl.readText() + result.manifestFile.readText()
+    expectFalse("no full stream session", exported.contains(longSession))
+    expectFalse("no full uuid session", exported.contains(uuidSession))
+    expectTrue("stream suffix exported", exported.contains("suffix-ccddeeff"))
+    expectTrue("uuid suffix exported", exported.contains("suffix-55440000"))
+}
+
 private fun exportBundleEscapesJsonControlCharacters() {
     val outputRoot = Files.createTempDirectory("btgun-diagnostic-export-control-test").toFile()
     val result = DiagnosticExportWriter(outputRoot).write(
@@ -122,7 +146,11 @@ private fun validBundle(
         rawEvidencePaths = rawEvidencePaths,
     )
 
-private fun validEvent(detail: String = "heartbeat age 2400ms"): DiagnosticEvent =
+private fun validEvent(
+    detail: String = "heartbeat age 2400ms",
+    controlSessionRef: String = "sid-suffix-11223344",
+    streamSessionRef: String = "stream-suffix-aabbccdd",
+): DiagnosticEvent =
     DiagnosticEvent(
         tsElapsed = 10_000L,
         domain = DiagnosticDomain.LAN_CONTROL_UDP,
@@ -130,8 +158,8 @@ private fun validEvent(detail: String = "heartbeat age 2400ms"): DiagnosticEvent
         reasonCode = "lan_control_udp.heartbeat_degraded",
         detail = detail,
         sessionRefs = DiagnosticSessionRefs(
-            controlSessionRef = "sid-suffix-11223344",
-            streamSessionRef = "stream-suffix-aabbccdd",
+            controlSessionRef = controlSessionRef,
+            streamSessionRef = streamSessionRef,
             desktopIdentitySuffix = "desktop-77889900",
         ),
         context = mapOf(

@@ -1,6 +1,10 @@
 package com.btgun.desktop.security
 
 object SecretRedactor {
+    private val fullIdentifierPattern = Regex(
+        "(?i)\\b(?:[0-9a-f]{16,}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\\b",
+    )
+
     private val rules = listOf(
         Regex(
             "-----BEGIN [A-Z ]*PRIVATE KEY-----.*?-----END [A-Z ]*PRIVATE KEY-----",
@@ -24,5 +28,7 @@ object SecretRedactor {
     )
 
     fun redact(value: String): String =
-        rules.fold(value) { current, (pattern, replacement) -> pattern.replace(current, replacement) }
+        fullIdentifierPattern.replace(
+            rules.fold(value) { current, (pattern, replacement) -> pattern.replace(current, replacement) },
+        ) { match -> "suffix-" + match.value.filter { it.isLetterOrDigit() }.takeLast(8) }
 }

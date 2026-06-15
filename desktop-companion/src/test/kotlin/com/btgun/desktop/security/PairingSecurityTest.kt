@@ -175,6 +175,8 @@ private fun redactorHidesDiagnosticExportSecretsAndFullIdentifiers() {
             "$androidLabel=android-1234567890abcdef " +
             "$screenLabel=.evidence/phase10/dashboard.png " +
             "$logLabel=.evidence/phase10/logcat.txt " +
+            "stream_session=00112233445566778899aabbccddeeff " +
+            "control_session=550e8400-e29b-41d4-a716-446655440000 " +
             "device_suffix=aabbcc",
     )
 
@@ -185,6 +187,10 @@ private fun redactorHidesDiagnosticExportSecretsAndFullIdentifiers() {
     expectFalse("no full android id", redacted.contains("android-1234567890abcdef"))
     expectFalse("no raw screenshot path", redacted.contains("dashboard.png"))
     expectFalse("no raw log path", redacted.contains("logcat.txt"))
+    expectFalse("no full stream session", redacted.contains("00112233445566778899aabbccddeeff"))
+    expectFalse("no full uuid session", redacted.contains("550e8400-e29b-41d4-a716-446655440000"))
+    expectTrue("stream suffix remains", redacted.contains("suffix-ccddeeff"))
+    expectTrue("uuid suffix remains", redacted.contains("suffix-55440000"))
     expectTrue("truncated suffix remains", redacted.contains("device_suffix=aabbcc"))
 }
 
