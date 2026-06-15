@@ -89,11 +89,11 @@ Retained for diagnostics, pairing/control experiments, and Windows virtual-contr
 
 ### Packaging and Documentation
 
-- [ ] **PACK-01**: Repository documents the selected Android build toolchain and device testing workflow.
+- [x] **PACK-01**: Repository documents the selected Android build toolchain and device testing workflow.
 - [x] **PACK-02**: Repository documents the selected Windows virtual HID strategy, driver signing requirements, and development setup.
 - [x] **PACK-03**: Repository documents the selected macOS strategy: Android Bluetooth HID gamepad as the primary no-subscription path, with CoreHID/DriverKit virtual HID work retained only as blocked/fallback evidence unless entitlement-capable proof exists.
-- [ ] **PACK-04**: Repository documents the LAN session protocol, packet schemas, pairing flow, and security model.
-- [ ] **PACK-05**: Repository documents known limitations, including unsupported direct desktop-to-gun Bluetooth, Android Bluetooth HID device compatibility risk, and lack of game-specific presets in v1.
+- [x] **PACK-04**: Repository documents the LAN session protocol, packet schemas, pairing flow, and security model.
+- [x] **PACK-05**: Repository documents known limitations, including unsupported direct desktop-to-gun Bluetooth, Android Bluetooth HID device compatibility risk, and lack of game-specific presets in v1.
 - [x] **PACK-06**: Repository documents Android Bluetooth HID gamepad setup, phone compatibility checks, macOS/Windows pairing flow, HID report descriptors, output-report behavior, and fallback routing to the completed Windows virtual joystick path.
 
 ## Acceptance Criteria
@@ -208,11 +208,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PERF-03 | Phase 4 | Complete |
 | PERF-04 | Phase 10 | Complete |
 | PERF-05 | Phase 10 | Complete |
-| PACK-01 | Phase 10 | Pending |
+| PACK-01 | Phase 10 | Complete |
 | PACK-02 | Phase 6 | Complete |
 | PACK-03 | Phase 7 | Complete |
-| PACK-04 | Phase 10 | Pending |
-| PACK-05 | Phase 10 | Pending |
+| PACK-04 | Phase 10 | Complete |
+| PACK-05 | Phase 10 | Complete |
 | PACK-06 | Phase 7 | Complete |
 | BT2-01 | v2 | Deferred |
 | TR2-01 | v2 | Deferred |
@@ -234,4 +234,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-06-06*
-*Last updated: 2026-06-11 after Phase 7 Android Bluetooth HID closeout*
+*Last updated: 2026-06-15 after Phase 10 Plan 10-06 v1 docs guard closeout*

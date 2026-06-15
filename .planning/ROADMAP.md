@@ -377,7 +377,7 @@ Plans:
   3. Repository documents Android build tooling, device testing workflow, LAN protocol schemas, pairing flow, and security model.
   4. Repository documents v1 limitations, including no direct desktop Bluetooth, deferred physical gun motor rumble, and no game-specific presets.
 
-**Plans:** 5/7 plans executed
+**Plans:** 6/7 plans executed
 Plans:
 **Wave 1**
 
@@ -398,7 +398,7 @@ Plans:
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
-- [ ] 10-06-PLAN.md - Android setup, LAN security, replay troubleshooting, limits docs, and docs guard.
+- [x] 10-06-PLAN.md - Android setup, LAN security, replay troubleshooting, limits docs, and docs guard.
 
 **Wave 6** *(blocked on Wave 5 completion)*
 
