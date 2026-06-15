@@ -542,6 +542,10 @@ private fun visualizerCoordinatorUserActionsSurviveLiveUpdates() {
         commandId = "visualizer-haptic-1",
         observedElapsedNanos = 11_000_000L,
     )
+    coordinator.onMacosBackendDiagnosticsChanged(
+        diagnostics = MacosBackendRuntimeDiagnostics(),
+        observedElapsedNanos = 11_500_000L,
+    )
     coordinator.confirmMacosHapticLimitation()
     coordinator.onUdpInputReceived(
         acceptedInputForWindow(sequence = 2L, aimX = 0.34f, aimY = -0.45f),

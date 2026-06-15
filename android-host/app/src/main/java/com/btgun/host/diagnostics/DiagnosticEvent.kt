@@ -125,11 +125,14 @@ object DiagnosticSanitizer {
             .ifBlank { "field" }
 
     fun isSensitiveKey(key: String): Boolean {
-        val normalized = key.lowercase()
-        return sensitiveTokens().any { token -> normalized.contains(token.replace("\\s*", "")) } ||
+        val normalized = key.lowercase().replace(Regex("[^a-z0-9]"), "")
+        return sensitiveTokens().any { token -> normalized.contains(token.replace(Regex("[^a-z0-9]"), "")) } ||
             normalized.contains("secret") ||
             normalized.contains("proof") ||
-            normalized.contains("key")
+            normalized.contains("key") ||
+            normalized.contains("androidid") ||
+            normalized.contains("deviceid") ||
+            normalized.contains("serial")
     }
 
     private fun sensitiveTokens(): List<String> =

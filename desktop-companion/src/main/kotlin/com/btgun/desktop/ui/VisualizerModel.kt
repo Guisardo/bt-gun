@@ -434,12 +434,16 @@ data class VisualizerModel(
         if (id == VisualizerChecklistRowId.MACOS_HID_HAPTIC_LIMIT) {
             copy(
                 checklistRows = checklistRows.update(id) { row ->
-                    row.copy(
-                        state = VisualizerChecklistState.UNSUPPORTED_DEFERRED,
-                        observedSource = row.observedSource
-                            ?: "Phase 7 macOS HID haptic unsupported/deferred evidence",
-                        confirmationLabel = "Confirm limitation",
-                    )
+                    if (row.state == VisualizerChecklistState.OBSERVED) {
+                        row.copy(
+                            state = VisualizerChecklistState.UNSUPPORTED_DEFERRED,
+                            observedSource = row.observedSource
+                                ?: "Phase 7 macOS HID haptic unsupported/deferred evidence",
+                            confirmationLabel = "Confirm limitation",
+                        )
+                    } else {
+                        row
+                    }
                 },
             )
         } else {

@@ -58,9 +58,14 @@ class DiagnosticExportWriter(
             require(errors.isEmpty()) { "diagnostic event at index $index is invalid: ${errors.joinToString()}" }
         }
 
-        val safeBundleId = safeToken(bundle.bundleId).ifBlank { "diagnostic-export" }
-        val outputDir = outputRoot.resolve(safeBundleId)
-        outputDir.mkdirs()
+        val safeBundleId = safeBundleToken(bundle.bundleId)
+        val canonicalRoot = outputRoot.canonicalFile
+        require(canonicalRoot.mkdirs() || canonicalRoot.isDirectory) { "failed to create export root" }
+        val outputDir = canonicalRoot.resolve(safeBundleId).canonicalFile
+        require(outputDir.path.startsWith(canonicalRoot.path + File.separator)) {
+            "bundle id resolves outside output root"
+        }
+        require(outputDir.mkdirs() || outputDir.isDirectory) { "failed to create export directory" }
 
         val diagnosticsFile = outputDir.resolve("diagnostics.jsonl")
         val manifestFile = outputDir.resolve("manifest.json")
@@ -127,6 +132,11 @@ private fun safeText(value: String): String =
         .replace(MAC_PATTERN, "<redacted-bluetooth-address>")
         .take(MAX_TEXT_CHARS)
 
+private fun safeBundleToken(value: String): String =
+    safeToken(value)
+        .takeUnless { it == "." || it == ".." || it.isBlank() }
+        ?: "diagnostic-export"
+
 private fun safeToken(value: String): String =
     safeText(value.trim())
         .replace(SAFE_TOKEN_PATTERN, "-")
@@ -154,7 +164,11 @@ private fun String.escapeJson(): String =
                 '\n' -> append("\\n")
                 '\r' -> append("\\r")
                 '\t' -> append("\\t")
-                else -> append(char)
+                else -> if (char < ' ') {
+                    append("\\u%04x".format(char.code))
+                } else {
+                    append(char)
+                }
             }
         }
     }

@@ -7,7 +7,9 @@ fun main() {
     diagnosticStatusesUseLockedWireNames()
     diagnosticEventExposesRequiredWireFields()
     diagnosticEventValidationRejectsUnsafeValues()
+    diagnosticEventRejectsWrongDomainReasonCode()
     sessionRefsExposeRedactedFieldsOnly()
+    sessionRefsTruncateLongHexIdentifiers()
     controlDiagnosticsProducesLanControlDiagnosticEvent()
 }
 
@@ -44,7 +46,7 @@ private fun diagnosticEventExposesRequiredWireFields() {
 private fun diagnosticEventValidationRejectsUnsafeValues() {
     val invalid = listOf(
         validEvent(tsElapsed = -1L),
-        validEvent(reasonCode = "LAN heartbeat degraded"),
+        validEvent(reasonCode = "lan_control_udp.heartbeat degraded"),
         validEvent(detail = "stream_key=abcdefghijklmnopqrstuvwxyzABCDEF"),
     )
 
@@ -53,6 +55,12 @@ private fun diagnosticEventValidationRejectsUnsafeValues() {
         listOf("negative ts_elapsed", "invalid reason_code", "unsafe detail"),
         invalid.map { it.validationErrors().single() },
     )
+}
+
+private fun diagnosticEventRejectsWrongDomainReasonCode() {
+    val event = validEvent(reasonCode = "profile_mapping.mapped")
+
+    expectEquals("domain mismatch", listOf("reason_code domain mismatch"), event.validationErrors())
 }
 
 private fun sessionRefsExposeRedactedFieldsOnly() {
@@ -72,6 +80,15 @@ private fun sessionRefsExposeRedactedFieldsOnly() {
         refs.toWireMap(),
     )
     expectFalse("no raw session id", refs.toWireMap().values.any { it.length > 32 })
+}
+
+private fun sessionRefsTruncateLongHexIdentifiers() {
+    val refs = DiagnosticSessionRefs(
+        streamSessionRef = "00112233445566778899aabbccddeeff",
+    )
+
+    expectEquals("stream ref suffix only", "suffix-ccddeeff", refs.toWireMap()["stream_session_ref"])
+    expectEquals("safe refs validate", emptyList<String>(), refs.validationErrors())
 }
 
 private fun controlDiagnosticsProducesLanControlDiagnosticEvent() {

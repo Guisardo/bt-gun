@@ -144,7 +144,7 @@ private fun exhaustedAttemptsLockSession() {
 private fun redactorHidesProofMaterialAndPrivateKeyMarkers() {
     val fingerprintSuffix = "99aabbcc"
     val redacted = SecretRedactor.redact(
-        "qr_secret=abcdefghijklmnopqrstuvwxyzABCDEF code=123456 proof=abcdef0123456789 " +
+        "QR_SECRET=abcdefghijklmnopqrstuvwxyzABCDEF manual code=123456 Proof: abcdef0123456789 " +
             "pairing_proof=nonce-abcdef0123456789 X-BT-Gun-Pairing-Proof: feedface " +
             "private_key=-----BEGIN PRIVATE KEY-----abc-----END PRIVATE KEY----- " +
             "fingerprint_suffix=$fingerprintSuffix",
