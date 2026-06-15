@@ -86,6 +86,7 @@ tasks.withType<Test>().configureEach {
             "com.btgun.desktop.replay.ReplayFixtureTestKt",
             "com.btgun.desktop.diagnostics.DiagnosticEventTestKt",
             "com.btgun.desktop.diagnostics.DiagnosticExportTestKt",
+            "com.btgun.desktop.docs.Phase10DocsGuardTestKt",
             "com.btgun.desktop.smoke.BackendSmokeRunnerTestKt",
         ).forEach { testClass ->
             providers.exec {
