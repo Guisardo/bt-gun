@@ -85,7 +85,7 @@ Retained for diagnostics, pairing/control experiments, and Windows virtual-contr
 - [x] **PERF-02**: v1 visualizer path targets under 50 ms end-to-end latency during normal local Wi-Fi testing.
 - [x] **PERF-03**: Desktop drops stale or replayed UDP input frames instead of applying old aim/control data.
 - [x] **PERF-04**: Packet logs can be replayed in tests to verify parser, profile mapping, and visualizer output.
-- [ ] **PERF-05**: Android and desktop expose enough diagnostic logs to distinguish gun, sensor, LAN, profile, and virtual-driver failures.
+- [x] **PERF-05**: Android and desktop expose enough diagnostic logs to distinguish gun, sensor, LAN, profile, and virtual-driver failures.
 
 ### Packaging and Documentation
 
@@ -207,7 +207,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PERF-02 | Phase 9 | Complete |
 | PERF-03 | Phase 4 | Complete |
 | PERF-04 | Phase 10 | Complete |
-| PERF-05 | Phase 10 | Pending |
+| PERF-05 | Phase 10 | Complete |
 | PACK-01 | Phase 10 | Pending |
 | PACK-02 | Phase 6 | Complete |
 | PACK-03 | Phase 7 | Complete |
