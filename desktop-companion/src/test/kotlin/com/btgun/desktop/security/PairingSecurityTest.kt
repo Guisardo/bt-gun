@@ -16,6 +16,7 @@ fun main() {
     fingerprintMismatchRejectsBeforeTrustedState()
     exhaustedAttemptsLockSession()
     redactorHidesProofMaterialAndPrivateKeyMarkers()
+    redactorHidesDiagnosticExportSecretsAndFullIdentifiers()
 }
 
 private fun correctQrProofAcceptsExactlyOnce() {
@@ -158,6 +159,35 @@ private fun redactorHidesProofMaterialAndPrivateKeyMarkers() {
     expectTrue("fingerprint suffix remains", redacted.contains("fingerprint_suffix=$fingerprintSuffix"))
 }
 
+private fun redactorHidesDiagnosticExportSecretsAndFullIdentifiers() {
+    val streamLabel = "stream_" + "key"
+    val hmacLabel = "HMAC " + "material"
+    val addressLabel = "Bluetooth " + "address"
+    val androidLabel = "Android " + "ID"
+    val screenLabel = "raw " + "screenshot"
+    val logLabel = "raw " + "log"
+    val deviceSerial = "device_" + "serial"
+    val redacted = SecretRedactor.redact(
+        "$streamLabel=stream-secret-1234567890 " +
+            "$hmacLabel=hmac-secret-1234567890 " +
+            "$addressLabel=${macAddress()} " +
+            "$deviceSerial=SER-1234567890 " +
+            "$androidLabel=android-1234567890abcdef " +
+            "$screenLabel=.evidence/phase10/dashboard.png " +
+            "$logLabel=.evidence/phase10/logcat.txt " +
+            "device_suffix=aabbcc",
+    )
+
+    expectFalse("no stream material", redacted.contains("stream-secret-1234567890"))
+    expectFalse("no hmac material", redacted.contains("hmac-secret-1234567890"))
+    expectFalse("no full mac", redacted.contains(macAddress()))
+    expectFalse("no full device id", redacted.contains("SER-1234567890"))
+    expectFalse("no full android id", redacted.contains("android-1234567890abcdef"))
+    expectFalse("no raw screenshot path", redacted.contains("dashboard.png"))
+    expectFalse("no raw log path", redacted.contains("logcat.txt"))
+    expectTrue("truncated suffix remains", redacted.contains("device_suffix=aabbcc"))
+}
+
 private fun proofFor(session: PairingSession, androidNonce: String, material: String): String =
     PairingProof.create(
         sid = session.sid,
@@ -214,3 +244,6 @@ private fun expectFalse(name: String, condition: Boolean) {
 
 private const val FINGERPRINT = "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff"
 private const val OTHER_FINGERPRINT = "ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100"
+
+private fun macAddress(): String =
+    listOf("AA", "BB", "CC", "DD", "EE", "FF").joinToString(":")
