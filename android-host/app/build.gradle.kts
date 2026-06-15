@@ -63,6 +63,8 @@ tasks.withType<Test>().configureEach {
             "com.btgun.host.session.TrustedDesktopStoreTestKt",
             "com.btgun.host.session.DesktopControlClientTestKt",
             "com.btgun.host.session.VisualizerStatusTestKt",
+            "com.btgun.host.diagnostics.DiagnosticEventTestKt",
+            "com.btgun.host.diagnostics.DiagnosticReporterTestKt",
             "com.btgun.host.HostSessionServiceLivenessTestKt",
             "com.btgun.host.haptics.DesktopHapticCommandTestKt",
             "com.btgun.host.transport.UdpInputFrameCodecTestKt",
