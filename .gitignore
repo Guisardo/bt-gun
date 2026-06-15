@@ -6,6 +6,8 @@
 .evidence/phase2/host-live-input/
 .evidence/phase4/input-haptic-transport/
 .evidence/phase8/android-profile-ui/
+docs/refs/*.apk
+docs/refs/*.xapk
 
 # Throwaway Android diagnostic build output
 android-diagnostic/.gradle/
