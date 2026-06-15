@@ -1,8 +1,8 @@
 ---
 phase: 09-visualizer-acceptance-path
-verified: 2026-06-13T04:42:09Z
-status: human_needed
-score: 5/5 must-haves verified
+verified: 2026-06-15T02:27:51Z
+status: passed
+score: 7/7 UAT passed; 5/5 automated must-haves verified
 overrides_applied: 0
 human_verification:
   - test: "LAN visualizer stream and live controls"
@@ -31,9 +31,9 @@ human_verification:
 # Phase 09: Visualizer Acceptance Path Verification Report
 
 **Phase Goal:** User can prove the full MVP path in a simple joystick visualizer before any commercial game support.
-**Verified:** 2026-06-13T04:42:09Z
-**Status:** human_needed
-**Re-verification:** No - initial verification
+**Verified:** 2026-06-15T02:27:51Z
+**Status:** passed
+**Re-verification:** Yes - UAT, validation, and security closeout completed.
 
 ## User Flow Coverage
 
@@ -46,7 +46,7 @@ Plan files provide the MVP user story form: "As a BT Gun developer/debugger, I w
 | Observe recenter/aim-zero | Recenter events and current aim-zero state reach visualizer | Android `HostSessionService.kt:297-339,1376-1393` builds and sends sanitized visualizer status; desktop `ControlServer.kt:280-284` parses trusted diagnostics; `VisualizerModel.kt:199-233` updates aim-zero/recenter row/event strip | VERIFIED |
 | Observe metrics/status | Android connection, backend status, packet stream, haptic status, latency, and packet loss display | `PairingWindow.kt:316-335,480-514` shows connection/backend/packet/haptic diagnostics; `VisualizerMetrics.kt:64-131,134-150` computes offset-aware latency and packet loss; `VisualizerPanels.kt:92-100` renders metric labels | VERIFIED |
 | Run haptic proof | Haptic test control sends authenticated phone haptic and shows queued/ack/fail | `VisualizerWindow.kt:147-158,252-280` gates button by authenticated state and sends `ControlServer.sendHapticCommand`; `ControlServer.kt:346-379,583-618` queues command and accepts matching haptic result; Android `DesktopControlClient.kt:456-470` handles haptic command and returns result | VERIFIED |
-| Complete final proof | Full MVP proof is recorded through guided checklist rows | `VisualizerModel.kt:32-47,369-423,442-458` defines required rows, confirmation/limitation state, and pass gate; `.planning/phases/09-visualizer-acceptance-path/09-MANUAL-PROOF.md:18-29` lists exact operator row evidence | HUMAN NEEDED |
+| Complete final proof | Full MVP proof is recorded through guided checklist rows | `VisualizerModel.kt:32-47,369-423,442-458` defines required rows, confirmation/limitation state, and pass gate; `.planning/phases/09-visualizer-acceptance-path/09-MANUAL-PROOF.md:18-29` lists exact operator row evidence; `09-UAT.md` records 7/7 pass with 0 issues | VERIFIED |
 
 ## Goal Achievement
 
@@ -57,10 +57,10 @@ Plan files provide the MVP user story form: "As a BT Gun developer/debugger, I w
 | 1 | User can open a simple joystick visualizer connected to the desktop companion pipeline. | VERIFIED | Production `Main.kt:23-63` wires `ControlServer -> DesktopUiEventHub -> VisualizerWindowCoordinator -> PairingWindow`; manual and authenticated open paths exist in `PairingWindow.kt:62,204,409-416` and `VisualizerWindow.kt:381-392`. |
 | 2 | Visualizer displays trigger, reload, joystick, X/Y/A/B, mapped aim axes, recenter events, and current aim-zero state in real time. | VERIFIED | Accepted UDP input updates `VisualizerModel` (`VisualizerModel.kt:137-172`); `VisualizerPanels.kt:51-59,156-187` renders six buttons plus stick/aim; Android status path and desktop model update cover recenter/aim-zero (`HostSessionService.kt:297-339,1376-1393`, `VisualizerModel.kt:199-233`). |
 | 3 | Visualizer displays Android connection, desktop virtual controller, packet stream, haptic status, latency, and packet loss. | VERIFIED | `PairingWindow.kt:316-335,480-514` shows connection, backends, packet stream, and haptic status; `VisualizerMetrics.kt:64-131` and `VisualizerPanels.kt:92-100` compute/render latency and packet loss. |
-| 4 | User can press a haptic test control that vibrates the Android phone and shows ack/fail result. | VERIFIED for code path; HUMAN NEEDED for physical vibration | `VisualizerWindow.kt:147-158` sends an authenticated command; `ControlServer.kt:346-379,583-618` tracks pending/started results; Android `DesktopControlClient.kt:456-470` sends `haptic_result`. Actual phone vibration still needs manual proof. |
-| 5 | Visualizer path measures Android capture timestamp to desktop update and targets under 50 ms on normal local Wi-Fi. | VERIFIED for measurement logic; HUMAN NEEDED for live target | `VisualizerMetrics.kt:100-127,134-150` uses capture/send/receive/render timestamps with explicit Android-to-desktop offset and labels target `<50 ms`; live local Wi-Fi target requires UAT. |
+| 4 | User can press a haptic test control that vibrates the Android phone and shows ack/fail result. | VERIFIED | `VisualizerWindow.kt:147-158` sends an authenticated command; `ControlServer.kt:346-379,583-618` tracks pending/started results; Android `DesktopControlClient.kt:456-470` sends `haptic_result`; `09-UAT.md` records phone haptic proof as passed. |
+| 5 | Visualizer path measures Android capture timestamp to desktop update and targets under 50 ms on normal local Wi-Fi. | VERIFIED | `VisualizerMetrics.kt:100-127,134-150` uses capture/send/receive/render timestamps with explicit Android-to-desktop offset and labels target `<50 ms`; `09-UAT.md` records latency target proof as passed. |
 
-**Score:** 5/5 automated must-haves verified. Status remains `human_needed` because full Phase 9 proof depends on physical Android/gun, macOS, Windows, and phone-vibration observations.
+**Score:** 5/5 automated must-haves verified and 7/7 UAT checks passed. Status is `passed` because full Phase 9 proof is recorded in `09-UAT.md` with 0 issues, 0 pending, 0 skipped, and 0 blocked.
 
 ### Required Artifacts
 
@@ -118,10 +118,10 @@ Plan files provide the MVP user story form: "As a BT Gun developer/debugger, I w
 | VIS-02 | 09-01, 09-03, 09-06 | Display controls and aim axes in real time | SATISFIED | `VisualizerModel.kt:137-172`, `VisualizerPanels.kt:51-59,156-187`. |
 | VIS-03 | 09-04, 09-05, 09-06 | Display recenter events and aim-zero state | SATISFIED | `HostSessionService.kt:297-339,1376-1393`, `ControlServer.kt:280-284`, `VisualizerModel.kt:199-233`. |
 | VIS-04 | 09-01, 09-02, 09-04, 09-05, 09-06 | Display Android connection, controller, packet stream, haptic status | SATISFIED | `PairingWindow.kt:316-335,480-514`, `VisualizerWindow.kt:125-144`. |
-| VIS-05 | 09-03, 09-06 | Haptic test control vibrates phone and shows ack/fail | CODE SATISFIED; HUMAN PROOF NEEDED | `VisualizerWindow.kt:147-158`, `ControlServer.kt:346-379,583-618`, Android `DesktopControlClient.kt:456-470`. |
+| VIS-05 | 09-03, 09-06 | Haptic test control vibrates phone and shows ack/fail | SATISFIED | `VisualizerWindow.kt:147-158`, `ControlServer.kt:346-379,583-618`, Android `DesktopControlClient.kt:456-470`; `09-UAT.md` records phone haptic proof as passed. |
 | VIS-06 | 09-01, 09-03, 09-05, 09-06 | Display latency and packet loss metrics | SATISFIED | `VisualizerMetrics.kt:64-131`, `VisualizerPanels.kt:92-100`. |
 | PERF-01 | 09-01, 09-03, 09-04, 09-05, 09-06 | Measure Android capture to desktop visualizer update | SATISFIED | `VisualizerMetrics.kt:100-108,134-150`; Android status includes elapsed timestamps (`HostSessionService.kt:321-329`). |
-| PERF-02 | 09-01, 09-03, 09-05, 09-06 | Target under 50 ms normal local Wi-Fi | CODE SATISFIED; HUMAN PROOF NEEDED | `<50 ms` target label/status implemented in `VisualizerMetrics.kt:110-127,171-179`; live Wi-Fi evidence pending. |
+| PERF-02 | 09-01, 09-03, 09-05, 09-06 | Target under 50 ms normal local Wi-Fi | SATISFIED | `<50 ms` target label/status implemented in `VisualizerMetrics.kt:110-127,171-179`; `09-UAT.md` records live Wi-Fi latency proof as passed. |
 
 ### Anti-Patterns Found
 
@@ -129,48 +129,52 @@ Plan files provide the MVP user story form: "As a BT Gun developer/debugger, I w
 |------|------|---------|----------|--------|
 | n/a | n/a | No `TBD`, `FIXME`, `XXX`, `TODO`, `HACK`, or placeholder blockers found in Phase 09 source/guide scan | none | Nullable/default states and parser `return null` paths are intentional unavailable/error handling, not stubs. |
 
-### Human Verification Required
+### Human Verification Completed
 
 #### 1. LAN visualizer stream and live controls
 **Test:** Pair Android to desktop, open/auto-open `BT Gun Visualizer`, move gun/phone, press trigger/reload/X/Y/A/B and joystick.
 **Expected:** `lan_visualizer_stream` and `live_controls` become observed; live gamepad panel updates in real time.
-**Why human:** Requires real Android session, physical controls, and visual confirmation.
+**Proof:** Passed in `09-UAT.md`.
 
 #### 2. Recenter and aim-zero
 **Test:** Hold reload for 2000 ms.
 **Expected:** Aim-zero/recenter labels update; `recenter_aim_zero` becomes observed; user presses `Confirm observed`.
-**Why human:** Requires physical hold/recenter behavior and visual confirmation.
+**Proof:** Passed in `09-UAT.md`.
 
 #### 3. LAN phone haptic
 **Test:** Press `Run phone haptic test`.
 **Expected:** Android phone vibrates; visualizer shows queued then confirmed ack or fail; `lan_phone_haptic` is observed and confirmed.
-**Why human:** Automated tests cannot feel phone vibration.
+**Proof:** Passed in `09-UAT.md`.
 
 #### 4. macOS Android Bluetooth HID input
 **Test:** Pair Android as Bluetooth HID gamepad to macOS and verify OS-visible live controls/aim.
 **Expected:** `macos_hid_input` confirmed by user.
-**Why human:** Requires macOS OS-level Bluetooth/Game Controller observation.
+**Proof:** Passed in `09-UAT.md`.
 
 #### 5. Windows VHF input and output-to-phone haptic
 **Test:** On approved Windows target, run Phase 6 proof flow, verify controller movement and VHF output-to-phone haptic.
 **Expected:** `windows_vhf_input` and `windows_vhf_haptic` observed/confirmed; phone vibration felt.
-**Why human:** Requires Windows target/driver and physical phone vibration.
+**Proof:** Passed in `09-UAT.md`.
 
 #### 6. Latency target and packet loss
 **Test:** During normal local Wi-Fi input, watch latency and packet-loss rows.
 **Expected:** `latency_target` observed under 50 ms; `packet_loss` shows expected/missed/percent.
-**Why human:** Real network latency target needs live hardware/Wi-Fi conditions.
+**Proof:** Passed in `09-UAT.md`.
 
 #### 7. macOS HID haptic limitation
 **Test:** Verify visualizer shows macOS HID haptic unsupported/deferred limitation.
 **Expected:** User presses `Confirm limitation`; `macos_hid_haptic_limit` reaches unsupported/deferred accepted state.
-**Why human:** OS-specific limitation evidence must be reviewed and accepted.
+**Proof:** Passed in `09-UAT.md`.
 
 ### Gaps Summary
 
-No code blockers found. Phase 09 implementation provides the acceptance path, checklist, Android status/control messages, production wiring, metrics, haptic action, raw debug, backend proof rows, tests, review evidence, and sanitized manual proof guide. Final verdict is `human_needed`, not `passed`, because the phase goal includes proving the MVP path on real Android/gun hardware, macOS Bluetooth HID input, Windows VHF input/output haptic, phone vibration, and normal Wi-Fi latency.
+No code or verification blockers remain. Phase 09 implementation provides the acceptance path, checklist, Android status/control messages, production wiring, metrics, haptic action, raw debug, backend proof rows, tests, review evidence, and sanitized manual proof guide. Final verdict is `passed` because `09-UAT.md` records 7/7 passed with 0 issues, 0 pending, 0 skipped, and 0 blocked.
+
+## Acknowledged Gaps
+
+- 2026-06-15: Prior `human_needed` verification debt is closed by `09-UAT.md` final pass, `09-VALIDATION.md` Nyquist verification, and `09-SECURITY.md` threat verification. No Phase 09 verification debt carries forward.
 
 ---
 
-_Verified: 2026-06-13T04:42:09Z_
+_Verified: 2026-06-15T02:27:51Z_
 _Verifier: the agent (gsd-verifier)_
