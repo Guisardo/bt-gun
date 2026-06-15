@@ -1,18 +1,14 @@
 ---
-status: testing
+status: complete
 phase: 09-visualizer-acceptance-path
 source: [09-VERIFICATION.md]
 started: 2026-06-13T04:44:25Z
-updated: 2026-06-14T08:05:35Z
+updated: 2026-06-15T02:06:19Z
 ---
 
 ## Current Test
 
-number: 6
-name: Latency target and packet loss visibility
-expected: |
-  During normal local Wi-Fi live input, latency_target becomes observed with headline latency under 50 ms and packet_loss shows current-session expected/missed/percent.
-awaiting: user response
+[testing complete]
 
 ## Tests
 
@@ -38,18 +34,18 @@ result: pass
 
 ### 6. Latency target and packet loss visibility
 expected: During normal local Wi-Fi live input, latency_target becomes observed with headline latency under 50 ms and packet_loss shows current-session expected/missed/percent.
-result: [pending]
+result: pass
 
 ### 7. macOS HID haptic limitation
 expected: Visualizer shows macOS HID haptic unsupported/deferred limitation; user uses Confirm limitation for macos_hid_haptic_limit.
-result: [pending]
+result: pass
 
 ## Summary
 
 total: 7
-passed: 5
+passed: 7
 issues: 0
-pending: 2
+pending: 0
 skipped: 0
 blocked: 0
 
