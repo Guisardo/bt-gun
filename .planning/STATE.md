@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 10-04-PLAN.md
-last_updated: "2026-06-15T19:11:14Z"
+stopped_at: Completed 10-05-PLAN.md
+last_updated: "2026-06-15T19:28:13.742Z"
 last_activity: 2026-06-15 -- Phase 10 Plan 10-04 visualizer diagnostics completed
 progress:
   total_phases: 10
   completed_phases: 9
   total_plans: 62
-  completed_plans: 59
-  percent: 95
+  completed_plans: 60
+  percent: 90
 ---
 
 # Project State
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-06-15)
 ## Current Position
 
 Phase: 10 (Diagnostics, Replay, and v1 Docs) — EXECUTING
-Plan: 5 of 7
+Plan: 6 of 7
 Next phase: Execute Phase 10 Diagnostics, Replay, and v1 Docs
-Status: Executing Phase 10
+Status: Ready to execute
 Last activity: 2026-06-15 -- Phase 10 Plan 10-04 visualizer diagnostics completed
 
 Progress: [███████████████████_] 59/62 completed plans. Phase 10 has 4/7 plans executed.
@@ -120,6 +120,7 @@ Progress: [███████████████████_] 59/62 com
 | Phase 10 P03 | 41 min | 2 tasks | 6 files |
 | Phase 10 P02 | 5 min | 2 tasks | 6 files |
 | Phase 10 P04 | 24 min | 2 tasks | 5 files |
+| Phase 10 P05 | 10 min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -266,6 +267,8 @@ Recent decisions affecting current work:
 - [Phase 10]: Android diagnostics use the locked five-domain/five-status schema and sanitize dashboard/export fields before rendering. — Plan 10-03 covers the Android slice of PERF-05; desktop diagnostics remain pending in Plan 10-02.
 - [Phase 10]: Desktop diagnostics use the locked five-domain/five-status schema with lower-snake reason codes and suffix-only session refs. — Plan 10-02 keeps `ControlDiagnostics` backward-compatible through a `toDiagnosticEvent` adapter extension.
 - [Phase 10]: Desktop visualizer renders the locked five diagnostic buckets as concise status/reason/detail rows without confirming physical, OS-visible, or haptic proof rows. — Plan 10-04 completes visible desktop diagnostic rendering while preserving Phase 9 proof semantics.
+- [Phase 10]: Diagnostic export bundles default to sanitized diagnostics JSONL/manifests with replay refs; raw .evidence/phase10 is ignored and excluded by default. — Plan 10-05 redaction/export threat model requires issue bundles to be replay-ready without copying raw logs or screenshots.
+- [Phase 10]: SecretRedactor is the central export redaction gate for stream/HMAC material, device identifiers, and raw evidence markers. — Plan 10-05 extends the existing pairing redactor instead of adding one-off export regexes.
 
 ### Pending Todos
 
@@ -296,6 +299,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-15T19:11:14Z
-Stopped at: Completed 10-04-PLAN.md
+Last session: 2026-06-15T19:28:13.735Z
+Stopped at: Completed 10-05-PLAN.md
 Resume file: None
