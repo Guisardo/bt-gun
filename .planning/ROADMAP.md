@@ -377,7 +377,16 @@ Plans:
   3. Repository documents Android build tooling, device testing workflow, LAN protocol schemas, pairing flow, and security model.
   4. Repository documents v1 limitations, including no direct desktop Bluetooth, deferred physical gun motor rumble, and no game-specific presets.
 
-**Plans:** 6/6 plans complete
+**Plans:** 7 plans
+Plans:
+
+- [ ] 10-01-PLAN.md - Replay fixtures and full-chain visualizer replay test.
+- [ ] 10-02-PLAN.md - Desktop diagnostic event schema and control adapter.
+- [ ] 10-03-PLAN.md - Android diagnostic reporter and dashboard rows.
+- [ ] 10-04-PLAN.md - Desktop visualizer diagnostic rendering.
+- [ ] 10-05-PLAN.md - Sanitized diagnostic export and redaction gate.
+- [ ] 10-06-PLAN.md - Android setup, LAN security, replay troubleshooting, limits docs, and docs guard.
+- [ ] 10-07-PLAN.md - Version 1 docs index and closeout validation audit.
 
 ## Progress
 
@@ -395,4 +404,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 | 7. Android Bluetooth HID Gamepad Path | 6/6 | Complete    | 2026-06-11 |
 | 8. Desktop Profiles and Mapping | 7/7 | Complete    | 2026-06-12 |
 | 9. Visualizer Acceptance Path | 6/6 | Complete    | 2026-06-15 |
-| 10. Diagnostics, Replay, and v1 Docs | 0/TBD | Not started | - |
+| 10. Diagnostics, Replay, and v1 Docs | 0/7 | Not started | - |
