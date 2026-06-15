@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: verifying
-stopped_at: Completed 09-06-PLAN.md
-last_updated: "2026-06-14T06:24:23.422Z"
-last_activity: "2026-06-14 - Completed quick task 260614-4qb: Recover Android gun connection stuck after app closed without Stop session"
+status: ready_to_plan
+stopped_at: Phase 09 verification passed; ready to plan Phase 10
+last_updated: "2026-06-15T02:28:52.826Z"
+last_activity: "2026-06-15 - Phase 09 verification passed; ready to plan Phase 10"
 progress:
   total_phases: 10
   completed_phases: 9
@@ -18,26 +18,26 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-06-09)
+See: .planning/PROJECT.md (updated 2026-06-15)
 
 **Core value:** Make the discontinued iPega AR gun usable as a normal wireless joystick gun on modern macOS and Windows with responsive motion aiming and v1 phone haptic feedback.
-**Current focus:** Phase 09 — visualizer-acceptance-path
+**Current focus:** Phase 10 — Diagnostics, Replay, and v1 Docs
 
 ## Current Position
 
-Phase: 09 (visualizer-acceptance-path) — VERIFYING
-Plan: 6 of 6
-Next phase: Verify Phase 09 visualizer acceptance path
-Status: Phase complete — ready for verification
-Last activity: 2026-06-14 - Completed quick task 260614-4qb: Recover Android gun connection stuck after app closed without Stop session
+Phase: 10 (Diagnostics, Replay, and v1 Docs) — READY TO PLAN
+Plan: Not started
+Next phase: Plan Phase 10 Diagnostics, Replay, and v1 Docs
+Status: Phase 09 complete — ready to plan Phase 10
+Last activity: 2026-06-15 - Phase 09 verification passed; ready to plan Phase 10
 
-Progress: [██████████] 55/55 active planned plans complete. Phase 09 is ready for verification.
+Progress: [████████████████████] 55/55 plans (100%). Phase 10 is ready to plan.
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 49 of 49 planned
+- Total plans completed: 55 of 55 active planned
 - Average duration: not tracked for hardware-interactive plans
 - Total execution time: not tracked after Plan 02
 
@@ -52,11 +52,12 @@ Progress: [██████████] 55/55 active planned plans complete. 
 | 06 | 6 | hardware-interactive | hardware-interactive |
 | 07 | 6 | hardware-interactive | complete; Android HID input passed, macOS haptics deferred |
 | 08 | 7 | - | - |
+| 09 | 6 | - | - |
 
 **Recent Trend:**
 
-- Recent completed execution plans: 07-P01 through 07-P06, 08-P01 through 08-P07, and Phase 09 P01 through P06 complete.
-- Trend: CoreHID and DriverKit are no longer primary for macOS because no-subscription virtual HID is blocked. Phase 07 completed Android phone Bluetooth HID gamepad proof, with Windows VHF retained as fallback and macOS browser/GameController haptics deferred. Phase 08 reroutes profiles to Android-owned storage/mapping with desktop read-only metadata.
+- Recent completed execution plans: 07-P01 through 07-P06, 08-P01 through 08-P07, and Phase 09 P01 through P06 complete; Phase 09 UAT, validation, and security are now passed.
+- Trend: CoreHID and DriverKit are no longer primary for macOS because no-subscription virtual HID is blocked. Phase 07 completed Android phone Bluetooth HID gamepad proof, with Windows VHF retained as fallback and macOS browser/GameController haptics deferred. Phase 08 reroutes profiles to Android-owned storage/mapping with desktop read-only metadata. Phase 09 closes the end-to-end visualizer acceptance path, leaving Phase 10 for diagnostics, replay, and v1 docs.
 
 *Updated after each plan completion*
 | Phase 01 P01 | 10 min | 3 tasks | 6 files |
@@ -256,6 +257,7 @@ Recent decisions affecting current work:
 - [Phase 09]: Final Phase 9 pass uses the guided visualizer checklist summary, not generated evidence bundle output. — Plan 09-06 makes row states and user confirmations the acceptance gate.
 - [Phase 09]: Windows backend diagnostics can mark Windows VHF input and output-haptic rows observed, but user confirmation remains required. — Diagnostics prove routed state only; physical Windows visibility and phone vibration still need user confirmation.
 - [Phase 09]: macOS HID haptic can pass only as unsupported/deferred limitation evidence; macOS input remains a separate user-confirmed OS-visible proof. — Matches Phase 7 haptic limitation while preserving macOS Android HID input proof.
+- [Phase 09 approved]: Visualizer acceptance path passed end-of-phase UAT. — `09-UAT.md` records 7/7 passed with 0 issues and `audit-open` reports no verification debt.
 
 ### Pending Todos
 
@@ -286,6 +288,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-13T03:32:14.582Z
-Stopped at: Completed 09-06-PLAN.md
+Last session: 2026-06-15T02:28:52.826Z
+Stopped at: Phase 09 complete, ready to plan Phase 10
 Resume file: None
