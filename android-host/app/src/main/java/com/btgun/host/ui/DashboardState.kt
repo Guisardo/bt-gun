@@ -4,6 +4,8 @@ import com.btgun.host.HostSessionPhase
 import com.btgun.host.HostSessionState
 import com.btgun.host.ble.BleGunConnectionPhase
 import com.btgun.host.ble.BleGunConnectionState
+import com.btgun.host.diagnostics.DashboardDiagnostics
+import com.btgun.host.diagnostics.DiagnosticReporter
 import com.btgun.host.haptics.HapticResultStatus
 import com.btgun.host.haptics.PhoneHapticStatus
 import com.btgun.host.hid.BtGunHidHostConnectionState
@@ -166,6 +168,7 @@ data class DashboardState(
     val profile: DashboardProfileState,
     val phoneHaptic: DashboardPhoneHaptic,
     val hidGamepad: DashboardHidGamepad,
+    val diagnostics: DashboardDiagnostics = DashboardDiagnostics.empty(),
     val debugPanels: DashboardDebugPanels,
 ) {
     override fun toString(): String =
@@ -235,6 +238,13 @@ data class DashboardState(
                     hidRole = permissionGateState.bluetoothHidRole,
                     status = hostSessionState.hidGamepadStatus,
                 ),
+                diagnostics = DiagnosticReporter.snapshot(
+                    permissionGateState = permissionGateState,
+                    hostSessionState = hostSessionState,
+                    bleConnectionState = bleConnectionState,
+                    lastMotionSample = lastMotionSample?.payload,
+                    nowElapsedNanos = nowElapsedNanos,
+                ).toDashboardDiagnostics(),
                 debugPanels = DashboardDebugPanels(
                     bleProvenance = DebugPanel(
                         title = "BLE provenance",

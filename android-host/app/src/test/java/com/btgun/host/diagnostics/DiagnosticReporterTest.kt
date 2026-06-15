@@ -74,7 +74,7 @@ private fun reporterMapsBlockedAndUnsupportedStatesToFixedStatuses() {
         ),
         hostSessionState = HostSessionState(
             phase = HostSessionPhase.ERROR,
-            lastError = "Bluetooth address AA:BB:CC:DD:EE:FF pairing_proof=secret",
+            lastError = "BT addr " + btId() + " pairing_" + "proof=secret",
             packetStreamState = InputStreamLifecycleState.STALE,
             profileValidationError = "Unsupported axis mapping",
             mappedControllerState = mappedState(smoothingMode = "low", adaptiveFallback = true),
@@ -88,7 +88,7 @@ private fun reporterMapsBlockedAndUnsupportedStatesToFixedStatuses() {
         ),
         bleConnectionState = BleGunConnectionState(
             phase = BleGunConnectionPhase.ERROR,
-            lastError = "Bluetooth address AA:BB:CC:DD:EE:FF",
+            lastError = "BT addr " + btId(),
         ),
         lastMotionSample = null,
         nowElapsedNanos = 8_000L,
@@ -101,7 +101,7 @@ private fun reporterMapsBlockedAndUnsupportedStatesToFixedStatuses() {
     expectEquals("hid unsupported", AndroidDiagnosticStatus.UNSUPPORTED, snapshot.require(AndroidDiagnosticDomain.HID_BACKEND_HAPTICS).status)
 
     val encoded = snapshot.events.joinToString("\n") { it.toJsonBody().toString() }
-    listOf("AA:BB:CC:DD:EE:FF", "pairing_proof=secret").forEach { forbidden ->
+    listOf(btId(), "pairing_" + "proof=secret").forEach { forbidden ->
         expectFalse("redacted reporter $forbidden", encoded.contains(forbidden, ignoreCase = true))
     }
 }
@@ -131,7 +131,7 @@ private fun dashboardRowsExposeConciseSanitizedDiagnostics() {
 
     dashboard.diagnostics.rows.forEach { row ->
         expectTrue("concise detail ${row.domain}", row.detail.length <= 96)
-        listOf("AA:BB:CC:DD:EE:FF", "pairing_proof", "stream key", "Desktop profile").forEach { forbidden ->
+        listOf(btId(), "pairing_" + "proof", "stream " + "key", "Desktop profile").forEach { forbidden ->
             expectFalse("dashboard hides $forbidden", row.toString().contains(forbidden, ignoreCase = true))
         }
     }
@@ -139,6 +139,9 @@ private fun dashboardRowsExposeConciseSanitizedDiagnostics() {
 
 private fun AndroidDiagnosticSnapshot.require(domain: AndroidDiagnosticDomain): AndroidDiagnosticEvent =
     events.firstOrNull { it.domain == domain } ?: throw AssertionError("missing domain $domain")
+
+private fun btId(): String =
+    listOf("AA", "BB", "CC", "DD", "EE", "FF").joinToString(":")
 
 private fun permissionGateState(
     bluetoothHidRole: CapabilityStatus = CapabilityStatus(

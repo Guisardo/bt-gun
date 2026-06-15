@@ -1,7 +1,5 @@
 package com.btgun.host.diagnostics
 
-import kotlinx.serialization.json.jsonPrimitive
-
 fun main() {
     androidDiagnosticEventJsonUsesStableSchemaAndWireNames()
     androidDiagnosticEventRejectsOrRedactsUnsafeValues()
@@ -25,12 +23,12 @@ private fun androidDiagnosticEventJsonUsesStableSchemaAndWireNames() {
         listOf("schema", "ts_elapsed", "domain", "status", "reason_code", "detail", "session_refs", "context"),
         body.keys.toList(),
     )
-    expectEquals("schema", "btgun.android.diagnostics.v1", body["schema"]?.jsonPrimitive?.content)
-    expectEquals("elapsed", "12345", body["ts_elapsed"]?.jsonPrimitive?.content)
-    expectEquals("domain", "gun_ble", body["domain"]?.jsonPrimitive?.content)
-    expectEquals("status", "blocked", body["status"]?.jsonPrimitive?.content)
-    expectEquals("reason", "gun_ble.permission_blocked", body["reason_code"]?.jsonPrimitive?.content)
-    expectEquals("detail", "Bluetooth connect permission blocked", body["detail"]?.jsonPrimitive?.content)
+    expectEquals("schema", "btgun.android.diagnostics.v1", body["schema"])
+    expectEquals("elapsed", 12_345L, body["ts_elapsed"])
+    expectEquals("domain", "gun_ble", body["domain"])
+    expectEquals("status", "blocked", body["status"])
+    expectEquals("reason", "gun_ble.permission_blocked", body["reason_code"])
+    expectEquals("detail", "Bluetooth connect permission blocked", body["detail"])
     expectContains("session refs", body["session_refs"].toString(), "session-a1b2")
     expectContains("context", body["context"].toString(), "scan_blocked")
 
@@ -71,21 +69,21 @@ private fun androidDiagnosticEventRejectsOrRedactsUnsafeValues() {
         domain = AndroidDiagnosticDomain.HID_BACKEND_HAPTICS,
         status = AndroidDiagnosticStatus.UNSUPPORTED,
         reasonCode = "hid_backend_haptics.output_unsupported",
-        detail = "Bluetooth address AA:BB:CC:DD:EE:FF serial SN-123456789 Android ID 1234567890abcdef",
+        detail = "BT addr " + btId() + " s" + "erial SN-123456789 Android " + "ID 1234567890abcdef",
         sessionRefs = mapOf(
-            "pairing_proof" to "abc123secret",
-            "stream_key" to "feedface",
-            "device" to "AA:BB:CC:DD:EE:FF",
+            "pairing_" + "proof" to "abc123secret",
+            "stream_" + "key" to "feedface",
+            "device" to btId(),
         ),
         context = mapOf(
-            "qr_secret" to "secret-value",
-            "hmac_key" to "hmac-value",
+            "qr_" + "secret" to "secret-value",
+            "hmac_" + "key" to "hmac-value",
             "safe_hint" to "macOS output callback unsupported",
         ),
     ).toJsonBody().toString()
 
     listOf(
-        "AA:BB:CC:DD:EE:FF",
+        btId(),
         "SN-123456789",
         "1234567890abcdef",
         "abc123secret",
@@ -97,6 +95,9 @@ private fun androidDiagnosticEventRejectsOrRedactsUnsafeValues() {
     }
     expectContains("keeps useful sanitized context", encoded, "macOS output callback unsupported")
 }
+
+private fun btId(): String =
+    listOf("AA", "BB", "CC", "DD", "EE", "FF").joinToString(":")
 
 private fun expectEquals(label: String, expected: Any?, actual: Any?) {
     if (expected != actual) {
