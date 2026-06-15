@@ -10,8 +10,12 @@ import com.btgun.desktop.control.ControlServerSessionState
 import com.btgun.desktop.control.HapticSendResult
 import com.btgun.desktop.control.ProfileMetadata
 import com.btgun.desktop.control.VisualizerStatus
+import com.btgun.desktop.diagnostics.DiagnosticDomain
+import com.btgun.desktop.diagnostics.DiagnosticEvent
+import com.btgun.desktop.diagnostics.DiagnosticStatus
 import com.btgun.desktop.haptics.HapticResult
 import com.btgun.desktop.haptics.HapticResultStatus
+import com.btgun.desktop.security.SecretRedactor
 import com.btgun.desktop.transport.InputStreamLifecycleState
 import com.btgun.desktop.transport.UdpReceivedInput
 
@@ -109,6 +113,38 @@ data class VisualizerHapticStatus(
     val observedElapsedNanos: Long?,
 )
 
+data class VisualizerDiagnosticBucket(
+    val id: String,
+    val label: String,
+    val status: String = DiagnosticStatus.UNKNOWN.wireName,
+    val reasonCode: String = "not_reported",
+    val detail: String = "No diagnostic event reported",
+    val attention: Boolean = false,
+) {
+    companion object {
+        const val MAX_DETAIL_CHARS = 96
+    }
+}
+
+data class VisualizerDiagnosticSummary(
+    val buckets: List<VisualizerDiagnosticBucket> = DiagnosticDomain.entries.map { domain ->
+        VisualizerDiagnosticBucket(
+            id = domain.wireName,
+            label = domain.label(),
+        )
+    },
+) {
+    fun bucket(id: String): VisualizerDiagnosticBucket =
+        buckets.first { bucket -> bucket.id == id }
+
+    fun withEvent(event: DiagnosticEvent): VisualizerDiagnosticSummary =
+        copy(
+            buckets = buckets.map { bucket ->
+                if (bucket.id == event.domain.wireName) bucket.updatedBy(event) else bucket
+            },
+        )
+}
+
 data class VisualizerModel(
     val liveState: SemanticControllerState = SemanticControllerState(),
     val profileSummary: VisualizerProfileSummary = VisualizerProfileSummary(),
@@ -127,6 +163,7 @@ data class VisualizerModel(
     val productEvents: List<VisualizerProductEvent> = emptyList(),
     val lastAcceptedAimX: Float = 0.0f,
     val lastAcceptedAimY: Float = 0.0f,
+    val diagnosticSummary: VisualizerDiagnosticSummary = VisualizerDiagnosticSummary(),
 ) {
     fun row(id: VisualizerChecklistRowId): VisualizerChecklistRow =
         checklistRows.first { it.id == id }
@@ -195,6 +232,9 @@ data class VisualizerModel(
         copy(
             rawDebug = rawDebug.copy(lastRejection = reason.take(80)),
         )
+
+    fun withDiagnosticEvent(event: DiagnosticEvent): VisualizerModel =
+        copy(diagnosticSummary = diagnosticSummary.withEvent(event))
 
     fun withVisualizerStatus(status: VisualizerStatus, observedElapsedNanos: Long): VisualizerModel {
         val recentered = status.recenterState == "recentered" && status.lastRecenterElapsedNanos != null
@@ -519,3 +559,37 @@ private fun List<VisualizerChecklistRow>.update(
     transform: (VisualizerChecklistRow) -> VisualizerChecklistRow,
 ): List<VisualizerChecklistRow> =
     map { row -> if (row.id == id) transform(row) else row }
+
+private fun VisualizerDiagnosticBucket.updatedBy(event: DiagnosticEvent): VisualizerDiagnosticBucket =
+    copy(
+        status = event.status.wireName,
+        reasonCode = event.reasonCode,
+        detail = event.safeVisualizerDetail(),
+        attention = event.status in setOf(
+            DiagnosticStatus.DEGRADED,
+            DiagnosticStatus.BLOCKED,
+            DiagnosticStatus.UNSUPPORTED,
+        ),
+    )
+
+private fun DiagnosticEvent.safeVisualizerDetail(): String {
+    val wireDetail = toWireMap()["detail"] as? String ?: detail
+    return SecretRedactor.redact(wireDetail)
+        .replace(VISUALIZER_UNSAFE_DETAIL_PATTERN, "<redacted>")
+        .replace(VISUALIZER_REDACTED_VALUE_PATTERN, "\$1<redacted>")
+        .take(VisualizerDiagnosticBucket.MAX_DETAIL_CHARS)
+}
+
+private fun DiagnosticDomain.label(): String =
+    when (this) {
+        DiagnosticDomain.GUN_BLE -> "Gun BLE"
+        DiagnosticDomain.SENSOR_MOTION -> "Sensor motion"
+        DiagnosticDomain.LAN_CONTROL_UDP -> "LAN/control UDP"
+        DiagnosticDomain.PROFILE_MAPPING -> "Profile mapping"
+        DiagnosticDomain.HID_BACKEND_HAPTICS -> "HID/backend haptics"
+    }
+
+private val VISUALIZER_UNSAFE_DETAIL_PATTERN = Regex(
+    "(?i)(qr[_ -]?secret|pairing[_ -]?proof|stream[_ -]?key|hmac[_ -]?key|private[_ -]?key|bluetooth[_ -]?address|android[_ -]?id|raw[_ -]?screenshot|raw[_ -]?log|[0-9a-f]{2}(:[0-9a-f]{2}){5})",
+)
+private val VISUALIZER_REDACTED_VALUE_PATTERN = Regex("(<redacted>[=: ]*)[A-Za-z0-9_-]+")
