@@ -8,6 +8,9 @@ import com.btgun.desktop.backend.BackendLifecycleState
 import com.btgun.desktop.backend.BackendPublishResult
 import com.btgun.desktop.backend.macos.MacosBackendRuntimeDiagnostics
 import com.btgun.desktop.backend.windows.WindowsBackendRuntimeDiagnostics
+import com.btgun.desktop.diagnostics.DiagnosticDomain
+import com.btgun.desktop.diagnostics.DiagnosticEvent
+import com.btgun.desktop.diagnostics.DiagnosticStatus
 import com.btgun.desktop.haptics.HapticResult
 import com.btgun.desktop.haptics.HapticResultStatus
 import com.btgun.desktop.transport.InputReplayRejectReason
@@ -27,6 +30,9 @@ fun main() {
     visualizerHapticCommandUsesSafeShape()
     visualizerHapticStatusCopyMatchesUiSpec()
     visualizerWindowRendersRecenterAndRawDebugStatusLabels()
+    visualizerWindowRendersAllDiagnosticBucketRows()
+    visualizerDiagnosticLabelsShowReasonAndSanitizedDetail()
+    visualizerDiagnosticHapticLimitDoesNotConfirmProof()
     visualizerCoordinatorAppliesVisualizerStatusWithoutClearingState()
     visualizerCoordinatorRefreshesMetricsFromVisualizerStatus()
     visualizerCoordinatorAppliesBackendDiagnostics()
@@ -230,6 +236,54 @@ private fun visualizerWindowRendersRecenterAndRawDebugStatusLabels() {
         VisualizerWindow.recenterStatusLabels(model),
     )
     expectTrue("raw debug on label visible", VisualizerPanels.rawDebugLabels(model.rawDebug).contains("Raw debug on"))
+}
+
+private fun visualizerWindowRendersAllDiagnosticBucketRows() {
+    val labels = VisualizerWindow.diagnosticStatusLabels(VisualizerModel.initial().diagnosticSummary)
+    val joined = labels.joinToString("\n")
+
+    expectEquals("diagnostic row count", 5, labels.size)
+    listOf("gun_ble", "sensor_motion", "lan_control_udp", "profile_mapping", "hid_backend_haptics").forEach { id ->
+        expectContains("diagnostic row $id", joined, "$id: unknown reason=not_reported")
+    }
+}
+
+private fun visualizerDiagnosticLabelsShowReasonAndSanitizedDetail() {
+    val detail = "Control failed from " + "raw" + " log payload " + "x".repeat(180)
+    val model = VisualizerModel.initial().withDiagnosticEvent(
+        DiagnosticEvent(
+            tsElapsed = 7_000_000L,
+            domain = DiagnosticDomain.LAN_CONTROL_UDP,
+            status = DiagnosticStatus.BLOCKED,
+            reasonCode = "lan_control_udp.auth_failed",
+            detail = detail,
+        ),
+    )
+    val labels = VisualizerWindow.diagnosticStatusLabels(model.diagnosticSummary)
+    val lan = labels.first { it.startsWith("lan_control_udp:") }
+
+    expectContains("status visible", lan, "blocked")
+    expectContains("reason visible", lan, "reason=lan_control_udp.auth_failed")
+    expectTrue("label detail capped", lan.length < 180)
+    expectFalse("raw detail hidden", lan.contains("raw" + " log", ignoreCase = true))
+}
+
+private fun visualizerDiagnosticHapticLimitDoesNotConfirmProof() {
+    val model = VisualizerModel.initial().withDiagnosticEvent(
+        DiagnosticEvent(
+            tsElapsed = 8_000_000L,
+            domain = DiagnosticDomain.HID_BACKEND_HAPTICS,
+            status = DiagnosticStatus.UNSUPPORTED,
+            reasonCode = "hid_backend_haptics.macos_output_deferred",
+            detail = "macOS HID haptic unsupported/deferred",
+        ),
+    )
+    val label = VisualizerWindow.diagnosticStatusLabels(model.diagnosticSummary)
+        .first { it.startsWith("hid_backend_haptics:") }
+
+    expectContains("unsupported haptic label", label, "unsupported")
+    expectEquals("macOS haptic proof not accepted", VisualizerChecklistState.WAITING, model.row(VisualizerChecklistRowId.MACOS_HID_HAPTIC_LIMIT).state)
+    expectFalse("phone haptic proof not confirmed", model.row(VisualizerChecklistRowId.LAN_PHONE_HAPTIC).state == VisualizerChecklistState.CONFIRMED)
 }
 
 private fun visualizerCoordinatorAppliesVisualizerStatusWithoutClearingState() {

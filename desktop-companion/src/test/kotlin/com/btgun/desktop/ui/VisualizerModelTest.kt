@@ -398,7 +398,7 @@ private fun rawDebugDrawerStartsCollapsedAndShowsWhitelistedFieldsOnlyWhenEnable
         ),
         on,
     )
-    listOf("secret", "pairing", "hmac", "private" + " key", "device id", "stream key").forEach { forbidden ->
+    listOf("secret", "pairing", "hmac", "private" + " key", "device id", "stream" + " key").forEach { forbidden ->
         expectFalse("raw drawer excludes $forbidden", on.joinToString("\n").contains(forbidden, ignoreCase = true))
     }
 }

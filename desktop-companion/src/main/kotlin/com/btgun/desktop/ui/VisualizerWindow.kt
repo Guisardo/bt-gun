@@ -54,6 +54,7 @@ class VisualizerWindow(
     private val gamepad = VisualizerPanels.liveGamepadPanel()
     private val metrics = JLabel(VisualizerMetricSnapshot.empty().headlineLatencyLabel)
     private val recenter = JLabel(labelsHtml(recenterStatusLabels(VisualizerModel.initial())))
+    private val diagnostics = JLabel(labelsHtml(diagnosticStatusLabels(VisualizerModel.initial().diagnosticSummary)))
     private val hapticAction = JButton(hapticButtonLabel())
     private val confirmObservedAction = JButton(confirmObservedLabel())
     private val confirmLimitationAction = JButton(confirmLimitationLabel())
@@ -149,6 +150,7 @@ class VisualizerWindow(
         gamepad.updateModel(model)
         metrics.text = labelsHtml(VisualizerPanels.metricsLabels(model.metrics))
         recenter.text = labelsHtml(recenterStatusLabels(model))
+        diagnostics.text = labelsHtml(diagnosticStatusLabels(model.diagnosticSummary))
         hapticAction.isEnabled = controlServer != null && hapticButtonEnabled(model.controlSessionState)
         events.text = labelsHtml(
             VisualizerPanels.eventStripLabels(
@@ -196,6 +198,8 @@ class VisualizerWindow(
         south.add(panel(requiredSectionLabels()[2], metrics))
         south.add(Box.createVerticalStrut(SPACING_SM))
         south.add(panel("Recenter status", recenter))
+        south.add(Box.createVerticalStrut(SPACING_SM))
+        south.add(panel("Diagnostics", diagnostics))
         south.add(Box.createVerticalStrut(SPACING_SM))
         south.add(hapticAction)
         south.add(Box.createVerticalStrut(SPACING_SM))
@@ -314,6 +318,11 @@ class VisualizerWindow(
                     "macOS HID haptic unsupported/deferred; LAN and Windows phone haptics remain available."
                 },
             )
+
+        fun diagnosticStatusLabels(summary: VisualizerDiagnosticSummary): List<String> =
+            summary.buckets.map { bucket ->
+                "${bucket.id}: ${bucket.status} reason=${bucket.reasonCode} detail=${bucket.detail}"
+            }
 
         fun requiredSectionLabels(): List<String> =
             listOf(
