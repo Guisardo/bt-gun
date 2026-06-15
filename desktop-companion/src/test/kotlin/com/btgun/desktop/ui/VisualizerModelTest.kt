@@ -4,6 +4,10 @@ import com.btgun.desktop.backend.BackendLifecycleState
 import com.btgun.desktop.backend.BackendPublishResult
 import com.btgun.desktop.backend.macos.MacosBackendRuntimeDiagnostics
 import com.btgun.desktop.backend.windows.WindowsBackendRuntimeDiagnostics
+import com.btgun.desktop.diagnostics.DiagnosticDomain
+import com.btgun.desktop.diagnostics.DiagnosticEvent
+import com.btgun.desktop.diagnostics.DiagnosticSessionRefs
+import com.btgun.desktop.diagnostics.DiagnosticStatus
 import com.btgun.desktop.control.HapticSendResult
 import com.btgun.desktop.control.VisualizerStatus
 import com.btgun.desktop.transport.UdpInputFrameType
@@ -14,6 +18,10 @@ import com.btgun.desktop.haptics.HapticResult
 import com.btgun.desktop.haptics.HapticResultStatus
 
 fun main() {
+    diagnosticSummaryStartsWithFiveUnknownBuckets()
+    diagnosticEventUpdatesOnlyMatchingBucket()
+    diagnosticAttentionDoesNotConfirmProofRows()
+    diagnosticDetailIsCappedAndRedacted()
     finalChecklistCannotPassUntilRequiredRowsReachAcceptedStates()
     macosAndWindowsInputRowsAreIndependentAndBothRequired()
     manualConfirmationRequiresObservedPrerequisitesExceptMacosInput()
@@ -31,6 +39,99 @@ fun main() {
     observedLanStreamDoesNotConfirmManualProofRows()
     modelLabelsExcludeDesktopProfileControlsAndSecretFields()
     staleInputPreservesLastAcceptedAimContext()
+}
+
+private fun diagnosticSummaryStartsWithFiveUnknownBuckets() {
+    val summary = VisualizerModel.initial().diagnosticSummary
+    val expectedIds = listOf(
+        "gun_ble",
+        "sensor_motion",
+        "lan_control_udp",
+        "profile_mapping",
+        "hid_backend_haptics",
+    )
+
+    expectEquals("diagnostic ids", expectedIds, summary.buckets.map { it.id })
+    summary.buckets.forEach { bucket ->
+        expectEquals("initial status ${bucket.id}", "unknown", bucket.status)
+        expectEquals("initial reason ${bucket.id}", "not_reported", bucket.reasonCode)
+        expectEquals("initial detail ${bucket.id}", "No diagnostic event reported", bucket.detail)
+        expectFalse("unknown not attention ${bucket.id}", bucket.attention)
+    }
+}
+
+private fun diagnosticEventUpdatesOnlyMatchingBucket() {
+    val event = DiagnosticEvent(
+        tsElapsed = 1_000_000L,
+        domain = DiagnosticDomain.SENSOR_MOTION,
+        status = DiagnosticStatus.DEGRADED,
+        reasonCode = "sensor_motion.provider_fallback",
+        detail = "gyro unavailable; gravity tilt active",
+        sessionRefs = DiagnosticSessionRefs(streamSessionRef = "00112233445566778899aabbccddeeff"),
+        context = mapOf("provider" to "gravity"),
+    )
+    val model = VisualizerModel.initial().withDiagnosticEvent(event)
+
+    expectEquals("updated status", "degraded", model.diagnosticSummary.bucket("sensor_motion").status)
+    expectEquals("updated reason", "sensor_motion.provider_fallback", model.diagnosticSummary.bucket("sensor_motion").reasonCode)
+    expectContains("updated detail", model.diagnosticSummary.bucket("sensor_motion").detail, "gravity tilt")
+    expectTrue("degraded needs attention", model.diagnosticSummary.bucket("sensor_motion").attention)
+
+    listOf("gun_ble", "lan_control_udp", "profile_mapping", "hid_backend_haptics").forEach { id ->
+        expectEquals("other bucket unchanged $id", "unknown", model.diagnosticSummary.bucket(id).status)
+    }
+}
+
+private fun diagnosticAttentionDoesNotConfirmProofRows() {
+    val blocked = DiagnosticEvent(
+        tsElapsed = 2_000_000L,
+        domain = DiagnosticDomain.GUN_BLE,
+        status = DiagnosticStatus.BLOCKED,
+        reasonCode = "gun_ble.permission_blocked",
+        detail = "nearby devices permission blocked",
+    )
+    val unsupported = DiagnosticEvent(
+        tsElapsed = 3_000_000L,
+        domain = DiagnosticDomain.HID_BACKEND_HAPTICS,
+        status = DiagnosticStatus.UNSUPPORTED,
+        reasonCode = "hid_backend_haptics.macos_output_deferred",
+        detail = "macOS HID haptic unsupported/deferred; LAN haptic remains available",
+    )
+    val model = VisualizerModel.initial()
+        .withDiagnosticEvent(blocked)
+        .withDiagnosticEvent(unsupported)
+
+    expectTrue("blocked bucket attention", model.diagnosticSummary.bucket("gun_ble").attention)
+    expectTrue("unsupported bucket attention", model.diagnosticSummary.bucket("hid_backend_haptics").attention)
+    listOf(
+        VisualizerChecklistRowId.RECENTER_AIM_ZERO,
+        VisualizerChecklistRowId.MACOS_HID_INPUT,
+        VisualizerChecklistRowId.WINDOWS_VHF_INPUT,
+        VisualizerChecklistRowId.LAN_PHONE_HAPTIC,
+        VisualizerChecklistRowId.WINDOWS_VHF_HAPTIC,
+        VisualizerChecklistRowId.MACOS_HID_HAPTIC_LIMIT,
+    ).forEach { rowId ->
+        expectFalse("diagnostic does not confirm ${rowId.wireId}", model.row(rowId).state == VisualizerChecklistState.CONFIRMED)
+    }
+}
+
+private fun diagnosticDetailIsCappedAndRedacted() {
+    val noisyDetail = "Failure used " + "stream" + " key=abcdef and " + "private" + " key marker " + "x".repeat(260)
+    val model = VisualizerModel.initial().withDiagnosticEvent(
+        DiagnosticEvent(
+            tsElapsed = 4_000_000L,
+            domain = DiagnosticDomain.LAN_CONTROL_UDP,
+            status = DiagnosticStatus.BLOCKED,
+            reasonCode = "lan_control_udp.auth_failed",
+            detail = noisyDetail,
+        ),
+    )
+    val detail = model.diagnosticSummary.bucket("lan_control_udp").detail
+
+    expectTrue("detail capped", detail.length <= VisualizerDiagnosticBucket.MAX_DETAIL_CHARS)
+    listOf("stream" + " key", "private" + " key", "abcdef").forEach { forbidden ->
+        expectFalse("detail redacts $forbidden", detail.contains(forbidden, ignoreCase = true))
+    }
 }
 
 private fun finalChecklistCannotPassUntilRequiredRowsReachAcceptedStates() {
