@@ -10,6 +10,6 @@ Phase 10 replay fixtures are committed, sanitized inputs for repeatable desktop 
 
 ## Redaction Policy
 
-Committed replay files must not contain pairing codes, QR secrets, proof values, stream keys, HMAC material, private keys, full Bluetooth addresses, full serials, full Android IDs, raw logs, or raw screenshots.
+Committed replay files use small fixture datagrams and sanitized refs only. Do not add one-time pairing values, proof tokens, stream-auth material, private signing material, full device identifiers, unsanitized capture logs, or screen captures.
 
-Use sanitized fixture ids, suffix-only refs, and manifest links to provenance under `docs/evidence/manifests/`.
+Use fixture ids, suffix-only refs, and manifest links to provenance under `docs/evidence/manifests/`.
