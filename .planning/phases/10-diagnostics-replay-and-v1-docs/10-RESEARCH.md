@@ -533,17 +533,19 @@ Keep raw outputs in ignored `.evidence/` paths and copy only sanitized summaries
 | A15 | Duplicating LAN schema across multiple docs will create drift risk. | Anti-Patterns | Low: existing docs already centralize LAN schema, but planner may choose a different doc split. |
 | A16 | PERF-04 replay tests that use hand-built `UdpReceivedInput` without raw datagrams are insufficient. | Common Pitfalls | Medium: could falsely satisfy replay while skipping auth/decode behavior. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Where should the first export command live?**
    - What we know: Phase 10 allows the agent to choose export command names and file locations. [VERIFIED: `10-CONTEXT.md`]
    - What's unclear: Whether first export should be desktop-only, Android-only, or dual. [ASSUMED]
    - Recommendation: Start desktop export first because replay parser, visualizer model, metrics, and manifests are desktop-adjacent; add Android diagnostic event producer and dashboard rendering in same phase. [VERIFIED: desktop replay seams] [ASSUMED]
+   - RESOLVED: First export command/work lives in the desktop diagnostic export path from Plan 10-05: `desktop-companion/src/main/kotlin/com/btgun/desktop/diagnostics/DiagnosticExport.kt`, desktop diagnostic export tests, and `docs/evidence/manifests/phase10-diagnostic-export.jsonl`.
 
 2. **Should replay fixtures include binary `.bin` files or hex-only text?**
    - What we know: Context allows raw UDP fixture bytes/hex, and existing docs use hex constants. [VERIFIED: `10-CONTEXT.md`; VERIFIED: `docs/protocol/input-stream-v1-fixtures.md`]
    - What's unclear: Whether binary files are worth the review overhead. [ASSUMED]
    - Recommendation: Use hex text first for reviewable diffs; add binary only if a future replay CLI needs exact file-stream behavior. [VERIFIED: existing fixture docs] [ASSUMED]
+   - RESOLVED: The first replay corpus uses hex-only text fixtures from Plan 10-01 under `fixtures/replay/udp-golden/mapped-session-001.hex`, with JSONL/session snapshots and expected visualizer JSON.
 
 ## Environment Availability
 
