@@ -48,9 +48,10 @@ dependencies {
 
 tasks.withType<Test>().configureEach {
     val unitTestTask = this
-    failOnNoDiscoveredTests = false
 
     filter {
+        // Main-function tests run below; keep Gradle's JUnit scanner no-op on Gradle 8/9.
+        includeTestsMatching("com.btgun.no_junit_tests.*")
         isFailOnNoMatchingTests = false
     }
 
