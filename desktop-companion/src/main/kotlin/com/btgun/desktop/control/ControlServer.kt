@@ -1,5 +1,6 @@
 package com.btgun.desktop.control
 
+import com.btgun.desktop.transport.InputFrameFormat
 import com.btgun.desktop.transport.InputStreamConfig
 import com.btgun.desktop.haptics.HapticCommand
 import com.btgun.desktop.haptics.HapticResult
@@ -339,6 +340,12 @@ class ControlServer(
                     "frameAgeLimitMs" to JsonPrimitive(config.frameAgeLimitMs),
                     "streamTimeoutMs" to JsonPrimitive(config.streamTimeoutMs),
                     "controlDisconnectGraceMs" to JsonPrimitive(config.controlDisconnectGraceMs),
+                    "frameFormat" to JsonPrimitive(config.frameFormat.wireName),
+                    "capabilities" to JsonObject(
+                        mapOf(
+                            "compactUdpV2" to JsonPrimitive(config.frameFormat == InputFrameFormat.COMPACT_V2),
+                        ),
+                    ),
                 ),
             ),
         )
@@ -505,6 +512,7 @@ class ControlServer(
             frameAgeLimitMs = DEFAULT_FRAME_AGE_LIMIT_MILLIS,
             streamTimeoutMs = DEFAULT_STREAM_TIMEOUT_MILLIS,
             controlDisconnectGraceMs = DEFAULT_CONTROL_DISCONNECT_GRACE_MILLIS,
+            frameFormat = InputFrameFormat.COMPACT_V2,
         )
 
     private fun updateActiveUdpEndpoint(

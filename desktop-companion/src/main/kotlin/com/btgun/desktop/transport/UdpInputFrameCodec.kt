@@ -107,9 +107,12 @@ data class UdpInputFrameDebugSummary(
 
 object UdpInputFrameCodec {
     const val FRAME_SIZE = 120
+    const val COMPACT_FRAME_SIZE = 92
     const val TAG_SIZE = 32
     const val MAGIC = "BTGI"
+    const val COMPACT_MAGIC = "BTG2"
     const val VERSION = 1
+    const val COMPACT_VERSION = 2
     const val OFFSET_STREAM_FLAGS = 6
     const val OFFSET_RESERVED_FLAGS = OFFSET_STREAM_FLAGS
     const val OFFSET_SEQUENCE = 24
@@ -128,6 +131,15 @@ object UdpInputFrameCodec {
     const val OFFSET_RAW_AIM_Y = 76
     const val OFFSET_SOURCE_SENSOR_ELAPSED_NANOS = 80
     const val OFFSET_HMAC_TAG = 88
+    const val COMPACT_OFFSET_SEQUENCE = 24
+    const val COMPACT_OFFSET_CAPTURE_ELAPSED_NANOS = 32
+    const val COMPACT_OFFSET_SEND_ELAPSED_NANOS = 40
+    const val COMPACT_OFFSET_BUTTON_BITMASK = 48
+    const val COMPACT_OFFSET_STICK_X = 52
+    const val COMPACT_OFFSET_STICK_Y = 54
+    const val COMPACT_OFFSET_AIM_X = 56
+    const val COMPACT_OFFSET_AIM_Y = 58
+    const val COMPACT_OFFSET_HMAC_TAG = 60
 
     fun encode(frame: UdpInputFrame, config: InputStreamConfig): ByteArray {
         require(frame.streamSessionId == config.streamSessionIdHex) { "frame stream id must match config" }
@@ -155,6 +167,95 @@ object UdpInputFrameCodec {
         buffer.putLong(frame.sourceSensorElapsedNanos)
         hmac(bytes.copyOfRange(0, OFFSET_HMAC_TAG), config.hmacKeyBytes()).copyInto(bytes, OFFSET_HMAC_TAG)
         return bytes
+    }
+
+    fun encodeCompact(frame: UdpInputFrame, config: InputStreamConfig): ByteArray {
+        require(frame.streamSessionId == config.streamSessionIdHex) { "frame stream id must match config" }
+        val bytes = ByteArray(COMPACT_FRAME_SIZE)
+        val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.BIG_ENDIAN)
+        buffer.put(COMPACT_MAGIC.toByteArray(Charsets.US_ASCII))
+        buffer.put(COMPACT_VERSION.toByte())
+        buffer.put(frame.type.wireValue.toByte())
+        buffer.putShort(frame.streamFlags.toShort())
+        buffer.put(frame.streamSessionId.hexToBytes())
+        buffer.putLong(frame.sequence)
+        buffer.putLong(frame.captureElapsedNanos)
+        buffer.putLong(frame.sendElapsedNanos)
+        buffer.putInt(frame.buttonBitmask)
+        buffer.putShort(frame.stickX.toShort())
+        buffer.putShort(frame.stickY.toShort())
+        buffer.putShort(frame.productAimX.toInt16Axis().toShort())
+        buffer.putShort(frame.productAimY.toInt16Axis().toShort())
+        hmac(bytes.copyOfRange(0, COMPACT_OFFSET_HMAC_TAG), config.hmacKeyBytes()).copyInto(bytes, COMPACT_OFFSET_HMAC_TAG)
+        return bytes
+    }
+
+    fun authenticateAndDecodeMux(bytes: ByteArray, config: InputStreamConfig): UdpInputFrameDecodeResult =
+        when {
+            bytes.size == FRAME_SIZE && bytes.copyOfRange(0, 4).contentEquals(MAGIC.toByteArray(Charsets.US_ASCII)) ->
+                authenticateAndDecode(bytes, config)
+            bytes.size == COMPACT_FRAME_SIZE && bytes.copyOfRange(0, 4).contentEquals(COMPACT_MAGIC.toByteArray(Charsets.US_ASCII)) ->
+                authenticateAndDecodeCompact(bytes, config)
+            bytes.size != FRAME_SIZE && bytes.size != COMPACT_FRAME_SIZE ->
+                UdpInputFrameDecodeResult.Rejected(UdpInputFrameRejectReason.INVALID_LENGTH, "size=${bytes.size}")
+            else -> UdpInputFrameDecodeResult.Rejected(UdpInputFrameRejectReason.BAD_MAGIC)
+        }
+
+    fun authenticateAndDecodeCompact(bytes: ByteArray, config: InputStreamConfig): UdpInputFrameDecodeResult {
+        if (bytes.size != COMPACT_FRAME_SIZE) {
+            return UdpInputFrameDecodeResult.Rejected(UdpInputFrameRejectReason.INVALID_LENGTH, "size=${bytes.size}")
+        }
+        if (!bytes.copyOfRange(0, 4).contentEquals(COMPACT_MAGIC.toByteArray(Charsets.US_ASCII))) {
+            return UdpInputFrameDecodeResult.Rejected(UdpInputFrameRejectReason.BAD_MAGIC)
+        }
+        if ((bytes[4].toInt() and 0xff) != COMPACT_VERSION) {
+            return UdpInputFrameDecodeResult.Rejected(UdpInputFrameRejectReason.UNSUPPORTED_VERSION)
+        }
+        val type = UdpInputFrameType.fromWireValue(bytes[5].toInt() and 0xff)
+            ?: return UdpInputFrameDecodeResult.Rejected(UdpInputFrameRejectReason.UNKNOWN_TYPE)
+        val streamSessionId = bytes.copyOfRange(8, COMPACT_OFFSET_SEQUENCE).toHex()
+        if (streamSessionId != config.streamSessionIdHex) {
+            return UdpInputFrameDecodeResult.Rejected(UdpInputFrameRejectReason.WRONG_STREAM_SESSION)
+        }
+        val expectedTag = hmac(bytes.copyOfRange(0, COMPACT_OFFSET_HMAC_TAG), config.hmacKeyBytes())
+        val actualTag = bytes.copyOfRange(COMPACT_OFFSET_HMAC_TAG, COMPACT_FRAME_SIZE)
+        if (!MessageDigest.isEqual(expectedTag, actualTag)) {
+            return UdpInputFrameDecodeResult.Rejected(UdpInputFrameRejectReason.BAD_HMAC)
+        }
+        val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.BIG_ENDIAN)
+        val streamFlags = buffer.getShort(OFFSET_STREAM_FLAGS).toInt() and 0xffff
+        if (streamFlags and UdpInputFrame.KNOWN_STREAM_FLAGS != streamFlags) {
+            return UdpInputFrameDecodeResult.Rejected(UdpInputFrameRejectReason.MALFORMED_FIELD, "stream flags")
+        }
+        val aimX = buffer.getShort(COMPACT_OFFSET_AIM_X).toInt().fromInt16Axis()
+        val aimY = buffer.getShort(COMPACT_OFFSET_AIM_Y).toInt().fromInt16Axis()
+        val frame = runCatching {
+            UdpInputFrame(
+                type = type,
+                streamSessionId = streamSessionId,
+                sequence = buffer.getLong(COMPACT_OFFSET_SEQUENCE),
+                captureElapsedNanos = buffer.getLong(COMPACT_OFFSET_CAPTURE_ELAPSED_NANOS),
+                sendElapsedNanos = buffer.getLong(COMPACT_OFFSET_SEND_ELAPSED_NANOS),
+                buttonBitmask = buffer.getInt(COMPACT_OFFSET_BUTTON_BITMASK),
+                stickX = buffer.getShort(COMPACT_OFFSET_STICK_X).toInt(),
+                stickY = buffer.getShort(COMPACT_OFFSET_STICK_Y).toInt(),
+                motionProvider = 0,
+                motionCapabilityFlags = 0,
+                yaw = aimX,
+                pitch = aimY,
+                roll = 0f,
+                rawAimX = Float.NaN,
+                rawAimY = Float.NaN,
+                sourceSensorElapsedNanos = buffer.getLong(COMPACT_OFFSET_CAPTURE_ELAPSED_NANOS),
+                streamFlags = streamFlags,
+                productAimX = aimX,
+                productAimY = aimY,
+                rawRoll = 0f,
+            )
+        }.getOrElse { error ->
+            return UdpInputFrameDecodeResult.Rejected(UdpInputFrameRejectReason.MALFORMED_FIELD, error.message)
+        }
+        return UdpInputFrameDecodeResult.Accepted(frame)
     }
 
     fun authenticateAndDecode(bytes: ByteArray, config: InputStreamConfig): UdpInputFrameDecodeResult {
@@ -216,7 +317,7 @@ object UdpInputFrameCodec {
     }
 
     fun debugDecode(bytes: ByteArray, config: InputStreamConfig): UdpInputFrameDebugSummary =
-        when (val decoded = authenticateAndDecode(bytes, config)) {
+        when (val decoded = authenticateAndDecodeMux(bytes, config)) {
             is UdpInputFrameDecodeResult.Rejected -> UdpInputFrameDebugSummary(
                 accepted = false,
                 reason = decoded.reason,
@@ -253,6 +354,12 @@ object UdpInputFrameCodec {
         return mac.doFinal(input)
     }
 }
+
+private fun Float.toInt16Axis(): Int =
+    ((if (isFinite()) coerceIn(-1f, 1f) else 0f) * Short.MAX_VALUE).toInt()
+
+private fun Int.fromInt16Axis(): Float =
+    if (this == Short.MIN_VALUE.toInt()) -1f else (this.toFloat() / Short.MAX_VALUE.toFloat()).coerceIn(-1f, 1f)
 
 private fun ByteArray.toHex(): String =
     joinToString(separator = "") { byte -> "%02x".format(byte.toInt() and 0xff) }

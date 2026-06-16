@@ -2,6 +2,16 @@ package com.btgun.desktop.transport
 
 import java.util.Base64
 
+enum class InputFrameFormat(val wireName: String) {
+    V1("v1"),
+    COMPACT_V2("compact_v2");
+
+    companion object {
+        fun fromWireName(value: String?): InputFrameFormat =
+            entries.firstOrNull { format -> format.wireName == value } ?: V1
+    }
+}
+
 data class InputStreamConfig(
     val streamSessionIdHex: String,
     val udpHost: String,
@@ -11,6 +21,7 @@ data class InputStreamConfig(
     val frameAgeLimitMs: Long,
     val streamTimeoutMs: Long,
     val controlDisconnectGraceMs: Long,
+    val frameFormat: InputFrameFormat = InputFrameFormat.V1,
 ) {
     init {
         require(streamSessionIdHex.length == 32 && streamSessionIdHex.all { it in '0'..'9' || it in 'a'..'f' }) {

@@ -18,6 +18,7 @@ import com.btgun.desktop.transport.UdpInputRuntime
 import com.btgun.desktop.transport.UdpInputRuntimeStartResult
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -889,6 +890,8 @@ private fun controlServerSendsFreshInputStreamConfigAfterTrustedSession() {
     expectEquals("age limit", 150L, first.body.longField("frameAgeLimitMs"))
     expectEquals("timeout", 250L, first.body.longField("streamTimeoutMs"))
     expectEquals("control grace", 1500L, first.body.longField("controlDisconnectGraceMs"))
+    expectEquals("compact frame format", "compact_v2", first.body.stringField("frameFormat"))
+    expectEquals("compact capability", true, first.body["capabilities"]?.jsonObject?.get("compactUdpV2")?.jsonPrimitive?.booleanOrNull)
     expectEquals("stream id hex length", 32, requireNotNull(first.body.stringField("streamSessionIdHex")).length)
     expectTrue("stream id fresh", first.body.stringField("streamSessionIdHex") != second.body.stringField("streamSessionIdHex"))
     expectTrue("stream key fresh", first.body.stringField("hmacSha256KeyBase64Url") != second.body.stringField("hmacSha256KeyBase64Url"))
@@ -923,6 +926,7 @@ private fun controlServerStartsUdpRuntimeWithAdvertisedInputStreamConfig() {
     expectEquals("advertised stream", result.config.streamSessionIdHex, result.envelope.body.stringField("streamSessionIdHex"))
     expectEquals("advertised host", result.config.udpHost, result.envelope.body.stringField("udpHost"))
     expectEquals("advertised port", result.config.udpPort.toLong(), result.envelope.body.longField("udpPort"))
+    expectEquals("advertised format", result.config.frameFormat.wireName, result.envelope.body.stringField("frameFormat"))
 }
 
 private fun controlServerReportsUdpStartFailureBeforeStreamConfig() {

@@ -3,6 +3,7 @@ package com.btgun.desktop.transport
 fun main() {
     replayGuardAcceptsFirstValidFrameAndRejectsReplayCases()
     replayGuardRejectsWrongSessionMalformedBadMacAgeExpiredAndAcceptsClockSkewedDatagrams()
+    replayGuardAcceptsCompactFrameThroughMuxAndUsesSendTimestampFreshness()
     timeoutClearsControlsButPreservesRawMotion()
 }
 
@@ -35,6 +36,42 @@ private fun replayGuardAcceptsFirstValidFrameAndRejectsReplayCases() {
     expectEquals("authoritative snapshot remains current", 0x01, guard.current?.buttons)
     expectEquals("snapshot raw aim x remains current", 0.5f, guard.current?.motion?.rawAimX)
     expectEquals("snapshot raw aim y remains current", -0.75f, guard.current?.motion?.rawAimY)
+}
+
+private fun replayGuardAcceptsCompactFrameThroughMuxAndUsesSendTimestampFreshness() {
+    val guard = InputReplayGuard(
+        trustedControlSessionId = CONTROL_SESSION_ID,
+        config = fixtureConfig(),
+    )
+    val compact = UdpInputFrameCodec.encodeCompact(
+        frame(
+            sequence = 40L,
+            captureElapsedNanos = 5_000_000_000L,
+            sendElapsedNanos = 5_000_100_000L,
+            buttonBitmask = 0x101,
+        ),
+        fixtureConfig(),
+    )
+    val staleBySendElapsed = UdpInputFrameCodec.encodeCompact(
+        frame(
+            sequence = 41L,
+            captureElapsedNanos = 5_000_000_000L,
+            sendElapsedNanos = 5_151_000_001L,
+        ),
+        fixtureConfig(),
+    )
+
+    expectAccepted(
+        "compact accepted through mux",
+        guard.acceptDatagram(compact, receivedElapsedNanos = 900_000_000_000_000L, controlSessionId = CONTROL_SESSION_ID),
+        sequence = 40L,
+        buttonBitmask = 0x101,
+    )
+    expectRejected(
+        "compact stale uses send timestamp",
+        InputReplayRejectReason.AGE_EXPIRED,
+        guard.acceptDatagram(staleBySendElapsed, receivedElapsedNanos = 900_000_000_000_100L, controlSessionId = CONTROL_SESSION_ID),
+    )
 }
 
 private fun replayGuardRejectsWrongSessionMalformedBadMacAgeExpiredAndAcceptsClockSkewedDatagrams() {
