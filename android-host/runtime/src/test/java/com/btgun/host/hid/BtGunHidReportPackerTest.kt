@@ -18,6 +18,10 @@ fun main() {
     staleMappedReportClearsButtonsAndStickButKeepsMappedAim()
     neutralReportClearsButtonsStickAndAim()
     descriptorBytesRemainPinnedForMappedState()
+    currentUserProfileRemainsDefault()
+    boringStandardNeutralReportUsesHatNeutral()
+    boringStandardMapsButtonsHatAndMasksUnsupportedButtons()
+    boringStandardOppositeDpadDirectionsCancelToNeutralHat()
     hidPackageDoesNotDependOnDesktopModules()
 }
 
@@ -216,6 +220,81 @@ private fun descriptorBytesRemainPinnedForMappedState() {
     )
 }
 
+private fun currentUserProfileRemainsDefault() {
+    val report = BtGunHidReportPacker.packInputReport(
+        mappedState = mappedState(pressedVirtualControls = setOf("jp_button_a1")),
+        stale = false,
+    )
+
+    expectEquals("default profile", BtGunHidProfiles.CURRENT_USER.id, report.profile.id)
+    expectEquals("default keeps extended button", 1 shl 16, report.bytes.readButtonBits())
+}
+
+private fun boringStandardNeutralReportUsesHatNeutral() {
+    val report = BtGunHidReportPacker.neutralInputReport(BtGunHidProfiles.BORING_STANDARD)
+
+    expectEquals("boring profile", BtGunHidProfiles.BORING_STANDARD.id, report.profile.id)
+    expectEquals("neutral button bits", 0, report.bytes.readButtonBits16())
+    expectEquals("neutral hat", 8, report.bytes.readHat())
+    expectEquals("neutral stickX", 0, report.bytes.readInt16Le(3))
+    expectEquals("neutral stickY", 0, report.bytes.readInt16Le(5))
+    expectEquals("neutral aimX", 0, report.bytes.readInt16Le(7))
+    expectEquals("neutral aimY", 0, report.bytes.readInt16Le(9))
+}
+
+private fun boringStandardMapsButtonsHatAndMasksUnsupportedButtons() {
+    val report = BtGunHidReportPacker.packInputReport(
+        mappedState = mappedState(
+            pressedVirtualControls = setOf(
+                "jp_button_b1",
+                "jp_button_r2",
+                "jp_button_s2",
+                "jp_button_du",
+                "jp_button_dr",
+                "jp_button_a1",
+                "jp_button_r4",
+            ),
+            stickAxisX = 0.5f,
+            stickAxisY = -0.25f,
+            aimAxisX = 0.25f,
+            aimAxisY = -0.5f,
+        ),
+        stale = false,
+        profile = BtGunHidProfiles.BORING_STANDARD,
+    )
+
+    expectByteArray(
+        "boring golden payload",
+        byteArrayOf(
+            0x81.toByte(), 0x02, 0x01,
+            0x00, 0x40,
+            0x00, 0x20,
+            0x00, 0x20,
+            0x00, 0x40,
+        ),
+        report.bytes,
+    )
+    expectEquals("boring button bits", (1 shl 0) or (1 shl 7) or (1 shl 9), report.bytes.readButtonBits16())
+    expectEquals("boring hat up-right", 1, report.bytes.readHat())
+}
+
+private fun boringStandardOppositeDpadDirectionsCancelToNeutralHat() {
+    val report = BtGunHidReportPacker.packInputReport(
+        mappedState = mappedState(
+            pressedVirtualControls = setOf(
+                "jp_button_du",
+                "jp_button_dd",
+                "jp_button_dl",
+                "jp_button_dr",
+            ),
+        ),
+        stale = false,
+        profile = BtGunHidProfiles.BORING_STANDARD,
+    )
+
+    expectEquals("opposite dpad neutral", 8, report.bytes.readHat())
+}
+
 private fun hidPackageDoesNotDependOnDesktopModules() {
     val roots = listOf(
         sourceDir("hid"),
@@ -283,6 +362,13 @@ private fun ByteArray.readButtonBits(): Int =
     (this[0].toInt() and 0xff) or
         ((this[1].toInt() and 0xff) shl 8) or
         ((this[2].toInt() and 0xff) shl 16)
+
+private fun ByteArray.readButtonBits16(): Int =
+    (this[0].toInt() and 0xff) or
+        ((this[1].toInt() and 0xff) shl 8)
+
+private fun ByteArray.readHat(): Int =
+    this[2].toInt() and 0x0f
 
 private fun expectByteArray(label: String, expected: ByteArray, actual: ByteArray) {
     if (!expected.contentEquals(actual)) {

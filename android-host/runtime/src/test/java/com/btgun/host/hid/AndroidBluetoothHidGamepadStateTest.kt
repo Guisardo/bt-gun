@@ -16,6 +16,7 @@ fun main() {
     staleProxyCallbacksAfterStopDoNotRegisterHidMode()
     olderProxyCallbacksDoNotOverrideNewStart()
     stopDisconnectAndUnplugSendNeutralReleaseReport()
+    boringStandardProfileRegistersDiagnosticDescriptorAndNeutralReports()
     stopKeepsRegistrationForPairedMacosReconnect()
     unregisterAndCloseAreIdempotent()
 }
@@ -61,6 +62,7 @@ private fun startRequestsHidDeviceProxyAndRegistersGamepadSdp() {
     expectEquals("sdp name", "BT Gun Gamepad", settings.name)
     expectEquals("sdp description", "BT Gun Android HID Gamepad", settings.description)
     expectEquals("sdp provider", "BT Gun", settings.provider)
+    expectEquals("sdp subclass", 0x02.toByte(), settings.subclass)
     expectByteArray("descriptor bytes", BtGunHidDescriptor.DESCRIPTOR_BYTES, settings.descriptors)
     expectEquals("pairing opened", true, pairingOpened)
     expectEquals("pairing duration", 120, connector.pairingDurations.single())
@@ -214,6 +216,58 @@ private fun stopDisconnectAndUnplugSendNeutralReleaseReport() {
     expectNeutralReport("unplug neutral report", unplugConnector.proxy.sentReports.last())
 }
 
+private fun boringStandardProfileRegistersDiagnosticDescriptorAndNeutralReports() {
+    val connector = FakeHidProfileConnector()
+    val gamepad = AndroidBluetoothHidGamepad(
+        connector = connector,
+        profile = BtGunHidProfiles.BORING_STANDARD,
+        hapticHandler = { null },
+    )
+
+    startRegisteredAndConnected(gamepad, connector)
+    val settings = connector.proxy.registeredSettings.single()
+    expectEquals("boring sdp description", "BT Gun Diagnostic Gamepad", settings.description)
+    expectEquals("boring sdp subclass", 0x02.toByte(), settings.subclass)
+    expectByteArray("boring descriptor", BtGunHidDescriptor.BORING_STANDARD_DESCRIPTOR_BYTES, settings.descriptors)
+
+    connector.proxy.callback?.onGetReport(FakeHost, BtGunHidReportTypes.INPUT, BtGunHidDescriptor.INPUT_REPORT_ID, bufferSize = 64)
+    expectNeutralReport(
+        "boring get report neutral",
+        SentReport(FakeHost, connector.proxy.replyReports.single().reportId, connector.proxy.replyReports.single().payload),
+        BtGunHidProfiles.BORING_STANDARD,
+    )
+
+    gamepad.stopGamepadMode()
+
+    expectNeutralReport("boring stop neutral", connector.proxy.sentReports.last(), BtGunHidProfiles.BORING_STANDARD)
+
+    val disconnectConnector = FakeHidProfileConnector()
+    val disconnectGamepad = AndroidBluetoothHidGamepad(
+        connector = disconnectConnector,
+        profile = BtGunHidProfiles.BORING_STANDARD,
+        hapticHandler = { null },
+    )
+    startRegisteredAndConnected(disconnectGamepad, disconnectConnector)
+    disconnectGamepad.sendInput(state(), motion(), stale = false)
+    disconnectConnector.proxy.callback?.onConnectionStateChanged(FakeHost, BtGunHidConnectionStates.DISCONNECTED)
+    expectNeutralReport(
+        "boring disconnect neutral",
+        disconnectConnector.proxy.sentReports.last(),
+        BtGunHidProfiles.BORING_STANDARD,
+    )
+
+    val unplugConnector = FakeHidProfileConnector()
+    val unplugGamepad = AndroidBluetoothHidGamepad(
+        connector = unplugConnector,
+        profile = BtGunHidProfiles.BORING_STANDARD,
+        hapticHandler = { null },
+    )
+    startRegisteredAndConnected(unplugGamepad, unplugConnector)
+    unplugGamepad.sendInput(state(), motion(), stale = false)
+    unplugConnector.proxy.callback?.onVirtualCableUnplug(FakeHost)
+    expectNeutralReport("boring unplug neutral", unplugConnector.proxy.sentReports.last(), BtGunHidProfiles.BORING_STANDARD)
+}
+
 private fun stopKeepsRegistrationForPairedMacosReconnect() {
     val connector = FakeHidProfileConnector()
     val gamepad = AndroidBluetoothHidGamepad(connector = connector, hapticHandler = { null })
@@ -254,9 +308,13 @@ private fun unregisterAndCloseAreIdempotent() {
     expectEquals("send after close no proxy", BtGunHidInputSendResult.NO_PROXY, gamepad.sendInput(state(), motion(), stale = false))
 }
 
-private fun expectNeutralReport(label: String, report: SentReport) {
+private fun expectNeutralReport(
+    label: String,
+    report: SentReport,
+    profile: BtGunHidProfile = BtGunHidProfiles.CURRENT_USER,
+) {
     expectEquals("$label id", BtGunHidDescriptor.INPUT_REPORT_ID, report.reportId)
-    expectByteArray("$label payload", ByteArray(BtGunHidDescriptor.INPUT_REPORT_PAYLOAD_LENGTH_BYTES), report.payload)
+    expectByteArray("$label payload", BtGunHidReportPacker.neutralInputReport(profile).bytes, report.payload)
 }
 
 private fun startRegisteredAndConnected(

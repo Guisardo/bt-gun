@@ -2,7 +2,7 @@
 
 Phase 7 primary macOS strategy is Android Bluetooth HID. The Android phone acts as a Bluetooth gamepad so macOS can see a normal gamepad-style controller without CoreHID or DriverKit virtual HID entitlement work. CoreHID and DriverKit evidence remains retained only as blocked/fallback evidence, including `corehid-runtime-blocked`.
 
-This doc covers PACK-03 and PACK-06: phone compatibility, Android permission state, macOS pairing, descriptor/report shape, output-report behavior, evidence redaction, and Windows VHF fallback limits.
+This doc covers PACK-03 and PACK-06: phone compatibility, Android permission state, macOS pairing, descriptor/report shape, diagnostic profile selection, output-report behavior, evidence redaction, and Windows VHF fallback limits.
 
 ## Compatibility Gate
 
@@ -38,15 +38,25 @@ If the current phone blocks HID proxy, registration, macOS pairing, or input pro
 
 DESK-03 proof requires macOS Bluetooth HID input. Desktop companion LAN input does not count as DESK-03 proof.
 
+Browser Gamepad API or macOS Game Controller visibility is not enough to claim Steam app compatibility. If the same paired Android HID gamepad works in browser surfaces but Steam apps do not detect it, record `phase7-steam-app-detection` as blocked and keep Steam support out of v1 claims until a fresh Steam retest passes.
+
 ## HID Report Contract
 
-Android owns descriptor bytes and input packing. The shape remains a normal gamepad-style joystick, not a custom gun report.
+Android owns descriptor bytes and input packing. The shape remains a normal gamepad-style joystick, not a custom gun report. The shared runtime has two explicit HID profiles:
+
+| Profile | App selector | Purpose |
+|---------|--------------|---------|
+| `current_user` | Default when no manifest metadata is present; used by `android-host/user-app` | User-facing 22-button profile kept stable for the Gamepad Extension app. |
+| `boring_standard` | `android-host/app` sets `com.btgun.host.HID_PROFILE=boring_standard` | Diagnostic Steam/SDL compatibility probe with 12 buttons, hat switch, and X/Y/Z/Rx axes. |
+
+### `current_user` profile
 
 | Item | Value |
 |------|-------|
 | Device kind | `gamepad_like_joystick` |
+| HID SDP subclass | `0x02` (`BluetoothHidDevice.SUBCLASS2_GAMEPAD`) |
 | Input report ID | `1` |
-| Input payload length | 9 bytes |
+| Input payload length | 11 bytes |
 | Output report ID | `2` |
 | Output payload length | 8 bytes |
 | Axis encoding | signed int16 little-endian |
@@ -59,24 +69,66 @@ Input payload layout:
 
 | Offset | Size | Meaning |
 |--------|------|---------|
-| 0 | 1 | Button bitfield |
-| 1 | 2 | `stickX`, signed int16 little-endian |
-| 3 | 2 | `stickY`, signed int16 little-endian, inverted from Android state |
-| 5 | 2 | `aimX`, signed int16 little-endian |
-| 7 | 2 | `aimY`, signed int16 little-endian, inverted from Android state |
+| 0 | 3 | Button bitfield for buttons 1 through 22 |
+| 3 | 2 | `stickX`, signed int16 little-endian |
+| 5 | 2 | `stickY`, signed int16 little-endian, inverted from Android state |
+| 7 | 2 | `aimX`, signed int16 little-endian |
+| 9 | 2 | `aimY`, signed int16 little-endian, inverted from Android state |
 
 Button bit order:
 
 | Bit | Control |
 |-----|---------|
-| 0 | Trigger |
-| 1 | Reload |
-| 2 | X |
-| 3 | Y |
-| 4 | A |
-| 5 | B |
-| 6 | Padding |
-| 7 | Padding |
+| 0 | B1 / A / south face |
+| 1 | B2 / B / east face |
+| 2 | B3 / X / west face |
+| 3 | B4 / Y / north face |
+| 6 | L2 / reload |
+| 7 | R2 / trigger |
+| 8 | S1 / back/select |
+| 16 | A1 / guide/home |
+
+Other mapped bits are available for profile remaps and stay released unless the active Android profile maps a control there.
+
+### `boring_standard` diagnostic profile
+
+The debug host app uses this profile only for Steam/SDL diagnostics. The user-facing app does not select it.
+
+| Item | Value |
+|------|-------|
+| Device kind | `gamepad_like_joystick` |
+| HID SDP subclass | `0x02` (`BluetoothHidDevice.SUBCLASS2_GAMEPAD`) |
+| Input report ID | `1` |
+| Input payload length | 11 bytes |
+| Output report ID | `2` |
+| Output payload length | 8 bytes |
+| Axis encoding | signed int16 little-endian |
+| Axis range | `-32768..32767` |
+| Input axes | X, Y, Z, Rx |
+| Compatibility intent | simple gamepad shape for Steam Controller Settings and SDL gamepad mapping tests |
+
+Input payload layout:
+
+| Offset | Size | Meaning |
+|--------|------|---------|
+| 0 | 2 | Button bitfield for buttons 1 through 12 |
+| 2 | 1 | Hat switch value; neutral is `8` |
+| 3 | 2 | `stickX`, signed int16 little-endian |
+| 5 | 2 | `stickY`, signed int16 little-endian, inverted from Android state |
+| 7 | 2 | `aimX`, signed int16 little-endian |
+| 9 | 2 | `aimY`, signed int16 little-endian, inverted from Android state |
+
+Button and hat mapping:
+
+| Destination | Control |
+|-------------|---------|
+| Buttons 1-4 | A/B/X/Y face buttons |
+| Buttons 5-8 | L1/R1/L2/R2; reload maps to L2 and trigger maps to R2 |
+| Buttons 9-12 | Select/start/L3/R3 |
+| Hat 0-7 | Up, up-right, right, down-right, down, down-left, left, up-left |
+| Hat 8 | Neutral |
+
+D-pad virtual controls encode only into the hat switch. Opposite D-pad directions cancel on that axis. Extended virtual buttons beyond button 12 are ignored by this diagnostic profile.
 
 Aim uses normalized/calibrated `aimX` and `aimY` when present. Raw aim is fallback only when normalized aim is unavailable. Stale input clears buttons and stick axes; aim stays center/default through the packer input state.
 
@@ -110,6 +162,7 @@ Expected manifest rows:
 | `phase7-android-hid-pairing-window` | Pairing-mode window opens |
 | `phase7-macos-bluetooth-paired` | macOS pairs to Android over Bluetooth HID |
 | `phase7-gamecontroller-input` | macOS-visible gamepad receives live controls/aim |
+| `phase7-steam-app-detection` | Steam app detection is tested separately from browser/GameController visibility |
 | `phase7-hid-output-callback` | Host-origin HID output reaches Android, if supported |
 | `phase7-macos-output-unsupported` | macOS output was probed and not supported |
 | `phase7-alternate-phone-tested` | Alternate phone tested after current phone blocks proof |

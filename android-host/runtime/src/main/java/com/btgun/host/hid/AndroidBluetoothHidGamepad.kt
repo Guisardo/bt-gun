@@ -59,6 +59,7 @@ interface BtGunHidDeviceProxy {
 
 class AndroidBluetoothHidGamepad(
     private val connector: BtGunHidProfileConnector,
+    val profile: BtGunHidProfile = BtGunHidProfiles.CURRENT_USER,
     private val hapticHandler: (DesktopHapticCommand) -> HapticResult?,
     private val commandIdFactory: () -> String = DefaultCommandIdFactory(),
     private val onStatusChanged: (BtGunHidStatus) -> Unit = {},
@@ -156,7 +157,7 @@ class AndroidBluetoothHidGamepad(
         if (!registered) return recordInputResult(BtGunHidInputSendResult.NOT_REGISTERED)
         val host = connectedHost ?: return recordInputResult(BtGunHidInputSendResult.NO_HOST)
 
-        val report = BtGunHidReportPacker.packInputReport(state = state, motion = motion, stale = stale)
+        val report = BtGunHidReportPacker.packInputReport(state = state, motion = motion, stale = stale, profile = profile)
         lastInputReport = report
         val result = if (activeProxy.sendReport(host, report.reportId, report.bytes)) {
             BtGunHidInputSendResult.SENT
@@ -174,7 +175,7 @@ class AndroidBluetoothHidGamepad(
         if (!registered) return recordInputResult(BtGunHidInputSendResult.NOT_REGISTERED)
         val host = connectedHost ?: return recordInputResult(BtGunHidInputSendResult.NO_HOST)
 
-        val report = BtGunHidReportPacker.packInputReport(mappedState = state, stale = stale)
+        val report = BtGunHidReportPacker.packInputReport(mappedState = state, stale = stale, profile = profile)
         lastInputReport = report
         val result = if (activeProxy.sendReport(host, report.reportId, report.bytes)) {
             BtGunHidInputSendResult.SENT
@@ -212,7 +213,7 @@ class AndroidBluetoothHidGamepad(
         )
         val newCallback = DeviceCallback(generation)
         callback = newCallback
-        val accepted = newProxy.registerApp(gamepadSdpSettings(), newCallback)
+        val accepted = newProxy.registerApp(gamepadSdpSettings(profile), newCallback)
         AndroidLog.i(TAG, "registerApp accepted=$accepted")
         if (!accepted) {
             registered = false
@@ -280,7 +281,7 @@ class AndroidBluetoothHidGamepad(
             proxy?.reportError(host, BtGunHidErrorResponses.UNSUPPORTED_REQUEST)
             return
         }
-        val payload = lastInputReport?.bytes ?: ByteArray(BtGunHidDescriptor.INPUT_REPORT_PAYLOAD_LENGTH_BYTES)
+        val payload = lastInputReport?.bytes ?: BtGunHidReportPacker.neutralInputReport(profile).bytes
         proxy?.replyReport(host, reportType, reportId, payload)
     }
 
@@ -376,7 +377,7 @@ class AndroidBluetoothHidGamepad(
         if (activeProxy == null || host == null) {
             return BtGunHidInputSendResult.NO_HOST
         }
-        val report = BtGunHidReportPacker.neutralInputReport()
+        val report = BtGunHidReportPacker.neutralInputReport(profile)
         lastInputReport = report
         val result = if (activeProxy.sendReport(host, report.reportId, report.bytes)) {
             BtGunHidInputSendResult.SENT
@@ -449,13 +450,13 @@ class AndroidBluetoothHidGamepad(
     }
 }
 
-fun gamepadSdpSettings(): BtGunHidSdpSettings =
+fun gamepadSdpSettings(profile: BtGunHidProfile = BtGunHidProfiles.CURRENT_USER): BtGunHidSdpSettings =
     BtGunHidSdpSettings(
-        name = "BT Gun Gamepad",
-        description = "BT Gun Android HID Gamepad",
-        provider = "BT Gun",
-        subclass = BT_GUN_HID_GAMEPAD_SUBCLASS,
-        descriptors = BtGunHidDescriptor.DESCRIPTOR_BYTES.copyOf(),
+        name = profile.sdpName,
+        description = profile.sdpDescription,
+        provider = profile.sdpProvider,
+        subclass = profile.sdpSubclass,
+        descriptors = profile.descriptorBytes.copyOf(),
     )
 
 private class DefaultCommandIdFactory : () -> String {
@@ -465,7 +466,6 @@ private class DefaultCommandIdFactory : () -> String {
         "android-hid-output-${next.getAndIncrement()}"
 }
 
-private const val BT_GUN_HID_GAMEPAD_SUBCLASS: Byte = 0x05
 private const val TAG = "BtGunHidGamepad"
 
 class AndroidBtGunHidProfileConnector(

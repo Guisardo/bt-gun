@@ -2,9 +2,12 @@ package com.btgun.host.hid
 
 fun main() {
     descriptorBytesArePinned()
+    boringStandardDescriptorBytesArePinned()
     descriptorMirrorsBtGunV1Semantics()
+    boringStandardDescriptorMirrorsDiagnosticSemantics()
     reportConstantsMatchBluetoothHidContract()
     defaultDescriptorUsesStandardGamepadPagesOnly()
+    hidProfileResolverDefaultsToUserFacingProfile()
 }
 
 private fun descriptorBytesArePinned() {
@@ -87,6 +90,79 @@ private fun descriptorMirrorsBtGunV1Semantics() {
     expectFalse("aim does not use Z axis", BtGunHidDescriptor.DESCRIPTOR_BYTES.containsSubsequence(0x09, 0x32, 0x09, 0x33))
 }
 
+private fun boringStandardDescriptorBytesArePinned() {
+    val expected = byteArrayOf(
+        0x05, 0x01,
+        0x09, 0x05,
+        0xa1.toByte(), 0x01,
+        0x85.toByte(), 0x01,
+        0x05, 0x09,
+        0x19, 0x01,
+        0x29, 0x0c,
+        0x15, 0x00,
+        0x25, 0x01,
+        0x95.toByte(), 0x0c,
+        0x75, 0x01,
+        0x81.toByte(), 0x02,
+        0x95.toByte(), 0x04,
+        0x75, 0x01,
+        0x81.toByte(), 0x03,
+        0x05, 0x01,
+        0x09, 0x39,
+        0x15, 0x00,
+        0x25, 0x07,
+        0x35, 0x00,
+        0x46, 0x3b, 0x01,
+        0x65, 0x14,
+        0x75, 0x04,
+        0x95.toByte(), 0x01,
+        0x81.toByte(), 0x42,
+        0x65, 0x00,
+        0x95.toByte(), 0x01,
+        0x75, 0x04,
+        0x81.toByte(), 0x03,
+        0x05, 0x01,
+        0x16, 0x00, 0x80.toByte(),
+        0x26, 0xff.toByte(), 0x7f,
+        0x75, 0x10,
+        0x95.toByte(), 0x04,
+        0x09, 0x30,
+        0x09, 0x31,
+        0x09, 0x32,
+        0x09, 0x33,
+        0x81.toByte(), 0x02,
+        0x85.toByte(), 0x02,
+        0x05, 0x01,
+        0x09, 0x00,
+        0x15, 0x00,
+        0x26, 0xff.toByte(), 0x00,
+        0x75, 0x08,
+        0x95.toByte(), 0x08,
+        0x91.toByte(), 0x02,
+        0xc0.toByte(),
+    )
+
+    expectByteArray("boring descriptor", expected, BtGunHidDescriptor.BORING_STANDARD_DESCRIPTOR_BYTES)
+}
+
+private fun boringStandardDescriptorMirrorsDiagnosticSemantics() {
+    expectEquals("boring profile id", "boring_standard", BtGunHidProfiles.BORING_STANDARD.id)
+    expectEquals("boring button count", 12, BtGunHidDescriptor.BORING_STANDARD_BUTTON_COUNT)
+    expectEquals("boring hat neutral", 8, BtGunHidDescriptor.BORING_STANDARD_HAT_NEUTRAL)
+    expectTrue(
+        "boring descriptor uses hat switch",
+        BtGunHidDescriptor.BORING_STANDARD_DESCRIPTOR_BYTES.containsSubsequence(0x09, 0x39),
+    )
+    expectTrue(
+        "boring aim uses Z/Rx",
+        BtGunHidDescriptor.BORING_STANDARD_DESCRIPTOR_BYTES.containsSubsequence(0x09, 0x32, 0x09, 0x33),
+    )
+    expectFalse(
+        "boring aim does not use Rx/Ry pair",
+        BtGunHidDescriptor.BORING_STANDARD_DESCRIPTOR_BYTES.containsSubsequence(0x09, 0x33, 0x09, 0x34),
+    )
+}
+
 private fun reportConstantsMatchBluetoothHidContract() {
     expectEquals("input report id", 0x01, BtGunHidDescriptor.INPUT_REPORT_ID)
     expectEquals("output report id", 0x02, BtGunHidDescriptor.OUTPUT_REPORT_ID)
@@ -103,6 +179,22 @@ private fun defaultDescriptorUsesStandardGamepadPagesOnly() {
     expectFalse("no pid force feedback page by default", descriptor.containsSubsequence(0x05, 0x0f))
     expectFalse("no vendor usage page", descriptor.containsSubsequence(0x06, 0x00, 0xff))
     expectFalse("no gun usage page", descriptor.containsSubsequence(0x05, 0x05))
+}
+
+private fun hidProfileResolverDefaultsToUserFacingProfile() {
+    expectEquals("missing profile defaults", BtGunHidProfiles.CURRENT_USER, BtGunHidProfiles.resolve(null))
+    expectEquals("blank profile defaults", BtGunHidProfiles.CURRENT_USER, BtGunHidProfiles.resolve(" "))
+    expectEquals(
+        "diagnostic profile resolves",
+        BtGunHidProfiles.BORING_STANDARD,
+        BtGunHidProfiles.resolve("boring_standard"),
+    )
+    expectEquals(
+        "diagnostic profile trims and lowercases",
+        BtGunHidProfiles.BORING_STANDARD,
+        BtGunHidProfiles.resolve(" BORING_STANDARD "),
+    )
+    expectEquals("unknown profile defaults", BtGunHidProfiles.CURRENT_USER, BtGunHidProfiles.resolve("unknown"))
 }
 
 private fun ByteArray.containsSubsequence(vararg expected: Int): Boolean =

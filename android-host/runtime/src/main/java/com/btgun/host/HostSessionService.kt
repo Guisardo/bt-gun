@@ -9,6 +9,7 @@ import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.graphics.drawable.Icon
 import android.hardware.Sensor
@@ -54,6 +55,9 @@ import com.btgun.host.haptics.HapticTimelinePulse
 import com.btgun.host.haptics.PhoneHaptics
 import com.btgun.host.hid.AndroidBluetoothHidGamepad
 import com.btgun.host.hid.AndroidBtGunHidProfileConnector
+import com.btgun.host.hid.BtGunHidInputReport
+import com.btgun.host.hid.BtGunHidProfile
+import com.btgun.host.hid.BtGunHidProfiles
 import com.btgun.host.hid.BtGunHidReportPacker
 import com.btgun.host.hid.BtGunHidHostConnectionState
 import com.btgun.host.hid.BtGunHidInputSendResult
@@ -188,13 +192,20 @@ internal fun hidStartBlockedStatusFor(
     return null
 }
 
+internal fun selectedBluetoothHidProfileForMetadata(value: String?): BtGunHidProfile =
+    BtGunHidProfiles.resolve(value)
+
 internal interface HostHidGamepadDriver : AutoCloseable {
+    val hidProfile: BtGunHidProfile
+        get() = BtGunHidProfiles.CURRENT_USER
     var status: BtGunHidStatus
     fun startGamepadMode()
     fun stopGamepadMode()
     fun openPairingWindow(durationSeconds: Int): Boolean
     fun sendInput(state: GunInputState, motion: MotionSample?, stale: Boolean): BtGunHidInputSendResult
     fun sendMappedInput(state: MappedControllerState, stale: Boolean): BtGunHidInputSendResult
+    fun previewMappedInputReport(state: MappedControllerState, stale: Boolean): BtGunHidInputReport =
+        BtGunHidReportPacker.packInputReport(mappedState = state, stale = stale, profile = hidProfile)
     override fun close()
 }
 
@@ -240,10 +251,7 @@ internal class HostSessionHidController(
             resetFanoutGate()
             return refreshStatus(state)
         }
-        val report = BtGunHidReportPacker.packInputReport(
-            mappedState = state.mappedControllerState,
-            stale = false,
-        )
+        val report = activeDriver.previewMappedInputReport(state.mappedControllerState, stale = false)
         val nowElapsedNanos = elapsedRealtimeNanos()
         if (!shouldSendInputReport(report.bytes, nowElapsedNanos)) {
             return refreshStatus(state)
@@ -305,6 +313,9 @@ internal class HostSessionHidController(
 internal class AndroidHostHidGamepadDriver(
     private val gamepad: AndroidBluetoothHidGamepad,
 ) : HostHidGamepadDriver {
+    override val hidProfile: BtGunHidProfile
+        get() = gamepad.profile
+
     override var status: BtGunHidStatus
         get() = gamepad.status
         set(value) = Unit
@@ -1383,6 +1394,7 @@ class HostSessionService : Service() {
 
     @Suppress("DEPRECATION")
     private fun createBluetoothHidDriver(): HostHidGamepadDriver {
+        val hidProfile = selectedBluetoothHidProfile()
         val adapter = try {
             (getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager)?.adapter
                 ?: BluetoothAdapter.getDefaultAdapter()
@@ -1395,6 +1407,7 @@ class HostSessionService : Service() {
                 adapter = adapter ?: return UnavailableHostHidGamepadDriver("Bluetooth adapter unavailable"),
                 executor = { runnable -> handler.post(runnable) },
             ),
+            profile = hidProfile,
             hapticHandler = { command ->
                 desktopHapticExecutor.handle(command, SystemClock.elapsedRealtimeNanos())
             },
@@ -1404,6 +1417,25 @@ class HostSessionService : Service() {
         )
         return AndroidHostHidGamepadDriver(gamepad)
     }
+
+    private fun selectedBluetoothHidProfile(): BtGunHidProfile =
+        selectedBluetoothHidProfileForMetadata(applicationMetadataString(BtGunHidProfiles.METADATA_KEY))
+
+    @Suppress("DEPRECATION")
+    private fun applicationMetadataString(key: String): String? =
+        try {
+            val applicationInfo = if (Build.VERSION.SDK_INT >= 33) {
+                packageManager.getApplicationInfo(
+                    packageName,
+                    PackageManager.ApplicationInfoFlags.of(PackageManager.GET_META_DATA.toLong()),
+                )
+            } else {
+                packageManager.getApplicationInfo(packageName, PackageManager.GET_META_DATA)
+            }
+            applicationInfo.metaData?.getString(key)
+        } catch (_: RuntimeException) {
+            null
+        }
 
     private fun trustProblemState(stored: TrustedDesktopMetadata, presentedFingerprint: String): DesktopLinkState =
         DesktopLinkState(

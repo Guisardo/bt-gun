@@ -14,6 +14,8 @@ import com.btgun.host.hid.BtGunHidInputSendResult
 import com.btgun.host.hid.BtGunHidModeState
 import com.btgun.host.hid.BtGunHidOutputCallbackKind
 import com.btgun.host.hid.BtGunHidOutputValidationState
+import com.btgun.host.hid.BtGunHidProfile
+import com.btgun.host.hid.BtGunHidProfiles
 import com.btgun.host.hid.BtGunHidReportTypes
 import com.btgun.host.hid.BtGunHidStatus
 import com.btgun.host.transport.InputStreamLifecycleState
@@ -45,6 +47,7 @@ fun main() {
     failedForegroundStartSessionRequestsRestart()
     playModeStartsSharedInputSessionWhenIdle()
     bluetoothGamepadActionConstantsAreExplicit()
+    hidProfileMetadataSelectsDiagnosticOnlyWhenExplicit()
     profileReloadServiceActionOnlyRunsWhenForegroundActive()
     bluetoothGamepadStartRequiresConnectPermission()
     bluetoothGamepadStartDoesNotStartLanDesktopControl()
@@ -52,6 +55,7 @@ fun main() {
     bluetoothGamepadStopSessionAndDestroyCloseHidMode()
     liveInputFanoutOnlySendsWhenHidHostConnected()
     hidFanoutDropsDuplicatesAndPrioritizesButtonEdges()
+    hidFanoutUsesSelectedProfileForDedupe()
     fastAimFanoutDoesNotFloodButtonEdges()
     bleConnectionLossClearsLatchedGunInput()
     staleButtonReleaseWatchdogExpiresOnlyOverdueControls()
@@ -195,6 +199,24 @@ private fun bluetoothGamepadActionConstantsAreExplicit() {
     )
 }
 
+private fun hidProfileMetadataSelectsDiagnosticOnlyWhenExplicit() {
+    expectEquals(
+        "missing metadata defaults to user profile",
+        BtGunHidProfiles.CURRENT_USER,
+        selectedBluetoothHidProfileForMetadata(null),
+    )
+    expectEquals(
+        "unknown metadata defaults to user profile",
+        BtGunHidProfiles.CURRENT_USER,
+        selectedBluetoothHidProfileForMetadata("other"),
+    )
+    expectEquals(
+        "diagnostic metadata selects boring profile",
+        BtGunHidProfiles.BORING_STANDARD,
+        selectedBluetoothHidProfileForMetadata("boring_standard"),
+    )
+}
+
 private fun profileReloadServiceActionOnlyRunsWhenForegroundActive() {
     expectFalse(
         "inactive profile save does not start foreground service",
@@ -335,6 +357,29 @@ private fun hidFanoutDropsDuplicatesAndPrioritizesButtonEdges() {
     expectEquals("button edge bypasses aim throttle", setOf("jp_button_b3"), driver.sentMappedInputs[1].state.pressedVirtualControls)
     expectEquals("release edge bypasses aim throttle", emptySet<String>(), driver.sentMappedInputs[2].state.pressedVirtualControls)
     expectEquals("aim frame after interval", 0.2f, driver.sentMappedInputs[3].state.aimAxisX)
+}
+
+private fun hidFanoutUsesSelectedProfileForDedupe() {
+    val driver = RecordingHostHidGamepadDriver(hidProfile = BtGunHidProfiles.BORING_STANDARD)
+    var nowElapsedNanos = 0L
+    val controller = HostSessionHidController(
+        driverFactory = { driver },
+        elapsedRealtimeNanos = { nowElapsedNanos },
+        maxMotionReportHz = 60,
+    )
+    controller.startBluetoothGamepad(HostSessionState())
+    driver.status = driver.status.copy(hostConnection = BtGunHidHostConnectionState.CONNECTED)
+    val base = defaultMappedState()
+
+    controller.fanOutLiveInput(HostSessionState(mappedControllerState = base))
+    nowElapsedNanos += 1_000_000L
+    controller.fanOutLiveInput(
+        HostSessionState(
+            mappedControllerState = base.copy(pressedVirtualControls = setOf("jp_button_a1")),
+        ),
+    )
+
+    expectEquals("boring ignores unsupported button for dedupe", 1, driver.sentMappedInputs.size)
 }
 
 private fun fastAimFanoutDoesNotFloodButtonEdges() {
@@ -766,6 +811,7 @@ private fun outputPayload(strength: Int, durationMs: Int, ttlMs: Int): ByteArray
     )
 
 private class RecordingHostHidGamepadDriver(
+    override val hidProfile: BtGunHidProfile = BtGunHidProfiles.CURRENT_USER,
     private val onOutput: (DesktopHapticCommand) -> HapticResult? = { null },
 ) : HostHidGamepadDriver {
     override var status: BtGunHidStatus = BtGunHidStatus()

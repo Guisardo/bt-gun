@@ -25,6 +25,9 @@
         android:label="BT Gun Host"
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
+        <meta-data
+            android:name="com.btgun.host.HID_PROFILE"
+            android:value="boring_standard" />
         <activity
             android:name=".MainActivity"
             android:exported="true"

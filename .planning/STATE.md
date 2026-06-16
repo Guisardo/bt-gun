@@ -294,6 +294,8 @@ None.
 | 260611-egh | defer macOS Bluetooth HID haptics and remove failed PID ForceFeedback experiment | 2026-06-11 | this commit | [260611-egh-defer-haptic-on-macos-clean-up-failed-pi](./quick/260611-egh-defer-haptic-on-macos-clean-up-failed-pi/) |
 | 260612-n0r | improve Android host mobile UI design using current Android and Material design guidance | 2026-06-12 | d23d0f4 | [260612-n0r-improve-android-host-mobile-ui-design-us](./quick/260612-n0r-improve-android-host-mobile-ui-design-us/) |
 | 260614-4qb | Recover Android gun connection stuck after app closed without Stop session | 2026-06-14 | b3644d6 | [260614-4qb-recover-android-gun-connection-stuck-aft](./quick/260614-4qb-recover-android-gun-connection-stuck-aft/) |
+| 260616-ofd | Fix Android Bluetooth HID SDP subclass for Steam app detection | 2026-06-16 | pending | [260616-ofd-fix-android-bluetooth-hid-sdp-subclass-f](./quick/260616-ofd-fix-android-bluetooth-hid-sdp-subclass-f/) |
+| 260616-hid | Add diagnostic-only boring-standard Bluetooth HID profile | 2026-06-16 | complete | [260616-hid-diagnostic-only-boring-standard-hid](./quick/260616-hid-diagnostic-only-boring-standard-hid/) |
 
 ## Deferred Items
 
@@ -303,6 +305,7 @@ Items acknowledged and carried forward from previous milestone close:
 |----------|------|--------|-------------|
 | v1 feedback | Physical gun motor rumble | deferred; use Android phone vibration in v1 | 2026-06-06 |
 | macOS Bluetooth HID | Browser/GameController haptics from Android HID | deferred; stable gamepad input stays active, phone haptics continue through LAN/Windows VHF paths | 2026-06-11 |
+| Steam compatibility | Steam app detection from Android Bluetooth HID | deferred; browser Gamepad API pass is not enough, retest debug-host boring-standard HID profile after fresh Bluetooth pairing | 2026-06-16 |
 
 ## Session Continuity
 
