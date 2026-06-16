@@ -111,6 +111,19 @@ Retained for diagnostics, pairing/control experiments, and Windows virtual-contr
 
 ## v2 Requirements
 
+## v1.1 Requirements
+
+### User Android App
+
+- [ ] **ANDR-12**: Android build has separate debug host, shared runtime library, and minimal user app package `com.btgun.gamepadextension` labeled `Gamepad Extension`.
+- [ ] **ANDR-13**: User app offers LAN QR play, Bluetooth HID play, and profile access without exposing debug fixtures or raw diagnostic toggles.
+- [ ] **UX-01**: User game HUD uses the Figma Gamepad Extension visual language: phosphor `#00ff41`, dim green text, dark translucent HUD panels, reticle glow, scanline/corner framing, camera background, slide menu, and right-side zoom rail.
+- [ ] **UX-02**: HUD blocks on camera denial/failure, supports both landscape rotations, and maps camera, HUD, and aim transforms from one rotation source.
+- [ ] **TRAN-10**: LAN mode negotiates compact UDP v2 with full HMAC-SHA256 and falls back to the existing 120-byte v1 frame when unsupported.
+- [ ] **TRAN-11**: LAN haptics support capability-negotiated pulse timelines with v1 one-shot fallback.
+- [ ] **PROF-07**: Profiles store per-profile aim calibration, aim deadzone, sensitivity, smoothing, button mappings, and soft Back/Home/Select mappings.
+- [ ] **PROF-08**: Reload hold longer than two seconds recenters only; calibration starts from the menu and saves to the active profile.
+
 ### Desktop Bluetooth
 
 - **BT2-01**: Desktop can connect directly to the physical iPega gun without Android as host.

@@ -4,6 +4,8 @@
 
 v1 moves from real iPega hardware discovery to a simple end-to-end joystick visualizer. The order reduces the highest uncertainty first: prove the physical gun input protocol, phone motion-aim path, and phone haptic fallback, then lock transport/control contracts, then validate an OS-visible controller path. As of 2026-06-10, the primary no-subscription macOS path is the Android phone acting as a Bluetooth HID gamepad. The completed Windows virtual joystick work remains the fallback desktop path if Android Bluetooth HID gamepad integration is blocked.
 
+v1.1 adds a minimal user-facing `Gamepad Extension` Android app beside the v1 debug host. The debug host remains the diagnostic, fixture, and raw-toggle surface.
+
 ## Phases
 
 **Phase Numbering:**
@@ -23,6 +25,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 8: Desktop Profiles and Mapping** - Users configure Android-owned aim and button profiles that apply at runtime; desktop only displays active Android profile metadata. (completed 2026-06-12)
 - [x] **Phase 9: Visualizer Acceptance Path** - The simple visualizer proves controls, aim, recentering, latency, packet loss, and phone haptic round trip. (completed 2026-06-15)
 - [x] **Phase 10: Diagnostics, Replay, and v1 Docs** - Replay tests, diagnostic logs, setup docs, protocol docs, and known limits make the MVP repeatable. (completed 2026-06-15)
+- [ ] **Phase 11: Gamepad Extension Android User App** - Build a small user-facing Android app with LAN QR, Bluetooth HID play mode, camera HUD, Figma-style reticle/zoom rail, profiles, calibration, soft controls, compact LAN v2, and pattern haptics while preserving the debug host. (v1.1 active)
 
 ## Phase Details
 

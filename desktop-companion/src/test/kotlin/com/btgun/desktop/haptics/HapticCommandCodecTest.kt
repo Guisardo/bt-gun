@@ -5,12 +5,41 @@ import com.btgun.desktop.control.ControlEnvelope
 import com.btgun.desktop.control.ControlEnvelopeCodec
 import com.btgun.desktop.control.ControlMessageType
 import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
 fun main() {
     hapticCommandBodyUsesReservedWireNameWithPulseFields()
+    hapticCommandBodyAllowsTimelineShape()
     hapticResultBodyUsesExplicitResultStatusWireNames()
     hapticResultStatusesCoverAllPhaseFourOutcomes()
+}
+
+private fun hapticCommandBodyAllowsTimelineShape() {
+    val command = HapticCommand(
+        commandId = "cmd-pattern",
+        strength = 0.5,
+        durationMs = 1L,
+        ttlMs = 500L,
+        patternTimeline = listOf(
+            HapticTimelinePulse(atMs = 0L, durationMs = 40L, strength = 0.4),
+            HapticTimelinePulse(atMs = 100L, durationMs = 60L, strength = 1.0),
+        ),
+    )
+    val envelope = envelope(
+        type = ControlMessageType.RESERVED_HAPTIC_COMMAND,
+        body = command.toJsonBody(),
+    )
+
+    val decoded = ControlEnvelopeCodec.decode(ControlEnvelopeCodec.encode(envelope))
+
+    expectTrue("timeline command body accepted", decoded is ControlDecodeResult.Accepted)
+    val body = (decoded as ControlDecodeResult.Accepted).envelope.body
+    val timeline = body["patternTimeline"]?.jsonArray ?: error("missing patternTimeline")
+    expectEquals("timeline size", 2, timeline.size)
+    expectEquals("timeline first at", "0", timeline[0].jsonObject["atMs"]?.jsonPrimitive?.content)
+    expectEquals("timeline round trip", command, HapticCommand.fromJsonBody(body))
 }
 
 private fun hapticCommandBodyUsesReservedWireNameWithPulseFields() {

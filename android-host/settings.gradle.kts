@@ -18,4 +18,6 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "android-host"
+include(":runtime")
 include(":app")
+include(":user-app")

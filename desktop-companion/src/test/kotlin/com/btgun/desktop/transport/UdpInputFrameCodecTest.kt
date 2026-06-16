@@ -10,6 +10,7 @@ import javax.crypto.spec.SecretKeySpec
 fun main() {
     codecConstantsMatchWireContract()
     goldenSnapshotAndEdgeFramesRoundTrip()
+    compactFrameRoundTripsThroughMux()
     decoderRejectsMalformedOrUntrustedFrames()
     decoderRejectsAuthenticatedMalformedFields()
     inputStreamConfigRejectsOutOfRangeTimingValues()
@@ -19,8 +20,10 @@ fun main() {
 
 private fun codecConstantsMatchWireContract() {
     expectEquals("frame size", 120, UdpInputFrameCodec.FRAME_SIZE)
+    expectEquals("compact frame size", 92, UdpInputFrameCodec.COMPACT_FRAME_SIZE)
     expectEquals("tag size", 32, UdpInputFrameCodec.TAG_SIZE)
     expectEquals("magic", "BTGI", UdpInputFrameCodec.MAGIC)
+    expectEquals("compact magic", "BTG2", UdpInputFrameCodec.COMPACT_MAGIC)
     expectEquals("version", 1, UdpInputFrameCodec.VERSION)
     expectEquals("snapshot type", 1, UdpInputFrameType.SNAPSHOT.wireValue)
     expectEquals("edge type", 2, UdpInputFrameType.EDGE.wireValue)
@@ -44,6 +47,49 @@ private fun codecConstantsMatchWireContract() {
     expectEquals("raw aim y offset", 76, UdpInputFrameCodec.OFFSET_RAW_AIM_Y)
     expectEquals("sensor timestamp offset", 80, UdpInputFrameCodec.OFFSET_SOURCE_SENSOR_ELAPSED_NANOS)
     expectEquals("tag offset", 88, UdpInputFrameCodec.OFFSET_HMAC_TAG)
+}
+
+private fun compactFrameRoundTripsThroughMux() {
+    val config = fixtureConfig()
+    val frame = UdpInputFrame(
+        type = UdpInputFrameType.SNAPSHOT,
+        streamSessionId = STREAM_SESSION_ID_HEX,
+        sequence = 50L,
+        captureElapsedNanos = 2_000_000_000L,
+        sendElapsedNanos = 2_000_000_111L,
+        buttonBitmask = 0x00010023,
+        stickX = 12_000,
+        stickY = -12_000,
+        motionProvider = 2,
+        motionCapabilityFlags = 0x07,
+        yaw = 0.25f,
+        pitch = -0.5f,
+        roll = 0.75f,
+        rawAimX = 0.125f,
+        rawAimY = -0.25f,
+        sourceSensorElapsedNanos = 2_000_000_000L,
+        streamFlags = UdpInputFrame.FLAG_MAPPED_PRODUCT_STREAM,
+        productAimX = 0.25f,
+        productAimY = -0.5f,
+    )
+    val bytes = UdpInputFrameCodec.encodeCompact(frame, config)
+
+    expectEquals("compact size", UdpInputFrameCodec.COMPACT_FRAME_SIZE, bytes.size)
+    val decoded = UdpInputFrameCodec.authenticateAndDecodeMux(bytes, config)
+    expectTrue("compact accepted", decoded is UdpInputFrameDecodeResult.Accepted)
+    val accepted = (decoded as UdpInputFrameDecodeResult.Accepted).frame
+    expectEquals("compact sequence", 50L, accepted.sequence)
+    expectEquals("compact send timestamp", 2_000_000_111L, accepted.sendElapsedNanos)
+    expectEquals("compact buttons", 0x00010023, accepted.buttonBitmask)
+    expectEquals("compact stick x", 12_000, accepted.stickX)
+    expectEquals("compact stick y", -12_000, accepted.stickY)
+    expectNear("compact aim x", 0.25f, accepted.productAimX)
+    expectNear("compact aim y", -0.5f, accepted.productAimY)
+    expectEquals("compact debug accepted", true, UdpInputFrameCodec.debugDecode(bytes, config).accepted)
+    expectEquals("compact debug sequence", 50L, UdpInputFrameCodec.debugDecode(bytes, config).sequence)
+
+    expectRejected("compact wrong stream", UdpInputFrameRejectReason.WRONG_STREAM_SESSION, UdpInputFrameCodec.authenticateAndDecodeMux(bytes.copyOf().also { it[8] = 0x7f }, config))
+    expectRejected("compact bad hmac", UdpInputFrameRejectReason.BAD_HMAC, UdpInputFrameCodec.authenticateAndDecodeMux(bytes.copyOf().also { it[it.lastIndex] = (it[it.lastIndex].toInt() xor 1).toByte() }, config))
 }
 
 private fun goldenSnapshotAndEdgeFramesRoundTrip() {
@@ -243,6 +289,12 @@ private fun ByteArray.toHex(): String =
 
 private fun expectEquals(label: String, expected: Any?, actual: Any?) {
     if (expected != actual) {
+        throw AssertionError("$label expected <$expected> but was <$actual>")
+    }
+}
+
+private fun expectNear(label: String, expected: Float, actual: Float, tolerance: Float = 0.0001f) {
+    if (kotlin.math.abs(expected - actual) > tolerance) {
         throw AssertionError("$label expected <$expected> but was <$actual>")
     }
 }

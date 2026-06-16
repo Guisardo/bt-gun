@@ -30,7 +30,7 @@ class InputReplayGuard(
         receivedElapsedNanos: Long,
         controlSessionId: String,
     ): InputReplayDecision =
-        when (val decoded = UdpInputFrameCodec.authenticateAndDecode(bytes, config)) {
+        when (val decoded = UdpInputFrameCodec.authenticateAndDecodeMux(bytes, config)) {
             is UdpInputFrameDecodeResult.Accepted -> accept(decoded.frame, receivedElapsedNanos, controlSessionId)
             is UdpInputFrameDecodeResult.Rejected -> InputReplayDecision.Rejected(decoded.reason.toReplayRejectReason())
         }
