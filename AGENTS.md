@@ -18,7 +18,7 @@ Desktop show stream like normal gamepad gun: joystick axes, buttons, trigger, re
 - **Transport:** Android-to-desktop v1 go over Wi-Fi/LAN. QR or pair code.
 - **Latency:** Visualizer input path want <50 ms. Do timestamp + latency measure early.
 - **HID shape:** Desktop show normal gamepad gun, not custom HID gun report.
-- **Aim mapping:** Desktop profiles own aim mapping. Android send normalized gyro/raw aim data.
+- **Aim mapping:** Android profiles own aim mapping/calibration. Desktop display active profile metadata and consume mapped stream.
 - **Calibration:** Hold reload 2 second to recenter gyro aim. No break normal reload press/release.
 - **Reverse engineering:** APK/XAPK + Bluetooth protocol reverse engineer OK if Android controller APIs miss controls or rumble.
 - **Hardware:** Real iPega gun here now. Build real-device diagnostics early.
@@ -28,8 +28,8 @@ Desktop show stream like normal gamepad gun: joystick axes, buttons, trigger, re
 - `.planning/PROJECT.md` - product intent, constraints, context.
 - `.planning/REQUIREMENTS.md` - v1 requirements + acceptance criteria.
 - `.planning/ROADMAP.md` - phase order and success criteria.
-- `.planning/STATE.md` - current focus: Phase 1, Hardware and Protocol Discovery.
-- `.planning/phases/01-hardware-and-protocol-discovery/01-CONTEXT.md` - required Phase 1 context before planning/implementation.
+- `.planning/STATE.md` - current focus: Phase 11, Gamepad Extension Android User App.
+- `.planning/phases/11-gamepad-extension-android-user-app/11-CONTEXT.md` - required Phase 11 context before planning/implementation.
 
 <!-- GSD:project-end -->
 
@@ -46,7 +46,7 @@ Desktop show stream like normal gamepad gun: joystick axes, buttons, trigger, re
 | Android SensorManager | Platform APIs | Gyro, rotation vector, calibration, timestamped motion samples | Android sensor APIs give gyro/rotation-vector stream with monotonic sensor timestamp. |
 | Local LAN transport | UDP + TCP/WebSocket | Low-latency input stream + reliable control channel | UDP dodge TCP head-of-line stall for aim/input. TCP/WebSocket fit pairing, config, diagnostics, heartbeat, rumble. |
 | Windows KMDF + Virtual HID Framework | Windows 11 WDK | Product virtual gamepad/joystick HID | Microsoft VHF is supported HID source-driver framework. |
-| macOS CoreHID HIDVirtualDevice or HIDDriverKit | macOS target dependent | Product virtual HID gamepad on Apple Silicon | Want CoreHID if target macOS/entitlements allow. HIDDriverKit fallback. |
+| Android Bluetooth HID gamepad | Android BluetoothHidDevice | Primary no-subscription macOS gamepad path | Phone advertises normal HID gamepad; CoreHID/DriverKit stay fallback/blocker evidence only. |
 | Simple desktop visualizer | Native desktop or cross-platform UI | First acceptance harness | Prove buttons, axes, gyro mapping, recenter, latency, rumble before game-specific work. |
 
 ### Supporting Tools
@@ -105,7 +105,7 @@ Apple Developer account with required entitlements
 
 ## Conventions
 
-No project code conventions yet. Follow existing patterns once source tree exist. Keep new docs short, factual, agent-facing.
+Follow existing Kotlin/JVM, Android Views, C/KMDF, Swift, PowerShell, and fixture patterns. Keep new docs short, factual, agent-facing.
 
 <!-- GSD:conventions-end -->
 
@@ -121,18 +121,19 @@ Architecture mapped in `.planning/research/ARCHITECTURE.md`.
 Physical gun + Android gyro
   -> Android gun Bluetooth adapter + SensorManager capture
   -> Normalized event pipeline
-  -> UDP input/gyro frames + TCP/WebSocket control/rumble
-  -> Desktop receiver + profile mapper
-  -> Platform virtual gamepad backend
+  -> Android profile/calibration mapper
+  -> Android Bluetooth HID gamepad for macOS
+  -> LAN UDP/WSS diagnostics + Windows VHF fallback
   -> Visualizer/game
 ```
 
 ### Boundaries
 
-- Gun adapter own iPega-specific Bluetooth/HID/BLE/SPP details.
+- Gun adapter own iPega-specific Bluetooth/HID/BLE/GATT details.
 - Normalized event pipeline stop raw protocol leak into desktop code.
-- Desktop profile mapper own platform/game mapping.
-- Virtual HID backend boundary cover Windows VHF/KMDF and macOS CoreHID/HIDDriverKit.
+- Android profiles own aim/button mapping and calibration.
+- Desktop profile view is read-only metadata plus diagnostics.
+- Virtual HID/backend boundary cover Android Bluetooth HID, Windows VHF/KMDF, and blocked macOS CoreHID/DriverKit fallback docs.
 - Visualizer is first end-to-end acceptance harness.
 
 ### Phase 1 Evidence Rule
@@ -145,7 +146,7 @@ Protocol/control/rumble finding count verified only when static decompile clue +
 
 ## Project Skills
 
-No project skills found. Add skills under `.claude/skills/`, `.agents/skills/`, `.cursor/skills/`, `.github/skills/`, or `.codex/skills/` with `SKILL.md`.
+No project skills found. Custom Codex agents live under `.codex/agents/*.md`; use them for BT Gun reviews before broad implementation work.
 
 <!-- GSD:skills-end -->
 
@@ -164,9 +165,9 @@ For current project work, read these first:
 - `.planning/STATE.md`
 - `.planning/ROADMAP.md`
 - `.planning/REQUIREMENTS.md`
-- `.planning/phases/01-hardware-and-protocol-discovery/01-CONTEXT.md`
+- `.planning/phases/11-gamepad-extension-android-user-app/11-CONTEXT.md`
 
-Current focus: Phase 1 Hardware and Protocol Discovery. No production source tree yet. Only `.planning/` docs and `docs/refs/` APK/XAPK archives.
+Current focus: Phase 11 Gamepad Extension Android User App. Source tree exists under `android-host/`, `desktop-companion/`, `windows/`, `native/`, `fixtures/`, `tools/`, and `docs/`.
 
 <!-- GSD:workflow-end -->
 
