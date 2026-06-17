@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <iomanip>
 #include <iostream>
+#include <limits>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -66,6 +67,25 @@ bool parseHexReport(const std::string& text, std::vector<uint8_t>& bytes) {
         }
         bytes.push_back(static_cast<uint8_t>((hi << 4) | lo));
     }
+    return true;
+}
+
+bool parseUInt64(const std::string& text, uint64_t& value) {
+    if (text.empty()) {
+        return false;
+    }
+    uint64_t parsed = 0;
+    for (char c : text) {
+        if (c < '0' || c > '9') {
+            return false;
+        }
+        const uint64_t digit = static_cast<uint64_t>(c - '0');
+        if (parsed > (std::numeric_limits<uint64_t>::max() - digit) / 10u) {
+            return false;
+        }
+        parsed = (parsed * 10u) + digit;
+    }
+    value = parsed;
     return true;
 }
 
@@ -151,7 +171,7 @@ void printStatusJson(const BTGVJOY_STATUS& status) {
               << "}" << std::endl;
 }
 
-bool submitInput(HANDLE device, const std::string& hex, uint64_t& sequence) {
+bool submitInput(HANDLE device, uint64_t sourceSequence, const std::string& hex) {
     std::vector<uint8_t> bytes;
     if (!parseHexReport(hex, bytes) || bytes.size() != BTGVJOY_INPUT_REPORT_LENGTH_BYTES) {
         printError(ERROR_INVALID_PARAMETER);
@@ -165,7 +185,7 @@ bool submitInput(HANDLE device, const std::string& hex, uint64_t& sequence) {
     BTGVJOY_INPUT_REPORT report = {};
     report.Size = sizeof(report);
     report.Version = BTGVJOY_ABI_VERSION;
-    report.SourceSequence = ++sequence;
+    report.SourceSequence = sourceSequence;
     std::copy(bytes.begin(), bytes.end(), report.HidReport);
 
     DWORD bytesReturned = 0;
@@ -198,6 +218,10 @@ bool readOutput(HANDLE device) {
             sizeof(report),
             &bytesReturned,
             nullptr)) {
+        if (GetLastError() == ERROR_NO_MORE_ITEMS) {
+            std::cout << "NO_OUTPUT" << std::endl;
+            return true;
+        }
         printError(GetLastError());
         return false;
     }
@@ -248,7 +272,6 @@ int main() {
         return 1;
     }
 
-    uint64_t sourceSequence = 0;
     std::string line;
     while (std::getline(std::cin, line)) {
         if (line == "QUIT") {
@@ -266,7 +289,18 @@ int main() {
 
         const std::string prefix = "SUBMIT_INPUT ";
         if (line.rfind(prefix, 0) == 0) {
-            submitInput(device, line.substr(prefix.size()), sourceSequence);
+            std::istringstream args(line.substr(prefix.size()));
+            std::string sequenceToken;
+            std::string hex;
+            std::string extra;
+            uint64_t sourceSequence = 0;
+            if (!(args >> sequenceToken >> hex) ||
+                (args >> extra) ||
+                !parseUInt64(sequenceToken, sourceSequence)) {
+                printError(ERROR_INVALID_PARAMETER);
+                continue;
+            }
+            submitInput(device, sourceSequence, hex);
             continue;
         }
 

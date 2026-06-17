@@ -1,15 +1,17 @@
-# macOS Virtual HID Development Proof
+# macOS Virtual HID Blocked/Fallback Notes
 
-This is the PACK-03 setup path for Phase 7. It is a development proof only: no production notarization, installer, or Developer ID requirement is introduced here.
+This is retained Phase 7 CoreHID/DriverKit evidence, not the product macOS path. The product route is Android Bluetooth HID gamepad; CoreHID and DriverKit remain blocked/scaffold unless a later entitlement-capable proof records OS-visible input, output behavior, rollback, and explicit planning approval.
 
-## Phase 7 Decisions
+No post-HID-subclass macOS proof is recorded here. Any later Android HID descriptor/subclass change needs a fresh macOS pairing/GameController proof before refreshed compatibility claims.
 
-- D-01: Try CoreHID `HIDVirtualDevice` first.
-- D-02: Switch away from CoreHID only when official documentation or local compile/runtime proof shows it cannot satisfy the OS-visible gamepad-style joystick path.
-- D-03: If CoreHID cannot receive OS-origin output/rumble reports, use HIDDriverKit/system extension fallback work for the output proof.
-- D-09: Do not document output as unsupported when CoreHID output proof fails; record a fallback gate instead.
+## Legacy Virtual-HID Decisions
+
+- D-01: Tried CoreHID `HIDVirtualDevice` first.
+- D-02: Switched away from CoreHID after local runtime proof showed the helper could not satisfy the OS-visible gamepad-style joystick path on normal macOS.
+- D-03: HIDDriverKit/system extension remains fallback scaffold only; it is not a product support claim.
+- D-09: Superseded by the Android Bluetooth HID reroute. macOS Bluetooth HID output/haptics are documented as unsupported/deferred for the stable Android HID path.
 - D-10: Target a local development proof package with exact launch, signing, permission, and fallback commands.
-- D-11: Current proof target is macOS 26.2 build 25C56 on arm64 unless the local probe records a concrete blocker.
+- D-11: Historical proof target was macOS 26.2 build 25C56 on arm64.
 - D-12: Use ad-hoc/local development signing first where CoreHID permits.
 - D-13: Record commands, prompts, observed OS/toolchain requirements, and DriverKit entitlement fallback notes.
 
@@ -25,9 +27,9 @@ native/macos-hid-helper/scripts/probe-macos-hid-environment.sh
 
 The probe prints sanitized `sw_vers`, `uname -m`, `xcodebuild -version`, `xcrun --show-sdk-path`, `swift --version`, `security find-identity -v -p codesigning`, `command -v hidutil`, `command -v ioreg`, and `command -v systemextensionsctl`.
 
-## CoreHID First Path
+## CoreHID Legacy Probe Path
 
-The primary helper path creates `BT Gun Virtual Joystick` through CoreHID `HIDVirtualDevice` with:
+The legacy helper path attempted to create `BT Gun Virtual Joystick` through CoreHID `HIDVirtualDevice` with:
 
 - Vendor ID: `0x1209`
 - Product ID: `0xB707`
@@ -189,7 +191,7 @@ HIDDriverKit/system extension work starts only after a recorded CoreHID non-pass
 - `corehid-visibility-failed`
 - `corehid-output-failed`
 
-Selected local-dev-only branch: `corehid-runtime-blocked` plus no USB bridge available. This branch may use HIDDriverKit/system extension development workflows with temporarily relaxed local security checks, but only as a lab proof. It must not be packaged, shipped, or advertised as the normal macOS path without proper entitlement/signing proof and later accepted DESK-03/DESK-06 evidence.
+Selected local-dev-only branch: `corehid-runtime-blocked` plus no USB bridge available. This branch may use HIDDriverKit/system extension development workflows with temporarily relaxed local security checks, but only as a lab proof. It must not be packaged, shipped, or advertised as the product macOS path without proper entitlement/signing proof and later accepted planning.
 
 DriverKit fallback requires explicit later approval before any SIP change, system extension developer mode change, system extension activation, install, removal, rollback, entitlement use, reboot, or other OS security-state change. Expected proof/status commands for that later path are documented in Plan 07-06, not run in this plan:
 

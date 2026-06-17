@@ -6,39 +6,60 @@ This doc is the v1 operator path for building the Android host, installing it on
 
 | Item | Expected value |
 |------|----------------|
-| Android module | `android-host/app` |
+| Android modules | `android-host/:runtime`, `android-host/:app`, `android-host/:user-app` |
 | Gradle project | `android-host` |
 | Kotlin/JVM target | Java 17 |
 | Android SDK | compile SDK `35`, target SDK `35`, min SDK `23` |
-| Local SDK path | `ANDROID_HOME=/Users/lucas.rancez/Library/Android/sdk` |
-| Local JDK path | `JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home` |
+| Local SDK path | Set `ANDROID_HOME` to the local Android SDK path. |
+| Local JDK path | Set `JAVA_HOME` to the local OpenJDK 17 path. |
 | Gradle cache workaround | `GRADLE_USER_HOME=/private/tmp/bt-gun-gradle-home` |
+
+Module roles:
+
+| Module | Role | Output |
+|--------|------|--------|
+| `:runtime` | Shared BLE gun input, motion, profiles, calibration, LAN, HID, haptics, and play/session orchestration. | Android library; no APK. |
+| `:app` | Debug/diagnostic host app with fixtures, raw toggles, and developer dashboards. | `android-host/app/build/outputs/apk/debug/app-debug.apk` |
+| `:user-app` | User-facing `Gamepad Extension` app package `com.btgun.gamepadextension`. | `android-host/user-app/build/outputs/apk/debug/user-app-debug.apk` |
 
 Use this local shell prefix when the default Gradle launch path fails:
 
 ```bash
-JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home ANDROID_HOME=/Users/lucas.rancez/Library/Android/sdk GRADLE_USER_HOME=/private/tmp/bt-gun-gradle-home gradle -p android-host testDebugUnitTest --no-daemon --console=plain
+JAVA_HOME="$JAVA_HOME" ANDROID_HOME="$ANDROID_HOME" GRADLE_USER_HOME=/private/tmp/bt-gun-gradle-home gradle -p android-host testDebugUnitTest --no-daemon --console=plain
 ```
 
 ## Build and Install
 
-Run tests before device work:
+Run runtime tests before device work:
 
 ```bash
-JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home ANDROID_HOME=/Users/lucas.rancez/Library/Android/sdk GRADLE_USER_HOME=/private/tmp/bt-gun-gradle-home gradle -p android-host testDebugUnitTest --no-daemon --console=plain
+JAVA_HOME="$JAVA_HOME" ANDROID_HOME="$ANDROID_HOME" GRADLE_USER_HOME=/private/tmp/bt-gun-gradle-home gradle -p android-host :runtime:testDebugUnitTest --no-daemon --console=plain
 ```
 
-Build a debug APK:
+Build the debug host APK:
 
 ```bash
-JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home ANDROID_HOME=/Users/lucas.rancez/Library/Android/sdk GRADLE_USER_HOME=/private/tmp/bt-gun-gradle-home gradle -p android-host :app:assembleDebug --no-daemon --console=plain
+JAVA_HOME="$JAVA_HOME" ANDROID_HOME="$ANDROID_HOME" GRADLE_USER_HOME=/private/tmp/bt-gun-gradle-home gradle -p android-host :app:assembleDebug --no-daemon --console=plain
 ```
 
-Install through USB:
+Build the user app APK:
+
+```bash
+JAVA_HOME="$JAVA_HOME" ANDROID_HOME="$ANDROID_HOME" GRADLE_USER_HOME=/private/tmp/bt-gun-gradle-home gradle -p android-host :user-app:assembleDebug --no-daemon --console=plain
+```
+
+Install the debug host through USB:
 
 ```bash
 adb devices
 adb install -r android-host/app/build/outputs/apk/debug/app-debug.apk
+```
+
+Install the user app through USB:
+
+```bash
+adb devices
+adb install -r android-host/user-app/build/outputs/apk/debug/user-app-debug.apk
 ```
 
 ## Runtime Permissions
@@ -117,7 +138,7 @@ Do not start UDP from QR or fallback material alone. UDP starts only after trust
 | Blocker | Likely fix |
 |---------|------------|
 | Gradle cannot start with default local cache | Use `GRADLE_USER_HOME=/private/tmp/bt-gun-gradle-home` and Java 17. |
-| Android SDK not found | Set `ANDROID_HOME=/Users/lucas.rancez/Library/Android/sdk`. |
+| Android SDK not found | Set `ANDROID_HOME` to the local Android SDK path. |
 | Device not listed | Replug USB, trust the computer prompt, then rerun `adb devices`. |
 | Bluetooth off or permission blocked | Enable Bluetooth and grant Nearby Devices/Bluetooth permission. |
 | HID role unavailable | Test another Android phone or use Windows VHF path. |

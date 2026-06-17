@@ -6,9 +6,13 @@ import com.btgun.host.haptics.HapticResult
 import com.btgun.host.haptics.HapticResultStatus
 import com.btgun.host.transport.InputFrameFormat
 import com.btgun.host.transport.InputStreamConfig
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.add
+import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
 import okhttp3.OkHttpClient
@@ -160,6 +164,9 @@ class DesktopControlClient(
     private var sessionReady: Boolean = false
     private var expectedSessionId: String? = null
     private var trustedSessionId: String? = null
+    private var negotiatedInputFrameFormats: List<InputFrameFormat> = listOf(InputFrameFormat.V1)
+    private val inboundSequences = ControlSequenceTracker()
+    private val outboundSequences = ControlSequenceGenerator()
 
     fun connect(
         authRequest: DesktopControlAuthRequest,
@@ -189,6 +196,9 @@ class DesktopControlClient(
         sessionReady = false
         expectedSessionId = authRequest.expectedSessionId
         trustedSessionId = null
+        negotiatedInputFrameFormats = listOf(InputFrameFormat.V1)
+        inboundSequences.reset()
+        outboundSequences.reset()
         lastHeartbeatElapsedNanos = null
         val requestBuilder = Request.Builder()
             .url(config.url)
@@ -235,6 +245,9 @@ class DesktopControlClient(
                     sessionReady = false
                     expectedSessionId = null
                     trustedSessionId = null
+                    negotiatedInputFrameFormats = listOf(InputFrameFormat.V1)
+                    inboundSequences.reset()
+                    outboundSequences.reset()
                     lastHeartbeatElapsedNanos = null
                     val reason = failureReason(t, response)
                     linkState = linkState.copy(
@@ -252,6 +265,9 @@ class DesktopControlClient(
                     sessionReady = false
                     expectedSessionId = null
                     trustedSessionId = null
+                    negotiatedInputFrameFormats = listOf(InputFrameFormat.V1)
+                    inboundSequences.reset()
+                    outboundSequences.reset()
                     lastHeartbeatElapsedNanos = null
                     val closeReason = reason.ifBlank { "control channel closed" }
                     linkState = linkState.copy(
@@ -327,6 +343,9 @@ class DesktopControlClient(
         sessionReady = false
         expectedSessionId = null
         trustedSessionId = null
+        negotiatedInputFrameFormats = listOf(InputFrameFormat.V1)
+        inboundSequences.reset()
+        outboundSequences.reset()
         lastHeartbeatElapsedNanos = null
         linkState = linkState.copy(phase = DesktopLinkPhase.DISCONNECTED)
     }
@@ -407,15 +426,26 @@ class DesktopControlClient(
                             recordControlError("session mismatch")
                             false
                         }
+                        !inboundSequences.accept(decoded.envelope) -> {
+                            recordControlError("control sequence out of order")
+                            false
+                        }
                         else -> {
                             trustedSessionId = decoded.envelope.sessionId
                             sessionReady = true
+                            negotiatedInputFrameFormats = negotiatedInputFrameFormats(decoded.envelope.body)
                             observeHeartbeat(elapsedRealtimeNanos())
+                            if (supportsInputStreamCapabilities(decoded.envelope.body)) {
+                                sendEnvelope(inputStreamCapabilitiesEnvelope(decoded.envelope.sessionId))
+                            }
                             true
                         }
                     }
                 } else if (decoded.envelope.sessionId != trustedSessionId) {
                     recordControlError("session mismatch")
+                    false
+                } else if (!inboundSequences.accept(decoded.envelope)) {
+                    recordControlError("control sequence out of order")
                     false
                 } else {
                     when (decoded.envelope.type) {
@@ -449,6 +479,8 @@ class DesktopControlClient(
                             val streamConfig = decoded.envelope.body.toInputStreamConfig()
                             if (streamConfig == null) {
                                 recordControlError("invalid input stream config")
+                            } else if (!negotiatedInputFrameFormats.contains(streamConfig.frameFormat)) {
+                                recordControlError("unsupported input stream format")
                             } else {
                                 onInputStreamConfigReceived(streamConfig)
                             }
@@ -470,6 +502,7 @@ class DesktopControlClient(
                             send(resultEnvelope(decoded.envelope.sessionId, result))
                             false
                         }
+                        ControlMessageType.INPUT_STREAM_CAPABILITIES -> false
                         else -> false
                     }
                 }
@@ -482,7 +515,7 @@ class DesktopControlClient(
             type = type,
             msgId = "android-${type.wireName}",
             sessionId = sessionId,
-            seq = 0L,
+            seq = nextOutboundSeq(sessionId),
             sentElapsedNanos = elapsedRealtimeNanos(),
         )
 
@@ -492,7 +525,7 @@ class DesktopControlClient(
             type = ControlMessageType.HAPTIC_RESULT,
             msgId = "android-haptic-result-${result.commandId}",
             sessionId = sessionId,
-            seq = 0L,
+            seq = nextOutboundSeq(sessionId),
             sentElapsedNanos = elapsedRealtimeNanos(),
             body = result.toJsonBody(),
         )
@@ -503,7 +536,7 @@ class DesktopControlClient(
             type = ControlMessageType.PROFILE_METADATA,
             msgId = "android-profile-${profile.profileId}-${profile.revision}",
             sessionId = sessionId,
-            seq = 0L,
+            seq = nextOutboundSeq(sessionId),
             sentElapsedNanos = elapsedRealtimeNanos(),
             body = JsonObject(
                 mapOf(
@@ -522,9 +555,26 @@ class DesktopControlClient(
             type = ControlMessageType.DIAGNOSTICS,
             msgId = "android-visualizer-status-${status.statusSequence ?: elapsedRealtimeNanos()}",
             sessionId = sessionId,
-            seq = 0L,
+            seq = nextOutboundSeq(sessionId),
             sentElapsedNanos = elapsedRealtimeNanos(),
             body = VisualizerStatus.body(status),
+        )
+
+    private fun inputStreamCapabilitiesEnvelope(sessionId: String): ControlEnvelope =
+        ControlEnvelope(
+            v = 1,
+            type = ControlMessageType.INPUT_STREAM_CAPABILITIES,
+            msgId = "android-input-stream-capabilities",
+            sessionId = sessionId,
+            seq = nextOutboundSeq(sessionId),
+            sentElapsedNanos = elapsedRealtimeNanos(),
+            body = JsonObject(
+                mapOf(
+                    "supportedInputFrameFormats" to buildJsonArray {
+                        SUPPORTED_INPUT_FRAME_FORMATS.forEach { format -> add(format.wireName) }
+                    },
+                ),
+            ),
         )
 
     private fun JsonObject.toDiagnostics(): ControlDiagnostics? {
@@ -562,12 +612,48 @@ class DesktopControlClient(
                 frameAgeLimitMs = longField("frameAgeLimitMs") ?: return null,
                 streamTimeoutMs = longField("streamTimeoutMs") ?: return null,
                 controlDisconnectGraceMs = longField("controlDisconnectGraceMs") ?: return null,
-                frameFormat = InputFrameFormat.fromWireName(stringField("frameFormat")),
+                frameFormat = inputFrameFormatField("frameFormat") ?: return null,
             )
         }.getOrNull()
 
+    private fun negotiatedInputFrameFormats(body: JsonObject): List<InputFrameFormat> {
+        val desktopFormats = runCatching {
+            body["controlCapabilities"]
+                ?.jsonObjectOrNull()
+                ?.get("supportedInputFrameFormats")
+                ?.jsonArrayOrNull()
+                ?.mapNotNull { element -> element.jsonPrimitive.contentOrNull?.let(InputFrameFormat::fromWireName) }
+                ?.distinct()
+                .orEmpty()
+        }.getOrDefault(emptyList())
+        if (desktopFormats.isEmpty()) {
+            return listOf(InputFrameFormat.V1)
+        }
+        return SUPPORTED_INPUT_FRAME_FORMATS.filter { format -> desktopFormats.contains(format) }
+            .ifEmpty { listOf(InputFrameFormat.V1) }
+    }
+
+    private fun supportsInputStreamCapabilities(body: JsonObject): Boolean =
+        body["controlCapabilities"]
+            ?.jsonObjectOrNull()
+            ?.get("supportedInputFrameFormats")
+            ?.jsonArrayOrNull() != null
+
+    private fun nextOutboundSeq(sessionId: String): Long =
+        outboundSequences.next(sessionId)
+
     private fun JsonObject.stringField(name: String): String? =
         (get(name) as? JsonPrimitive)?.takeIf { it.isString }?.contentOrNull
+
+    private fun JsonObject.inputFrameFormatField(name: String): InputFrameFormat? {
+        val value = get(name) ?: return InputFrameFormat.V1
+        if (value is JsonNull) return InputFrameFormat.V1
+        val wireName = (value as? JsonPrimitive)
+            ?.takeIf { it.isString }
+            ?.contentOrNull
+            ?: return null
+        return InputFrameFormat.fromWireName(wireName)
+    }
 
     private fun JsonObject.longField(name: String): Long? =
         (get(name) as? JsonPrimitive)?.jsonPrimitive?.longOrNull
@@ -582,6 +668,12 @@ class DesktopControlClient(
 
     private fun JsonObject.nullableLongField(name: String): Long? =
         if (containsKey(name)) longField(name) else null
+
+    private fun kotlinx.serialization.json.JsonElement.jsonObjectOrNull(): JsonObject? =
+        this as? JsonObject
+
+    private fun kotlinx.serialization.json.JsonElement.jsonArrayOrNull() =
+        runCatching { jsonArray }.getOrNull()
 
     private fun observeHeartbeat(nowElapsedNanos: Long) {
         require(nowElapsedNanos >= 0L) { "nowElapsedNanos must be non-negative" }
@@ -611,6 +703,10 @@ class DesktopControlClient(
         private const val FINGERPRINT_SUFFIX_LENGTH = 8
         private const val NANOS_PER_MILLI = 1_000_000L
         private const val MAX_FAILURE_MESSAGE_CHARS = 160
+        private val SUPPORTED_INPUT_FRAME_FORMATS = listOf(
+            InputFrameFormat.COMPACT_V2,
+            InputFrameFormat.V1,
+        )
 
         fun defaultSocket(request: Request, listener: WebSocketListener): DesktopControlSocket {
             val pin = request.header("X-BT-Gun-Desktop-Fingerprint")

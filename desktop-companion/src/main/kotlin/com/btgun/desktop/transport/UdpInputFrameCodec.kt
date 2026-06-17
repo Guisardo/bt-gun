@@ -190,16 +190,21 @@ object UdpInputFrameCodec {
         return bytes
     }
 
-    fun authenticateAndDecodeMux(bytes: ByteArray, config: InputStreamConfig): UdpInputFrameDecodeResult =
-        when {
-            bytes.size == FRAME_SIZE && bytes.copyOfRange(0, 4).contentEquals(MAGIC.toByteArray(Charsets.US_ASCII)) ->
-                authenticateAndDecode(bytes, config)
-            bytes.size == COMPACT_FRAME_SIZE && bytes.copyOfRange(0, 4).contentEquals(COMPACT_MAGIC.toByteArray(Charsets.US_ASCII)) ->
-                authenticateAndDecodeCompact(bytes, config)
-            bytes.size != FRAME_SIZE && bytes.size != COMPACT_FRAME_SIZE ->
-                UdpInputFrameDecodeResult.Rejected(UdpInputFrameRejectReason.INVALID_LENGTH, "size=${bytes.size}")
-            else -> UdpInputFrameDecodeResult.Rejected(UdpInputFrameRejectReason.BAD_MAGIC)
+    fun authenticateAndDecodeMux(bytes: ByteArray, config: InputStreamConfig): UdpInputFrameDecodeResult {
+        val frameFormat = frameFormatFor(bytes)
+            ?: return when {
+                bytes.size != FRAME_SIZE && bytes.size != COMPACT_FRAME_SIZE ->
+                    UdpInputFrameDecodeResult.Rejected(UdpInputFrameRejectReason.INVALID_LENGTH, "size=${bytes.size}")
+                else -> UdpInputFrameDecodeResult.Rejected(UdpInputFrameRejectReason.BAD_MAGIC)
+            }
+        if (frameFormat != config.frameFormat) {
+            return UdpInputFrameDecodeResult.Rejected(UdpInputFrameRejectReason.MALFORMED_FIELD, "frame format mismatch")
         }
+        return when (frameFormat) {
+            InputFrameFormat.V1 -> authenticateAndDecode(bytes, config)
+            InputFrameFormat.COMPACT_V2 -> authenticateAndDecodeCompact(bytes, config)
+        }
+    }
 
     fun authenticateAndDecodeCompact(bytes: ByteArray, config: InputStreamConfig): UdpInputFrameDecodeResult {
         if (bytes.size != COMPACT_FRAME_SIZE) {
@@ -353,6 +358,15 @@ object UdpInputFrameCodec {
         mac.init(SecretKeySpec(secret, "HmacSHA256"))
         return mac.doFinal(input)
     }
+
+    private fun frameFormatFor(bytes: ByteArray): InputFrameFormat? =
+        when {
+            bytes.size == FRAME_SIZE && bytes.copyOfRange(0, 4).contentEquals(MAGIC.toByteArray(Charsets.US_ASCII)) ->
+                InputFrameFormat.V1
+            bytes.size == COMPACT_FRAME_SIZE && bytes.copyOfRange(0, 4).contentEquals(COMPACT_MAGIC.toByteArray(Charsets.US_ASCII)) ->
+                InputFrameFormat.COMPACT_V2
+            else -> null
+        }
 }
 
 private fun Float.toInt16Axis(): Int =

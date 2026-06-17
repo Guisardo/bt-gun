@@ -6,6 +6,7 @@ Both Android and desktop tests use these identifiers:
 
 - `GOLDEN_SNAPSHOT_FRAME_HEX`
 - `GOLDEN_EDGE_FRAME_HEX`
+- `fixtures/replay/udp-golden/input-stream-v1-v2-matrix.jsonl`
 
 Shared fixture config:
 
@@ -22,6 +23,35 @@ Shared fixture config:
 | HMAC tag size | `32` bytes |
 | HMAC input | bytes `0..87` |
 | HMAC tag | bytes `88..119` |
+
+## v1/v2 Replay Matrix
+
+Shared replay/static test rows live in `fixtures/replay/udp-golden/input-stream-v1-v2-matrix.jsonl`. The matrix is a sanitized JSONL source consumed by Android and desktop tests without changing production codecs.
+
+| Case | Format | Expected codec result | Expected replay result |
+|------|--------|-----------------------|------------------------|
+| `v1-good-snapshot` | `v1` | accepted | accepted |
+| `v1-duplicate-seq` | `v1` | accepted | duplicate sequence |
+| `v2-good-snapshot` | `compact_v2` | accepted | accepted |
+| `v2-old-seq` | `compact_v2` | accepted | old sequence |
+| `v1-stale-age` | `v1` | accepted | age expired |
+| `v2-stale-age` | `compact_v2` | accepted | age expired |
+| `v1-bad-hmac` | `v1` | bad HMAC | bad HMAC |
+| `v2-bad-hmac` | `compact_v2` | bad HMAC | bad HMAC |
+| `v1-wrong-stream` | `v1` | wrong stream session | wrong stream session |
+| `v2-wrong-stream` | `compact_v2` | wrong stream session | wrong stream session |
+| `unexpected-format` | unexpected UDP magic | bad magic | malformed |
+
+Negotiation fallback rows:
+
+| Case | Input `frameFormat` | Expected selected format |
+|------|---------------------|--------------------------|
+| `legacy-fallback-v1` | missing | `v1` |
+| `unknown-frame-format-rejected` | `future_v3` | reject config |
+
+Missing or null `frameFormat` values fall back to `v1` for legacy peers. Unknown non-null `frameFormat` values reject the config before UDP opens. UDP payload muxing still accepts only `BTGI` v1 and `BTG2` compact v2; any other UDP magic is an unexpected format and must be rejected before HMAC material is trusted.
+
+Haptic matrix rows cover invalid bodies, unsupported non-null pattern precedence, invalid timelines, and overlapping timelines. Android executes these rows against `DesktopHapticCommandExecutor`; desktop codec tests decode the same bodies through `reserved_haptic_command` envelopes.
 
 ## Field Offsets
 

@@ -1,5 +1,10 @@
 package com.btgun.desktop.transport
 
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -11,6 +16,9 @@ fun main() {
     codecConstantsMatchWireContract()
     goldenSnapshotAndEdgeFramesRoundTrip()
     compactFrameRoundTripsThroughMux()
+    muxRejectsFrameFormatMismatch()
+    sharedFixtureMatrixDecodesExpectedOutcomes()
+    frameFormatParserRejectsUnknownWireNames()
     decoderRejectsMalformedOrUntrustedFrames()
     decoderRejectsAuthenticatedMalformedFields()
     inputStreamConfigRejectsOutOfRangeTimingValues()
@@ -50,7 +58,7 @@ private fun codecConstantsMatchWireContract() {
 }
 
 private fun compactFrameRoundTripsThroughMux() {
-    val config = fixtureConfig()
+    val config = fixtureConfig().copy(frameFormat = InputFrameFormat.COMPACT_V2)
     val frame = UdpInputFrame(
         type = UdpInputFrameType.SNAPSHOT,
         streamSessionId = STREAM_SESSION_ID_HEX,
@@ -92,6 +100,64 @@ private fun compactFrameRoundTripsThroughMux() {
     expectRejected("compact bad hmac", UdpInputFrameRejectReason.BAD_HMAC, UdpInputFrameCodec.authenticateAndDecodeMux(bytes.copyOf().also { it[it.lastIndex] = (it[it.lastIndex].toInt() xor 1).toByte() }, config))
 }
 
+private fun muxRejectsFrameFormatMismatch() {
+    val v1Config = fixtureConfig()
+    val compactConfig = fixtureConfig().copy(frameFormat = InputFrameFormat.COMPACT_V2)
+    val compactBytes = UdpInputFrameCodec.encodeCompact(fixtureFrame(), compactConfig)
+    val v1Bytes = UdpInputFrameCodec.encode(fixtureFrame(), v1Config)
+
+    expectRejected("compact bytes under v1 config", UdpInputFrameRejectReason.MALFORMED_FIELD, UdpInputFrameCodec.authenticateAndDecodeMux(compactBytes, v1Config))
+    expectRejected("v1 bytes under compact config", UdpInputFrameRejectReason.MALFORMED_FIELD, UdpInputFrameCodec.authenticateAndDecodeMux(v1Bytes, compactConfig))
+}
+
+private fun sharedFixtureMatrixDecodesExpectedOutcomes() {
+    val cases = replayMatrixDatagrams()
+    val expectedCaseIds = listOf(
+        "v1-good-snapshot",
+        "v1-duplicate-seq",
+        "v2-good-snapshot",
+        "v2-old-seq",
+        "v1-stale-age",
+        "v2-stale-age",
+        "v1-bad-hmac",
+        "v2-bad-hmac",
+        "v1-wrong-stream",
+        "v2-wrong-stream",
+        "unexpected-format",
+    )
+
+    expectEquals("matrix case ids", expectedCaseIds, cases.map { it.caseId })
+    cases.forEach { case ->
+        val bytes = case.hex.hexToBytes()
+        when (case.frameFormat) {
+            "v1" -> expectEquals("${case.caseId} v1 size", UdpInputFrameCodec.FRAME_SIZE, bytes.size)
+            "compact_v2" -> expectEquals("${case.caseId} compact size", UdpInputFrameCodec.COMPACT_FRAME_SIZE, bytes.size)
+            "unexpected" -> expectEquals("${case.caseId} unexpected size", UdpInputFrameCodec.COMPACT_FRAME_SIZE, bytes.size)
+        }
+        val decoded = UdpInputFrameCodec.authenticateAndDecodeMux(bytes, configForMatrixCase(case))
+        if (case.expectedCodec == "ACCEPTED") {
+            expectTrue("${case.caseId} accepted", decoded is UdpInputFrameDecodeResult.Accepted)
+            val frame = (decoded as UdpInputFrameDecodeResult.Accepted).frame
+            expectEquals("${case.caseId} sequence", case.sequence, frame.sequence)
+        } else {
+            expectRejected(
+                case.caseId,
+                UdpInputFrameRejectReason.valueOf(case.expectedCodec),
+                decoded,
+            )
+        }
+    }
+}
+
+private fun frameFormatParserRejectsUnknownWireNames() {
+    val negotiations = replayMatrixNegotiations()
+
+    expectEquals("missing frame format fallback", InputFrameFormat.V1, selectedFrameFormat(null))
+    expectEquals("unknown parser result", null, InputFrameFormat.fromWireName("future_v3"))
+    expectEquals("compact frame format", InputFrameFormat.COMPACT_V2, selectedFrameFormat("compact_v2"))
+    expectEquals("negotiation rows", setOf("legacy-fallback-v1", "unknown-frame-format-rejected"), negotiations.map { it.caseId }.toSet())
+}
+
 private fun goldenSnapshotAndEdgeFramesRoundTrip() {
     val config = fixtureConfig()
     val snapshot = UdpInputFrame(
@@ -105,16 +171,12 @@ private fun goldenSnapshotAndEdgeFramesRoundTrip() {
         stickY = -12_345,
         motionProvider = 2,
         motionCapabilityFlags = 0x07,
-        yaw = 0.375f,
-        pitch = -0.625f,
+        yaw = 1.25f,
+        pitch = -2.5f,
         roll = 0.75f,
         rawAimX = 0.125f,
         rawAimY = -0.25f,
         sourceSensorElapsedNanos = 1_111_111_000L,
-        streamFlags = UdpInputFrame.FLAG_MAPPED_PRODUCT_STREAM or UdpInputFrame.FLAG_RAW_DEBUG_EXTRAS,
-        productAimX = 0.375f,
-        productAimY = -0.625f,
-        rawRoll = 0.75f,
     )
     val edge = UdpInputFrame(
         type = UdpInputFrameType.EDGE,
@@ -127,16 +189,12 @@ private fun goldenSnapshotAndEdgeFramesRoundTrip() {
         stickY = 32_767,
         motionProvider = 3,
         motionCapabilityFlags = 0x03,
-        yaw = -0.5f,
-        pitch = 0.25f,
+        yaw = -1.0f,
+        pitch = 0.5f,
         roll = 2.0f,
         rawAimX = Float.NaN,
         rawAimY = Float.NaN,
         sourceSensorElapsedNanos = 1_111_111_300L,
-        streamFlags = UdpInputFrame.FLAG_MAPPED_PRODUCT_STREAM,
-        productAimX = -0.5f,
-        productAimY = 0.25f,
-        rawRoll = 2.0f,
     )
 
     expectEquals("snapshot hex", GOLDEN_SNAPSHOT_FRAME_HEX, UdpInputFrameCodec.encode(snapshot, config).toHex())
@@ -149,14 +207,14 @@ private fun goldenSnapshotAndEdgeFramesRoundTrip() {
     expectTrue("edge accepted", decodedEdge is UdpInputFrameDecodeResult.Accepted)
     expectEquals("snapshot frame", snapshot, (decodedSnapshot as UdpInputFrameDecodeResult.Accepted).frame)
     expectEquals("edge frame type", UdpInputFrameType.EDGE, (decodedEdge as UdpInputFrameDecodeResult.Accepted).frame.type)
-    expectEquals("snapshot mapped product", true, decodedSnapshot.frame.mappedProductStream)
-    expectEquals("snapshot raw debug", true, decodedSnapshot.frame.rawDebugEnabled)
-    expectEquals("snapshot product aim x", 0.375f, decodedSnapshot.frame.productAimX)
-    expectEquals("snapshot product aim y", -0.625f, decodedSnapshot.frame.productAimY)
-    expectEquals("edge mapped product", true, decodedEdge.frame.mappedProductStream)
+    expectEquals("snapshot mapped product", false, decodedSnapshot.frame.mappedProductStream)
+    expectEquals("snapshot raw debug", false, decodedSnapshot.frame.rawDebugEnabled)
+    expectEquals("snapshot product aim x", snapshot.yaw, decodedSnapshot.frame.productAimX)
+    expectEquals("snapshot product aim y", snapshot.pitch, decodedSnapshot.frame.productAimY)
+    expectEquals("edge mapped product", false, decodedEdge.frame.mappedProductStream)
     expectEquals("edge raw debug off", false, decodedEdge.frame.rawDebugEnabled)
-    expectEquals("edge product aim x", -0.5f, decodedEdge.frame.productAimX)
-    expectEquals("edge product aim y", 0.25f, decodedEdge.frame.productAimY)
+    expectEquals("edge product aim x", edge.yaw, decodedEdge.frame.productAimX)
+    expectEquals("edge product aim y", edge.pitch, decodedEdge.frame.productAimY)
     expectTrue("edge raw aim x missing", decodedEdge.frame.rawAimX.isNaN())
     expectTrue("edge raw aim y missing", decodedEdge.frame.rawAimY.isNaN())
 }
@@ -223,8 +281,8 @@ private fun debugDecoderRedactsSecrets() {
     expectContains("debug type", summary, "SNAPSHOT")
     expectContains("debug sequence", summary, "sequence=42")
     expectContains("debug provider", summary, "motionProvider=2")
-    expectContains("debug stream flags", summary, "streamFlags=3")
-    expectContains("debug mapped aim", summary, "productAimX=0.375")
+    expectContains("debug stream flags", summary, "streamFlags=0")
+    expectContains("debug mapped aim", summary, "productAimX=1.25")
     listOf("qr_secret", "manual code", "proof", HMAC_KEY_BASE64URL, HMAC_KEY_HEX).forEach { secret ->
         expectFalse("debug redacts $secret", summary.contains(secret, ignoreCase = true))
     }
@@ -326,8 +384,90 @@ private fun expectThrows(label: String, block: () -> Unit) {
     throw AssertionError("$label expected IllegalArgumentException")
 }
 
+private data class ReplayMatrixCase(
+    val caseId: String,
+    val frameFormat: String,
+    val expectedCodec: String,
+    val hex: String,
+    val sequence: Long?,
+)
+
+private data class ReplayMatrixNegotiation(
+    val caseId: String,
+)
+
+private fun replayMatrixDatagrams(): List<ReplayMatrixCase> =
+    replayMatrixObjects("datagram")
+        .sortedBy { it.intField("replay_order") }
+        .map { row ->
+            ReplayMatrixCase(
+                caseId = row.stringField("case_id"),
+                frameFormat = row.stringField("frame_format"),
+                expectedCodec = row.stringField("expected_codec"),
+                hex = row.stringField("hex"),
+                sequence = row.longFieldOrNull("sequence"),
+            )
+        }
+
+private fun replayMatrixNegotiations(): List<ReplayMatrixNegotiation> =
+    replayMatrixObjects("negotiation")
+        .map { row -> ReplayMatrixNegotiation(caseId = row.stringField("case_id")) }
+
+private fun configForMatrixCase(case: ReplayMatrixCase): InputStreamConfig =
+    fixtureConfig().copy(frameFormat = selectedFrameFormat(case.frameFormat))
+
+private fun selectedFrameFormat(value: String?): InputFrameFormat =
+    value?.let(InputFrameFormat::fromWireName) ?: InputFrameFormat.V1
+
+private fun fixtureFrame(): UdpInputFrame =
+    UdpInputFrame(
+        type = UdpInputFrameType.SNAPSHOT,
+        streamSessionId = STREAM_SESSION_ID_HEX,
+        sequence = 77L,
+        captureElapsedNanos = 2_000_000_000L,
+        sendElapsedNanos = 2_000_000_010L,
+        buttonBitmask = 0,
+        stickX = 0,
+        stickY = 0,
+        motionProvider = 0,
+        motionCapabilityFlags = 0,
+        yaw = 0f,
+        pitch = 0f,
+        roll = 0f,
+        rawAimX = Float.NaN,
+        rawAimY = Float.NaN,
+        sourceSensorElapsedNanos = 2_000_000_000L,
+    )
+
+private fun replayMatrixObjects(recordType: String): List<JsonObject> {
+    val file = repoFile("fixtures/replay/udp-golden/input-stream-v1-v2-matrix.jsonl")
+    if (!file.exists()) {
+        throw AssertionError("missing shared replay matrix fixture: ${file.path}")
+    }
+    return file.readLines()
+        .map { it.trim() }
+        .filter { it.isNotEmpty() && !it.startsWith("#") }
+        .map { Json.parseToJsonElement(it).jsonObject }
+        .filter { it.stringField("record_type") == recordType }
+}
+
+private fun JsonObject.stringField(name: String): String =
+    this[name]?.jsonPrimitive?.contentOrNull
+        ?: throw AssertionError("missing string field $name")
+
+private fun JsonObject.longFieldOrNull(name: String): Long? =
+    this[name]?.jsonPrimitive?.contentOrNull?.toLong()
+
+private fun JsonObject.intField(name: String): Int =
+    stringField(name).toInt()
+
+private fun repoFile(path: String): File =
+    listOf(File(path), File("../$path"), File("../../$path"))
+        .firstOrNull { it.exists() }
+        ?: File(path)
+
 private const val STREAM_SESSION_ID_HEX = "00112233445566778899aabbccddeeff"
 private const val HMAC_KEY_HEX = "0123456789abcdeffedcba98765432100123456789abcdeffedcba9876543210"
 private const val HMAC_KEY_BASE64URL = "ASNFZ4mrze_-3LqYdlQyEAEjRWeJq83v_ty6mHZUMhA"
-private const val GOLDEN_SNAPSHOT_FRAME_HEX = "425447490101000300112233445566778899aabbccddeeff000000000000002a00000000423a35c700000000423a3636000000233039cfc7020700003ec00000bf2000003f4000003e000000be80000000000000423a3558e5fe65b7e6e39c6eb8109901c44e1078e75277dded88c2c0732a5a15e517c6dc"
-private const val GOLDEN_EDGE_FRAME_HEX = "425447490102000100112233445566778899aabbccddeeff000000000000002b00000000423a36a500000000423a37140000010180007fff03030000bf0000003e800000400000007fc000007fc0000000000000423a3684a5b9af27f6b97e7699e380efcfbc21fb7ce9dd851c9b632de938d6081ee4a669"
+private const val GOLDEN_SNAPSHOT_FRAME_HEX = "425447490101000000112233445566778899aabbccddeeff000000000000002a00000000423a35c700000000423a3636000000233039cfc7020700003fa00000c02000003f4000003e000000be80000000000000423a3558ad0f94e008b50a045111a7bbb25688c2f1d399a8de4b3b8f2e325c0f63fb7d5f"
+private const val GOLDEN_EDGE_FRAME_HEX = "425447490102000000112233445566778899aabbccddeeff000000000000002b00000000423a36a500000000423a37140000010180007fff03030000bf8000003f000000400000007fc000007fc0000000000000423a36843b9a10ccf01f62a02db4cc6065db9d133b1f4e20e1b4f8c74579b672755e8d24"

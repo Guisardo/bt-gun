@@ -127,6 +127,7 @@ Allowed `type` wire names:
 | `diagnostics` | Minimal diagnostics described below. |
 | `profile_metadata` | Minimal profile metadata described below. |
 | `input_stream_config` | Trusted UDP input stream parameters described below. |
+| `input_stream_capabilities` | Android-supported UDP frame formats for trusted negotiation. |
 | `reserved_haptic_command` | Phase 4 phone haptic command body described below. Wire name preserved from Phase 3. |
 | `haptic_result` | Android phone haptic result body described below. |
 
@@ -146,8 +147,15 @@ Body fields:
 | `frameAgeLimitMs` | integer | Sender-local frame-age budget from Android `captureElapsedNanos` to Android `sendElapsedNanos`. Desktop must not compare Android `sendElapsedNanos` to desktop receive time unless a trusted control-channel clock offset exists. Default: `150`. |
 | `streamTimeoutMs` | integer | Receiver timeout before active buttons/pressed controls clear. Default: `250`. |
 | `controlDisconnectGraceMs` | integer | Short UDP grace after reliable control disconnect. Default: `1500`. |
+| `frameFormat` | string or null | `v1` or `compact_v2`. Missing/null means legacy `v1`; unknown non-null values reject the config. |
 
 Receivers reject missing, malformed, empty, out-of-range, or wrong-session configs. The stream id and auth secret are scoped to one trusted control session and must be replaced after reconnect or session change. Replay protection uses monotonically increasing sequence numbers. Stale input protection uses `frameAgeLimitMs` for Android-local capture-to-send age plus `streamTimeoutMs` and `controlDisconnectGraceMs`; desktop receive-time age checks require an explicit sender-to-receiver clock offset.
+
+## Input Stream Capabilities
+
+`session_ready.body.controlCapabilities.supportedInputFrameFormats` is the desktop-supported ordered set. Android answers with `input_stream_capabilities.body.supportedInputFrameFormats` only when that field exists. Desktop waits briefly for Android capabilities, selects `compact_v2` when both peers support it, and otherwise sends `v1`.
+
+Unknown Android capability entries are ignored. If no known capability remains, desktop falls back to `v1`. Unknown non-null `input_stream_config.frameFormat` values are not a capability hint and must reject before UDP opens.
 
 ## Phone Haptic Command and Result
 
@@ -162,6 +170,7 @@ Desktop sends phone haptic commands over the authenticated reliable control chan
 | `durationMs` | integer `1..1000` | Pulse duration. |
 | `ttlMs` | integer `1..2000` | Relative TTL from Android receive time to start attempt. |
 | `pattern` | string or null | Reserved. Non-null values return `unsupported` in Phase 4. |
+| `patternTimeline` | array | Optional timeline pulses. Overlapping or out-of-range pulses return `failed`; unsupported phone timelines fall back to pulse unless `pattern` is non-null or `strength` is zero. |
 
 Android accepts haptic commands only after trusted `session_ready` and only for the active session id. It validates every field before vibrating. Expired or unsupported commands must not vibrate the phone. A valid new pulse cancels any active phone vibration before starting. Android returns a result after command validation and the vibration start attempt, not after waiting for the pulse duration.
 
