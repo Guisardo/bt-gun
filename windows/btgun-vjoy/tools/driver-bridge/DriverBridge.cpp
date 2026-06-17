@@ -1,4 +1,5 @@
 #define INITGUID
+#define NOMINMAX
 
 #include <windows.h>
 #include <setupapi.h>
