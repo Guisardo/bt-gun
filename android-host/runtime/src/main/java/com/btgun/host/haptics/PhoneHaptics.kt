@@ -114,6 +114,9 @@ class PhoneHaptics(
         if (!localVibrator.hasVibrator() || Build.VERSION.SDK_INT < 26) {
             return PhoneHapticStartResult.Unsupported
         }
+        if (timeline.hasOverlaps()) {
+            return PhoneHapticStartResult.Failed("invalid patternTimeline")
+        }
         val sorted = timeline.sortedBy { it.atMs }
         val timings = mutableListOf<Long>()
         val amplitudes = mutableListOf<Int>()

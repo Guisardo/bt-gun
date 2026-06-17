@@ -4,14 +4,19 @@ import com.btgun.desktop.control.ControlDecodeResult
 import com.btgun.desktop.control.ControlEnvelope
 import com.btgun.desktop.control.ControlEnvelopeCodec
 import com.btgun.desktop.control.ControlMessageType
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import java.io.File
 
 fun main() {
     hapticCommandBodyUsesReservedWireNameWithPulseFields()
     hapticCommandBodyAllowsTimelineShape()
+    sharedMatrixHapticRowsDecodeThroughReservedEnvelope()
     hapticResultBodyUsesExplicitResultStatusWireNames()
     hapticResultStatusesCoverAllPhaseFourOutcomes()
 }
@@ -40,6 +45,29 @@ private fun hapticCommandBodyAllowsTimelineShape() {
     expectEquals("timeline size", 2, timeline.size)
     expectEquals("timeline first at", "0", timeline[0].jsonObject["atMs"]?.jsonPrimitive?.content)
     expectEquals("timeline round trip", command, HapticCommand.fromJsonBody(body))
+}
+
+private fun sharedMatrixHapticRowsDecodeThroughReservedEnvelope() {
+    val rows = replayMatrixHapticRows()
+
+    expectEquals(
+        "haptic matrix categories",
+        setOf("haptic_invalid_body", "haptic_unsupported_pattern", "haptic_invalid_timeline", "haptic_overlapping_timeline"),
+        rows.map { row -> row.stringField("category") }.toSet(),
+    )
+    rows.forEach { row ->
+        val body = row["body"]?.jsonObject ?: error("missing body")
+        val decoded = ControlEnvelopeCodec.decode(
+            ControlEnvelopeCodec.encode(
+                envelope(ControlMessageType.RESERVED_HAPTIC_COMMAND, body),
+            ),
+        )
+
+        expectTrue("${row.stringField("case_id")} envelope accepted", decoded is ControlDecodeResult.Accepted)
+        if (row.stringField("expected_status") == "unsupported") {
+            expectEquals("unsupported command parses", "cmd-pattern", HapticCommand.fromJsonBody(body)?.commandId)
+        }
+    }
 }
 
 private fun hapticCommandBodyUsesReservedWireNameWithPulseFields() {
@@ -120,3 +148,24 @@ private fun expectTrue(label: String, condition: Boolean) {
         throw AssertionError(label)
     }
 }
+
+private fun replayMatrixHapticRows(): List<JsonObject> {
+    val file = repoFile("fixtures/replay/udp-golden/input-stream-v1-v2-matrix.jsonl")
+    if (!file.exists()) {
+        throw AssertionError("missing shared replay matrix fixture: ${file.path}")
+    }
+    return file.readLines()
+        .map { it.trim() }
+        .filter { it.isNotEmpty() && !it.startsWith("#") }
+        .map { Json.parseToJsonElement(it).jsonObject }
+        .filter { row -> row.stringField("record_type") == "haptic" }
+}
+
+private fun repoFile(path: String): File =
+    listOf(File(path), File("../$path"), File("../../$path"))
+        .firstOrNull { it.exists() }
+        ?: File(path)
+
+private fun JsonObject.stringField(name: String): String =
+    this[name]?.jsonPrimitive?.contentOrNull
+        ?: throw AssertionError("missing string field $name")

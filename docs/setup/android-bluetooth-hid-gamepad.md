@@ -16,10 +16,10 @@ Required states before proof:
 | Runtime permission | `BLUETOOTH_CONNECT` and `BLUETOOTH_ADVERTISE` granted on Android 12+ | Nearby Devices/Bluetooth permission missing |
 | HID profile proxy | `HID_DEVICE` proxy available | Phone/OEM does not expose HID Device profile |
 | App registration | `BluetoothHidDevice.registerApp` accepted and callback reports registered | Registration rejected or unregistered |
-| Pairing mode | User starts pairing window from the app | No discoverable/connectable window active |
+| Pairing mode | Android discoverable status reports opened | Request denied, expired, or no discoverable/connectable window active |
 | Host connection | macOS connects as HID host | No host connected or host disconnected |
 
-The normal user flow starts with the Bluetooth gamepad toggle. It shows **Start Bluetooth gamepad** while stopped and **Stop Bluetooth gamepad** while starting or active. This action is separate from the BLE gun/LAN session path; start probes the HID role and registers the gamepad SDP record. After registration is active, tap **Open pairing window** to start the discoverable pairing countdown. Stop sends a neutral report and disconnects the current host, but keeps the HID app registered so an already-paired Mac can reconnect without forgetting the device. Full unregister happens only when the Android service closes. The app should show remaining pairing time and an explicit blocked reason instead of silently falling back.
+The normal user flow starts with the Bluetooth gamepad toggle. It shows **Start Bluetooth gamepad** while stopped and **Stop Bluetooth gamepad** while starting or active. This action is separate from the BLE gun/LAN session path; start probes the HID role and registers the gamepad SDP record. After registration is active, tap **Open pairing window** to request the Android discoverable flow. Pairing status moves through requested, pending, opened, denied, or expired; the app must not claim opened until Android reports discoverable status. Stop sends a neutral report and disconnects the current host, but keeps the HID app registered so an already-paired Mac can reconnect without forgetting the device. Full unregister happens only when the Android service closes. The app should show remaining pairing time and an explicit blocked reason instead of silently falling back.
 
 If the current phone blocks HID proxy, registration, macOS pairing, or input proof, test an alternate Android phone before selecting the Windows VHF fallback.
 
@@ -45,38 +45,55 @@ Android owns descriptor bytes and input packing. The shape remains a normal game
 | Item | Value |
 |------|-------|
 | Device kind | `gamepad_like_joystick` |
+| Android Bluetooth HID ABI | `android-bluetooth-hid-22-button` |
+| Windows VHF LAN fallback ABI | `desktop-vhf-lan-6-button` |
 | Input report ID | `1` |
-| Input payload length | 9 bytes |
+| Input payload length | 11 bytes, excluding report ID |
 | Output report ID | `2` |
-| Output payload length | 8 bytes |
+| Output payload length | 8 bytes, excluding report ID |
 | Axis encoding | signed int16 little-endian |
 | Axis range | `-32768..32767` |
 | Input axes | X, Y, Rx, Ry |
 | Browser mapping intent | left stick on axes 0/1, aim/right stick on axes 2/3 |
 | Windows Game Controllers labels | stick on X/Y, aim on Rotation X/Rotation Y |
 
-Input payload layout:
+Input payload layout for report ID `1`. The payload bytes below do not include the report ID byte passed separately to Android `BluetoothHidDevice.sendReport`.
 
 | Offset | Size | Meaning |
 |--------|------|---------|
-| 0 | 1 | Button bitfield |
-| 1 | 2 | `stickX`, signed int16 little-endian |
-| 3 | 2 | `stickY`, signed int16 little-endian, inverted from Android state |
-| 5 | 2 | `aimX`, signed int16 little-endian |
-| 7 | 2 | `aimY`, signed int16 little-endian, inverted from Android state |
+| 0 | 3 | 22-button bitfield, little-endian bit order, with two padding bits |
+| 3 | 2 | `stickX`, signed int16 little-endian |
+| 5 | 2 | `stickY`, signed int16 little-endian, inverted from Android state |
+| 7 | 2 | `aimX`, signed int16 little-endian |
+| 9 | 2 | `aimY`, signed int16 little-endian, inverted from Android state |
 
 Button bit order:
 
 | Bit | Control |
 |-----|---------|
-| 0 | Trigger |
-| 1 | Reload |
-| 2 | X |
-| 3 | Y |
-| 4 | A |
-| 5 | B |
-| 6 | Padding |
-| 7 | Padding |
+| 0 | `jp_button_b1` |
+| 1 | `jp_button_b2` |
+| 2 | `jp_button_b3` |
+| 3 | `jp_button_b4` |
+| 4 | `jp_button_l1` |
+| 5 | `jp_button_r1` |
+| 6 | `jp_button_l2` |
+| 7 | `jp_button_r2` |
+| 8 | `jp_button_s1` |
+| 9 | `jp_button_s2` |
+| 10 | `jp_button_l3` |
+| 11 | `jp_button_r3` |
+| 12 | `jp_button_du` |
+| 13 | `jp_button_dd` |
+| 14 | `jp_button_dl` |
+| 15 | `jp_button_dr` |
+| 16 | `jp_button_a1` |
+| 17 | `jp_button_a2` |
+| 18 | `jp_button_a3` |
+| 19 | `jp_button_a4` |
+| 20 | `jp_button_l4` |
+| 21 | `jp_button_r4` |
+| 22..23 | Padding |
 
 Aim uses normalized/calibrated `aimX` and `aimY` when present. Raw aim is fallback only when normalized aim is unavailable. Stale input clears buttons and stick axes; aim stays center/default through the packer input state.
 

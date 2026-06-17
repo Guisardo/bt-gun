@@ -1,11 +1,16 @@
 package com.btgun.host.session
 
 import com.btgun.host.transport.InputStreamConfig
+import com.btgun.host.transport.InputFrameFormat
 import com.btgun.host.haptics.DesktopHapticCommand
 import com.btgun.host.haptics.HapticResult
 import com.btgun.host.haptics.HapticResultStatus
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.add
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonPrimitive
 import okio.ByteString
 import okhttp3.Request
@@ -17,6 +22,7 @@ fun main() {
     envelopeCodecMirrorsDesktopAllowlist()
     envelopeCodecRejectsVersionUnknownTypeAndOversizedText()
     envelopeCodecRejectsOverflowedVersion()
+    envelopeCodecRejectsNonPositiveControlSequence()
     clientBuildsPinnedWssRequestAndTrustMismatchResult()
     qrPayloadBuildsControlRequestAndProofHeaders()
     manualPayloadBuildsCodeAuthWithoutSidOrChallenge()
@@ -38,10 +44,16 @@ fun main() {
     desktopControlClientHasNoRawStreamRequestPath()
     controlEnvelopeAllowsHeartbeatDiagnosticsAndProfileTypes()
     controlEnvelopeAllowsInputStreamConfigType()
+    controlEnvelopeAllowsInputStreamCapabilitiesType()
+    clientSendsInputStreamCapabilitiesAfterSessionReady()
+    clientDoesNotSendInputStreamCapabilitiesToLegacySessionReady()
+    clientRejectsRepeatedDesktopControlSequence()
     clientRejectsInputStreamConfigBeforeSessionReady()
     clientRejectsQrInputStreamConfigBeforeSessionReady()
     clientRejectsInputStreamConfigForMismatchedSession()
     clientPublishesTrustedInputStreamConfigAfterSessionReady()
+    clientAcceptsNegotiatedCompactInputStreamConfig()
+    clientAllowsLegacyNullFrameFormatAndRejectsUnknownNonNullFrameFormat()
     controlEnvelopeAllowsHapticCommandAndResultTypes()
     clientRejectsHapticCommandBeforeSessionReady()
     clientRejectsQrHapticCommandBeforeSessionReady()
@@ -79,11 +91,19 @@ private fun envelopeCodecRejectsOverflowedVersion() {
     expectRejected("overflow version", ControlEnvelopeError.INVALID_FIELD, ControlEnvelopeCodec.decode(overflowVersion))
 }
 
+private fun envelopeCodecRejectsNonPositiveControlSequence() {
+    val zeroSeq = """{"v":1,"type":"session_ready","msgId":"m-1","sessionId":"sid-1","seq":0,"sentElapsedNanos":10,"body":{}}"""
+    val negativeSeq = """{"v":1,"type":"session_ready","msgId":"m-1","sessionId":"sid-1","seq":-1,"sentElapsedNanos":10,"body":{}}"""
+
+    expectRejected("zero seq", ControlEnvelopeError.INVALID_FIELD, ControlEnvelopeCodec.decode(zeroSeq))
+    expectRejected("negative seq", ControlEnvelopeError.INVALID_FIELD, ControlEnvelopeCodec.decode(negativeSeq))
+}
+
 private fun clientBuildsPinnedWssRequestAndTrustMismatchResult() {
     val openedRequests = mutableListOf<Request>()
     val client = DesktopControlClient(
         config = DesktopControlClientConfig(
-            url = "wss://192.168.50.25:41731/control",
+            url = DESKTOP_CONTROL_URL,
             expectedDesktopSpkiSha256 = FINGERPRINT,
             maxMessageBytes = 512,
         ),
@@ -96,7 +116,7 @@ private fun clientBuildsPinnedWssRequestAndTrustMismatchResult() {
     val result = client.connect(proofRequest())
 
     expectTrue("connecting", result is DesktopControlConnectResult.Connecting)
-    expectEquals("url", "https://192.168.50.25:41731/control", openedRequests.single().url.toString())
+    expectEquals("url", "https://btgun-desktop.test.invalid:41731/control", openedRequests.single().url.toString())
     expectEquals("fingerprint header", FINGERPRINT, openedRequests.single().header("X-BT-Gun-Desktop-Fingerprint"))
     expectTrue("pin present", client.certificatePin().startsWith("sha256/"))
     expectEquals(
@@ -110,7 +130,7 @@ private fun qrPayloadBuildsControlRequestAndProofHeaders() {
     val request = DesktopControlConnectionRequest.fromQrPayload(
         payload = PairingPayloadV1(
             sid = "session-001",
-            host = "192.168.1.44",
+            host = "btgun-phone.test.invalid",
             port = 44383,
             expiresAtEpochMillis = 1_700_000_120_000L,
             desktopSpkiSha256 = FINGERPRINT,
@@ -132,19 +152,19 @@ private fun qrPayloadBuildsControlRequestAndProofHeaders() {
     val result = client.connect(authRequest)
 
     expectTrue("qr connecting", result is DesktopControlConnectResult.Connecting)
-    expectEquals("qr url", "https://192.168.1.44:44383/control", openedRequests.single().url.toString())
+    expectEquals("qr url", "https://btgun-phone.test.invalid:44383/control", openedRequests.single().url.toString())
     expectEquals("qr session header", "session-001", openedRequests.single().header("X-BT-Gun-Session"))
     expectEquals("qr nonce header", "11".repeat(16), openedRequests.single().header("X-BT-Gun-Android-Nonce"))
     expectEquals("qr proof header", authRequest.proofHex, openedRequests.single().header("X-BT-Gun-Pairing-Proof"))
     expectEquals("qr manual code header", null, openedRequests.single().header("X-BT-Gun-Manual-Code"))
-    expectEquals("trusted host", "192.168.1.44", request.trustedMetadata(1L).lastHost)
+    expectEquals("trusted host", "btgun-phone.test.invalid", request.trustedMetadata(1L).lastHost)
     expectEquals("trusted fingerprint", FINGERPRINT, request.trustedMetadata(1L).fingerprintSha256)
 }
 
 private fun manualPayloadBuildsCodeAuthWithoutSidOrChallenge() {
     val request = DesktopControlConnectionRequest.fromManualPayload(
         payload = ManualPairingPayload(
-            host = "192.168.1.44",
+            host = "btgun-phone.test.invalid",
             port = 44383,
             code = "123456",
             desktopSpkiSha256Suffix = FINGERPRINT.takeLast(8),
@@ -152,7 +172,7 @@ private fun manualPayloadBuildsCodeAuthWithoutSidOrChallenge() {
         trustedDesktop = TrustedDesktopMetadata(
             fingerprintSha256 = FINGERPRINT,
             displayName = "BT Gun Desktop",
-            lastHost = "192.168.1.44",
+            lastHost = "btgun-phone.test.invalid",
             lastPort = 44383,
             lastSeenEpochMillis = 10L,
         ),
@@ -171,7 +191,7 @@ private fun manualPayloadBuildsCodeAuthWithoutSidOrChallenge() {
     val result = client.connect(authRequest)
 
     expectTrue("manual connecting", result is DesktopControlConnectResult.Connecting)
-    expectEquals("manual url", "wss://192.168.1.44:44383/control", request.config.url)
+    expectEquals("manual url", "wss://btgun-phone.test.invalid:44383/control", request.config.url)
     expectEquals("manual expected sid", null, authRequest.expectedSessionId)
     expectEquals("manual code", "123456", authRequest.code)
     expectEquals("manual code header", "123456", openedRequests.single().header("X-BT-Gun-Manual-Code"))
@@ -185,7 +205,7 @@ private fun manualAuthLearnsSessionIdFromSessionReady() {
     var authenticated = 0
     val client = DesktopControlClient(
         config = DesktopControlClientConfig(
-            url = "wss://192.168.50.25:41731/control",
+            url = DESKTOP_CONTROL_URL,
             expectedDesktopSpkiSha256 = FINGERPRINT,
             maxMessageBytes = 512,
         ),
@@ -205,9 +225,9 @@ private fun manualAuthLearnsSessionIdFromSessionReady() {
         onAuthenticated = { authenticated += 1 },
     )
     listener?.onMessage(NOOP_WEB_SOCKET, readyEnvelope(sessionId = "manual-sid-001"))
-    listener?.onMessage(NOOP_WEB_SOCKET, envelopeText(ControlMessageType.HEARTBEAT_PING, sessionId = "manual-sid-001"))
+    listener?.onMessage(NOOP_WEB_SOCKET, envelopeText(ControlMessageType.HEARTBEAT_PING, sessionId = "manual-sid-001", seq = 2L))
 
-    val pong = ControlEnvelopeCodec.decode(socket.sent.single()) as ControlDecodeResult.Accepted
+    val pong = socket.sentEnvelope(ControlMessageType.HEARTBEAT_PONG)
     expectEquals("manual authenticated once", 1, authenticated)
     expectEquals("manual ready phase", DesktopLinkPhase.CONNECTED, client.currentLinkState().phase)
     expectEquals("manual pong sid", "manual-sid-001", pong.envelope.sessionId)
@@ -218,7 +238,7 @@ private fun sessionReadyInitializesHeartbeatFreshness() {
     var now = 5_000_000_000L
     val client = DesktopControlClient(
         config = DesktopControlClientConfig(
-            url = "wss://192.168.50.25:41731/control",
+            url = DESKTOP_CONTROL_URL,
             expectedDesktopSpkiSha256 = FINGERPRINT,
             maxMessageBytes = 512,
         ),
@@ -246,7 +266,7 @@ private fun trustMismatchMovesToTrustProblemWithoutOpeningSocket() {
     var opened = false
     val client = DesktopControlClient(
         config = DesktopControlClientConfig(
-            url = "wss://192.168.50.25:41731/control",
+            url = DESKTOP_CONTROL_URL,
             expectedDesktopSpkiSha256 = FINGERPRINT,
             maxMessageBytes = 512,
         ),
@@ -269,7 +289,7 @@ private fun clientSendRejectsInvalidEnvelopeBeforeSocketWrite() {
     var listener: WebSocketListener? = null
     val client = DesktopControlClient(
         config = DesktopControlClientConfig(
-            url = "wss://192.168.50.25:41731/control",
+            url = DESKTOP_CONTROL_URL,
             expectedDesktopSpkiSha256 = FINGERPRINT,
             maxMessageBytes = 128,
         ),
@@ -294,7 +314,11 @@ private fun clientSendRejectsInvalidEnvelopeBeforeSocketWrite() {
 
     expectEquals("valid sent", DesktopControlSendResult.Sent, valid)
     expectEquals("invalid rejected", DesktopControlSendResult.Rejected(ControlEnvelopeError.OVERSIZED), invalid)
-    expectEquals("one socket send", 1, socket.sent.size)
+    expectEquals(
+        "legacy socket sends valid message",
+        listOf(ControlMessageType.PAIRING_STATE),
+        socket.sentEnvelopes().map { it.type },
+    )
 }
 
 private fun desktopLinkHeartbeatMapsLivenessStates() {
@@ -317,7 +341,7 @@ private fun hardSocketCloseStaysDisconnectedDuringLivenessRefresh() {
     var listener: WebSocketListener? = null
     val client = DesktopControlClient(
         config = DesktopControlClientConfig(
-            url = "wss://192.168.50.25:41731/control",
+            url = DESKTOP_CONTROL_URL,
             expectedDesktopSpkiSha256 = FINGERPRINT,
             maxMessageBytes = 512,
         ),
@@ -409,7 +433,7 @@ private fun clientPublishesPreAuthCloseAsFailure() {
     val failures = mutableListOf<String>()
     val client = DesktopControlClient(
         config = DesktopControlClientConfig(
-            url = "wss://192.168.50.25:41731/control",
+            url = DESKTOP_CONTROL_URL,
             expectedDesktopSpkiSha256 = FINGERPRINT,
             maxMessageBytes = 512,
         ),
@@ -436,7 +460,7 @@ private fun clientPublishesFullFailureReason() {
     val failures = mutableListOf<String>()
     val client = DesktopControlClient(
         config = DesktopControlClientConfig(
-            url = "wss://192.168.50.25:41731/control",
+            url = DESKTOP_CONTROL_URL,
             expectedDesktopSpkiSha256 = FINGERPRINT,
             maxMessageBytes = 512,
         ),
@@ -450,11 +474,11 @@ private fun clientPublishesFullFailureReason() {
         authRequest = proofRequest(),
         onConnectionFailure = failures::add,
     )
-    listener?.onFailure(NOOP_WEB_SOCKET, javax.net.ssl.SSLPeerUnverifiedException("Hostname 192.168.50.25 not verified"), null)
+    listener?.onFailure(NOOP_WEB_SOCKET, javax.net.ssl.SSLPeerUnverifiedException("Hostname btgun-desktop.test.invalid not verified"), null)
 
     expectEquals(
         "failure reason",
-        listOf("SSLPeerUnverifiedException: Hostname 192.168.50.25 not verified"),
+        listOf("SSLPeerUnverifiedException: Hostname btgun-desktop.test.invalid not verified"),
         failures,
     )
     expectEquals("failure state", DesktopLinkPhase.DISCONNECTED, client.currentLinkState().phase)
@@ -468,7 +492,7 @@ private fun clientRespondsToHeartbeatAndAppliesLiveMetadata() {
     val profiles = mutableListOf<ProfileMetadata>()
     val client = DesktopControlClient(
         config = DesktopControlClientConfig(
-            url = "wss://192.168.50.25:41731/control",
+            url = DESKTOP_CONTROL_URL,
             expectedDesktopSpkiSha256 = FINGERPRINT,
             maxMessageBytes = 512,
         ),
@@ -485,11 +509,12 @@ private fun clientRespondsToHeartbeatAndAppliesLiveMetadata() {
         onProfileMetadataReceived = profiles::add,
     )
     listener?.onMessage(NOOP_WEB_SOCKET, readyEnvelope())
-    listener?.onMessage(NOOP_WEB_SOCKET, envelopeText(ControlMessageType.HEARTBEAT_PING))
+    listener?.onMessage(NOOP_WEB_SOCKET, envelopeText(ControlMessageType.HEARTBEAT_PING, seq = 2L))
     listener?.onMessage(
         NOOP_WEB_SOCKET,
         envelopeText(
             type = ControlMessageType.DIAGNOSTICS,
+            seq = 3L,
             body = JsonObject(
                 mapOf(
                     "sessionState" to JsonPrimitive("degraded"),
@@ -504,6 +529,7 @@ private fun clientRespondsToHeartbeatAndAppliesLiveMetadata() {
         NOOP_WEB_SOCKET,
         envelopeText(
             type = ControlMessageType.PROFILE_METADATA,
+            seq = 4L,
             body = JsonObject(
                 mapOf(
                     "profileId" to JsonPrimitive("default"),
@@ -514,7 +540,7 @@ private fun clientRespondsToHeartbeatAndAppliesLiveMetadata() {
         ),
     )
 
-    val pong = ControlEnvelopeCodec.decode(socket.sent.single()) as ControlDecodeResult.Accepted
+    val pong = socket.sentEnvelope(ControlMessageType.HEARTBEAT_PONG)
     expectEquals("pong type", ControlMessageType.HEARTBEAT_PONG, pong.envelope.type)
     expectEquals("diagnostic state", DesktopLinkPhase.DEGRADED, linkStates.last().phase)
     expectEquals("profile callback", ProfileMetadata("default", "Default", 2L), profiles.single())
@@ -525,7 +551,7 @@ private fun clientCloseStopsSocketAndDisconnectsLinkState() {
     val socket = FakeSocket()
     val client = DesktopControlClient(
         config = DesktopControlClientConfig(
-            url = "wss://192.168.50.25:41731/control",
+            url = DESKTOP_CONTROL_URL,
             expectedDesktopSpkiSha256 = FINGERPRINT,
             maxMessageBytes = 512,
         ),
@@ -592,7 +618,7 @@ private fun clientSendsAndroidProfileMetadataAfterSessionReady() {
     var listener: WebSocketListener? = null
     val client = DesktopControlClient(
         config = DesktopControlClientConfig(
-            url = "wss://192.168.50.25:41731/control",
+            url = DESKTOP_CONTROL_URL,
             expectedDesktopSpkiSha256 = FINGERPRINT,
             maxMessageBytes = 512,
         ),
@@ -614,7 +640,7 @@ private fun clientSendsAndroidProfileMetadataAfterSessionReady() {
     val result = client.sendProfileMetadata(ProfileMetadata("profile-1", "Arcade", 7L, "android", rawDebugEnabled = true))
 
     expectEquals("metadata sent", DesktopControlSendResult.Sent, result)
-    val envelope = ControlEnvelopeCodec.decode(socket.sent.single()) as ControlDecodeResult.Accepted
+    val envelope = socket.sentEnvelope(ControlMessageType.PROFILE_METADATA)
     expectEquals("metadata type", ControlMessageType.PROFILE_METADATA, envelope.envelope.type)
     expectEquals("metadata sid", "sid-1", envelope.envelope.sessionId)
     expectEquals("profile id", "profile-1", envelope.envelope.body["profileId"]?.jsonPrimitive?.content)
@@ -629,7 +655,7 @@ private fun clientSendsVisualizerStatusAsTrustedDiagnostics() {
     var listener: WebSocketListener? = null
     val client = DesktopControlClient(
         config = DesktopControlClientConfig(
-            url = "wss://192.168.50.25:41731/control",
+            url = DESKTOP_CONTROL_URL,
             expectedDesktopSpkiSha256 = FINGERPRINT,
             maxMessageBytes = 768,
         ),
@@ -661,7 +687,7 @@ private fun clientSendsVisualizerStatusAsTrustedDiagnostics() {
     val result = client.sendVisualizerStatus(status)
 
     expectEquals("status sent", DesktopControlSendResult.Sent, result)
-    val envelope = ControlEnvelopeCodec.decode(socket.sent.single()) as ControlDecodeResult.Accepted
+    val envelope = socket.sentEnvelope(ControlMessageType.DIAGNOSTICS)
     val visualizerStatus = envelope.envelope.body[VisualizerStatus.BODY_KEY] as JsonObject
     expectEquals("status type", ControlMessageType.DIAGNOSTICS, envelope.envelope.type)
     expectEquals("status sid", "sid-1", envelope.envelope.sessionId)
@@ -709,12 +735,98 @@ private fun controlEnvelopeAllowsInputStreamConfigType() {
     expectTrue("input stream config accepted", decoded is ControlDecodeResult.Accepted)
 }
 
+private fun controlEnvelopeAllowsInputStreamCapabilitiesType() {
+    expectEquals("input capabilities wire name", "input_stream_capabilities", ControlMessageType.INPUT_STREAM_CAPABILITIES.wireName)
+
+    val decoded = ControlEnvelopeCodec.decode(
+        ControlEnvelopeCodec.encode(envelope(ControlMessageType.INPUT_STREAM_CAPABILITIES, body = inputStreamCapabilitiesBody())),
+    )
+
+    expectTrue("input stream capabilities accepted", decoded is ControlDecodeResult.Accepted)
+}
+
+private fun clientSendsInputStreamCapabilitiesAfterSessionReady() {
+    val socket = FakeSocket()
+    var listener: WebSocketListener? = null
+    val client = DesktopControlClient(
+        config = DesktopControlClientConfig(
+            url = DESKTOP_CONTROL_URL,
+            expectedDesktopSpkiSha256 = FINGERPRINT,
+            maxMessageBytes = 1024,
+        ),
+        socketFactory = { _, socketListener ->
+            listener = socketListener
+            socket
+        },
+        elapsedRealtimeNanos = { 1_000_000_000L },
+    )
+
+    client.connect(authRequest = proofRequest())
+    listener?.onMessage(NOOP_WEB_SOCKET, readyEnvelopeWithCapabilities(sessionId = "sid-1"))
+
+    val capabilities = socket.sentEnvelope(ControlMessageType.INPUT_STREAM_CAPABILITIES).envelope
+    val formats = capabilities.body["supportedInputFrameFormats"]
+        ?.jsonArray
+        ?.map { element -> element.jsonPrimitive.content }
+    expectEquals("capabilities seq starts at one", 1L, capabilities.seq)
+    expectEquals("android formats", listOf("compact_v2", "v1"), formats)
+}
+
+private fun clientDoesNotSendInputStreamCapabilitiesToLegacySessionReady() {
+    val socket = FakeSocket()
+    var listener: WebSocketListener? = null
+    val client = DesktopControlClient(
+        config = DesktopControlClientConfig(
+            url = DESKTOP_CONTROL_URL,
+            expectedDesktopSpkiSha256 = FINGERPRINT,
+            maxMessageBytes = 1024,
+        ),
+        socketFactory = { _, socketListener ->
+            listener = socketListener
+            socket
+        },
+        elapsedRealtimeNanos = { 1_000_000_000L },
+    )
+
+    client.connect(authRequest = proofRequest())
+    listener?.onMessage(NOOP_WEB_SOCKET, readyEnvelope(sessionId = "sid-1"))
+
+    expectEquals("legacy ready does not get unknown capability type", emptyList<ControlEnvelope>(), socket.sentEnvelopes())
+}
+
+private fun clientRejectsRepeatedDesktopControlSequence() {
+    var listener: WebSocketListener? = null
+    val configs = mutableListOf<InputStreamConfig>()
+    val client = DesktopControlClient(
+        config = DesktopControlClientConfig(
+            url = DESKTOP_CONTROL_URL,
+            expectedDesktopSpkiSha256 = FINGERPRINT,
+            maxMessageBytes = 1024,
+        ),
+        socketFactory = { _, socketListener ->
+            listener = socketListener
+            FakeSocket()
+        },
+        elapsedRealtimeNanos = { 1_000_000_000L },
+    )
+
+    client.connect(authRequest = proofRequest(), onInputStreamConfigReceived = configs::add)
+    listener?.onMessage(NOOP_WEB_SOCKET, readyEnvelope(sessionId = "sid-1", seq = 1L))
+    listener?.onMessage(
+        NOOP_WEB_SOCKET,
+        envelopeText(ControlMessageType.INPUT_STREAM_CONFIG, sessionId = "sid-1", seq = 1L, body = inputStreamConfigBody()),
+    )
+
+    expectEquals("duplicate seq config ignored", emptyList<InputStreamConfig>(), configs)
+    expectEquals("duplicate seq error", "control sequence out of order", client.currentLinkState().lastControlError)
+}
+
 private fun clientRejectsInputStreamConfigBeforeSessionReady() {
     var listener: WebSocketListener? = null
     val configs = mutableListOf<InputStreamConfig>()
     val client = DesktopControlClient(
         config = DesktopControlClientConfig(
-            url = "wss://192.168.50.25:41731/control",
+            url = DESKTOP_CONTROL_URL,
             expectedDesktopSpkiSha256 = FINGERPRINT,
             maxMessageBytes = 1024,
         ),
@@ -748,7 +860,7 @@ private fun clientRejectsQrInputStreamConfigBeforeSessionReady() {
     val socket = FakeSocket()
     val client = DesktopControlClient(
         config = DesktopControlClientConfig(
-            url = "wss://192.168.50.25:41731/control",
+            url = DESKTOP_CONTROL_URL,
             expectedDesktopSpkiSha256 = FINGERPRINT,
             maxMessageBytes = 1024,
         ),
@@ -779,7 +891,7 @@ private fun clientRejectsInputStreamConfigForMismatchedSession() {
     val configs = mutableListOf<InputStreamConfig>()
     val client = DesktopControlClient(
         config = DesktopControlClientConfig(
-            url = "wss://192.168.50.25:41731/control",
+            url = DESKTOP_CONTROL_URL,
             expectedDesktopSpkiSha256 = FINGERPRINT,
             maxMessageBytes = 1024,
         ),
@@ -794,7 +906,7 @@ private fun clientRejectsInputStreamConfigForMismatchedSession() {
     listener?.onMessage(NOOP_WEB_SOCKET, readyEnvelope(sessionId = "sid-1"))
     listener?.onMessage(
         NOOP_WEB_SOCKET,
-        envelopeText(ControlMessageType.INPUT_STREAM_CONFIG, sessionId = "sid-2", body = inputStreamConfigBody()),
+        envelopeText(ControlMessageType.INPUT_STREAM_CONFIG, sessionId = "sid-2", seq = 2L, body = inputStreamConfigBody()),
     )
 
     expectEquals("mismatch config ignored", emptyList<InputStreamConfig>(), configs)
@@ -806,7 +918,7 @@ private fun clientPublishesTrustedInputStreamConfigAfterSessionReady() {
     val configs = mutableListOf<InputStreamConfig>()
     val client = DesktopControlClient(
         config = DesktopControlClientConfig(
-            url = "wss://192.168.50.25:41731/control",
+            url = DESKTOP_CONTROL_URL,
             expectedDesktopSpkiSha256 = FINGERPRINT,
             maxMessageBytes = 1024,
         ),
@@ -821,10 +933,102 @@ private fun clientPublishesTrustedInputStreamConfigAfterSessionReady() {
     listener?.onMessage(NOOP_WEB_SOCKET, readyEnvelope(sessionId = "sid-1"))
     listener?.onMessage(
         NOOP_WEB_SOCKET,
-        envelopeText(ControlMessageType.INPUT_STREAM_CONFIG, sessionId = "sid-1", body = inputStreamConfigBody()),
+        envelopeText(ControlMessageType.INPUT_STREAM_CONFIG, sessionId = "sid-1", seq = 2L, body = inputStreamConfigBody()),
     )
 
     expectEquals("trusted config callback", listOf(fixtureConfig()), configs)
+}
+
+private fun clientAcceptsNegotiatedCompactInputStreamConfig() {
+    var listener: WebSocketListener? = null
+    val configs = mutableListOf<InputStreamConfig>()
+    val client = DesktopControlClient(
+        config = DesktopControlClientConfig(
+            url = DESKTOP_CONTROL_URL,
+            expectedDesktopSpkiSha256 = FINGERPRINT,
+            maxMessageBytes = 1024,
+        ),
+        socketFactory = { _, socketListener ->
+            listener = socketListener
+            FakeSocket()
+        },
+        elapsedRealtimeNanos = { 1_000_000_000L },
+    )
+
+    client.connect(authRequest = proofRequest(), onInputStreamConfigReceived = configs::add)
+    listener?.onMessage(NOOP_WEB_SOCKET, readyEnvelopeWithCapabilities(sessionId = "sid-1"))
+    listener?.onMessage(
+        NOOP_WEB_SOCKET,
+        envelopeText(
+            ControlMessageType.INPUT_STREAM_CONFIG,
+            sessionId = "sid-1",
+            seq = 2L,
+            body = inputStreamConfigBody(frameFormat = JsonPrimitive("compact_v2")),
+        ),
+    )
+
+    expectEquals("compact config callback", listOf(fixtureConfig().copy(frameFormat = InputFrameFormat.COMPACT_V2)), configs)
+}
+
+private fun clientAllowsLegacyNullFrameFormatAndRejectsUnknownNonNullFrameFormat() {
+    listOf(
+        "missing" to inputStreamConfigBody(),
+        "null" to inputStreamConfigBody(frameFormat = JsonNull),
+    ).forEach { (label, body) ->
+        var listener: WebSocketListener? = null
+        val configs = mutableListOf<InputStreamConfig>()
+        val client = DesktopControlClient(
+            config = DesktopControlClientConfig(
+                url = DESKTOP_CONTROL_URL,
+                expectedDesktopSpkiSha256 = FINGERPRINT,
+                maxMessageBytes = 1024,
+            ),
+            socketFactory = { _, socketListener ->
+                listener = socketListener
+                FakeSocket()
+            },
+            elapsedRealtimeNanos = { 1_000_000_000L },
+        )
+
+        client.connect(authRequest = proofRequest(), onInputStreamConfigReceived = configs::add)
+        listener?.onMessage(NOOP_WEB_SOCKET, readyEnvelope(sessionId = "sid-1"))
+        listener?.onMessage(
+            NOOP_WEB_SOCKET,
+            envelopeText(ControlMessageType.INPUT_STREAM_CONFIG, sessionId = "sid-1", seq = 2L, body = body),
+        )
+
+        expectEquals("$label frame format falls back to v1", listOf(fixtureConfig()), configs)
+    }
+
+    var listener: WebSocketListener? = null
+    val configs = mutableListOf<InputStreamConfig>()
+    val client = DesktopControlClient(
+        config = DesktopControlClientConfig(
+            url = DESKTOP_CONTROL_URL,
+            expectedDesktopSpkiSha256 = FINGERPRINT,
+            maxMessageBytes = 1024,
+        ),
+        socketFactory = { _, socketListener ->
+            listener = socketListener
+            FakeSocket()
+        },
+        elapsedRealtimeNanos = { 1_000_000_000L },
+    )
+
+    client.connect(authRequest = proofRequest(), onInputStreamConfigReceived = configs::add)
+    listener?.onMessage(NOOP_WEB_SOCKET, readyEnvelopeWithCapabilities(sessionId = "sid-1"))
+    listener?.onMessage(
+        NOOP_WEB_SOCKET,
+        envelopeText(
+            ControlMessageType.INPUT_STREAM_CONFIG,
+            sessionId = "sid-1",
+            seq = 2L,
+            body = inputStreamConfigBody(frameFormat = JsonPrimitive("future_v3")),
+        ),
+    )
+
+    expectEquals("unknown non-null format rejected", emptyList<InputStreamConfig>(), configs)
+    expectEquals("unknown format error", "invalid input stream config", client.currentLinkState().lastControlError)
 }
 
 private fun controlEnvelopeAllowsHapticCommandAndResultTypes() {
@@ -864,7 +1068,7 @@ private fun clientRejectsHapticCommandBeforeSessionReady() {
     val handled = mutableListOf<DesktopHapticCommand>()
     val client = DesktopControlClient(
         config = DesktopControlClientConfig(
-            url = "wss://192.168.50.25:41731/control",
+            url = DESKTOP_CONTROL_URL,
             expectedDesktopSpkiSha256 = FINGERPRINT,
             maxMessageBytes = 1024,
         ),
@@ -901,7 +1105,7 @@ private fun clientRejectsQrHapticCommandBeforeSessionReady() {
     val socket = FakeSocket()
     val client = DesktopControlClient(
         config = DesktopControlClientConfig(
-            url = "wss://192.168.50.25:41731/control",
+            url = DESKTOP_CONTROL_URL,
             expectedDesktopSpkiSha256 = FINGERPRINT,
             maxMessageBytes = 1024,
         ),
@@ -934,7 +1138,7 @@ private fun clientRejectsHapticCommandForMismatchedSession() {
     val handled = mutableListOf<DesktopHapticCommand>()
     val client = DesktopControlClient(
         config = DesktopControlClientConfig(
-            url = "wss://192.168.50.25:41731/control",
+            url = DESKTOP_CONTROL_URL,
             expectedDesktopSpkiSha256 = FINGERPRINT,
             maxMessageBytes = 1024,
         ),
@@ -955,7 +1159,7 @@ private fun clientRejectsHapticCommandForMismatchedSession() {
     listener?.onMessage(NOOP_WEB_SOCKET, readyEnvelope(sessionId = "sid-1"))
     listener?.onMessage(
         NOOP_WEB_SOCKET,
-        envelopeText(ControlMessageType.RESERVED_HAPTIC_COMMAND, sessionId = "sid-2", body = hapticCommandBody()),
+        envelopeText(ControlMessageType.RESERVED_HAPTIC_COMMAND, sessionId = "sid-2", seq = 2L, body = hapticCommandBody()),
     )
 
     expectEquals("mismatch haptic ignored", emptyList<DesktopHapticCommand>(), handled)
@@ -968,7 +1172,7 @@ private fun clientHandlesTrustedHapticCommandAndSendsResult() {
     val handled = mutableListOf<DesktopHapticCommand>()
     val client = DesktopControlClient(
         config = DesktopControlClientConfig(
-            url = "wss://192.168.50.25:41731/control",
+            url = DESKTOP_CONTROL_URL,
             expectedDesktopSpkiSha256 = FINGERPRINT,
             maxMessageBytes = 2048,
         ),
@@ -990,11 +1194,11 @@ private fun clientHandlesTrustedHapticCommandAndSendsResult() {
     listener?.onMessage(NOOP_WEB_SOCKET, readyEnvelope(sessionId = "sid-1"))
     listener?.onMessage(
         NOOP_WEB_SOCKET,
-        envelopeText(ControlMessageType.RESERVED_HAPTIC_COMMAND, sessionId = "sid-1", body = hapticCommandBody()),
+        envelopeText(ControlMessageType.RESERVED_HAPTIC_COMMAND, sessionId = "sid-1", seq = 2L, body = hapticCommandBody()),
     )
 
     expectEquals("haptic handled", listOf(fixtureHapticCommand()), handled)
-    val result = ControlEnvelopeCodec.decode(socket.sent.single()) as ControlDecodeResult.Accepted
+    val result = socket.sentEnvelope(ControlMessageType.HAPTIC_RESULT)
     expectEquals("result type", ControlMessageType.HAPTIC_RESULT, result.envelope.type)
     expectEquals("result status", HapticResultStatus.STARTED.wireName, result.envelope.body["status"]?.jsonPrimitive?.content)
     expectEquals("result detail", "phone pulse started", result.envelope.body["detail"]?.jsonPrimitive?.content)
@@ -1010,7 +1214,7 @@ private fun clientPreservesHapticResultDetailsFromCallback() {
         var listener: WebSocketListener? = null
         val client = DesktopControlClient(
             config = DesktopControlClientConfig(
-                url = "wss://192.168.50.25:41731/control",
+                url = DESKTOP_CONTROL_URL,
                 expectedDesktopSpkiSha256 = FINGERPRINT,
                 maxMessageBytes = 2048,
             ),
@@ -1031,10 +1235,10 @@ private fun clientPreservesHapticResultDetailsFromCallback() {
         listener?.onMessage(NOOP_WEB_SOCKET, readyEnvelope(sessionId = "sid-1"))
         listener?.onMessage(
             NOOP_WEB_SOCKET,
-            envelopeText(ControlMessageType.RESERVED_HAPTIC_COMMAND, sessionId = "sid-1", body = hapticCommandBody()),
+            envelopeText(ControlMessageType.RESERVED_HAPTIC_COMMAND, sessionId = "sid-1", seq = 2L, body = hapticCommandBody()),
         )
 
-        val result = ControlEnvelopeCodec.decode(socket.sent.single()) as ControlDecodeResult.Accepted
+        val result = socket.sentEnvelope(ControlMessageType.HAPTIC_RESULT)
         expectEquals("${status.wireName} result status", status.wireName, result.envelope.body["status"]?.jsonPrimitive?.content)
         expectEquals("${status.wireName} result detail", detail, result.envelope.body["detail"]?.jsonPrimitive?.content)
     }
@@ -1045,7 +1249,7 @@ private fun clientCanSendCancellationHapticResultBeforeClose() {
     var listener: WebSocketListener? = null
     val client = DesktopControlClient(
         config = DesktopControlClientConfig(
-            url = "wss://192.168.50.25:41731/control",
+            url = DESKTOP_CONTROL_URL,
             expectedDesktopSpkiSha256 = FINGERPRINT,
             maxMessageBytes = 2048,
         ),
@@ -1067,7 +1271,7 @@ private fun clientCanSendCancellationHapticResultBeforeClose() {
     listener?.onMessage(NOOP_WEB_SOCKET, readyEnvelope(sessionId = "sid-1"))
 
     expectEquals("cancel result sent", DesktopControlSendResult.Sent, client.sendHapticResult(result))
-    val envelope = ControlEnvelopeCodec.decode(socket.sent.single()) as ControlDecodeResult.Accepted
+    val envelope = socket.sentEnvelope(ControlMessageType.HAPTIC_RESULT)
     expectEquals("result type", ControlMessageType.HAPTIC_RESULT, envelope.envelope.type)
     expectEquals("result command", "cmd-cancel", envelope.envelope.body["commandId"]?.jsonPrimitive?.content)
     expectEquals("result status", HapticResultStatus.CANCELLED.wireName, envelope.envelope.body["status"]?.jsonPrimitive?.content)
@@ -1076,6 +1280,7 @@ private fun clientCanSendCancellationHapticResultBeforeClose() {
 private fun envelope(
     type: ControlMessageType,
     sessionId: String = "sid-1",
+    seq: Long = 1L,
     body: JsonObject = JsonObject(emptyMap()),
 ): ControlEnvelope =
     ControlEnvelope(
@@ -1083,20 +1288,39 @@ private fun envelope(
         type = type,
         msgId = "msg-1",
         sessionId = sessionId,
-        seq = 1L,
+        seq = seq,
         sentElapsedNanos = 10L,
         body = body,
     )
 
-private fun readyEnvelope(sessionId: String = "sid-1"): String =
-    ControlEnvelopeCodec.encode(envelope(ControlMessageType.SESSION_READY, sessionId = sessionId))
+private fun readyEnvelope(sessionId: String = "sid-1", seq: Long = 1L): String =
+    ControlEnvelopeCodec.encode(envelope(ControlMessageType.SESSION_READY, sessionId = sessionId, seq = seq))
+
+private fun readyEnvelopeWithCapabilities(sessionId: String = "sid-1", seq: Long = 1L): String =
+    ControlEnvelopeCodec.encode(
+        envelope(
+            ControlMessageType.SESSION_READY,
+            sessionId = sessionId,
+            seq = seq,
+            body = JsonObject(
+                mapOf(
+                    "controlCapabilities" to JsonObject(
+                        mapOf(
+                            "supportedInputFrameFormats" to inputFrameFormatsJson(),
+                        ),
+                    ),
+                ),
+            ),
+        ),
+    )
 
 private fun envelopeText(
     type: ControlMessageType,
     sessionId: String = "sid-1",
+    seq: Long = 1L,
     body: JsonObject = JsonObject(emptyMap()),
 ): String =
-    ControlEnvelopeCodec.encode(envelope(type = type, sessionId = sessionId, body = body))
+    ControlEnvelopeCodec.encode(envelope(type = type, sessionId = sessionId, seq = seq, body = body))
 
 private fun proofRequest(desktopSpkiSha256: String = FINGERPRINT): ControlProofRequest =
     ControlProofRequest(
@@ -1106,19 +1330,35 @@ private fun proofRequest(desktopSpkiSha256: String = FINGERPRINT): ControlProofR
         proofHex = "bb".repeat(32),
     )
 
-private fun inputStreamConfigBody(): JsonObject =
-    JsonObject(
-        mapOf(
+private fun inputStreamConfigBody(frameFormat: JsonElement? = null): JsonObject {
+    val fields = mutableMapOf<String, JsonElement>(
             "streamSessionIdHex" to JsonPrimitive(STREAM_SESSION_ID_HEX),
-            "udpHost" to JsonPrimitive("192.168.1.44"),
+            "udpHost" to JsonPrimitive("btgun-phone.test.invalid"),
             "udpPort" to JsonPrimitive(41731),
             "hmacSha256KeyBase64Url" to JsonPrimitive(HMAC_KEY_BASE64URL),
             "snapshotHz" to JsonPrimitive(60),
             "frameAgeLimitMs" to JsonPrimitive(150L),
             "streamTimeoutMs" to JsonPrimitive(250L),
             "controlDisconnectGraceMs" to JsonPrimitive(1500L),
+        )
+    if (frameFormat != null) {
+        fields["frameFormat"] = frameFormat
+    }
+    return JsonObject(fields)
+}
+
+private fun inputStreamCapabilitiesBody(): JsonObject =
+    JsonObject(
+        mapOf(
+            "supportedInputFrameFormats" to inputFrameFormatsJson(),
         ),
     )
+
+private fun inputFrameFormatsJson() =
+    kotlinx.serialization.json.buildJsonArray {
+        add("compact_v2")
+        add("v1")
+    }
 
 private fun hapticCommandBody(): JsonObject =
     DesktopHapticCommand(
@@ -1152,7 +1392,7 @@ private fun hapticResult(
 private fun fixtureConfig(): InputStreamConfig =
     InputStreamConfig(
         streamSessionIdHex = STREAM_SESSION_ID_HEX,
-        udpHost = "192.168.1.44",
+        udpHost = "btgun-phone.test.invalid",
         udpPort = 41731,
         hmacSha256KeyBase64Url = HMAC_KEY_BASE64URL,
         snapshotHz = 60,
@@ -1165,7 +1405,7 @@ private fun clientWithFakeSocket(): DesktopControlClient {
     var listener: WebSocketListener? = null
     return DesktopControlClient(
         config = DesktopControlClientConfig(
-            url = "wss://192.168.50.25:41731/control",
+            url = DESKTOP_CONTROL_URL,
             expectedDesktopSpkiSha256 = FINGERPRINT,
             maxMessageBytes = 512,
         ),
@@ -1212,8 +1452,14 @@ private class FakeSocket : DesktopControlSocket {
     }
 }
 
+private fun FakeSocket.sentEnvelopes(): List<ControlEnvelope> =
+    sent.map { text -> (ControlEnvelopeCodec.decode(text) as ControlDecodeResult.Accepted).envelope }
+
+private fun FakeSocket.sentEnvelope(type: ControlMessageType): ControlDecodeResult.Accepted =
+    ControlDecodeResult.Accepted(sentEnvelopes().last { envelope -> envelope.type == type })
+
 private val NOOP_WEB_SOCKET = object : WebSocket {
-    override fun request(): Request = Request.Builder().url("wss://192.168.50.25:41731/control").build()
+    override fun request(): Request = Request.Builder().url(DESKTOP_CONTROL_URL).build()
     override fun queueSize(): Long = 0L
     override fun send(text: String): Boolean = true
     override fun send(bytes: ByteString): Boolean = true
@@ -1255,5 +1501,6 @@ private fun sourceFile(relative: String): File {
 
 private const val FINGERPRINT = "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff"
 private const val OTHER_FINGERPRINT = "ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100"
+private const val DESKTOP_CONTROL_URL = "wss://btgun-desktop.test.invalid:41731/control"
 private const val STREAM_SESSION_ID_HEX = "00112233445566778899aabbccddeeff"
 private const val HMAC_KEY_BASE64URL = "ASNFZ4mrze_-3LqYdlQyEAEjRWeJq83v_ty6mHZUMhA"

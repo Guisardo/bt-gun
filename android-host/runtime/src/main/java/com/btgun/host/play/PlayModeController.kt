@@ -15,12 +15,18 @@ data class PlayModeTransition(
 class PlayModeController(initialMode: PlayMode = PlayMode.NONE) {
     var mode: PlayMode = initialMode
         private set
+    var outputGateOpen: Boolean = true
+        private set
 
     val canSendLan: Boolean
-        get() = mode == PlayMode.LAN
+        get() = outputGateOpen && mode == PlayMode.LAN
 
     val canSendBluetoothHid: Boolean
-        get() = mode == PlayMode.BLUETOOTH_HID
+        get() = outputGateOpen && mode == PlayMode.BLUETOOTH_HID
+
+    fun setOutputGateOpen(open: Boolean) {
+        outputGateOpen = open
+    }
 
     fun switchTo(next: PlayMode): PlayModeTransition {
         val previous = mode

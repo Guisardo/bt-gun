@@ -5,8 +5,11 @@ import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothHidDevice
 import android.bluetooth.BluetoothHidDeviceAppSdpSettings
 import android.bluetooth.BluetoothProfile
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
+import android.os.Build
 import com.btgun.host.haptics.DesktopHapticCommand
 import com.btgun.host.haptics.HapticResult
 import com.btgun.host.model.GunInputState
@@ -35,8 +38,12 @@ interface BtGunHidProfileCallback {
 
 interface BtGunHidProfileConnector : AutoCloseable {
     fun requestHidDeviceProxy(callback: BtGunHidProfileCallback)
-    fun openPairingWindow(durationSeconds: Int): Boolean
+    fun openPairingWindow(durationSeconds: Int, callback: BtGunHidPairingWindowCallback): Boolean
     override fun close()
+}
+
+interface BtGunHidPairingWindowCallback {
+    fun onPairingWindowStatus(status: BtGunHidPairingWindowStatus)
 }
 
 interface BtGunHidDeviceCallback {
@@ -71,6 +78,7 @@ class AndroidBluetoothHidGamepad(
     private var closed = false
     private var registered = false
     private var requestGeneration = 0
+    private var pairingWindowGeneration = 0
 
     var status: BtGunHidStatus = BtGunHidStatus()
         private set(value) {
@@ -126,25 +134,56 @@ class AndroidBluetoothHidGamepad(
 
     fun openPairingWindow(durationSeconds: Int): Boolean {
         require(durationSeconds > 0) { "durationSeconds must be positive" }
-        var blockedReason: String? = null
-        val opened = try {
-            connector.openPairingWindow(durationSeconds)
+        pairingWindowGeneration += 1
+        val generation = pairingWindowGeneration
+        status = status.copy(
+            pairingWindow = pairingWindowStatus(
+                state = BtGunHidPairingWindowState.REQUESTED,
+                durationSeconds = durationSeconds,
+                detail = "pairing window requested",
+            ),
+        )
+        status = status.copy(
+            pairingWindow = pairingWindowStatus(
+                state = BtGunHidPairingWindowState.PENDING,
+                durationSeconds = durationSeconds,
+                detail = "waiting for Android discoverable status",
+            ),
+        )
+        var denialRecorded = false
+        val accepted = try {
+            connector.openPairingWindow(durationSeconds, PairingWindowCallback(generation))
         } catch (error: SecurityException) {
-            blockedReason = "pairing window blocked: ${error.javaClass.simpleName}"
+            denialRecorded = true
+            recordPairingWindowStatus(
+                pairingWindowStatus(
+                    state = BtGunHidPairingWindowState.DENIED,
+                    durationSeconds = durationSeconds,
+                    detail = "pairing window blocked: ${error.javaClass.simpleName}",
+                ),
+            )
             false
         } catch (error: RuntimeException) {
-            blockedReason = "pairing window failed: ${error.javaClass.simpleName}"
+            denialRecorded = true
+            recordPairingWindowStatus(
+                pairingWindowStatus(
+                    state = BtGunHidPairingWindowState.DENIED,
+                    durationSeconds = durationSeconds,
+                    detail = "pairing window failed: ${error.javaClass.simpleName}",
+                ),
+            )
             false
         }
-        status = status.copy(
-            pairingWindow = BtGunHidPairingWindowStatus(
-                open = opened,
-                durationSeconds = durationSeconds,
-                detail = if (opened) "pairing window open" else blockedReason ?: "pairing window failed",
-            ),
-            unsupportedReason = blockedReason ?: status.unsupportedReason,
-        )
-        return opened
+        if (!accepted && !denialRecorded) {
+            recordPairingWindowStatus(
+                pairingWindowStatus(
+                    state = BtGunHidPairingWindowState.DENIED,
+                    durationSeconds = durationSeconds,
+                    detail = "pairing window request denied",
+                ),
+            )
+        }
+        return accepted
     }
 
     fun sendInput(
@@ -343,6 +382,28 @@ class AndroidBluetoothHidGamepad(
             BtGunHidErrorResponses.INVALID_PARAMETER
         }
 
+    private fun onPairingWindowStatus(pairingWindow: BtGunHidPairingWindowStatus, generation: Int) {
+        if (closed || generation != pairingWindowGeneration) return
+        recordPairingWindowStatus(
+            pairingWindowStatus(
+                state = pairingWindow.state,
+                durationSeconds = pairingWindow.durationSeconds,
+                detail = pairingWindow.detail,
+            ),
+        )
+    }
+
+    private fun recordPairingWindowStatus(pairingWindow: BtGunHidPairingWindowStatus) {
+        status = status.copy(
+            pairingWindow = pairingWindow,
+            unsupportedReason = if (pairingWindow.state == BtGunHidPairingWindowState.DENIED) {
+                pairingWindow.detail
+            } else {
+                status.unsupportedReason
+            },
+        )
+    }
+
     private fun onVirtualCableUnplug(host: BtGunHidHost, generation: Int) {
         if (!isActiveGeneration(generation)) return
         sendNeutralInputReport(proxy, host)
@@ -402,6 +463,7 @@ class AndroidBluetoothHidGamepad(
         connectedHost = null
         started = false
         requestGeneration += 1
+        pairingWindowGeneration += 1
         status = status.copy(mode = BtGunHidModeState.STOPPED)
     }
 
@@ -417,6 +479,14 @@ class AndroidBluetoothHidGamepad(
 
         override fun onProxyUnavailable(reason: String) {
             this@AndroidBluetoothHidGamepad.onProxyUnavailable(reason, generation)
+        }
+    }
+
+    private inner class PairingWindowCallback(
+        private val generation: Int,
+    ) : BtGunHidPairingWindowCallback {
+        override fun onPairingWindowStatus(status: BtGunHidPairingWindowStatus) {
+            this@AndroidBluetoothHidGamepad.onPairingWindowStatus(status, generation)
         }
     }
 
@@ -465,7 +535,11 @@ private class DefaultCommandIdFactory : () -> String {
         "android-hid-output-${next.getAndIncrement()}"
 }
 
-private const val BT_GUN_HID_GAMEPAD_SUBCLASS: Byte = 0x05
+private val BT_GUN_HID_GAMEPAD_SUBCLASS: Byte =
+    runCatching { BluetoothHidDevice.SUBCLASS2_GAMEPAD.toByte() }
+        .getOrDefault(BT_GUN_HID_GAMEPAD_SUBCLASS_FALLBACK)
+
+private const val BT_GUN_HID_GAMEPAD_SUBCLASS_FALLBACK: Byte = 0x02
 private const val TAG = "BtGunHidGamepad"
 
 class AndroidBtGunHidProfileConnector(
@@ -475,6 +549,7 @@ class AndroidBtGunHidProfileConnector(
 ) : BtGunHidProfileConnector {
     private var listener: BluetoothProfile.ServiceListener? = null
     private var activeProxy: BluetoothHidDevice? = null
+    private var pairingReceiver: BroadcastReceiver? = null
     private var closed = false
 
     override fun requestHidDeviceProxy(callback: BtGunHidProfileCallback) {
@@ -510,18 +585,25 @@ class AndroidBtGunHidProfileConnector(
         }
     }
 
-    override fun openPairingWindow(durationSeconds: Int): Boolean {
+    override fun openPairingWindow(durationSeconds: Int, callback: BtGunHidPairingWindowCallback): Boolean {
         if (durationSeconds <= 0 || closed) return false
+        installPairingReceiver(durationSeconds, callback)
         val intent = Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE)
             .putExtra(BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, durationSeconds)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        context.startActivity(intent)
+        try {
+            context.startActivity(intent)
+        } catch (error: RuntimeException) {
+            clearPairingReceiver()
+            throw error
+        }
         return true
     }
 
     override fun close() {
         if (closed) return
         closed = true
+        clearPairingReceiver()
         activeProxy?.let { proxy ->
             runCatching {
                 adapter.closeProfileProxy(BluetoothProfile.HID_DEVICE, proxy)
@@ -529,6 +611,60 @@ class AndroidBtGunHidProfileConnector(
         }
         activeProxy = null
         listener = null
+    }
+
+    private fun installPairingReceiver(durationSeconds: Int, callback: BtGunHidPairingWindowCallback) {
+        clearPairingReceiver()
+        var opened = false
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) {
+                if (intent.action != BluetoothAdapter.ACTION_SCAN_MODE_CHANGED) return
+                val mode = intent.getIntExtra(BluetoothAdapter.EXTRA_SCAN_MODE, UNKNOWN_SCAN_MODE)
+                val nextStatus = when (mode) {
+                    BluetoothAdapter.SCAN_MODE_CONNECTABLE_DISCOVERABLE -> {
+                        opened = true
+                        pairingWindowStatus(
+                            state = BtGunHidPairingWindowState.OPENED,
+                            durationSeconds = durationSeconds,
+                            detail = "pairing window open",
+                        )
+                    }
+                    else -> {
+                        pairingWindowStatus(
+                            state = if (opened) BtGunHidPairingWindowState.EXPIRED else BtGunHidPairingWindowState.DENIED,
+                            durationSeconds = durationSeconds,
+                            detail = if (opened) "pairing window expired" else "pairing window denied",
+                        )
+                    }
+                }
+                callback.onPairingWindowStatus(nextStatus)
+                if (nextStatus.state == BtGunHidPairingWindowState.DENIED ||
+                    nextStatus.state == BtGunHidPairingWindowState.EXPIRED
+                ) {
+                    clearPairingReceiver()
+                }
+            }
+        }
+        registerPairingReceiver(receiver)
+        pairingReceiver = receiver
+    }
+
+    private fun registerPairingReceiver(receiver: BroadcastReceiver) {
+        val filter = IntentFilter(BluetoothAdapter.ACTION_SCAN_MODE_CHANGED)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            context.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            @Suppress("DEPRECATION")
+            context.registerReceiver(receiver, filter)
+        }
+    }
+
+    private fun clearPairingReceiver() {
+        val receiver = pairingReceiver ?: return
+        pairingReceiver = null
+        runCatching {
+            context.unregisterReceiver(receiver)
+        }
     }
 }
 
@@ -633,3 +769,16 @@ private fun BtGunHidHost.bluetoothDeviceOrNull(): BluetoothDevice? =
 
 private fun Byte.toUnsignedInt(): Int =
     toInt() and 0xff
+
+private fun pairingWindowStatus(
+    state: BtGunHidPairingWindowState,
+    durationSeconds: Int,
+    detail: String,
+): BtGunHidPairingWindowStatus =
+    BtGunHidPairingWindowStatus.forState(
+        state = state,
+        durationSeconds = durationSeconds,
+        detail = detail,
+    )
+
+private const val UNKNOWN_SCAN_MODE: Int = -1

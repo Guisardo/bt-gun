@@ -37,6 +37,9 @@ private fun receiverAllowsUnchangedSessionOnlyDuringControlDisconnectGrace() {
         ),
     )
     expectEquals("receiver stale after grace", InputStreamLifecycleState.STALE, receiver.lifecycleState)
+    expectEquals("grace expiry clears buttons", 0, receiver.current?.buttons)
+    expectEquals("grace expiry clears pressed controls", emptySet<String>(), receiver.current?.pressedControls)
+    expectEquals("grace expiry stale surfaced", true, received.last().stale)
 }
 
 private fun receiverRejectsOldUdpFramesAfterFreshReconnect() {

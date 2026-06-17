@@ -35,7 +35,7 @@ class UdpInputReceiver(
         val controlSessionId = trustedControlSessionId ?: return UdpInputReceiverResult.Stopped
         val activeGuard = guard ?: return UdpInputReceiverResult.Stopped
         if (controlGraceExpired(receivedElapsedNanos)) {
-            lifecycleState = InputStreamLifecycleState.STALE
+            markStaleAfterGrace(activeGuard)
             return UdpInputReceiverResult.Rejected(InputReplayRejectReason.CONTROL_GRACE_EXPIRED)
         }
         return when (val decision = activeGuard.acceptDatagram(bytes, receivedElapsedNanos, controlSessionId)) {
@@ -54,7 +54,9 @@ class UdpInputReceiver(
     fun refresh(nowElapsedNanos: Long) {
         require(nowElapsedNanos >= 0L) { "nowElapsedNanos must be non-negative" }
         if (controlGraceExpired(nowElapsedNanos)) {
-            lifecycleState = InputStreamLifecycleState.STALE
+            guard?.let(::markStaleAfterGrace) ?: run {
+                lifecycleState = InputStreamLifecycleState.STALE
+            }
         }
     }
 
@@ -100,6 +102,15 @@ class UdpInputReceiver(
         val disconnectedAt = controlDisconnectedAtNanos ?: return false
         val config = activeConfig ?: return true
         return nowElapsedNanos - disconnectedAt > config.controlDisconnectGraceMs * NANOS_PER_MILLI
+    }
+
+    private fun markStaleAfterGrace(activeGuard: InputReplayGuard) {
+        val stale = current?.let(activeGuard::onTimeout)
+        current = stale
+        lifecycleState = InputStreamLifecycleState.STALE
+        if (stale != null) {
+            onInput(stale)
+        }
     }
 
     private companion object {

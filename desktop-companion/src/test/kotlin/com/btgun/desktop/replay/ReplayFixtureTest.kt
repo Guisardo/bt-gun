@@ -22,6 +22,7 @@ fun main() {
     replayFixturePassesReceiverBeforeMappedState()
     replayFixtureDrivesVisualizerRows()
     replayFixtureExpectedTimingUsesOffsetQuality()
+    replayFixtureMatrixCoversV1V2RejectAndFallbackRows()
 }
 
 private fun replayFixtureLoadsRawUdpHex() {
@@ -80,6 +81,44 @@ private fun replayFixtureExpectedTimingUsesOffsetQuality() {
     expectEquals("replay model offset quality", VisualizerClockOffsetQuality.valueOf(offsetQuality.uppercase()), replaySession().model.metrics.offsetQuality)
 }
 
+private fun replayFixtureMatrixCoversV1V2RejectAndFallbackRows() {
+    val rows = replayMatrixRows()
+    val datagrams = rows
+        .filter { it.stringAt("record_type") == "datagram" }
+        .sortedBy { it.stringAt("replay_order").toInt() }
+    val negotiations = rows.filter { it.stringAt("record_type") == "negotiation" }
+    val haptics = rows.filter { it.stringAt("record_type") == "haptic" }
+
+    expectEquals("matrix datagram count", 11, datagrams.size)
+    listOf(
+        "v1_good",
+        "v2_good",
+        "bad_hmac",
+        "wrong_stream",
+        "stale_age",
+        "duplicate_sequence",
+        "old_sequence",
+        "unexpected_format",
+    ).forEach { category ->
+        expectTrue("matrix covers $category", datagrams.any { it.stringAt("category") == category })
+    }
+    expectEquals(
+        "matrix fallback rows",
+        setOf("legacy-fallback-v1", "unknown-frame-format-rejected"),
+        negotiations.map { it.stringAt("case_id") }.toSet(),
+    )
+    expectEquals(
+        "matrix haptic rows",
+        setOf("haptic_invalid_body", "haptic_unsupported_pattern", "haptic_invalid_timeline", "haptic_overlapping_timeline"),
+        haptics.map { it.stringAt("category") }.toSet(),
+    )
+
+    val docs = repoFile("docs/protocol/input-stream-v1-fixtures.md").readText()
+    expectContains("docs point at shared matrix", docs, "input-stream-v1-v2-matrix.jsonl")
+    expectContains("docs record legacy fallback", docs, "`legacy-fallback-v1`")
+    expectContains("docs record unknown reject", docs, "`unknown-frame-format-rejected`")
+}
+
 private fun replaySession(): ReplayResult {
     val datagrams = replayDatagrams()
     val expected = expectedVisualizer()
@@ -133,11 +172,24 @@ private fun expectedVisualizer(): JsonObject {
     return Json.parseToJsonElement(file.readText()).jsonObject
 }
 
+private fun replayMatrixRows(): List<JsonObject> {
+    val file = repoFile("fixtures/replay/udp-golden/input-stream-v1-v2-matrix.jsonl")
+    if (!file.exists()) {
+        throw AssertionError("missing shared replay matrix fixture: ${file.path}")
+    }
+    return file.readLines()
+        .map { it.trim() }
+        .filter { it.isNotEmpty() && !it.startsWith("#") }
+        .map { Json.parseToJsonElement(it).jsonObject }
+}
+
 private fun repoFile(path: String): File {
     val current = File(path)
     if (current.exists()) return current
     val parent = File("../$path")
     if (parent.exists()) return parent
+    val grandparent = File("../../$path")
+    if (grandparent.exists()) return grandparent
     return current
 }
 
@@ -188,6 +240,12 @@ private fun expectEquals(label: String, expected: Any?, actual: Any?) {
 private fun expectTrue(label: String, actual: Boolean) {
     if (!actual) {
         throw AssertionError(label)
+    }
+}
+
+private fun expectContains(label: String, actual: String, expectedPart: String) {
+    if (!actual.contains(expectedPart)) {
+        throw AssertionError("$label expected <$actual> to contain <$expectedPart>")
     }
 }
 

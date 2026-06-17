@@ -12,16 +12,19 @@ import com.btgun.desktop.security.PairingProof
 import com.btgun.desktop.haptics.HapticCommand
 import com.btgun.desktop.haptics.HapticResult
 import com.btgun.desktop.haptics.HapticResultStatus
+import com.btgun.desktop.transport.InputFrameFormat
 import com.btgun.desktop.transport.InputStreamConfig
 import com.btgun.desktop.transport.InputStreamLifecycleState
 import com.btgun.desktop.transport.UdpInputRuntime
 import com.btgun.desktop.transport.UdpInputRuntimeStartResult
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.add
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
@@ -29,11 +32,13 @@ fun main() {
     envelopeCodecAcceptsOnlyVersionOneAndKnownTypes()
     envelopeCodecRejectsUnsupportedVersionUnknownTypeAndOversizedText()
     envelopeCodecRejectsOverflowedVersion()
+    envelopeCodecRejectsNonPositiveControlSequence()
     reservedHapticCommandAllowsPhaseFourCommandBody()
     controlServerRejectsControlEnvelopeBeforeProof()
     controlServerAcceptsKnownEnvelopeAfterProof()
     controlServerAuthenticatesManualCodeWithoutSidOrNonce()
     controlServerRetainsTrustedSessionForMultipleEnvelopes()
+    controlServerRejectsRepeatedInboundControlSequence()
     controlServerRespondsToHeartbeatAndSurfacesTrustedMetadata()
     controlServerAcceptsVisualizerStatusFromTrustedDiagnostics()
     controlServerIgnoresMalformedVisualizerStatusDiagnostics()
@@ -55,6 +60,10 @@ fun main() {
     controlServerKeepsOnlyLatestStartedHapticCancellable()
     controlServerKeepsActiveHapticWhenReplacementFails()
     controlServerAcceptsActiveHapticCancelFailureStatuses()
+    controlServerSessionReadyAdvertisesInputFormatsWithSeqOne()
+    controlServerNegotiatesCompactAndFallsBackToV1()
+    controlServerParsesAndroidInputStreamCapabilities()
+    controlServerIgnoresUnknownInputStreamCapabilityFormats()
     controlServerSendsFreshInputStreamConfigAfterTrustedSession()
     controlServerStartsUdpRuntimeWithAdvertisedInputStreamConfig()
     controlServerReportsUdpStartFailureBeforeStreamConfig()
@@ -74,6 +83,7 @@ private fun envelopeCodecAcceptsOnlyVersionOneAndKnownTypes() {
     expectEquals("reserved haptic name", "reserved_haptic_command", ControlMessageType.RESERVED_HAPTIC_COMMAND.wireName)
     expectEquals("haptic result name", "haptic_result", ControlMessageType.HAPTIC_RESULT.wireName)
     expectEquals("stream config wire name", "input_stream_config", ControlMessageType.INPUT_STREAM_CONFIG.wireName)
+    expectEquals("stream capabilities wire name", "input_stream_capabilities", ControlMessageType.INPUT_STREAM_CAPABILITIES.wireName)
 }
 
 private fun envelopeCodecRejectsUnsupportedVersionUnknownTypeAndOversizedText() {
@@ -89,6 +99,14 @@ private fun envelopeCodecRejectsOverflowedVersion() {
     val overflowVersion = """{"v":4294967297,"type":"session_ready","msgId":"m-1","sessionId":"sid-1","seq":1,"sentElapsedNanos":10,"body":{}}"""
 
     expectRejected("overflow version", ControlEnvelopeError.INVALID_FIELD, ControlEnvelopeCodec.decode(overflowVersion))
+}
+
+private fun envelopeCodecRejectsNonPositiveControlSequence() {
+    val zeroSeq = """{"v":1,"type":"session_ready","msgId":"m-1","sessionId":"sid-1","seq":0,"sentElapsedNanos":10,"body":{}}"""
+    val negativeSeq = """{"v":1,"type":"session_ready","msgId":"m-1","sessionId":"sid-1","seq":-1,"sentElapsedNanos":10,"body":{}}"""
+
+    expectRejected("zero seq", ControlEnvelopeError.INVALID_FIELD, ControlEnvelopeCodec.decode(zeroSeq))
+    expectRejected("negative seq", ControlEnvelopeError.INVALID_FIELD, ControlEnvelopeCodec.decode(negativeSeq))
 }
 
 private fun reservedHapticCommandAllowsPhaseFourCommandBody() {
@@ -168,11 +186,32 @@ private fun controlServerRetainsTrustedSessionForMultipleEnvelopes() {
     )
     val second = server.handleTrustedEnvelope(
         trustedSession,
-        ControlEnvelopeCodec.encode(envelope(ControlMessageType.DIAGNOSTICS, sessionId = session.sid)),
+        ControlEnvelopeCodec.encode(envelope(ControlMessageType.DIAGNOSTICS, sessionId = session.sid, seq = 2L)),
     )
 
     expectTrue("first accepted", first is ControlServerResult.Accepted)
     expectTrue("second accepted", second is ControlServerResult.Accepted)
+}
+
+private fun controlServerRejectsRepeatedInboundControlSequence() {
+    val registry = testRegistry()
+    val session = registry.startPairing(nowEpochMillis = 1_000L)
+    val server = ControlServer(registry = registry, maxMessageBytes = 512)
+    val trusted = server.authenticate(proofRequestFor(session, "bc".repeat(16)), nowEpochMillis = 2_000L)
+    expectTrue("authenticated", trusted is ControlAuthenticationResult.Accepted)
+    val trustedSession = (trusted as ControlAuthenticationResult.Accepted).trustedSession
+
+    val first = server.handleTrustedEnvelope(
+        trustedSession,
+        ControlEnvelopeCodec.encode(envelope(ControlMessageType.HEARTBEAT_PING, sessionId = session.sid, seq = 1L)),
+    )
+    val repeated = server.handleTrustedEnvelope(
+        trustedSession,
+        ControlEnvelopeCodec.encode(envelope(ControlMessageType.HEARTBEAT_PONG, sessionId = session.sid, seq = 1L)),
+    )
+
+    expectTrue("first accepted", first is ControlServerResult.Accepted)
+    expectEquals("repeated seq rejected", ControlServerResult.RejectedEnvelope(ControlEnvelopeError.INVALID_FIELD), repeated)
 }
 
 private fun controlServerRespondsToHeartbeatAndSurfacesTrustedMetadata() = runBlocking {
@@ -865,13 +904,118 @@ private fun controlServerAcceptsActiveHapticCancelFailureStatuses() = runBlockin
     expectEquals("started then cancel failure", listOf(HapticResultStatus.STARTED, HapticResultStatus.PERMISSION_BLOCKED), parsed.map { it.status })
 }
 
+private fun controlServerSessionReadyAdvertisesInputFormatsWithSeqOne() {
+    val registry = testRegistry()
+    val session = registry.startPairing(nowEpochMillis = 1_000L)
+    val server = ControlServer(registry = registry, maxMessageBytes = 1024)
+    val trusted = server.authenticate(proofRequestFor(session, "f5".repeat(16)), nowEpochMillis = 2_000L)
+    expectTrue("authenticated", trusted is ControlAuthenticationResult.Accepted)
+
+    val ready = server.sessionReadyEnvelopeFor(
+        trustedSession = (trusted as ControlAuthenticationResult.Accepted).trustedSession,
+        nowElapsedNanos = 3_000_000_000L,
+    )
+
+    val formats = ready.body["controlCapabilities"]
+        ?.jsonObject
+        ?.get("supportedInputFrameFormats")
+        ?.jsonArray
+        ?.map { it.jsonPrimitive.contentOrNull }
+    expectEquals("ready seq starts at one", 1L, ready.seq)
+    expectEquals("supported input formats", listOf("compact_v2", "v1"), formats)
+}
+
+private fun controlServerNegotiatesCompactAndFallsBackToV1() {
+    val server = ControlServer(registry = testRegistry(), maxMessageBytes = 1024)
+
+    expectEquals(
+        "compact selected when Android supports it",
+        InputFrameFormat.COMPACT_V2,
+        server.selectInputFrameFormat(listOf(InputFrameFormat.COMPACT_V2, InputFrameFormat.V1)),
+    )
+    expectEquals(
+        "bounded missing-capabilities fallback",
+        InputFrameFormat.V1,
+        server.selectInputFrameFormat(null),
+    )
+    expectEquals(
+        "v1 only fallback",
+        InputFrameFormat.V1,
+        server.selectInputFrameFormat(listOf(InputFrameFormat.V1)),
+    )
+}
+
+private fun controlServerParsesAndroidInputStreamCapabilities() = runBlocking {
+    val server = ControlServer(registry = testRegistry(), maxMessageBytes = 1024)
+    val accepted = mutableListOf<ControlEnvelope>()
+    var capabilities: InputStreamCapabilities? = null
+    server.onControlEnvelopeAccepted = accepted::add
+
+    server.handleAcceptedEnvelope(
+        envelope = envelope(
+            ControlMessageType.INPUT_STREAM_CAPABILITIES,
+            sessionId = "sid-1",
+            body = JsonObject(
+                mapOf(
+                    "supportedInputFrameFormats" to kotlinx.serialization.json.buildJsonArray {
+                        add("compact_v2")
+                        add("v1")
+                    },
+                ),
+            ),
+        ),
+        heartbeat = HeartbeatMonitor(),
+        onInputStreamCapabilitiesReceived = { parsed -> capabilities = parsed },
+    )
+
+    expectEquals("capabilities accepted", ControlMessageType.INPUT_STREAM_CAPABILITIES, accepted.single().type)
+    expectEquals("capability formats", listOf(InputFrameFormat.COMPACT_V2, InputFrameFormat.V1), capabilities?.supportedInputFrameFormats)
+}
+
+private fun controlServerIgnoresUnknownInputStreamCapabilityFormats() = runBlocking {
+    val server = ControlServer(registry = testRegistry(), maxMessageBytes = 1024)
+    val parsed = mutableListOf<InputStreamCapabilities>()
+
+    server.handleAcceptedEnvelope(
+        envelope = envelope(
+            ControlMessageType.INPUT_STREAM_CAPABILITIES,
+            sessionId = "sid-1",
+            body = JsonObject(
+                mapOf(
+                    "supportedInputFrameFormats" to kotlinx.serialization.json.buildJsonArray {
+                        add("future_v3")
+                        add("compact_v2")
+                        add("v1")
+                    },
+                ),
+            ),
+        ),
+        heartbeat = HeartbeatMonitor(),
+        onInputStreamCapabilitiesReceived = parsed::add,
+    )
+    expectEquals("known formats preserved", listOf(InputFrameFormat.COMPACT_V2, InputFrameFormat.V1), parsed.single().supportedInputFrameFormats)
+    expectEquals(
+        "unknown-only capability falls back through selector",
+        InputFrameFormat.V1,
+        server.selectInputFrameFormat(inputStreamCapabilitiesFromJsonBody(
+            JsonObject(
+                mapOf(
+                    "supportedInputFrameFormats" to kotlinx.serialization.json.buildJsonArray {
+                        add("future_v3")
+                    },
+                ),
+            ),
+        )?.supportedInputFrameFormats),
+    )
+}
+
 private fun controlServerSendsFreshInputStreamConfigAfterTrustedSession() {
     val registry = testRegistry()
     val session = registry.startPairing(nowEpochMillis = 1_000L)
     val server = ControlServer(
         registry = registry,
         maxMessageBytes = 2048,
-        udpHost = "192.168.50.25",
+        udpHost = "btgun-desktop.test.invalid",
         udpPort = 41731,
         streamSecretFactory = incrementalSecretFactory(),
     )
@@ -884,14 +1028,14 @@ private fun controlServerSendsFreshInputStreamConfigAfterTrustedSession() {
 
     expectEquals("config type", ControlMessageType.INPUT_STREAM_CONFIG, first.type)
     expectEquals("trusted sid", session.sid, first.sessionId)
-    expectEquals("host", "192.168.50.25", first.body.stringField("udpHost"))
+    expectEquals("host", "btgun-desktop.test.invalid", first.body.stringField("udpHost"))
     expectEquals("port", 41731L, first.body.longField("udpPort"))
     expectEquals("snapshot hz", 60L, first.body.longField("snapshotHz"))
     expectEquals("age limit", 150L, first.body.longField("frameAgeLimitMs"))
     expectEquals("timeout", 250L, first.body.longField("streamTimeoutMs"))
     expectEquals("control grace", 1500L, first.body.longField("controlDisconnectGraceMs"))
-    expectEquals("compact frame format", "compact_v2", first.body.stringField("frameFormat"))
-    expectEquals("compact capability", true, first.body["capabilities"]?.jsonObject?.get("compactUdpV2")?.jsonPrimitive?.booleanOrNull)
+    expectEquals("default fallback frame format", "v1", first.body.stringField("frameFormat"))
+    expectEquals("compact capability off", false, first.body["capabilities"]?.jsonObject?.get("compactUdpV2")?.jsonPrimitive?.booleanOrNull)
     expectEquals("stream id hex length", 32, requireNotNull(first.body.stringField("streamSessionIdHex")).length)
     expectTrue("stream id fresh", first.body.stringField("streamSessionIdHex") != second.body.stringField("streamSessionIdHex"))
     expectTrue("stream key fresh", first.body.stringField("hmacSha256KeyBase64Url") != second.body.stringField("hmacSha256KeyBase64Url"))
@@ -917,6 +1061,7 @@ private fun controlServerStartsUdpRuntimeWithAdvertisedInputStreamConfig() {
     val started = server.startInputStreamForTrustedSession(
         trustedSession = (trusted as ControlAuthenticationResult.Accepted).trustedSession,
         nowElapsedNanos = 3_000_000_000L,
+        frameFormat = InputFrameFormat.COMPACT_V2,
     )
 
     expectTrue("stream started", started is ControlInputStreamStartResult.Started)
@@ -971,6 +1116,7 @@ private fun controlServerUsesPairingEndpointForInputStreamConfigWhenConstructedB
 private fun envelope(
     type: ControlMessageType,
     sessionId: String = "sid-1",
+    seq: Long = 1L,
     body: JsonObject = JsonObject(emptyMap()),
 ): ControlEnvelope =
     ControlEnvelope(
@@ -978,7 +1124,7 @@ private fun envelope(
         type = type,
         msgId = "msg-1",
         sessionId = sessionId,
-        seq = 1L,
+        seq = seq,
         sentElapsedNanos = 10L,
         body = body,
     )
@@ -999,7 +1145,7 @@ private fun proofRequestFor(session: PairingSession, androidNonce: String): Pair
 
 private fun testRegistry(): PairingSessionRegistry =
     PairingSessionRegistry(
-        endpointSelector = LocalEndpointSelector.fixed(host = "192.168.50.25", port = 41731),
+        endpointSelector = LocalEndpointSelector.fixed(host = "btgun-desktop.test.invalid", port = 41731),
         identityStore = object : DesktopIdentityStore {
             override fun loadOrCreateIdentity(): DesktopIdentity =
                 DesktopIdentity(desktopSpkiSha256 = FINGERPRINT)

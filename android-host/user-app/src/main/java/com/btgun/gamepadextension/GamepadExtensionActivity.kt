@@ -43,6 +43,7 @@ import android.widget.TextView
 import com.btgun.host.HostSessionService
 import com.btgun.host.HostSessionPhase
 import com.btgun.host.hid.BtGunHidModeState
+import com.btgun.host.hid.BtGunHidPairingWindowState
 import com.btgun.host.motion.AimCalibrationMark
 import com.btgun.host.motion.AimCalibrationMode
 import com.btgun.host.motion.AimCalibrationState
@@ -70,6 +71,7 @@ class GamepadExtensionActivity : Activity() {
     private var reticleView: ReticleView? = null
     private var cameraDevice: CameraDevice? = null
     private var cameraOpening: Boolean = false
+    private var cameraGeneration: Long = 0L
     private var captureSession: CameraCaptureSession? = null
     private var previewBuilder: CaptureRequest.Builder? = null
     private var previewSize: Size? = null
@@ -82,7 +84,9 @@ class GamepadExtensionActivity : Activity() {
     private var menuOpen: Boolean = false
     private var hudGatedViews: List<View> = emptyList()
     private var pendingMode: PendingMode? = null
+    private var activeHudMode: PendingMode? = null
     private var pendingGunStart: Boolean = false
+    private var outputGateOpened: Boolean = true
     private val gunLinkPoll = object : Runnable {
         override fun run() {
             val state = HostSessionService.latestState
@@ -108,12 +112,21 @@ class GamepadExtensionActivity : Activity() {
             val mode = pendingMode ?: return
             val ready = isRuntimeReadyFor(mode)
             if (ready && !hudActive) {
-                enterHud(mode.statusLabel)
+                enterHud(mode)
                 pendingMode = null
             } else if (!hudActive) {
                 status.text = "Waiting for ${mode.displayName}: ${readinessDetail(mode)}"
                 handler.postDelayed(this, 300L)
             }
+        }
+    }
+    private val hudPrereqPoll = object : Runnable {
+        override fun run() {
+            if (!hudActive) {
+                return
+            }
+            refreshHudGateVisibility()
+            handler.postDelayed(this, 300L)
         }
     }
     private val calibrationHudPoll = object : Runnable {
@@ -141,6 +154,8 @@ class GamepadExtensionActivity : Activity() {
         if (hudActive) {
             handler.removeCallbacks(calibrationHudPoll)
             handler.post(calibrationHudPoll)
+            handler.removeCallbacks(hudPrereqPoll)
+            handler.post(hudPrereqPoll)
         }
     }
 
@@ -153,6 +168,7 @@ class GamepadExtensionActivity : Activity() {
 
     override fun onPause() {
         handler.removeCallbacks(calibrationHudPoll)
+        handler.removeCallbacks(hudPrereqPoll)
         closeCamera()
         super.onPause()
     }
@@ -167,15 +183,17 @@ class GamepadExtensionActivity : Activity() {
 
     private fun showModePicker(message: String = "Ready") {
         if (!isGunConnected()) {
-            showGunLinkGate("Connect gun first")
+            showGunLinkGate("Connecting gun first")
             return
         }
         hudActive = false
         pendingMode = null
+        activeHudMode = null
         pendingGunStart = false
         handler.removeCallbacks(gunLinkPoll)
         handler.removeCallbacks(readinessPoll)
         handler.removeCallbacks(calibrationHudPoll)
+        handler.removeCallbacks(hudPrereqPoll)
         closeCamera()
         root = FrameLayout(this).apply {
             setBackgroundColor(BACKGROUND)
@@ -183,7 +201,7 @@ class GamepadExtensionActivity : Activity() {
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
-            setPadding(32, 24, 32, 24)
+            setPadding(dp(32), dp(24), dp(32), dp(24))
         }
         status = label(message, 14f, DIM_GREEN)
         panel.addView(label("Gamepad Extension", 30f, PHOSPHOR, bold = true), rowParams())
@@ -195,11 +213,13 @@ class GamepadExtensionActivity : Activity() {
         setContentView(root)
     }
 
-    private fun showGunLinkGate(message: String = "Connect gun") {
+    private fun showGunLinkGate(message: String = "Connecting gun", autoStart: Boolean = true) {
         hudActive = false
         pendingMode = null
+        activeHudMode = null
         handler.removeCallbacks(readinessPoll)
         handler.removeCallbacks(calibrationHudPoll)
+        handler.removeCallbacks(hudPrereqPoll)
         closeCamera()
         if (isGunConnected()) {
             showModePicker("Gun connected")
@@ -209,13 +229,13 @@ class GamepadExtensionActivity : Activity() {
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
-            setPadding(32, 24, 32, 24)
+            setPadding(dp(32), dp(24), dp(32), dp(24))
         }
         status = label(message, 14f, DIM_GREEN)
         panel.addView(label("Gamepad Extension", 30f, PHOSPHOR, bold = true), rowParams())
         panel.addView(label("Gun Link", 18f, PHOSPHOR, bold = true), rowParams())
         panel.addView(status, rowParams())
-        panel.addView(action("Connect gun", "Required before LAN or Bluetooth") { connectGunFirst() }, rowParams())
+        panel.addView(label("Gun link starts automatically", 13f, DIM_GREEN), rowParams())
         root.addView(panel, centeredPanelParams())
         setContentView(root)
         when (HostSessionService.latestState.phase) {
@@ -227,12 +247,15 @@ class GamepadExtensionActivity : Activity() {
                 handler.removeCallbacks(gunLinkPoll)
                 handler.post(gunLinkPoll)
             }
-            else -> Unit
+            else -> if (autoStart) {
+                handler.post { startGunConnectionCycle() }
+            }
         }
     }
 
-    private fun enterHud(label: String) {
+    private fun enterHud(mode: PendingMode) {
         hudActive = true
+        activeHudMode = mode
         cameraPreviewReady = false
         menuOpen = false
         root = FrameLayout(this).apply { setBackgroundColor(Color.BLACK) }
@@ -248,18 +271,20 @@ class GamepadExtensionActivity : Activity() {
         hudGatedViews = listOf(reticle, softControls, zoom, menu).onEach { it.visibility = View.INVISIBLE }
         root.addView(reticle, FrameLayout.LayoutParams(MATCH, MATCH))
         root.addView(softControls, topBarParams())
-        root.addView(statusStrip(label), statusParams())
+        root.addView(statusStrip(mode.statusLabel), statusParams())
         root.addView(zoom, zoomRailParams())
         root.addView(menu, menuParams())
         setContentView(root)
         ensureCameraReady()
         handler.removeCallbacks(calibrationHudPoll)
         handler.post(calibrationHudPoll)
+        handler.removeCallbacks(hudPrereqPoll)
+        handler.post(hudPrereqPoll)
     }
 
     private fun scanLanQr() {
         if (!isGunConnected()) {
-            showGunLinkGate("Connect gun before LAN")
+            showGunLinkGate("Waiting for gun before LAN")
             return
         }
         startOptionalCodeScanner()
@@ -267,12 +292,13 @@ class GamepadExtensionActivity : Activity() {
 
     private fun startBluetoothMode() {
         if (!isGunConnected()) {
-            showGunLinkGate("Connect gun before Bluetooth")
+            showGunLinkGate("Waiting for gun before Bluetooth")
             return
         }
+        closeOutputSendGate()
         startServiceAction(
             Intent(this, HostSessionService::class.java)
-                .setAction(HostSessionService.ACTION_START_BLUETOOTH_GAMEPAD),
+                .setAction(HostSessionService.ACTION_START_HID_PAIRING_WINDOW),
         )
         waitForMode(PendingMode.BLUETOOTH)
     }
@@ -280,10 +306,12 @@ class GamepadExtensionActivity : Activity() {
     private fun showProfileMenu() {
         hudActive = false
         pendingMode = null
+        activeHudMode = null
         pendingGunStart = false
         handler.removeCallbacks(gunLinkPoll)
         handler.removeCallbacks(readinessPoll)
         handler.removeCallbacks(calibrationHudPoll)
+        handler.removeCallbacks(hudPrereqPoll)
         closeCamera()
         val store = ProfileStore(applicationContext)
         val document = store.load().document
@@ -292,7 +320,7 @@ class GamepadExtensionActivity : Activity() {
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(26, 20, 26, 24)
+            setPadding(dp(26), dp(20), dp(26), dp(24))
         }
         status = label(
             "${active.displayName}  dz=${"%.2f".format(active.aim.deadZone)}  sens=${"%.1f".format(active.aim.sensitivity)}",
@@ -394,7 +422,7 @@ class GamepadExtensionActivity : Activity() {
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(26, 20, 26, 24)
+            setPadding(dp(26), dp(20), dp(26), dp(24))
         }
         status = label("Current ${mappingLabel(current)}", 13f, DIM_GREEN)
         panel.addView(label("Map $title", 24f, PHOSPHOR, bold = true), rowParams())
@@ -410,9 +438,11 @@ class GamepadExtensionActivity : Activity() {
     private fun showProfileSelector() {
         hudActive = false
         pendingMode = null
+        activeHudMode = null
         pendingGunStart = false
         handler.removeCallbacks(readinessPoll)
         handler.removeCallbacks(calibrationHudPoll)
+        handler.removeCallbacks(hudPrereqPoll)
         closeCamera()
         val document = ProfileStore(applicationContext).load().document
         val active = document.activeProfile()
@@ -420,7 +450,7 @@ class GamepadExtensionActivity : Activity() {
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(26, 20, 26, 24)
+            setPadding(dp(26), dp(20), dp(26), dp(24))
         }
         status = label("Active ${active.displayName}", 13f, DIM_GREEN)
         panel.addView(label("Select profile", 24f, PHOSPHOR, bold = true), rowParams())
@@ -452,7 +482,7 @@ class GamepadExtensionActivity : Activity() {
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(26, 20, 26, 24)
+            setPadding(dp(26), dp(20), dp(26), dp(24))
         }
         status = label("Rename ${profile.displayName}", 13f, DIM_GREEN)
         val input = EditText(this).apply {
@@ -465,7 +495,7 @@ class GamepadExtensionActivity : Activity() {
             gravity = Gravity.CENTER_VERTICAL
             setSingleLine(true)
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_WORDS
-            setPadding(18, 0, 18, 0)
+            setPadding(dp(18), 0, dp(18), 0)
             background = panelDrawable(alpha = 120)
         }
         panel.addView(label("Rename profile", 24f, PHOSPHOR, bold = true), rowParams())
@@ -484,16 +514,18 @@ class GamepadExtensionActivity : Activity() {
         menuOpen = false
         hudActive = false
         pendingMode = null
+        activeHudMode = null
         pendingGunStart = false
         handler.removeCallbacks(readinessPoll)
         handler.removeCallbacks(calibrationHudPoll)
+        handler.removeCallbacks(hudPrereqPoll)
         closeCamera()
         val active = ProfileStore(applicationContext).load().document.activeProfile()
         root = FrameLayout(this).apply { setBackgroundColor(BACKGROUND) }
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(26, 20, 26, 24)
+            setPadding(dp(26), dp(20), dp(26), dp(24))
         }
         status = label(deadzoneStatus(active), 13f, DIM_GREEN)
         panel.addView(label("Deadzone", 24f, PHOSPHOR, bold = true), rowParams())
@@ -523,7 +555,23 @@ class GamepadExtensionActivity : Activity() {
         setContentView(root)
     }
 
-    private fun connectGunFirst() {
+    private fun startGunConnectionCycle() {
+        if (isGunConnected()) {
+            showModePicker("Gun connected")
+            return
+        }
+        when (HostSessionService.latestState.phase) {
+            HostSessionPhase.SCANNING,
+            HostSessionPhase.CONNECTING,
+            HostSessionPhase.RECONNECTING,
+            HostSessionPhase.STARTING,
+            -> {
+                handler.removeCallbacks(gunLinkPoll)
+                handler.post(gunLinkPoll)
+                return
+            }
+            else -> Unit
+        }
         if (!ensureHostRuntimePermissions()) {
             pendingGunStart = true
             return
@@ -546,7 +594,7 @@ class GamepadExtensionActivity : Activity() {
             is SaveProfileResult.Saved -> {
                 val copy = duplicate.document.profiles.lastOrNull { !it.builtIn } ?: return null
                 store.selectProfile(copy.profileId)
-                startServiceAction(Intent(this, HostSessionService::class.java).setAction(HostSessionService.ACTION_RELOAD_ACTIVE_PROFILE))
+                reloadActiveProfileIfRuntimeActive()
                 copy
             }
             is SaveProfileResult.Rejected -> {
@@ -572,7 +620,7 @@ class GamepadExtensionActivity : Activity() {
             is SaveProfileResult.Saved -> {
                 val copy = duplicate.document.profiles.lastOrNull() ?: return null
                 store.selectProfile(copy.profileId)
-                startServiceAction(Intent(this, HostSessionService::class.java).setAction(HostSessionService.ACTION_RELOAD_ACTIVE_PROFILE))
+                reloadActiveProfileIfRuntimeActive()
                 if (showEditor) {
                     showProfileMenu()
                 }
@@ -588,7 +636,7 @@ class GamepadExtensionActivity : Activity() {
     private fun selectProfile(profileId: String) {
         when (val result = ProfileStore(applicationContext).selectProfile(profileId)) {
             is SaveProfileResult.Saved -> {
-                startServiceAction(Intent(this, HostSessionService::class.java).setAction(HostSessionService.ACTION_RELOAD_ACTIVE_PROFILE))
+                reloadActiveProfileIfRuntimeActive()
                 showProfileMenu()
             }
             is SaveProfileResult.Rejected -> {
@@ -605,7 +653,7 @@ class GamepadExtensionActivity : Activity() {
         }
         when (val result = ProfileStore(applicationContext).renameProfile(profileId, name)) {
             is SaveProfileResult.Saved -> {
-                startServiceAction(Intent(this, HostSessionService::class.java).setAction(HostSessionService.ACTION_RELOAD_ACTIVE_PROFILE))
+                reloadActiveProfileIfRuntimeActive()
                 showProfileMenu()
             }
             is SaveProfileResult.Rejected -> {
@@ -662,7 +710,7 @@ class GamepadExtensionActivity : Activity() {
     private fun saveProfileChange(profile: BtGunProfile, message: () -> String): Boolean =
         when (val result = ProfileStore(applicationContext).saveProfile(profile)) {
             is SaveProfileResult.Saved -> {
-                startServiceAction(Intent(this, HostSessionService::class.java).setAction(HostSessionService.ACTION_RELOAD_ACTIVE_PROFILE))
+                reloadActiveProfileIfRuntimeActive()
                 status.text = message()
                 true
             }
@@ -672,11 +720,21 @@ class GamepadExtensionActivity : Activity() {
             }
         }
 
+    private fun reloadActiveProfileIfRuntimeActive() {
+        if (HostSessionService.shouldStartServiceForProfileReload(HostSessionService.latestState)) {
+            startServiceAction(
+                Intent(this, HostSessionService::class.java)
+                    .setAction(HostSessionService.ACTION_RELOAD_ACTIVE_PROFILE),
+            )
+        }
+    }
+
     private fun handleQrPayload(payload: String?) {
         if (payload.isNullOrBlank()) {
             status.text = "QR empty"
             return
         }
+        closeOutputSendGate()
         startServiceAction(
             Intent(this, HostSessionService::class.java)
                 .setAction(HostSessionService.ACTION_CONNECT_DESKTOP_QR)
@@ -710,7 +768,8 @@ class GamepadExtensionActivity : Activity() {
         val state = HostSessionService.latestState
         val cameraReady = hasCameraPermission()
         val gunReady = state.phase == HostSessionPhase.CONNECTED
-        val motionReady = state.lastMotionSample?.payload?.providerName != "unavailable"
+        val motionReady = state.lastMotionSample != null &&
+            state.lastMotionSample?.payload?.providerName != "unavailable"
         val profileReady = state.profileValidationError == null
         val outputReady = when (mode) {
             PendingMode.LAN -> state.desktopLinkState.phase in setOf(DesktopLinkPhase.CONNECTED, DesktopLinkPhase.DEGRADED) &&
@@ -724,11 +783,19 @@ class GamepadExtensionActivity : Activity() {
         val state = HostSessionService.latestState
         if (!hasCameraPermission()) return "camera"
         if (state.phase != HostSessionPhase.CONNECTED) return "gun"
-        if (state.lastMotionSample?.payload?.providerName == "unavailable") return "motion"
+        if (state.lastMotionSample == null || state.lastMotionSample?.payload?.providerName == "unavailable") return "motion"
         if (state.profileValidationError != null) return "profile"
         return when (mode) {
             PendingMode.LAN -> if (state.packetStreamState != InputStreamLifecycleState.ACTIVE) "LAN" else "ready"
-            PendingMode.BLUETOOTH -> if (state.hidGamepadStatus.mode != BtGunHidModeState.STARTED) "Bluetooth HID" else "ready"
+            PendingMode.BLUETOOTH -> when {
+                state.hidGamepadStatus.pairingWindow.state in setOf(
+                    BtGunHidPairingWindowState.REQUESTED,
+                    BtGunHidPairingWindowState.PENDING,
+                ) -> "Bluetooth pairing window"
+                state.hidGamepadStatus.pairingWindow.state == BtGunHidPairingWindowState.OPENED -> "Bluetooth host"
+                state.hidGamepadStatus.mode != BtGunHidModeState.STARTED -> "Bluetooth HID"
+                else -> "ready"
+            }
         }
     }
 
@@ -791,8 +858,10 @@ class GamepadExtensionActivity : Activity() {
                 ?.takeIf { it.isFinite() && it > 1f }
                 ?: 1f
             previewSize = choosePreviewSize(characteristics, textureView.width, textureView.height)
+            cameraGeneration += 1L
+            val generation = cameraGeneration
             cameraOpening = true
-            manager.openCamera(id, cameraStateCallback, handler)
+            manager.openCamera(id, cameraStateCallback(generation), handler)
         }.onFailure { error ->
             cameraOpening = false
             showCameraRequired("Camera blocked: ${error.javaClass.simpleName}")
@@ -831,33 +900,49 @@ class GamepadExtensionActivity : Activity() {
     private fun StreamConfigurationMap.outputSizesForTextureView(): Array<Size> =
         getOutputSizes(SurfaceTexture::class.java) ?: emptyArray()
 
-    private val cameraStateCallback = object : CameraDevice.StateCallback() {
-        override fun onOpened(camera: CameraDevice) {
-            cameraOpening = false
-            cameraDevice = camera
-            startPreview()
+    private fun cameraStateCallback(generation: Long): CameraDevice.StateCallback =
+        object : CameraDevice.StateCallback() {
+            override fun onOpened(camera: CameraDevice) {
+                if (!isCurrentCameraGeneration(generation)) {
+                    camera.close()
+                    return
+                }
+                cameraOpening = false
+                cameraDevice = camera
+                startPreview(generation)
+            }
+
+            override fun onDisconnected(camera: CameraDevice) {
+                if (!isCurrentCameraGeneration(generation)) {
+                    camera.close()
+                    return
+                }
+                cameraOpening = false
+                captureSession?.close()
+                captureSession = null
+                camera.close()
+                cameraDevice = null
+                showCameraRequired("Camera disconnected")
+            }
+
+            override fun onError(camera: CameraDevice, error: Int) {
+                if (!isCurrentCameraGeneration(generation)) {
+                    camera.close()
+                    return
+                }
+                cameraOpening = false
+                captureSession?.close()
+                captureSession = null
+                camera.close()
+                cameraDevice = null
+                showCameraRequired("Camera error $error")
+            }
         }
 
-        override fun onDisconnected(camera: CameraDevice) {
-            cameraOpening = false
-            captureSession?.close()
-            captureSession = null
-            camera.close()
-            cameraDevice = null
-            showCameraRequired("Camera disconnected")
-        }
+    private fun isCurrentCameraGeneration(generation: Long): Boolean =
+        hudActive && generation == cameraGeneration
 
-        override fun onError(camera: CameraDevice, error: Int) {
-            cameraOpening = false
-            captureSession?.close()
-            captureSession = null
-            camera.close()
-            cameraDevice = null
-            showCameraRequired("Camera error $error")
-        }
-    }
-
-    private fun startPreview() {
+    private fun startPreview(generation: Long) {
         val camera = cameraDevice ?: return
         val texture = textureView.surfaceTexture ?: return
         val size = previewSize ?: Size(textureView.width.coerceAtLeast(1), textureView.height.coerceAtLeast(1))
@@ -874,14 +959,21 @@ class GamepadExtensionActivity : Activity() {
                 listOf(surface),
                 object : CameraCaptureSession.StateCallback() {
                     override fun onConfigured(session: CameraCaptureSession) {
+                        if (!isCurrentCameraGeneration(generation)) {
+                            session.close()
+                            return
+                        }
                         captureSession = session
-                        cameraPreviewReady = true
-                        hudGatedViews.forEach { view -> view.visibility = View.VISIBLE }
                         updateRepeatingRequest()
                         updateZoomLabel()
+                        refreshHudGateVisibility()
                     }
 
                     override fun onConfigureFailed(session: CameraCaptureSession) {
+                        if (!isCurrentCameraGeneration(generation)) {
+                            session.close()
+                            return
+                        }
                         showCameraRequired("Camera preview failed")
                     }
                 },
@@ -945,7 +1037,12 @@ class GamepadExtensionActivity : Activity() {
         override fun onSurfaceTextureSizeChanged(surface: SurfaceTexture, width: Int, height: Int) {
             configurePreviewTransform(width, height)
         }
-        override fun onSurfaceTextureUpdated(surface: SurfaceTexture) = Unit
+        override fun onSurfaceTextureUpdated(surface: SurfaceTexture) {
+            if (hudActive && !cameraPreviewReady) {
+                cameraPreviewReady = true
+                refreshHudGateVisibility()
+            }
+        }
 
         override fun onSurfaceTextureDestroyed(surface: SurfaceTexture): Boolean {
             closeCamera()
@@ -954,6 +1051,7 @@ class GamepadExtensionActivity : Activity() {
     }
 
     private fun closeCamera() {
+        cameraGeneration += 1L
         captureSession?.close()
         captureSession = null
         cameraDevice?.close()
@@ -963,6 +1061,44 @@ class GamepadExtensionActivity : Activity() {
         previewSize = null
         cameraPreviewReady = false
         hudGatedViews.forEach { view -> view.visibility = View.INVISIBLE }
+    }
+
+    private fun refreshHudGateVisibility() {
+        if (!hudActive) {
+            return
+        }
+        val mode = activeHudMode
+        val runtimeReady = mode?.let { isRuntimeReadyFor(it) } ?: true
+        val playReady = runtimeReady && cameraPreviewReady
+        hudGatedViews.forEach { view ->
+            view.visibility = if (playReady) View.VISIBLE else View.INVISIBLE
+        }
+        if (playReady && !outputGateOpened) {
+            openOutputSendGate()
+        }
+        if (::status.isInitialized && !playReady) {
+            status.text = when {
+                mode != null && !runtimeReady -> "Blocked: ${readinessDetail(mode)}"
+                !cameraPreviewReady -> "Opening camera"
+                else -> "Ready"
+            }
+        }
+    }
+
+    private fun closeOutputSendGate() {
+        outputGateOpened = false
+        startServiceAction(
+            Intent(this, HostSessionService::class.java)
+                .setAction(HostSessionService.ACTION_CLOSE_OUTPUT_SEND_GATE),
+        )
+    }
+
+    private fun openOutputSendGate() {
+        outputGateOpened = true
+        startServiceAction(
+            Intent(this, HostSessionService::class.java)
+                .setAction(HostSessionService.ACTION_OPEN_OUTPUT_SEND_GATE),
+        )
     }
 
     private fun configurePreviewTransform(viewWidth: Int, viewHeight: Int) {
@@ -1009,6 +1145,8 @@ class GamepadExtensionActivity : Activity() {
         this == Surface.ROTATION_90 || this == Surface.ROTATION_270
 
     private fun showCameraRequired(message: String) {
+        cameraPreviewReady = false
+        hudGatedViews.forEach { view -> view.visibility = View.INVISIBLE }
         if (::status.isInitialized) {
             status.text = message
         }
@@ -1043,17 +1181,17 @@ class GamepadExtensionActivity : Activity() {
         }
 
     private fun hudControlParams(): LinearLayout.LayoutParams =
-        LinearLayout.LayoutParams(190, 164).apply {
-            setMargins(12, 0, 12, 0)
+        LinearLayout.LayoutParams(dp(190), dp(164)).apply {
+            setMargins(dp(12), 0, dp(12), 0)
         }
 
     private fun hudControlButton(labelText: String, icon: HudIcon, control: String): LinearLayout =
         LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
-            setPadding(14, 12, 14, 12)
+            setPadding(dp(14), dp(12), dp(14), dp(12))
             background = hudPanelDrawable()
-            addView(HudIconView(context, icon), LinearLayout.LayoutParams(MATCH, 48))
+            addView(HudIconView(context, icon), LinearLayout.LayoutParams(MATCH, dp(48)))
             val text = TextView(context).apply {
                 text = labelText
                 setTextColor(PHOSPHOR)
@@ -1065,7 +1203,7 @@ class GamepadExtensionActivity : Activity() {
                 isSingleLine = true
                 maxLines = 1
             }
-            addView(text, LinearLayout.LayoutParams(MATCH, 42).apply { topMargin = 6 })
+            addView(text, LinearLayout.LayoutParams(MATCH, dp(42)).apply { topMargin = dp(6) })
             setOnTouchListener { view, event ->
                 when (event.actionMasked) {
                     MotionEvent.ACTION_DOWN -> {
@@ -1087,7 +1225,7 @@ class GamepadExtensionActivity : Activity() {
 
     private fun statusStrip(label: String): TextView =
         label(label, 13f, DIM_GREEN).apply {
-            setPadding(16, 8, 16, 8)
+            setPadding(dp(16), dp(8), dp(16), dp(8))
             background = panelDrawable(alpha = 150)
             status = this
         }
@@ -1103,7 +1241,7 @@ class GamepadExtensionActivity : Activity() {
             zoomLabel = label("1.0x", 10f, DIM_GREEN, bold = false)
             zoomLabel.includeFontPadding = false
             zoomLabel.letterSpacing = 0.18f
-            addView(zoomLabel, LinearLayout.LayoutParams(MATCH, 26).apply { setMargins(0, 0, 0, 6) })
+            addView(zoomLabel, LinearLayout.LayoutParams(MATCH, dp(26)).apply { setMargins(0, 0, 0, dp(6)) })
             addView(
                 zoomTextButton("+").apply { setOnClickListener { setZoom(currentZoom + 0.2f) } },
                 zoomButtonParams(bottom = 6),
@@ -1111,7 +1249,7 @@ class GamepadExtensionActivity : Activity() {
             zoomSlider = ZoomSliderView(context) { fraction ->
                 setZoom(1f + (maxZoom - 1f) * fraction)
             }
-            addView(zoomSlider, LinearLayout.LayoutParams(44, 154).apply { setMargins(0, 0, 0, 6) })
+            addView(zoomSlider, LinearLayout.LayoutParams(dp(44), dp(154)).apply { setMargins(0, 0, 0, dp(6)) })
             addView(
                 zoomTextButton("-").apply { setOnClickListener { setZoom(currentZoom - 0.2f) } },
                 zoomButtonParams(),
@@ -1119,16 +1257,16 @@ class GamepadExtensionActivity : Activity() {
         }
 
     private fun zoomButtonParams(bottom: Int = 0): LinearLayout.LayoutParams =
-        LinearLayout.LayoutParams(54, 54).apply {
-            setMargins(0, 0, 0, bottom)
+        LinearLayout.LayoutParams(dp(54), dp(54)).apply {
+            setMargins(0, 0, 0, dp(bottom))
         }
 
     private fun profileEditorRow(first: View, second: View): LinearLayout =
         LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
-            addView(first, LinearLayout.LayoutParams(0, MATCH, 1f).apply { rightMargin = 8 })
-            addView(second, LinearLayout.LayoutParams(0, MATCH, 1f).apply { leftMargin = 8 })
+            addView(first, LinearLayout.LayoutParams(0, MATCH, 1f).apply { rightMargin = dp(8) })
+            addView(second, LinearLayout.LayoutParams(0, MATCH, 1f).apply { leftMargin = dp(8) })
         }
 
     private fun virtualButtonRow(
@@ -1147,20 +1285,20 @@ class GamepadExtensionActivity : Activity() {
                     virtualOptionButton(option, selected = option == current) { onSelect(option) }
                 }
                 addView(view, LinearLayout.LayoutParams(0, MATCH, 1f).apply {
-                    leftMargin = if (index == 0) 0 else 6
-                    rightMargin = if (index == 3) 0 else 6
+                    leftMargin = if (index == 0) 0 else dp(6)
+                    rightMargin = if (index == 3) 0 else dp(6)
                 })
             }
         }
 
     private fun profileEditorRowParams(): LinearLayout.LayoutParams =
-        LinearLayout.LayoutParams(MATCH, 98).apply {
-            setMargins(0, 6, 0, 6)
+        LinearLayout.LayoutParams(MATCH, dp(98)).apply {
+            setMargins(0, dp(6), 0, dp(6))
         }
 
     private fun virtualButtonRowParams(): LinearLayout.LayoutParams =
-        LinearLayout.LayoutParams(MATCH, 76).apply {
-            setMargins(0, 5, 0, 5)
+        LinearLayout.LayoutParams(MATCH, dp(76)).apply {
+            setMargins(0, dp(5), 0, dp(5))
         }
 
     private fun slideMenu(): FrameLayout =
@@ -1170,19 +1308,19 @@ class GamepadExtensionActivity : Activity() {
             var toggle: HamburgerButtonView? = null
             val panel = LinearLayout(context).apply {
                 orientation = LinearLayout.VERTICAL
-                setPadding(22, 24, 22, 18)
+                setPadding(dp(22), dp(24), dp(22), dp(18))
                 visibility = View.GONE
                 background = menuPanelDrawable()
                 addView(label("ARGUN.EXT", 10f, DIM_GREEN).apply {
                     gravity = Gravity.LEFT or Gravity.CENTER_VERTICAL
                     letterSpacing = 0.12f
                     includeFontPadding = true
-                }, LinearLayout.LayoutParams(MATCH, 32))
+                }, LinearLayout.LayoutParams(MATCH, dp(32)))
                 addView(label("SETTINGS", 18f, PHOSPHOR, bold = true).apply {
                     gravity = Gravity.LEFT or Gravity.CENTER_VERTICAL
                     letterSpacing = 0.08f
                     includeFontPadding = true
-                }, LinearLayout.LayoutParams(MATCH, 46))
+                }, LinearLayout.LayoutParams(MATCH, dp(46)))
                 addView(menuButton("Profile") { showProfileMenu() }, menuItemParams())
                 addView(menuButton("Deadzone") { showDeadzoneMenu() }, menuItemParams())
                 addView(menuButton("Calibrate") {
@@ -1207,16 +1345,16 @@ class GamepadExtensionActivity : Activity() {
                 }
             }
             toggle = toggleView
-            addView(panel, FrameLayout.LayoutParams(300, MATCH, Gravity.LEFT))
-            addView(toggleView, FrameLayout.LayoutParams(50, 50, Gravity.LEFT or Gravity.BOTTOM).apply {
-                leftMargin = 20
-                bottomMargin = 24
+            addView(panel, FrameLayout.LayoutParams(dp(300), MATCH, Gravity.LEFT))
+            addView(toggleView, FrameLayout.LayoutParams(dp(50), dp(50), Gravity.LEFT or Gravity.BOTTOM).apply {
+                leftMargin = dp(20)
+                bottomMargin = dp(24)
             })
         }
 
     private fun menuItemParams(): LinearLayout.LayoutParams =
-        LinearLayout.LayoutParams(MATCH, 68).apply {
-            setMargins(0, 10, 0, 0)
+        LinearLayout.LayoutParams(MATCH, dp(68)).apply {
+            setMargins(0, dp(10), 0, 0)
         }
 
     private fun action(title: String, subtitle: String, onClick: () -> Unit): Button =
@@ -1237,9 +1375,9 @@ class GamepadExtensionActivity : Activity() {
             typeface = Typeface.MONOSPACE
             gravity = Gravity.CENTER
             includeFontPadding = true
-            minHeight = 92
+            minHeight = dp(92)
             setLineSpacing(0f, 0.96f)
-            setPadding(10, 8, 10, 8)
+            setPadding(dp(10), dp(8), dp(10), dp(8))
             background = panelDrawable(alpha = 130)
             isClickable = true
             isFocusable = true
@@ -1260,7 +1398,7 @@ class GamepadExtensionActivity : Activity() {
             includeFontPadding = true
             maxLines = 2
             setLineSpacing(0f, 0.92f)
-            setPadding(6, 4, 6, 4)
+            setPadding(dp(6), dp(4), dp(6), dp(4))
             background = panelDrawable(alpha = if (selected) 165 else 105)
             isClickable = true
             isFocusable = true
@@ -1275,7 +1413,7 @@ class GamepadExtensionActivity : Activity() {
             typeface = Typeface.MONOSPACE
             minWidth = 0
             minHeight = 0
-            setPadding(12, 6, 12, 6)
+            setPadding(dp(12), dp(6), dp(12), dp(6))
             background = panelDrawable(alpha = 130)
         }
 
@@ -1317,12 +1455,12 @@ class GamepadExtensionActivity : Activity() {
             typeface = Typeface.MONOSPACE
             gravity = Gravity.LEFT or Gravity.CENTER_VERTICAL
             includeFontPadding = true
-            minHeight = 68
-            setPadding(16, 0, 16, 0)
+            minHeight = dp(68)
+            setPadding(dp(16), 0, dp(16), 0)
             background = GradientDrawable().apply {
                 setColor(Color.argb(8, 0, 255, 65))
                 setStroke(1, Color.argb(16, 0, 255, 65))
-                cornerRadius = 6f
+                cornerRadius = dp(6).toFloat()
             }
             setOnClickListener { onClick() }
         }
@@ -1344,18 +1482,21 @@ class GamepadExtensionActivity : Activity() {
             gravity = Gravity.CENTER
         }
 
+    private fun dp(value: Int): Int =
+        (value * resources.displayMetrics.density).roundToInt()
+
     private fun panelDrawable(alpha: Int = 120): GradientDrawable =
         GradientDrawable().apply {
             setColor(Color.argb(alpha, 0, 20, 8))
             setStroke(1, PHOSPHOR)
-            cornerRadius = 6f
+            cornerRadius = dp(6).toFloat()
         }
 
     private fun hudPanelDrawable(alpha: Int = 90): GradientDrawable =
         GradientDrawable().apply {
             setColor(Color.argb(alpha, 0, 0, 0))
             setStroke(1, Color.argb(70, 0, 255, 65))
-            cornerRadius = 8f
+            cornerRadius = dp(8).toFloat()
         }
 
     private fun menuPanelDrawable(): GradientDrawable =
@@ -1395,9 +1536,10 @@ class GamepadExtensionActivity : Activity() {
                     checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED
                 }
             ) {
-                connectGunFirst()
+                startGunConnectionCycle()
             } else {
-                showGunLinkGate("Permissions updated")
+                pendingGunStart = false
+                showGunLinkGate("Bluetooth/LAN permissions required", autoStart = false)
             }
         }
     }
@@ -1418,34 +1560,34 @@ class GamepadExtensionActivity : Activity() {
 
     private fun rowParams(): LinearLayout.LayoutParams =
         LinearLayout.LayoutParams(MATCH, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-            setMargins(0, 8, 0, 8)
+            setMargins(0, dp(8), 0, dp(8))
         }
 
     private fun centeredPanelParams(): FrameLayout.LayoutParams =
-        FrameLayout.LayoutParams(420, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER)
+        FrameLayout.LayoutParams(dp(420), ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER)
 
     private fun profileEditorParams(): FrameLayout.LayoutParams =
-        FrameLayout.LayoutParams(900, MATCH, Gravity.CENTER).apply {
-            topMargin = 24
-            bottomMargin = 24
+        FrameLayout.LayoutParams(dp(900), MATCH, Gravity.CENTER).apply {
+            topMargin = dp(24)
+            bottomMargin = dp(24)
         }
 
     private fun mappingChooserParams(): FrameLayout.LayoutParams =
-        FrameLayout.LayoutParams(1180, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER)
+        FrameLayout.LayoutParams(dp(1180), ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER)
 
     private fun topBarParams(): FrameLayout.LayoutParams =
         FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply {
-            topMargin = 16
+            topMargin = dp(16)
         }
 
     private fun statusParams(): FrameLayout.LayoutParams =
         FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply {
-            bottomMargin = 14
+            bottomMargin = dp(14)
         }
 
     private fun zoomRailParams(): FrameLayout.LayoutParams =
-        FrameLayout.LayoutParams(78, 330, Gravity.RIGHT or Gravity.CENTER_VERTICAL).apply {
-            rightMargin = 18
+        FrameLayout.LayoutParams(dp(78), dp(330), Gravity.RIGHT or Gravity.CENTER_VERTICAL).apply {
+            rightMargin = dp(18)
         }
 
     private fun menuParams(): FrameLayout.LayoutParams =

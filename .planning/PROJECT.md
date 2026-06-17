@@ -2,9 +2,9 @@
 
 ## What This Is
 
-Bluetooth Gun Driver is a clean replacement host/driver stack for a discontinued iPega AR gun joystick. An Android app connects to the physical gun over Bluetooth, reads gun controls plus Android device motion sensors, and forwards a normalized input stream over a wireless LAN link to desktop companion drivers for macOS on Apple Silicon and Windows 11 x64.
+Bluetooth Gun Driver is a clean replacement host/driver stack for a discontinued iPega AR gun joystick. An Android app connects to the physical gun over Bluetooth, reads gun controls plus Android device motion sensors, applies Android-owned profile and calibration mapping, and exposes mapped input through Android Bluetooth HID for macOS or through LAN diagnostics and backend paths for desktop companion use.
 
-The desktop side exposes the stream as a regular gamepad-style gun controller so games and tools can see joystick axes, buttons, trigger, reload, and v1 haptic feedback without depending on the original discontinued Android apps. The first validation target is a simple joystick visualizer that proves end-to-end input, configurable aim mapping, recentering, and phone-vibration feedback.
+The desktop side receives the Android-mapped LAN stream for diagnostics, the visualizer, read-only active profile metadata, and platform backend runtime work such as the Windows VHF fallback. The first validation target is a simple joystick visualizer that proves end-to-end input, configurable Android aim mapping, recentering, and phone-vibration feedback.
 
 ## Core Value
 
@@ -58,7 +58,7 @@ The desired architecture is split into three pieces:
 
 - Android gun server app: owns Bluetooth connection to the iPega gun, reads Android motion sensors, normalizes events, handles recenter gesture, and plays v1 phone haptic feedback from desktop haptic commands.
 - Wireless transport: local Wi-Fi/LAN in v1, paired by QR or pairing code, designed so other wireless transports can be added later if needed.
-- Desktop companion/driver: receives normalized stream, applies desktop-hosted profiles, exposes a virtual gamepad-style gun, and sends haptic commands back to Android.
+- Desktop companion/driver: receives Android-mapped LAN stream, displays read-only active profile metadata and diagnostics, owns platform backend runtime boundaries, and sends authenticated haptic commands back to Android.
 
 Both desktop targets matter for v1: Windows 11 x64 and macOS on M3/Apple Silicon. The first acceptance harness is a simple joystick visualizer rather than a specific commercial game.
 
@@ -82,7 +82,7 @@ Both desktop targets matter for v1: Windows 11 x64 and macOS on M3/Apple Silicon
 | Support Windows and macOS in v1 | Both Windows 11 x64 and macOS M3 are required target desktops. | - Windows validated in Phase 6; macOS no-subscription path validated through Android Bluetooth HID in Phase 7 |
 | Expose a gamepad-style gun HID shape | Regular joystick/gamepad compatibility is safer than a custom gun HID report. | - Validated in Phase 6 Windows VHF and Phase 7 Android Bluetooth HID |
 | Use Wi-Fi/LAN transport for v1 | Simpler local pairing, debugging, and latency measurement than desktop Bluetooth/BLE. | - Validated in Phase 4 |
-| Store aim profiles on Android | Phase 8 context supersedes the old desktop-local mapping decision after the Android Bluetooth HID reroute; Android owns profile storage, editing, validation, and application. | - Validated in Phase 8 |
+| Store aim profiles on Android | Phase 8 context supersedes the old desktop-local mapping decision after the Android Bluetooth HID reroute; Android owns profile storage, editing, validation, calibration, and application. | - Validated in Phase 8; desktop remains read-only metadata/diagnostics/backend |
 | Support accelerometer-aware motion aim | Fused rotation sensors can improve stability when gyro and accelerometer data are available, and accelerometer/gravity tilt can keep a limited aiming mode working on devices without a gyroscope. | - Validated in Phase 2 |
 | Pair by QR or pairing code | Reduces manual IP setup while keeping local-only networking. | - Validated in Phase 3 |
 | Validate first with a joystick visualizer | Proves the input and phone-haptic pipeline before game-specific work. | - Validated in Phase 9 |
