@@ -4,8 +4,8 @@ milestone: v1.1
 milestone_name: milestone
 status: active
 stopped_at: Phase 11 Plan 01 started
-last_updated: "2026-06-15T20:53:17.016Z"
-last_activity: 2026-06-15 -- Phase 11 Gamepad Extension Android User App started
+last_updated: "2026-06-17T10:45:00-03:00"
+last_activity: 2026-06-17 -- Completed quick task 260617-agt: create BT Gun custom Codex agents
 progress:
   total_phases: 11
   completed_phases: 10
@@ -29,7 +29,7 @@ Phase: 11 (Gamepad Extension Android User App) — ACTIVE
 Plan: 1 of 1
 Next phase: TBD after v1.1 vertical slice verification
 Status: Implementing user-facing Android app beside v1 debug host
-Last activity: 2026-06-15 -- Phase 11 started
+Last activity: 2026-06-17 -- Completed quick task 260617-agt: create BT Gun custom Codex agents
 
 Progress: [███████████████████░] 62/63 completed plans. Phase 11 has 0/1 plans executed.
 
@@ -294,6 +294,7 @@ None.
 | 260611-egh | defer macOS Bluetooth HID haptics and remove failed PID ForceFeedback experiment | 2026-06-11 | this commit | [260611-egh-defer-haptic-on-macos-clean-up-failed-pi](./quick/260611-egh-defer-haptic-on-macos-clean-up-failed-pi/) |
 | 260612-n0r | improve Android host mobile UI design using current Android and Material design guidance | 2026-06-12 | d23d0f4 | [260612-n0r-improve-android-host-mobile-ui-design-us](./quick/260612-n0r-improve-android-host-mobile-ui-design-us/) |
 | 260614-4qb | Recover Android gun connection stuck after app closed without Stop session | 2026-06-14 | b3644d6 | [260614-4qb-recover-android-gun-connection-stuck-aft](./quick/260614-4qb-recover-android-gun-connection-stuck-aft/) |
+| 260617-agt | create BT Gun custom Codex agents | 2026-06-17 | this commit | [260617-agt-create-btgun-custom-codex-agents](./quick/260617-agt-create-btgun-custom-codex-agents/) |
 
 ## Deferred Items
 
