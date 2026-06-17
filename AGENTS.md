@@ -146,7 +146,7 @@ Protocol/control/rumble finding count verified only when static decompile clue +
 
 ## Project Skills
 
-No project skills found. Custom Codex agents live under `.codex/agents/*.md`; use them for BT Gun reviews before broad implementation work.
+No project skills found. Custom Codex agents live under `.codex/agents/*.toml`; use them for BT Gun reviews before broad implementation work.
 
 <!-- GSD:skills-end -->
 
