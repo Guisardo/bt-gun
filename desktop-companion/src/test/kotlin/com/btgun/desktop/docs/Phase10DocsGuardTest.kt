@@ -40,9 +40,9 @@ private fun requiredDocsExist() {
 private fun androidSetupDocCoversPack01() {
     val doc = readDoc("docs/setup/android-build-device-testing.md")
     listOf(
-        "JAVA_HOME=/opt/homebrew/opt/openjdk@17",
+        "JAVA_HOME=\"\$JAVA_HOME\"",
         "GRADLE_USER_HOME=/private/tmp/bt-gun-gradle-home",
-        "ANDROID_HOME=/Users/lucas.rancez/Library/Android/sdk",
+        "ANDROID_HOME=\"\$ANDROID_HOME\"",
         "adb logcat",
         "Start Bluetooth gamepad",
         "real gun",

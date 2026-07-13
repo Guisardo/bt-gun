@@ -63,6 +63,7 @@ data class DesktopHapticCommand(
                     pulse.strength !in 0.0..1.0 ||
                     pulse.atMs + pulse.durationMs > 2_000L
             } -> "invalid patternTimeline"
+            patternTimeline.hasOverlaps() -> "invalid patternTimeline"
             else -> null
         }
 
@@ -146,6 +147,14 @@ class DesktopHapticCommandExecutor(
         if (now - receivedElapsedNanos > command.ttlMs * NANOS_PER_MILLI) {
             return result(command.commandId, HapticResultStatus.EXPIRED, "haptic command expired", now)
         }
+        if (command.pattern != null) {
+            return result(command.commandId, HapticResultStatus.UNSUPPORTED, "haptic pattern playback unsupported", now)
+        }
+        if (command.strength <= 0.0) {
+            active = null
+            val status = phone.cancel()
+            return result(command.commandId, status, cancelDetail(status), elapsedRealtimeNanos())
+        }
         if (command.patternTimeline.isNotEmpty()) {
             if (active != null) {
                 phone.cancel()
@@ -167,14 +176,6 @@ class DesktopHapticCommandExecutor(
                 is PhoneHapticStartResult.Failed ->
                     result(command.commandId, HapticResultStatus.FAILED, start.detail, elapsedRealtimeNanos())
             }
-        }
-        if (command.pattern != null) {
-            return result(command.commandId, HapticResultStatus.UNSUPPORTED, "haptic pattern playback unsupported", now)
-        }
-        if (command.strength <= 0.0) {
-            active = null
-            val status = phone.cancel()
-            return result(command.commandId, status, cancelDetail(status), elapsedRealtimeNanos())
         }
         if (active != null) {
             phone.cancel()
@@ -281,4 +282,15 @@ private fun JsonObject.timelineField(): List<HapticTimelinePulse>? {
             )
         }
     }.getOrNull()
+}
+
+internal fun List<HapticTimelinePulse>.hasOverlaps(): Boolean {
+    var previousEnd = 0L
+    sortedBy { it.atMs }.forEachIndexed { index, pulse ->
+        if (index > 0 && pulse.atMs < previousEnd) {
+            return true
+        }
+        previousEnd = pulse.atMs + pulse.durationMs
+    }
+    return false
 }

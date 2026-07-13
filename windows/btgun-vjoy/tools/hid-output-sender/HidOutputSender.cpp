@@ -46,18 +46,44 @@ void putUInt16Le(uint8_t* bytes, size_t offset, unsigned long value) {
     bytes[offset + 1] = static_cast<uint8_t>((value >> 8) & 0xffu);
 }
 
-bool productMatches(HANDLE handle) {
-    wchar_t product[128] = {};
-    if (HidD_GetProductString(handle, product, sizeof(product)) &&
-        wcsstr(product, BTGVJOY_DEVICE_NAME_W) != nullptr) {
-        return true;
-    }
-
+bool hidVidPidMatches(HANDLE handle) {
     HIDD_ATTRIBUTES attributes = {};
     attributes.Size = sizeof(attributes);
     return HidD_GetAttributes(handle, &attributes) &&
         attributes.VendorID == BTGVJOY_VENDOR_ID &&
         attributes.ProductID == BTGVJOY_PRODUCT_ID;
+}
+
+bool propertyContains(HDEVINFO info, SP_DEVINFO_DATA& deviceInfo, DWORD property, const wchar_t* needle) {
+    DWORD requiredBytes = 0;
+    SetupDiGetDeviceRegistryPropertyW(info, &deviceInfo, property, nullptr, nullptr, 0, &requiredBytes);
+    if (requiredBytes == 0) {
+        return false;
+    }
+    std::vector<wchar_t> buffer((requiredBytes / sizeof(wchar_t)) + 1u, L'\0');
+    if (!SetupDiGetDeviceRegistryPropertyW(
+            info,
+            &deviceInfo,
+            property,
+            nullptr,
+            reinterpret_cast<PBYTE>(buffer.data()),
+            requiredBytes,
+            nullptr)) {
+        return false;
+    }
+    const size_t needleLength = wcslen(needle);
+    for (size_t index = 0; index + needleLength <= buffer.size(); ++index) {
+        if (wcsncmp(buffer.data() + index, needle, needleLength) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool deviceNodePreferred(HDEVINFO info, SP_DEVINFO_DATA& deviceInfo) {
+    return propertyContains(info, deviceInfo, SPDRP_HARDWAREID, BTGVJOY_HARDWARE_ID_W) ||
+        propertyContains(info, deviceInfo, SPDRP_FRIENDLYNAME, BTGVJOY_DEVICE_NAME_W) ||
+        propertyContains(info, deviceInfo, SPDRP_DEVICEDESC, BTGVJOY_DEVICE_NAME_W);
 }
 
 HANDLE openByPath(const std::wstring& path) {
@@ -101,13 +127,15 @@ HANDLE openFirstMatchingHid() {
         std::vector<uint8_t> detailBytes(requiredBytes);
         auto* detail = reinterpret_cast<SP_DEVICE_INTERFACE_DETAIL_DATA_W*>(detailBytes.data());
         detail->cbSize = sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA_W);
+        SP_DEVINFO_DATA deviceInfo;
+        deviceInfo.cbSize = sizeof(deviceInfo);
         if (!SetupDiGetDeviceInterfaceDetailW(
                 info,
                 &interfaceData,
                 detail,
                 requiredBytes,
                 nullptr,
-                nullptr)) {
+                &deviceInfo)) {
             continue;
         }
 
@@ -115,11 +143,22 @@ HANDLE openFirstMatchingHid() {
         if (candidate == INVALID_HANDLE_VALUE) {
             continue;
         }
-        if (productMatches(candidate)) {
+        if (!hidVidPidMatches(candidate)) {
+            CloseHandle(candidate);
+            continue;
+        }
+        if (deviceNodePreferred(info, deviceInfo)) {
+            if (result != INVALID_HANDLE_VALUE) {
+                CloseHandle(result);
+            }
             result = candidate;
             break;
         }
-        CloseHandle(candidate);
+        if (result == INVALID_HANDLE_VALUE) {
+            result = candidate;
+        } else {
+            CloseHandle(candidate);
+        }
     }
 
     SetupDiDestroyDeviceInfoList(info);
@@ -129,7 +168,7 @@ HANDLE openFirstMatchingHid() {
 void printUsage() {
     std::wcout
         << L"ERR usage: btgun-hid-output-sender.exe --strength <0..1|0..255> "
-        << L"--duration-ms <1..1000> --ttl-ms <1..2000> [--path <hid-path>]"
+        << L"--duration-ms <1..1000> --ttl-ms <1..2000> [--path <hid-path>] [--allow-unsafe-path]"
         << std::endl;
 }
 
@@ -140,6 +179,7 @@ int wmain(int argc, wchar_t** argv) {
     unsigned long durationMs = 0;
     unsigned long ttlMs = 0;
     std::wstring explicitPath;
+    bool allowUnsafePath = false;
 
     for (int i = 1; i < argc; ++i) {
         std::wstring arg(argv[i]);
@@ -160,6 +200,8 @@ int wmain(int argc, wchar_t** argv) {
             }
         } else if (arg == L"--path" && i + 1 < argc) {
             explicitPath = argv[++i];
+        } else if (arg == L"--allow-unsafe-path") {
+            allowUnsafePath = true;
         } else {
             printUsage();
             return 2;
@@ -174,6 +216,11 @@ int wmain(int argc, wchar_t** argv) {
     HANDLE handle = explicitPath.empty() ? openFirstMatchingHid() : openByPath(explicitPath);
     if (handle == INVALID_HANDLE_VALUE) {
         std::wcout << L"ERR open_failed" << std::endl;
+        return 1;
+    }
+    if (!explicitPath.empty() && !allowUnsafePath && !hidVidPidMatches(handle)) {
+        CloseHandle(handle);
+        std::wcout << L"ERR identity_mismatch" << std::endl;
         return 1;
     }
 

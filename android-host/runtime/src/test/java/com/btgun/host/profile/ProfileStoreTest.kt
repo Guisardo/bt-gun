@@ -7,6 +7,8 @@ fun main() {
     storePersistsDuplicateRenameEditSelectDeleteAndReset()
     storeRejectsBuiltInMutationAndInvalidProfiles()
     storeMigratesActiveProfileCalibration()
+    storeSavesActiveProfileCalibration()
+    calibrationMigrationDoesNotOverwriteCorruptStore()
 }
 
 private fun defaultDocumentContainsImmutableDefaultVisualizer() {
@@ -164,6 +166,33 @@ private fun storeMigratesActiveProfileCalibration() {
 
     val duplicate = store.migrateActiveProfileCalibration("new-value").rejected()
     expectEquals("skip duplicate migration", "calibration_already_present", duplicate.reason)
+}
+
+private fun storeSavesActiveProfileCalibration() {
+    val store = ProfileStore(InMemoryProfilePreferences(), idFactory = deterministicIds(), nowEpochMillis = { 100L })
+    val copy = store.duplicateProfile(DEFAULT_VISUALIZER_PROFILE_ID).saved().document.profiles.first { !it.builtIn }
+    val selected = store.selectProfile(copy.profileId).saved().document
+
+    val saved = store.saveActiveProfileCalibration("v1|provider|100|0,0|10,0|0,-10|10,-10").saved().document
+    val active = saved.activeProfile()
+
+    expectEquals("active selected before save", copy.profileId, selected.activeProfileId)
+    expectEquals("saved active", copy.profileId, active.profileId)
+    expectEquals("saved calibration", "v1|provider|100|0,0|10,0|0,-10|10,-10", active.aimCalibration)
+    expectEquals("saved profile revision", 2L, active.revision)
+    expectEquals("saved document revision", 4L, saved.documentRevision)
+}
+
+private fun calibrationMigrationDoesNotOverwriteCorruptStore() {
+    val preferences = InMemoryProfilePreferences("{not-json")
+    val store = ProfileStore(preferences, idFactory = deterministicIds(), nowEpochMillis = { 100L })
+
+    val migrated = store.migrateActiveProfileCalibration("v1|provider|100|0,0|10,0|0,-10|10,-10").rejected()
+    val saved = store.saveActiveProfileCalibration("v1|provider|100|0,0|10,0|0,-10|10,-10").rejected()
+
+    expectEquals("migration corrupt rejected", "profile_document_rejected", migrated.reason)
+    expectEquals("save corrupt rejected", "profile_document_rejected", saved.reason)
+    expectEquals("corrupt raw preserved", "{not-json", preferences.rawValue())
 }
 
 private fun ProfileDocument.profile(profileId: String): BtGunProfile =

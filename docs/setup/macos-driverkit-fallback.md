@@ -1,6 +1,6 @@
 # macOS HIDDriverKit Fallback Proof
 
-This is the Phase 7 lab-only fallback path for `corehid-runtime-blocked`. It is not a production macOS support claim and does not make DESK-03 or DESK-06 complete until the proof rows pass.
+This is the Phase 7 lab-only fallback scaffold for `corehid-runtime-blocked`. It is not a production macOS support claim and does not add or refresh DESK-03/DESK-06 support. Android Bluetooth HID remains the accepted macOS input route; macOS HID haptics remain unsupported/deferred on the stable Android HID descriptor.
 
 ## Trigger
 
@@ -108,11 +108,13 @@ Output probe after approval:
 native/macos-hid-helper/.build/debug/BtGunMacosHidOutputProbe --strength 180 --duration-ms 120 --ttl-ms 500
 ```
 
-Required pass rows if proof succeeds:
+Required pass rows if a future lab proof succeeds:
 
 - `phase7-driverkit-system-extension-approved`
 - `phase7-driverkit-cli-enumeration`
 - `phase7-driverkit-output-probe`
+
+These rows would prove only the approved lab fallback. They are not a replacement for the Android Bluetooth HID product route without new planning and compatibility review.
 
 ## Security-Relaxed Lab Commands
 

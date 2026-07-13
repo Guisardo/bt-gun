@@ -11,14 +11,21 @@ import java.io.BufferedWriter
 import java.io.File
 import java.io.InputStreamReader
 import java.io.OutputStreamWriter
+import java.util.concurrent.Callable
+import java.util.concurrent.Executors
+import java.util.concurrent.ThreadFactory
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 
 data class WindowsDriverBridgeConfig(
     val command: List<String> = listOf("DriverBridge.exe"),
     val workingDirectory: File? = null,
+    val requestTimeoutMillis: Long = 500L,
 ) {
     init {
         require(command.isNotEmpty()) { "command must not be empty" }
         require(command.all { it.isNotBlank() }) { "command entries must be nonblank" }
+        require(requestTimeoutMillis > 0L) { "requestTimeoutMillis must be positive" }
     }
 }
 
@@ -56,6 +63,11 @@ class WindowsDriverBridge(
     private val config: WindowsDriverBridgeConfig = WindowsDriverBridgeConfig(),
 ) : WindowsDriverBridgeClient {
     private val lock = Any()
+    private val requestExecutor = Executors.newCachedThreadPool(
+        ThreadFactory { task ->
+            Thread(task, "btgun-windows-driver-bridge").also { it.isDaemon = true }
+        },
+    )
     private var process: Process? = null
     private var stdin: BufferedWriter? = null
     private var stdout: BufferedReader? = null
@@ -63,8 +75,8 @@ class WindowsDriverBridge(
     override fun submitInputReport(report: WindowsInputReport): WindowsDriverBridgeResult =
         synchronized(lock) {
             runCatching {
-                writeCommand("SUBMIT_INPUT ${report.bytes.toHex()}")
-                when (val response = readResponse()) {
+                val sourceSequence = report.sourceSequence ?: 0L
+                when (val response = requestLocked("SUBMIT_INPUT $sourceSequence ${report.bytes.toHex()}")) {
                     "OK" -> WindowsDriverBridgeResult.Ok
                     null -> WindowsDriverBridgeResult.Error("driver bridge closed")
                     else -> parseError(response) ?: WindowsDriverBridgeResult.Error("unexpected driver bridge response")
@@ -77,9 +89,8 @@ class WindowsDriverBridge(
     override fun readOutputReport(): ByteArray? =
         synchronized(lock) {
             runCatching {
-                writeCommand("READ_OUTPUT")
-                val response = readResponse() ?: return@synchronized null
-                if (response == "OK") return@synchronized null
+                val response = requestLocked("READ_OUTPUT") ?: return@synchronized null
+                if (response == "NO_OUTPUT") return@synchronized null
                 if (!response.startsWith("OUTPUT ")) return@synchronized null
                 response.removePrefix("OUTPUT ")
                     .hexToBytes()
@@ -90,46 +101,52 @@ class WindowsDriverBridge(
     override fun readStatus(): WindowsDriverBridgeStatus =
         synchronized(lock) {
             runCatching {
-                writeCommand("STATUS")
-                val response = readResponse() ?: return@synchronized WindowsDriverBridgeStatus()
+                val response = requestLocked("STATUS") ?: return@synchronized WindowsDriverBridgeStatus()
                 parseStatus(response) ?: WindowsDriverBridgeStatus()
             }.getOrDefault(WindowsDriverBridgeStatus())
         }
 
     override fun close() {
         synchronized(lock) {
-            runCatching {
-                if (process?.isAlive == true) {
-                    stdin?.write("QUIT")
-                    stdin?.newLine()
-                    stdin?.flush()
-                }
-            }
-            runCatching { stdin?.close() }
-            runCatching { stdout?.close() }
-            runCatching { process?.destroy() }
-            stdin = null
-            stdout = null
-            process = null
+            closeProcessLocked(sendQuit = true)
         }
     }
 
-    private fun writeCommand(command: String) {
+    private fun requestLocked(command: String): String? {
         ensureProcess()
         val writer = requireNotNull(stdin) { "driver bridge stdin unavailable" }
-        writer.write(command)
+        val reader = requireNotNull(stdout) { "driver bridge stdout unavailable" }
+        val future = requestExecutor.submit(
+            Callable {
+                writer.write(command)
+                writer.newLine()
+                writer.flush()
+                reader.readLine()?.trim()
+            },
+        )
+        return try {
+            future.get(config.requestTimeoutMillis, TimeUnit.MILLISECONDS)
+        } catch (timeout: TimeoutException) {
+            future.cancel(true)
+            poisonProcessLocked()
+            throw timeout
+        } catch (error: Throwable) {
+            poisonProcessLocked()
+            throw error
+        }
+    }
+
+    private fun writeQuitLocked() {
+        if (process?.isAlive != true) return
+        val writer = requireNotNull(stdin) { "driver bridge stdin unavailable" }
+        writer.write("QUIT")
         writer.newLine()
         writer.flush()
     }
 
-    private fun readResponse(): String? {
-        ensureProcess()
-        return stdout?.readLine()?.trim()
-    }
-
     private fun ensureProcess() {
         if (process?.isAlive == true && stdin != null && stdout != null) return
-        close()
+        closeProcessLocked(sendQuit = false)
         val builder = ProcessBuilder(config.command)
             .redirectError(ProcessBuilder.Redirect.DISCARD)
         config.workingDirectory?.let(builder::directory)
@@ -137,6 +154,24 @@ class WindowsDriverBridge(
         process = started
         stdin = BufferedWriter(OutputStreamWriter(started.outputStream, Charsets.UTF_8))
         stdout = BufferedReader(InputStreamReader(started.inputStream, Charsets.UTF_8))
+    }
+
+    private fun poisonProcessLocked() {
+        closeProcessLocked(sendQuit = false)
+    }
+
+    private fun closeProcessLocked(sendQuit: Boolean) {
+        runCatching {
+            if (sendQuit) {
+                writeQuitLocked()
+            }
+        }
+        runCatching { stdin?.close() }
+        runCatching { stdout?.close() }
+        runCatching { process?.destroyForcibly() ?: process?.destroy() }
+        stdin = null
+        stdout = null
+        process = null
     }
 
     private fun parseError(response: String): WindowsDriverBridgeResult.Error? {

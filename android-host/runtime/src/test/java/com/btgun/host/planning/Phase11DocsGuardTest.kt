@@ -4,6 +4,8 @@ import java.io.File
 
 fun main() {
     phase11DocsExistAndNameUserAppContracts()
+    userAppAutoStartsGunConnection()
+    userAppStagesHudAndProfileReloads()
 }
 
 private fun phase11DocsExistAndNameUserAppContracts() {
@@ -33,6 +35,39 @@ private fun phase11DocsExistAndNameUserAppContracts() {
     expectContains("roadmap active", roadmapText, "Gamepad Extension Android User App")
 }
 
+private fun userAppAutoStartsGunConnection() {
+    val root = findRepoRoot()
+    val activity = root.resolve("android-host/user-app/src/main/java/com/btgun/gamepadextension/GamepadExtensionActivity.kt")
+    if (!activity.isFile) {
+        throw AssertionError("missing ${activity.path}")
+    }
+    val activityText = activity.readText()
+    expectContains("auto gun start helper", activityText, "startGunConnectionCycle")
+    expectContains("gun gate auto post", activityText, "handler.post { startGunConnectionCycle() }")
+    expectNotContains("manual connect action", activityText, "action(\"Connect gun\"")
+}
+
+private fun userAppStagesHudAndProfileReloads() {
+    val root = findRepoRoot()
+    val activity = root.resolve("android-host/user-app/src/main/java/com/btgun/gamepadextension/GamepadExtensionActivity.kt")
+    val service = root.resolve("android-host/runtime/src/main/java/com/btgun/host/HostSessionService.kt")
+    val playMode = root.resolve("android-host/runtime/src/main/java/com/btgun/host/play/PlayModeController.kt")
+    val activityText = activity.readText()
+    val serviceText = service.readText()
+    val playModeText = playMode.readText()
+
+    expectContains("bluetooth opens pairing window", activityText, "ACTION_START_HID_PAIRING_WINDOW")
+    expectContains("profile reload helper", activityText, "reloadActiveProfileIfRuntimeActive")
+    expectContains("profile reload guarded", activityText, "shouldStartServiceForProfileReload")
+    expectContains("camera generation guard", activityText, "cameraGeneration")
+    expectContains("first frame preview gate", activityText, "onSurfaceTextureUpdated")
+    expectContains("user app closes output gate", activityText, "ACTION_CLOSE_OUTPUT_SEND_GATE")
+    expectContains("user app opens output gate", activityText, "ACTION_OPEN_OUTPUT_SEND_GATE")
+    expectContains("service output close action", serviceText, "ACTION_CLOSE_OUTPUT_SEND_GATE")
+    expectContains("service output open action", serviceText, "ACTION_OPEN_OUTPUT_SEND_GATE")
+    expectContains("play mode output gate", playModeText, "outputGateOpen")
+}
+
 private fun findRepoRoot(): File {
     var current: File? = File(System.getProperty("user.dir") ?: ".").canonicalFile
     repeat(8) {
@@ -48,5 +83,11 @@ private fun findRepoRoot(): File {
 private fun expectContains(label: String, text: String, needle: String) {
     if (!text.contains(needle)) {
         throw AssertionError("$label expected <$needle>")
+    }
+}
+
+private fun expectNotContains(label: String, text: String, needle: String) {
+    if (text.contains(needle)) {
+        throw AssertionError("$label should not contain <$needle>")
     }
 }

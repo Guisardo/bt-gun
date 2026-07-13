@@ -13,6 +13,7 @@ fun main() {
     callbacksUpdateStatusAndHandleValidOutputReports()
     invalidOutputReportCallsReportErrorAndSkipsHaptics()
     pairingWindowSecurityExceptionSurfacesBlockedStatus()
+    pairingWindowDeniedAndExpiredStatuses()
     staleProxyCallbacksAfterStopDoNotRegisterHidMode()
     olderProxyCallbacksDoNotOverrideNewStart()
     stopDisconnectAndUnplugSendNeutralReleaseReport()
@@ -48,7 +49,12 @@ private fun doesNotSendBeforeProxyRegistrationAndHostConnection() {
 
 private fun startRequestsHidDeviceProxyAndRegistersGamepadSdp() {
     val connector = FakeHidProfileConnector()
-    val gamepad = AndroidBluetoothHidGamepad(connector = connector, hapticHandler = { null })
+    val pairingStates = mutableListOf<BtGunHidPairingWindowState>()
+    val gamepad = AndroidBluetoothHidGamepad(
+        connector = connector,
+        hapticHandler = { null },
+        onStatusChanged = { pairingStates += it.pairingWindow.state },
+    )
 
     gamepad.startGamepadMode()
     connector.callback.onProxyAvailable(connector.proxy)
@@ -61,9 +67,19 @@ private fun startRequestsHidDeviceProxyAndRegistersGamepadSdp() {
     expectEquals("sdp name", "BT Gun Gamepad", settings.name)
     expectEquals("sdp description", "BT Gun Android HID Gamepad", settings.description)
     expectEquals("sdp provider", "BT Gun", settings.provider)
+    expectEquals("sdp gamepad subclass", 0x02.toByte(), settings.subclass)
     expectByteArray("descriptor bytes", BtGunHidDescriptor.DESCRIPTOR_BYTES, settings.descriptors)
-    expectEquals("pairing opened", true, pairingOpened)
+    expectEquals("pairing request accepted", true, pairingOpened)
     expectEquals("pairing duration", 120, connector.pairingDurations.single())
+    expectEquals("pairing requested observed", true, BtGunHidPairingWindowState.REQUESTED in pairingStates)
+    expectEquals("pairing pending observed", true, BtGunHidPairingWindowState.PENDING in pairingStates)
+    expectEquals("pairing not open until status callback", false, gamepad.status.pairingWindow.open)
+    expectEquals("pairing pending", BtGunHidPairingWindowState.PENDING, gamepad.status.pairingWindow.state)
+
+    connector.emitPairingStatus(BtGunHidPairingWindowState.OPENED)
+
+    expectEquals("pairing opened by status callback", true, gamepad.status.pairingWindow.open)
+    expectEquals("pairing opened state", BtGunHidPairingWindowState.OPENED, gamepad.status.pairingWindow.state)
 }
 
 private fun callbacksUpdateStatusAndHandleValidOutputReports() {
@@ -141,8 +157,35 @@ private fun pairingWindowSecurityExceptionSurfacesBlockedStatus() {
 
     expectEquals("pairing blocked", false, opened)
     expectEquals("pairing status closed", false, gamepad.status.pairingWindow.open)
+    expectEquals("pairing denied state", BtGunHidPairingWindowState.DENIED, gamepad.status.pairingWindow.state)
     expectEquals("pairing security detail", "pairing window blocked: SecurityException", gamepad.status.pairingWindow.detail)
     expectEquals("unsupported reason", "pairing window blocked: SecurityException", gamepad.status.unsupportedReason)
+}
+
+private fun pairingWindowDeniedAndExpiredStatuses() {
+    val deniedConnector = FakeHidProfileConnector().also {
+        it.pairingRequestAccepted = false
+    }
+    val deniedGamepad = AndroidBluetoothHidGamepad(connector = deniedConnector, hapticHandler = { null })
+
+    val denied = deniedGamepad.openPairingWindow(durationSeconds = 90)
+
+    expectEquals("pairing request denied result", false, denied)
+    expectEquals("pairing denied open", false, deniedGamepad.status.pairingWindow.open)
+    expectEquals("pairing denied state", BtGunHidPairingWindowState.DENIED, deniedGamepad.status.pairingWindow.state)
+    expectEquals("pairing denied detail", "pairing window request denied", deniedGamepad.status.pairingWindow.detail)
+
+    val expiredConnector = FakeHidProfileConnector()
+    val expiredGamepad = AndroidBluetoothHidGamepad(connector = expiredConnector, hapticHandler = { null })
+
+    val requested = expiredGamepad.openPairingWindow(durationSeconds = 120)
+    expiredConnector.emitPairingStatus(BtGunHidPairingWindowState.OPENED)
+    expiredConnector.emitPairingStatus(BtGunHidPairingWindowState.EXPIRED)
+
+    expectEquals("pairing request accepted before expiry", true, requested)
+    expectEquals("pairing expired closed", false, expiredGamepad.status.pairingWindow.open)
+    expectEquals("pairing expired state", BtGunHidPairingWindowState.EXPIRED, expiredGamepad.status.pairingWindow.state)
+    expectEquals("pairing expired detail", "pairing window expired", expiredGamepad.status.pairingWindow.detail)
 }
 
 private fun staleProxyCallbacksAfterStopDoNotRegisterHidMode() {
@@ -307,21 +350,43 @@ private class FakeHidProfileConnector : BtGunHidProfileConnector {
     var requestCount = 0
     var closeCount = 0
     val pairingDurations = mutableListOf<Int>()
+    private val pairingCallbacks = mutableListOf<BtGunHidPairingWindowCallback>()
     var openPairingError: RuntimeException? = null
+    var pairingRequestAccepted = true
 
     override fun requestHidDeviceProxy(callback: BtGunHidProfileCallback) {
         requestCount += 1
         callbacks += callback
     }
 
-    override fun openPairingWindow(durationSeconds: Int): Boolean {
+    override fun openPairingWindow(durationSeconds: Int, callback: BtGunHidPairingWindowCallback): Boolean {
         openPairingError?.let { throw it }
         pairingDurations += durationSeconds
-        return true
+        if (pairingRequestAccepted) {
+            pairingCallbacks += callback
+        }
+        return pairingRequestAccepted
     }
 
     override fun close() {
         closeCount += 1
+    }
+
+    fun emitPairingStatus(state: BtGunHidPairingWindowState) {
+        pairingCallbacks.last().onPairingWindowStatus(
+            BtGunHidPairingWindowStatus.forState(
+                state = state,
+                durationSeconds = pairingDurations.last(),
+                detail = when (state) {
+                    BtGunHidPairingWindowState.NOT_REQUESTED -> "not opened"
+                    BtGunHidPairingWindowState.REQUESTED -> "pairing window requested"
+                    BtGunHidPairingWindowState.PENDING -> "waiting for Android discoverable status"
+                    BtGunHidPairingWindowState.OPENED -> "pairing window open"
+                    BtGunHidPairingWindowState.DENIED -> "pairing window denied"
+                    BtGunHidPairingWindowState.EXPIRED -> "pairing window expired"
+                },
+            ),
+        )
     }
 }
 

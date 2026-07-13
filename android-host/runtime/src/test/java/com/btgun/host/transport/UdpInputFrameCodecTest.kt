@@ -1,5 +1,10 @@
 package com.btgun.host.transport
 
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -11,6 +16,9 @@ fun main() {
     codecConstantsMatchWireContract()
     goldenSnapshotAndEdgeFramesRoundTrip()
     compactFrameRoundTripsThroughMux()
+    muxRejectsFrameFormatMismatch()
+    sharedFixtureMatrixDecodesExpectedOutcomes()
+    frameFormatParserRejectsUnknownWireNames()
     decoderRejectsMalformedOrUntrustedFrames()
     decoderRejectsAuthenticatedMalformedFields()
     inputStreamConfigRejectsOutOfRangeTimingValues()
@@ -49,7 +57,7 @@ private fun codecConstantsMatchWireContract() {
 }
 
 private fun compactFrameRoundTripsThroughMux() {
-    val config = fixtureConfig()
+    val config = fixtureConfig().copy(frameFormat = InputFrameFormat.COMPACT_V2)
     val frame = UdpInputFrame(
         type = UdpInputFrameType.SNAPSHOT,
         streamSessionId = STREAM_SESSION_ID_HEX,
@@ -89,6 +97,64 @@ private fun compactFrameRoundTripsThroughMux() {
 
     expectRejected("compact wrong stream", UdpInputFrameRejectReason.WRONG_STREAM_SESSION, UdpInputFrameCodec.authenticateAndDecodeMux(bytes.copyOf().also { it[8] = 0x7f }, config))
     expectRejected("compact bad hmac", UdpInputFrameRejectReason.BAD_HMAC, UdpInputFrameCodec.authenticateAndDecodeMux(bytes.copyOf().also { it[it.lastIndex] = (it[it.lastIndex].toInt() xor 1).toByte() }, config))
+}
+
+private fun muxRejectsFrameFormatMismatch() {
+    val v1Config = fixtureConfig()
+    val compactConfig = fixtureConfig().copy(frameFormat = InputFrameFormat.COMPACT_V2)
+    val compactBytes = UdpInputFrameCodec.encodeCompact(fixtureFrame(), compactConfig)
+    val v1Bytes = UdpInputFrameCodec.encode(fixtureFrame(), v1Config)
+
+    expectRejected("compact bytes under v1 config", UdpInputFrameRejectReason.MALFORMED_FIELD, UdpInputFrameCodec.authenticateAndDecodeMux(compactBytes, v1Config))
+    expectRejected("v1 bytes under compact config", UdpInputFrameRejectReason.MALFORMED_FIELD, UdpInputFrameCodec.authenticateAndDecodeMux(v1Bytes, compactConfig))
+}
+
+private fun sharedFixtureMatrixDecodesExpectedOutcomes() {
+    val cases = replayMatrixDatagrams()
+    val expectedCaseIds = listOf(
+        "v1-good-snapshot",
+        "v1-duplicate-seq",
+        "v2-good-snapshot",
+        "v2-old-seq",
+        "v1-stale-age",
+        "v2-stale-age",
+        "v1-bad-hmac",
+        "v2-bad-hmac",
+        "v1-wrong-stream",
+        "v2-wrong-stream",
+        "unexpected-format",
+    )
+
+    expectEquals("matrix case ids", expectedCaseIds, cases.map { it.caseId })
+    cases.forEach { case ->
+        val bytes = case.hex.hexToBytes()
+        when (case.frameFormat) {
+            "v1" -> expectEquals("${case.caseId} v1 size", UdpInputFrameCodec.FRAME_SIZE, bytes.size)
+            "compact_v2" -> expectEquals("${case.caseId} compact size", UdpInputFrameCodec.COMPACT_FRAME_SIZE, bytes.size)
+            "unexpected" -> expectEquals("${case.caseId} unexpected size", UdpInputFrameCodec.COMPACT_FRAME_SIZE, bytes.size)
+        }
+        val decoded = UdpInputFrameCodec.authenticateAndDecodeMux(bytes, configForMatrixCase(case))
+        if (case.expectedCodec == "ACCEPTED") {
+            expectTrue("${case.caseId} accepted", decoded is UdpInputFrameDecodeResult.Accepted)
+            val frame = (decoded as UdpInputFrameDecodeResult.Accepted).frame
+            expectEquals("${case.caseId} sequence", case.sequence, frame.sequence)
+        } else {
+            expectRejected(
+                case.caseId,
+                UdpInputFrameRejectReason.valueOf(case.expectedCodec),
+                decoded,
+            )
+        }
+    }
+}
+
+private fun frameFormatParserRejectsUnknownWireNames() {
+    val negotiations = replayMatrixNegotiations()
+
+    expectEquals("missing frame format fallback", InputFrameFormat.V1, selectedFrameFormat(null))
+    expectEquals("unknown parser result", null, InputFrameFormat.fromWireName("future_v3"))
+    expectEquals("compact frame format", InputFrameFormat.COMPACT_V2, selectedFrameFormat("compact_v2"))
+    expectEquals("negotiation rows", setOf("legacy-fallback-v1", "unknown-frame-format-rejected"), negotiations.map { it.caseId }.toSet())
 }
 
 private fun goldenSnapshotAndEdgeFramesRoundTrip() {
@@ -312,6 +378,88 @@ private fun sourceFile(relative: String): File {
     if (direct.exists()) return direct
     return File("runtime/src/main/java/com/btgun/host/$relative")
 }
+
+private data class ReplayMatrixCase(
+    val caseId: String,
+    val frameFormat: String,
+    val expectedCodec: String,
+    val hex: String,
+    val sequence: Long?,
+)
+
+private data class ReplayMatrixNegotiation(
+    val caseId: String,
+)
+
+private fun replayMatrixDatagrams(): List<ReplayMatrixCase> =
+    replayMatrixObjects("datagram")
+        .sortedBy { it.intField("replay_order") }
+        .map { row ->
+            ReplayMatrixCase(
+                caseId = row.stringField("case_id"),
+                frameFormat = row.stringField("frame_format"),
+                expectedCodec = row.stringField("expected_codec"),
+                hex = row.stringField("hex"),
+                sequence = row.longFieldOrNull("sequence"),
+            )
+        }
+
+private fun replayMatrixNegotiations(): List<ReplayMatrixNegotiation> =
+    replayMatrixObjects("negotiation")
+        .map { row -> ReplayMatrixNegotiation(caseId = row.stringField("case_id")) }
+
+private fun configForMatrixCase(case: ReplayMatrixCase): InputStreamConfig =
+    fixtureConfig().copy(frameFormat = selectedFrameFormat(case.frameFormat))
+
+private fun selectedFrameFormat(value: String?): InputFrameFormat =
+    value?.let(InputFrameFormat::fromWireName) ?: InputFrameFormat.V1
+
+private fun fixtureFrame(): UdpInputFrame =
+    UdpInputFrame(
+        type = UdpInputFrameType.SNAPSHOT,
+        streamSessionId = STREAM_SESSION_ID_HEX,
+        sequence = 77L,
+        captureElapsedNanos = 2_000_000_000L,
+        sendElapsedNanos = 2_000_000_010L,
+        buttonBitmask = 0,
+        stickX = 0,
+        stickY = 0,
+        motionProvider = 0,
+        motionCapabilityFlags = 0,
+        yaw = 0f,
+        pitch = 0f,
+        roll = 0f,
+        rawAimX = Float.NaN,
+        rawAimY = Float.NaN,
+        sourceSensorElapsedNanos = 2_000_000_000L,
+    )
+
+private fun replayMatrixObjects(recordType: String): List<JsonObject> {
+    val file = repoFile("fixtures/replay/udp-golden/input-stream-v1-v2-matrix.jsonl")
+    if (!file.exists()) {
+        throw AssertionError("missing shared replay matrix fixture: ${file.path}")
+    }
+    return file.readLines()
+        .map { it.trim() }
+        .filter { it.isNotEmpty() && !it.startsWith("#") }
+        .map { Json.parseToJsonElement(it).jsonObject }
+        .filter { it.stringField("record_type") == recordType }
+}
+
+private fun JsonObject.stringField(name: String): String =
+    this[name]?.jsonPrimitive?.contentOrNull
+        ?: throw AssertionError("missing string field $name")
+
+private fun JsonObject.longFieldOrNull(name: String): Long? =
+    this[name]?.jsonPrimitive?.contentOrNull?.toLong()
+
+private fun JsonObject.intField(name: String): Int =
+    stringField(name).toInt()
+
+private fun repoFile(path: String): File =
+    listOf(File(path), File("../$path"), File("../../$path"))
+        .firstOrNull { it.exists() }
+        ?: File(path)
 
 private const val STREAM_SESSION_ID_HEX = "00112233445566778899aabbccddeeff"
 private const val HMAC_KEY_HEX = "0123456789abcdeffedcba98765432100123456789abcdeffedcba9876543210"

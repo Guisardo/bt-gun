@@ -21,20 +21,22 @@
 |  |              Normalized Event Pipeline               |   |
 |  +------+-------------------------------+---------------+   |
 +---------+-------------------------------+-------------------+
+|      Android Bluetooth HID gamepad output (macOS primary)  |
++-------------------------------------------------------------+
 |                        Local LAN Transport                  |
 +-------------------------------------------------------------+
-|  UDP input/motion frames     TCP/WebSocket control/haptics  |
+|  UDP mapped input frames     TCP/WebSocket control/haptics  |
 +-------------------------------------------------------------+
 |                        Desktop Companion                    |
 +-------------------------------------------------------------+
 |  +--------------+  +--------------+  +------------------+   |
-|  | Session      |  | Profile      |  | Visualizer       |   |
-|  | Receiver     |  | Mapper       |  | Diagnostics      |   |
+|  | Session      |  | Metadata /   |  | Visualizer       |   |
+|  | Receiver     |  | Diagnostics  |  | Diagnostics      |   |
 |  +------+-------+  +------+-------+  +--------+---------+   |
 |         |                 |                   |             |
 |  +------v-----------------v-------------------v---------+   |
-|  |            Platform Virtual Gamepad Backend          |   |
-|  |        Windows VHF/KMDF     macOS CoreHID/DriverKit  |   |
+|  |      Platform Backend Runtime Boundary               |   |
+|  | Windows VHF/KMDF fallback; CoreHID/DriverKit scaffold |
 |  +------------------------------------------------------+   |
 +-------------------------------------------------------------+
 ```
@@ -47,31 +49,30 @@
 | Sensor Capture | Sample motion aim data, choose best available provider, timestamp samples, handle recenter | Android SensorManager with rotation-vector, gyroscope, accelerometer, gravity, and monotonic timestamps |
 | Normalized Event Pipeline | Merge gun controls and motion samples into platform-independent events | Kotlin module with explicit event schema and logs |
 | Pairing/Session UI | Scan QR/code, establish authenticated local session | Android native UI, QR scanner/generator, session key storage |
-| UDP Input Stream | Send high-rate input/motion samples | Versioned binary packets under 1200 bytes |
+| UDP Input Stream | Send high-rate Android-mapped input/motion samples | Versioned binary packets under 1200 bytes |
 | Control Channel | Pairing, profile metadata, heartbeat, diagnostics, haptics | TCP/WebSocket with authenticated messages |
-| Desktop Session Receiver | Accept paired Android client and decrypt/validate packets | Native desktop service/app |
-| Profile Mapper | Map normalized input and motion aim to virtual joystick axes/buttons | Android-owned profile engine; desktop remains read-only for active profile metadata |
-| Virtual HID Backend | Expose regular gamepad/joystick gun to OS | Windows VHF/KMDF; macOS CoreHID or DriverKit |
+| Desktop Session Receiver | Accept paired Android client and validate packets | Native desktop service/app with no profile-editing authority |
+| Android Profile/Calibration Mapper | Store, validate, edit, and apply profiles/calibration before HID or LAN output | Android-owned profile engine; desktop remains read-only for active profile metadata |
+| Virtual HID Backend | Expose regular gamepad/joystick gun where a desktop backend is used | Windows VHF/KMDF fallback; Android Bluetooth HID is the macOS product route; CoreHID/DriverKit remain blocked/scaffold |
 | Visualizer | Verify inputs, axes, latency, recenter, haptics | Desktop diagnostic app |
 
 ## Recommended Project Structure
 
 ```text
-android/
-  app/                       # Android host app
-  gun-protocol/              # Bluetooth adapter and decoded gun events
-  sensors/                   # Motion sensor provider selection, fusion/fallback, recenter logic
-  transport/                 # LAN pairing, UDP input, control channel
+android-host/
+  runtime/                   # BLE gun input, sensors, profiles, calibration, LAN, HID, haptics
+  app/                       # Debug/diagnostic host app
+  user-app/                  # Gamepad Extension user app
 
 desktop/
-  common/                    # Shared protocol spec, profile schema, fixtures
+  common/                    # Shared protocol specs, backend contracts, fixtures
   visualizer/                # First acceptance harness
   windows/
-    service/                 # Receiver/profile mapper user-mode service
+    service/                 # Receiver/backend user-mode service
     driver/                  # VHF/KMDF virtual HID driver
   macos/
-    app/                     # Receiver/profile mapper host app
-    hid/                     # CoreHID or DriverKit virtual HID backend
+    app/                     # Receiver/diagnostic host app
+    hid/                     # CoreHID/DriverKit blocked scaffold only
 
 docs/
   refs/                      # Archived vendor APK/XAPK files
@@ -80,11 +81,11 @@ docs/
 
 ### Structure Rationale
 
-- **android/gun-protocol:** isolates unstable reverse-engineered hardware details from stable normalized events.
-- **android/sensors:** keeps motion math and recenter separate from Bluetooth event parsing.
-- **desktop/common:** keeps profile schema and packet fixtures shared across Windows/macOS without forcing one runtime.
+- **android-host/runtime:** isolates unstable reverse-engineered hardware details, motion math, recenter, profiles, calibration, LAN, HID, and haptics behind shared Android runtime APIs.
+- **android-host/app and android-host/user-app:** keep debug/diagnostic entrypoints separate from the user-facing Gamepad Extension app while sharing runtime behavior.
+- **desktop/common:** keeps packet fixtures, backend contracts, and read-only profile metadata shared across Windows/macOS without forcing one runtime.
 - **desktop/windows/driver:** driver code has separate build/signing constraints and should not mix with app code.
-- **desktop/macos/hid:** macOS virtual HID path may switch between CoreHID and DriverKit; keep it behind one backend boundary.
+- **desktop/macos/hid:** CoreHID/DriverKit work is retained as blocked/fallback scaffold only; Android Bluetooth HID is the product macOS route.
 - **docs/protocol:** reverse-engineering notes are product-critical and should be versioned.
 
 ## Architectural Patterns
@@ -103,14 +104,14 @@ docs/
 
 ### Pattern 3: Android-Owned Profiles
 
-**What:** Android owns v1 profile storage, validation, editing, and application; desktop remains read-only for active Android profile metadata and mapped-stream diagnostics.
+**What:** Android owns v1 profile storage, validation, editing, calibration, and application; desktop remains read-only for active Android profile metadata and mapped-stream diagnostics.
 **When to use:** Phase 8 and later v1 profile work after the Phase 7 Android Bluetooth HID reroute.
 **Trade-offs:** Android must keep game/platform constants out of profile defaults, while Windows VHF fallback consumes Android-mapped LAN input instead of running a desktop editor.
 
 ### Pattern 4: Virtual HID Backend Boundary
 
 **What:** Keep platform virtual controller code behind a common interface: `connect`, `publishInput`, `setIdentity`, `onHaptic`, `disconnect`.
-**When to use:** Windows/macOS both v1 targets.
+**When to use:** Desktop backend paths such as Windows VHF/KMDF; macOS CoreHID/DriverKit remains scaffold only while Android Bluetooth HID is the product route.
 **Trade-offs:** Some features will not map perfectly across platforms; explicit capability flags are required.
 
 ## Data Flow
@@ -121,11 +122,12 @@ docs/
 Physical trigger/stick/buttons
     -> Android Bluetooth adapter
         -> Normalized gun event
-            -> UDP InputFrame with seq + capture timestamp
-                -> Desktop receiver
-                    -> Android-mapped semantic state
-                        -> Virtual HID input report on Windows VHF fallback
-                            -> Joystick visualizer/game
+            -> Android profile/calibration mapper
+                -> Android Bluetooth HID input report for macOS
+                -> UDP InputFrame with seq + capture timestamp for LAN diagnostics/backend
+                    -> Desktop receiver
+                        -> Android-mapped semantic state
+                            -> Visualizer and Windows VHF fallback
 
 Android motion sample
     -> Sensor Capture
@@ -137,13 +139,17 @@ Android motion sample
 ### Haptic Flow
 
 ```text
-Joystick visualizer/game haptic request
-    -> Platform virtual HID output report
+Joystick visualizer/game haptic request on LAN or Windows VHF path
+    -> Platform backend output report or visualizer haptic command
         -> Desktop backend onHaptic
             -> Control channel HapticCmd
                 -> Android control receiver
                     -> Android phone Vibrator
                         -> HapticAck/HapticFail
+
+macOS Bluetooth HID haptics
+    -> unsupported/deferred on stable Android HID descriptor
+        -> use LAN or Windows VHF phone-haptic route
 ```
 
 ### Pairing Flow
@@ -176,7 +182,7 @@ Desktop starts session
 ### Scaling Priorities
 
 1. **First bottleneck:** Reverse-engineered gun protocol uncertainty - fix with static/dynamic traces and packet fixtures.
-2. **Second bottleneck:** macOS/Windows driver packaging - fix with early spike before broad app UI.
+2. **Second bottleneck:** Windows driver packaging and macOS HID compatibility - fix with explicit proof rows before broad app claims.
 3. **Third bottleneck:** Motion drift/latency - fix with instrumentation visible in visualizer.
 
 ## Anti-Patterns
@@ -209,7 +215,8 @@ Desktop starts session
 | Android sensors | SensorManager listener | Prefer fused rotation/game rotation; support gyro+accelerometer, gyro-only degraded mode, and accelerometer/gravity tilt fallback with monotonic sensor timestamps. |
 | LAN discovery | Android NSD/mDNS plus QR fallback | Some networks block mDNS; QR host/port fallback is required. |
 | Windows virtual HID | VHF/KMDF driver + user-mode service | Requires WDK, signing, installer, and output report handling for haptics. |
-| macOS virtual HID | CoreHID or HIDDriverKit | Entitlements and user approval are gating risks. |
+| macOS product input | Android Bluetooth HID gamepad | No-subscription v1 route; haptics remain unsupported/deferred on the stable descriptor. |
+| macOS virtual HID scaffold | CoreHID or HIDDriverKit | Retained only as blocked/fallback evidence; entitlement, signing, and user approval are gating risks. |
 
 ### Internal Boundaries
 

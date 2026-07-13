@@ -193,6 +193,16 @@ private fun bluetoothGamepadActionConstantsAreExplicit() {
         "com.btgun.host.action.START_HID_PAIRING_WINDOW",
         HostSessionService.ACTION_START_HID_PAIRING_WINDOW,
     )
+    expectEquals(
+        "close output gate action",
+        "com.btgun.host.action.CLOSE_OUTPUT_SEND_GATE",
+        HostSessionService.ACTION_CLOSE_OUTPUT_SEND_GATE,
+    )
+    expectEquals(
+        "open output gate action",
+        "com.btgun.host.action.OPEN_OUTPUT_SEND_GATE",
+        HostSessionService.ACTION_OPEN_OUTPUT_SEND_GATE,
+    )
 }
 
 private fun profileReloadServiceActionOnlyRunsWhenForegroundActive() {

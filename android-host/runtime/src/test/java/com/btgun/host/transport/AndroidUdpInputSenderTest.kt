@@ -21,6 +21,7 @@ fun main() {
     snapshotSendsMappedProductStreamWithRawDebugOffByDefault()
     snapshotSendsExtendedJoypadDestinationBits()
     compactV2ConfigSendsCompactFrames()
+    legacyV1ConfigSendsV1Frames()
     rawDebugOnAddsFlagAndRawMotionExtras()
     datagramPriorityReadsWireFrameType()
     socketSinkKeepsLatestSnapshotQueueContract()
@@ -55,6 +56,28 @@ private fun compactV2ConfigSendsCompactFrames() {
     val frame = (decoded as UdpInputFrameDecodeResult.Accepted).frame
     expectEquals("compact buttons", (1 shl 7) or (1 shl 8), frame.buttonBitmask)
     expectEquals("compact send timestamp", 7_000_000_111L, frame.sendElapsedNanos)
+}
+
+private fun legacyV1ConfigSendsV1Frames() {
+    val sink = RecordingDatagramSink()
+    val sender = AndroidUdpInputSender(
+        datagramSink = sink,
+        elapsedRealtimeNanos = { 7_500_000_000L },
+    )
+    val config = fixtureConfig().copy(frameFormat = InputFrameFormat.V1)
+
+    sender.start(config)
+    val result = sender.sendSnapshot(
+        mappedState = mappedState(pressedVirtualControls = setOf("trigger")),
+        motion = null,
+        rawDebugEnabled = false,
+    )
+
+    expectEquals("legacy format", InputFrameFormat.V1, config.frameFormat)
+    expectEquals("legacy send result", AndroidUdpInputSendResult.SENT, result)
+    expectEquals("legacy packet size", UdpInputFrameCodec.FRAME_SIZE, sink.datagrams.single().payload.size)
+    val decoded = UdpInputFrameCodec.authenticateAndDecode(sink.datagrams.single().payload, config)
+    expectTrue("legacy frame decoded", decoded is UdpInputFrameDecodeResult.Accepted)
 }
 
 private fun sequencerResetsForEachStreamSession() {
@@ -481,3 +504,8 @@ private fun sourceFile(relative: String): File {
     if (direct.exists()) return direct
     return File("runtime/src/main/java/com/btgun/host/$relative")
 }
+
+private fun repoFile(path: String): File =
+    listOf(File(path), File("../$path"), File("../../$path"))
+        .firstOrNull { it.exists() }
+        ?: File(path)

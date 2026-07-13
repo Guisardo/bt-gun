@@ -54,7 +54,35 @@ data class BtGunHidPairingWindowStatus(
     val open: Boolean = false,
     val durationSeconds: Int = 0,
     val detail: String = "not opened",
-)
+    val state: BtGunHidPairingWindowState = if (open) {
+        BtGunHidPairingWindowState.OPENED
+    } else {
+        BtGunHidPairingWindowState.NOT_REQUESTED
+    },
+) {
+    companion object {
+        fun forState(
+            state: BtGunHidPairingWindowState,
+            durationSeconds: Int,
+            detail: String,
+        ): BtGunHidPairingWindowStatus =
+            BtGunHidPairingWindowStatus(
+                open = state == BtGunHidPairingWindowState.OPENED,
+                durationSeconds = durationSeconds,
+                detail = detail,
+                state = state,
+            )
+    }
+}
+
+enum class BtGunHidPairingWindowState {
+    NOT_REQUESTED,
+    REQUESTED,
+    PENDING,
+    OPENED,
+    DENIED,
+    EXPIRED,
+}
 
 data class BtGunHidInputReportStatus(
     val result: BtGunHidInputSendResult? = null,

@@ -1,12 +1,23 @@
 package com.btgun.host.haptics
 
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import java.io.File
+
 fun main() {
     resultStatusesCoverAllPhaseFourOutcomes()
+    sharedMatrixHapticRowsProduceExpectedStatuses()
     expiredCommandDoesNotStartPhoneVibration()
     unsupportedPatternDoesNotStartPhoneVibration()
     timelineCommandValidatesAndStartsPatternWhenSupported()
     unsupportedTimelineFallsBackToPulse()
+    zeroStrengthTimelineFallbackCancelsWithoutPulse()
     invalidTimelineFailsWithoutVibration()
+    overlappingTimelineFailsWithoutVibration()
+    nonNullPatternIsUnsupportedBeforeTimelineOrPulse()
     validPulseStartsImmediately()
     secondValidCommandCancelsActivePulseBeforeStarting()
     zeroStrengthCommandCancelsWithoutStartingNewPulse()
@@ -15,6 +26,27 @@ fun main() {
     expiredReplacementDoesNotForgetActivePulse()
     permissionAndRuntimeFailuresMapToExplicitStatuses()
     invalidCommandReturnsFailedWithoutVibration()
+}
+
+private fun sharedMatrixHapticRowsProduceExpectedStatuses() {
+    val rows = replayMatrixHapticRows()
+    val phone = RecordingPhoneHapticActuator()
+    val executor = DesktopHapticCommandExecutor(phone = phone, elapsedRealtimeNanos = { 1_000_000_000L })
+
+    expectEquals(
+        "haptic matrix categories",
+        setOf("haptic_invalid_body", "haptic_unsupported_pattern", "haptic_invalid_timeline", "haptic_overlapping_timeline"),
+        rows.map { row -> row.stringField("category") }.toSet(),
+    )
+    rows.forEach { row ->
+        val command = DesktopHapticCommand.fromJsonBody(row["body"]?.jsonObject ?: error("missing body"))
+            ?: error("matrix command did not parse: ${row.stringField("case_id")}")
+        val expected = HapticResultStatus.fromWireName(row.stringField("expected_status"))
+            ?: error("unknown expected status")
+        val result = executor.handle(command, receivedElapsedNanos = 999_900_000L)
+
+        expectEquals(row.stringField("case_id"), expected, result.status)
+    }
 }
 
 private fun timelineCommandValidatesAndStartsPatternWhenSupported() {
@@ -60,6 +92,25 @@ private fun unsupportedTimelineFallsBackToPulse() {
     expectEquals("fallback calls", listOf(PhoneCall.Pattern(timeline), PhoneCall.Pulse(90L, 0.6)), phone.calls)
 }
 
+private fun zeroStrengthTimelineFallbackCancelsWithoutPulse() {
+    val phone = RecordingPhoneHapticActuator(patternResult = PhoneHapticStartResult.Unsupported)
+    val executor = DesktopHapticCommandExecutor(phone = phone, elapsedRealtimeNanos = { 1_000_000_000L })
+
+    val result = executor.handle(
+        command = DesktopHapticCommand(
+            commandId = "cmd-timeline-zero",
+            strength = 0.0,
+            durationMs = 90L,
+            ttlMs = 500L,
+            patternTimeline = listOf(HapticTimelinePulse(atMs = 0L, durationMs = 40L, strength = 0.5)),
+        ),
+        receivedElapsedNanos = 999_900_000L,
+    )
+
+    expectEquals("zero timeline status", HapticResultStatus.CANCELLED, result.status)
+    expectEquals("zero timeline cancels before timeline fallback", listOf(PhoneCall.Cancel), phone.calls)
+}
+
 private fun invalidTimelineFailsWithoutVibration() {
     val phone = RecordingPhoneHapticActuator()
     val executor = DesktopHapticCommandExecutor(phone = phone, elapsedRealtimeNanos = { 1_000_000_000L })
@@ -77,6 +128,48 @@ private fun invalidTimelineFailsWithoutVibration() {
 
     expectEquals("bad timeline status", HapticResultStatus.FAILED, result.status)
     expectEquals("bad timeline no calls", emptyList<PhoneCall>(), phone.calls)
+}
+
+private fun overlappingTimelineFailsWithoutVibration() {
+    val phone = RecordingPhoneHapticActuator()
+    val executor = DesktopHapticCommandExecutor(phone = phone, elapsedRealtimeNanos = { 1_000_000_000L })
+
+    val result = executor.handle(
+        command = DesktopHapticCommand(
+            commandId = "cmd-overlap",
+            strength = 0.5,
+            durationMs = 1L,
+            ttlMs = 500L,
+            patternTimeline = listOf(
+                HapticTimelinePulse(atMs = 0L, durationMs = 100L, strength = 0.5),
+                HapticTimelinePulse(atMs = 50L, durationMs = 100L, strength = 0.5),
+            ),
+        ),
+        receivedElapsedNanos = 999_900_000L,
+    )
+
+    expectEquals("overlap status", HapticResultStatus.FAILED, result.status)
+    expectEquals("overlap no calls", emptyList<PhoneCall>(), phone.calls)
+}
+
+private fun nonNullPatternIsUnsupportedBeforeTimelineOrPulse() {
+    val phone = RecordingPhoneHapticActuator()
+    val executor = DesktopHapticCommandExecutor(phone = phone, elapsedRealtimeNanos = { 1_000_000_000L })
+
+    val result = executor.handle(
+        command = DesktopHapticCommand(
+            commandId = "cmd-pattern-priority",
+            strength = 0.7,
+            durationMs = 90L,
+            ttlMs = 500L,
+            pattern = "double",
+            patternTimeline = listOf(HapticTimelinePulse(atMs = 0L, durationMs = 40L, strength = 1.0)),
+        ),
+        receivedElapsedNanos = 999_900_000L,
+    )
+
+    expectEquals("pattern priority status", HapticResultStatus.UNSUPPORTED, result.status)
+    expectEquals("pattern priority no calls", emptyList<PhoneCall>(), phone.calls)
 }
 
 private fun resultStatusesCoverAllPhaseFourOutcomes() {
@@ -325,3 +418,24 @@ private fun expectEquals(label: String, expected: Any?, actual: Any?) {
         throw AssertionError("$label expected <$expected> but was <$actual>")
     }
 }
+
+private fun replayMatrixHapticRows(): List<JsonObject> {
+    val file = repoFile("fixtures/replay/udp-golden/input-stream-v1-v2-matrix.jsonl")
+    if (!file.exists()) {
+        throw AssertionError("missing shared replay matrix fixture: ${file.path}")
+    }
+    return file.readLines()
+        .map { it.trim() }
+        .filter { it.isNotEmpty() && !it.startsWith("#") }
+        .map { Json.parseToJsonElement(it).jsonObject }
+        .filter { row -> row.stringField("record_type") == "haptic" }
+}
+
+private fun repoFile(path: String): File =
+    listOf(File(path), File("../$path"), File("../../$path"))
+        .firstOrNull { it.exists() }
+        ?: File(path)
+
+private fun JsonObject.stringField(name: String): String =
+    this[name]?.jsonPrimitive?.contentOrNull
+        ?: throw AssertionError("missing string field $name")

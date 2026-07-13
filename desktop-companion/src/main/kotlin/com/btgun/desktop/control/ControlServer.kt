@@ -40,6 +40,11 @@ import kotlinx.coroutines.channels.SendChannel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.add
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 
@@ -75,6 +80,8 @@ class ControlServer(
     private var controlDisconnectSignaledToken: String? = null
     private val pendingHapticCommandIds = mutableSetOf<String>()
     private var activeStartedHapticCommandId: String? = null
+    private val inboundSequences = ControlSequenceTracker()
+    private val outboundSequences = ControlSequenceGenerator()
 
     fun start(port: Int, host: String = "0.0.0.0"): ControlServer {
         stop()
@@ -109,13 +116,6 @@ class ControlServer(
                             close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "pairing authentication rejected"))
                             return@webSocket
                         }
-                        val streamStart = startInputStreamForTrustedSession(trusted)
-                        if (streamStart is ControlInputStreamStartResult.Failed) {
-                            onSessionStateChanged(ControlServerSessionState.DISCONNECTED)
-                            close(CloseReason(CloseReason.Codes.INTERNAL_ERROR, streamStart.reason))
-                            return@webSocket
-                        }
-                        val streamConfig = (streamStart as ControlInputStreamStartResult.Started).config
                         val token = UUID.randomUUID().toString()
                         val outbound = Channel<ControlEnvelope>(Channel.UNLIMITED)
                         val closeSignal = Channel<Unit>(capacity = 1)
@@ -137,9 +137,22 @@ class ControlServer(
                             ),
                         )
                         sendSessionReady(trusted)
-                        sendInputStreamConfig(trusted, streamConfig)
                         sendInitialMetadata(trusted)
                         onSessionStateChanged(ControlServerSessionState.AUTHENTICATED)
+                        val fallbackJob = launch {
+                            delay(INPUT_STREAM_CAPABILITIES_WAIT_MILLIS)
+                            val streamStart = startInputStreamForActiveSession(
+                                controlSessionToken = token,
+                                trustedSession = trusted,
+                                frameFormat = InputFrameFormat.V1,
+                                nowElapsedNanos = System.nanoTime(),
+                                sendEnvelope = { envelope -> sendEnvelope(envelope) },
+                            )
+                            if (streamStart is ControlInputStreamStartResult.Failed) {
+                                onSessionStateChanged(ControlServerSessionState.DISCONNECTED)
+                                close(CloseReason(CloseReason.Codes.INTERNAL_ERROR, streamStart.reason))
+                            }
+                        }
                         val heartbeat = HeartbeatMonitor()
                         heartbeat.observePong(System.nanoTime())
                         val livenessJob = launch {
@@ -159,6 +172,20 @@ class ControlServer(
                                             heartbeat = heartbeat,
                                             controlSessionToken = token,
                                             sendEnvelope = { envelope -> sendEnvelope(envelope) },
+                                            onInputStreamCapabilitiesReceived = { capabilities ->
+                                                fallbackJob.cancel()
+                                                val streamStart = startInputStreamForActiveSession(
+                                                    controlSessionToken = token,
+                                                    trustedSession = trusted,
+                                                    frameFormat = selectInputFrameFormat(capabilities.supportedInputFrameFormats),
+                                                    nowElapsedNanos = System.nanoTime(),
+                                                    sendEnvelope = { envelope -> sendEnvelope(envelope) },
+                                                )
+                                                if (streamStart is ControlInputStreamStartResult.Failed) {
+                                                    onSessionStateChanged(ControlServerSessionState.DISCONNECTED)
+                                                    close(CloseReason(CloseReason.Codes.INTERNAL_ERROR, streamStart.reason))
+                                                }
+                                            },
                                         )
                                         is ControlServerResult.RejectedEnvelope -> {
                                             close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, result.error.name))
@@ -169,6 +196,7 @@ class ControlServer(
                                 }
                             }
                         } finally {
+                            fallbackJob.cancel()
                             livenessJob.cancel()
                             outboundJob.cancel()
                             closeJob.cancel()
@@ -251,6 +279,8 @@ class ControlServer(
             is ControlDecodeResult.Accepted -> {
                 if (decoded.envelope.sessionId != trustedSession.sid) {
                     ControlServerResult.RejectedEnvelope(ControlEnvelopeError.INVALID_FIELD)
+                } else if (!inboundSequences.accept(decoded.envelope)) {
+                    ControlServerResult.RejectedEnvelope(ControlEnvelopeError.INVALID_FIELD)
                 } else {
                     ControlServerResult.Accepted(decoded.envelope, trustedSession)
                 }
@@ -263,6 +293,7 @@ class ControlServer(
         nowElapsedNanos: Long = System.nanoTime(),
         controlSessionToken: String? = null,
         sendEnvelope: suspend (ControlEnvelope) -> Unit = {},
+        onInputStreamCapabilitiesReceived: suspend (InputStreamCapabilities) -> Unit = {},
     ) {
         when (envelope.type) {
             ControlMessageType.HEARTBEAT_PING -> {
@@ -278,6 +309,12 @@ class ControlServer(
             ControlMessageType.SESSION_READY,
             ControlMessageType.INPUT_STREAM_CONFIG,
             -> onControlEnvelopeAccepted(envelope)
+            ControlMessageType.INPUT_STREAM_CAPABILITIES -> {
+                inputStreamCapabilitiesFromJsonBody(envelope.body)?.let { capabilities ->
+                    onInputStreamCapabilitiesReceived(capabilities)
+                    onControlEnvelopeAccepted(envelope)
+                }
+            }
             ControlMessageType.DIAGNOSTICS -> {
                 visualizerStatusFromJsonBody(envelope.body)
                     ?.copy(controlSessionId = envelope.sessionId)
@@ -298,16 +335,18 @@ class ControlServer(
     fun inputStreamConfigEnvelopeFor(
         trustedSession: TrustedPairingSession,
         nowElapsedNanos: Long = System.nanoTime(),
+        frameFormat: InputFrameFormat = InputFrameFormat.V1,
     ): ControlEnvelope {
-        val config = freshInputStreamConfig()
+        val config = freshInputStreamConfig(frameFormat)
         return inputStreamConfigEnvelopeFor(trustedSession, config, nowElapsedNanos)
     }
 
     internal fun startInputStreamForTrustedSession(
         trustedSession: TrustedPairingSession,
         nowElapsedNanos: Long = System.nanoTime(),
+        frameFormat: InputFrameFormat = InputFrameFormat.V1,
     ): ControlInputStreamStartResult {
-        val config = freshInputStreamConfig()
+        val config = freshInputStreamConfig(frameFormat)
         return when (val started = udpRuntime.start(trustedSession = trustedSession.sid, config = config)) {
             UdpInputRuntimeStartResult.Started ->
                 ControlInputStreamStartResult.Started(
@@ -316,6 +355,40 @@ class ControlServer(
                 )
             is UdpInputRuntimeStartResult.Failed -> ControlInputStreamStartResult.Failed(started.reason)
         }
+    }
+
+    private suspend fun startInputStreamForActiveSession(
+        controlSessionToken: String,
+        trustedSession: TrustedPairingSession,
+        frameFormat: InputFrameFormat,
+        nowElapsedNanos: Long,
+        sendEnvelope: suspend (ControlEnvelope) -> Unit,
+    ): ControlInputStreamStartResult {
+        val claimState = synchronized(stateLock) {
+            val active = activeControlSession
+            when {
+                active?.token != controlSessionToken -> InputStreamStartClaim.INACTIVE
+                active.inputStreamStarted -> InputStreamStartClaim.ALREADY_STARTED
+                else -> {
+                    active.inputStreamStarted = true
+                    InputStreamStartClaim.CLAIMED
+                }
+            }
+        }
+        when (claimState) {
+            InputStreamStartClaim.CLAIMED -> Unit
+            InputStreamStartClaim.ALREADY_STARTED -> return ControlInputStreamStartResult.AlreadyStarted
+            InputStreamStartClaim.INACTIVE -> return ControlInputStreamStartResult.Failed("control session inactive")
+        }
+        val started = startInputStreamForTrustedSession(
+            trustedSession = trustedSession,
+            nowElapsedNanos = nowElapsedNanos,
+            frameFormat = frameFormat,
+        )
+        if (started is ControlInputStreamStartResult.Started) {
+            sendEnvelope(started.envelope)
+        }
+        return started
     }
 
     private fun inputStreamConfigEnvelopeFor(
@@ -328,7 +401,7 @@ class ControlServer(
             type = ControlMessageType.INPUT_STREAM_CONFIG,
             msgId = "desktop-input-stream-config",
             sessionId = trustedSession.sid,
-            seq = 0L,
+            seq = nextOutboundSeq(trustedSession.sid),
             sentElapsedNanos = nowElapsedNanos,
             body = JsonObject(
                 mapOf(
@@ -396,7 +469,7 @@ class ControlServer(
             type = ControlMessageType.RESERVED_HAPTIC_COMMAND,
             msgId = "desktop-haptic-command-${command.commandId}",
             sessionId = trustedSession.sid,
-            seq = 0L,
+            seq = nextOutboundSeq(trustedSession.sid),
             sentElapsedNanos = nowElapsedNanos,
             body = command.toJsonBody(),
         )
@@ -430,16 +503,7 @@ class ControlServer(
 
     private suspend fun io.ktor.server.websocket.DefaultWebSocketServerSession.sendSessionReady(
         trustedSession: TrustedPairingSession,
-    ) = sendEnvelope(
-        ControlEnvelope(
-            v = 1,
-            type = ControlMessageType.SESSION_READY,
-            msgId = "desktop-session-ready",
-            sessionId = trustedSession.sid,
-            seq = 0L,
-            sentElapsedNanos = System.nanoTime(),
-        )
-    )
+    ) = sendEnvelope(sessionReadyEnvelopeFor(trustedSession))
 
     private suspend fun io.ktor.server.websocket.DefaultWebSocketServerSession.sendInputStreamConfig(
         trustedSession: TrustedPairingSession,
@@ -455,7 +519,7 @@ class ControlServer(
                 type = ControlMessageType.DIAGNOSTICS,
                 msgId = "desktop-diagnostics",
                 sessionId = trustedSession.sid,
-                seq = 0L,
+                seq = nextOutboundSeq(trustedSession.sid),
                 sentElapsedNanos = System.nanoTime(),
                 body = JsonObject(
                     mapOf(
@@ -479,7 +543,7 @@ class ControlServer(
             type = type,
             msgId = "desktop-${type.wireName}",
             sessionId = sessionId,
-            seq = 0L,
+            seq = nextOutboundSeq(sessionId),
             sentElapsedNanos = System.nanoTime(),
         )
 
@@ -500,7 +564,7 @@ class ControlServer(
         )
     }
 
-    private fun freshInputStreamConfig(): InputStreamConfig =
+    private fun freshInputStreamConfig(frameFormat: InputFrameFormat): InputStreamConfig =
         InputStreamConfig(
             streamSessionIdHex = streamSecretFactory().copyOf(STREAM_ID_BYTES).toHex(),
             udpHost = activeUdpHost,
@@ -512,8 +576,48 @@ class ControlServer(
             frameAgeLimitMs = DEFAULT_FRAME_AGE_LIMIT_MILLIS,
             streamTimeoutMs = DEFAULT_STREAM_TIMEOUT_MILLIS,
             controlDisconnectGraceMs = DEFAULT_CONTROL_DISCONNECT_GRACE_MILLIS,
-            frameFormat = InputFrameFormat.COMPACT_V2,
+            frameFormat = frameFormat,
         )
+
+    private fun nextOutboundSeq(sessionId: String): Long =
+        outboundSequences.next(sessionId)
+
+    internal fun selectInputFrameFormat(androidSupported: List<InputFrameFormat>?): InputFrameFormat =
+        if (androidSupported?.contains(InputFrameFormat.COMPACT_V2) == true) {
+            InputFrameFormat.COMPACT_V2
+        } else {
+            InputFrameFormat.V1
+        }
+
+    internal fun sessionReadyEnvelopeFor(
+        trustedSession: TrustedPairingSession,
+        nowElapsedNanos: Long = System.nanoTime(),
+    ): ControlEnvelope =
+        ControlEnvelope(
+            v = 1,
+            type = ControlMessageType.SESSION_READY,
+            msgId = "desktop-session-ready",
+            sessionId = trustedSession.sid,
+            seq = nextOutboundSeq(trustedSession.sid),
+            sentElapsedNanos = nowElapsedNanos,
+            body = sessionReadyBody(),
+        )
+
+    private fun sessionReadyBody(): JsonObject =
+        JsonObject(
+            mapOf(
+                "controlCapabilities" to JsonObject(
+                    mapOf(
+                        "supportedInputFrameFormats" to supportedInputFrameFormatsJson(),
+                    ),
+                ),
+            ),
+        )
+
+    private fun supportedInputFrameFormatsJson() =
+        buildJsonArray {
+            SUPPORTED_INPUT_FRAME_FORMATS.forEach { format -> add(format.wireName) }
+        }
 
     private fun updateActiveUdpEndpoint(
         endpoint: LocalEndpoint?,
@@ -547,6 +651,8 @@ class ControlServer(
             controlDisconnectSignaledToken = null
             pendingHapticCommandIds.clear()
             activeStartedHapticCommandId = null
+            inboundSequences.reset(session.trustedSession.sid)
+            outboundSequences.reset(session.trustedSession.sid)
             old
         }
         previous?.outbound?.close()
@@ -564,6 +670,8 @@ class ControlServer(
                 controlDisconnectSignaledToken = null
                 pendingHapticCommandIds.clear()
                 activeStartedHapticCommandId = null
+                inboundSequences.reset(active.trustedSession.sid)
+                outboundSequences.reset(active.trustedSession.sid)
                 active.outbound.close()
                 active.closeSignal.trySend(Unit)
                 !alreadySignaled
@@ -582,6 +690,8 @@ class ControlServer(
             controlDisconnectSignaledToken = null
             pendingHapticCommandIds.clear()
             activeStartedHapticCommandId = null
+            inboundSequences.reset()
+            outboundSequences.reset()
             active
         }
         previous?.outbound?.close()
@@ -646,6 +756,7 @@ class ControlServer(
         const val DEFAULT_MAX_MESSAGE_BYTES = 16 * 1024
         const val DEFAULT_UDP_HOST = "127.0.0.1"
         const val DEFAULT_UDP_PORT = 41731
+        const val INPUT_STREAM_CAPABILITIES_WAIT_MILLIS = 250L
         private const val LIVENESS_POLL_MILLIS = 500L
         private const val STREAM_ID_BYTES = 16
         private const val STREAM_SECRET_BYTES = 32
@@ -660,6 +771,10 @@ class ControlServer(
         const val HEADER_PAIRING_PROOF = "X-BT-Gun-Pairing-Proof"
         const val HEADER_MANUAL_CODE = "X-BT-Gun-Manual-Code"
         private val secureRandom = SecureRandom()
+        private val SUPPORTED_INPUT_FRAME_FORMATS = listOf(
+            InputFrameFormat.COMPACT_V2,
+            InputFrameFormat.V1,
+        )
     }
 }
 
@@ -689,6 +804,7 @@ sealed interface ControlInputStreamStartResult {
         val envelope: ControlEnvelope,
     ) : ControlInputStreamStartResult
 
+    data object AlreadyStarted : ControlInputStreamStartResult
     data class Failed(val reason: String) : ControlInputStreamStartResult
 }
 
@@ -712,4 +828,28 @@ private data class ActiveControlSession(
     val trustedSession: TrustedPairingSession,
     val outbound: SendChannel<ControlEnvelope>,
     val closeSignal: SendChannel<Unit>,
+    var inputStreamStarted: Boolean = false,
 )
+
+private enum class InputStreamStartClaim {
+    CLAIMED,
+    ALREADY_STARTED,
+    INACTIVE,
+}
+
+data class InputStreamCapabilities(
+    val supportedInputFrameFormats: List<InputFrameFormat>,
+)
+
+internal fun inputStreamCapabilitiesFromJsonBody(body: JsonObject): InputStreamCapabilities? =
+    runCatching {
+        val formats = body["supportedInputFrameFormats"]
+            ?.jsonArray
+            ?.mapNotNull { element ->
+                val wireName = element.jsonPrimitive.contentOrNull ?: return null
+                InputFrameFormat.fromWireName(wireName)
+            }
+            ?.distinct()
+            ?: return null
+        InputStreamCapabilities(supportedInputFrameFormats = formats)
+    }.getOrNull()

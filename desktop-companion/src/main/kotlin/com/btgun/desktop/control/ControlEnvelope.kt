@@ -27,6 +27,7 @@ enum class ControlMessageType(val wireName: String) {
     HEARTBEAT_PONG("heartbeat_pong"),
     DIAGNOSTICS("diagnostics"),
     PROFILE_METADATA("profile_metadata"),
+    INPUT_STREAM_CAPABILITIES("input_stream_capabilities"),
     INPUT_STREAM_CONFIG("input_stream_config"),
     RESERVED_HAPTIC_COMMAND("reserved_haptic_command"),
     HAPTIC_RESULT("haptic_result");
@@ -94,7 +95,8 @@ object ControlEnvelopeCodec {
                 type = type,
                 msgId = root.stringField("msgId") ?: return ControlDecodeResult.Rejected(ControlEnvelopeError.INVALID_FIELD, "msgId"),
                 sessionId = root.stringField("sessionId") ?: return ControlDecodeResult.Rejected(ControlEnvelopeError.INVALID_FIELD, "sessionId"),
-                seq = root.longField("seq") ?: return ControlDecodeResult.Rejected(ControlEnvelopeError.INVALID_FIELD, "seq"),
+                seq = root.longField("seq")?.takeIf { it >= FIRST_CONTROL_SEQUENCE }
+                    ?: return ControlDecodeResult.Rejected(ControlEnvelopeError.INVALID_FIELD, "seq"),
                 sentElapsedNanos = root.longField("sentElapsedNanos")
                     ?: return ControlDecodeResult.Rejected(ControlEnvelopeError.INVALID_FIELD, "sentElapsedNanos"),
                 body = body,
@@ -114,4 +116,48 @@ object ControlEnvelopeCodec {
 
     private fun JsonObject.longField(name: String): Long? =
         (get(name) as? JsonPrimitive)?.jsonPrimitive?.longOrNull
+}
+
+internal const val FIRST_CONTROL_SEQUENCE = 1L
+
+internal class ControlSequenceTracker {
+    private val lastBySession = mutableMapOf<String, Long>()
+
+    @Synchronized
+    fun accept(envelope: ControlEnvelope): Boolean {
+        if (envelope.seq < FIRST_CONTROL_SEQUENCE) return false
+        val previous = lastBySession[envelope.sessionId] ?: 0L
+        if (envelope.seq <= previous) return false
+        lastBySession[envelope.sessionId] = envelope.seq
+        return true
+    }
+
+    @Synchronized
+    fun reset(sessionId: String? = null) {
+        if (sessionId == null) {
+            lastBySession.clear()
+        } else {
+            lastBySession.remove(sessionId)
+        }
+    }
+}
+
+internal class ControlSequenceGenerator {
+    private val nextBySession = mutableMapOf<String, Long>()
+
+    @Synchronized
+    fun next(sessionId: String): Long {
+        val next = nextBySession[sessionId] ?: FIRST_CONTROL_SEQUENCE
+        nextBySession[sessionId] = next + 1L
+        return next
+    }
+
+    @Synchronized
+    fun reset(sessionId: String? = null) {
+        if (sessionId == null) {
+            nextBySession.clear()
+        } else {
+            nextBySession.remove(sessionId)
+        }
+    }
 }

@@ -143,7 +143,8 @@ class ProfileStore {
     fun migrateActiveProfileCalibration(encodedCalibration: String?): SaveProfileResult {
         val encoded = encodedCalibration?.takeIf { it.isNotBlank() }
             ?: return SaveProfileResult.Rejected("calibration_empty", document = load().document)
-        val document = load().document
+        val document = loadEditableDocumentForCalibrationMutation()
+            ?: return SaveProfileResult.Rejected("profile_document_rejected", document = ProfileDocument.defaults())
         val active = document.activeProfile()
         if (!active.aimCalibration.isNullOrBlank()) {
             return SaveProfileResult.Rejected("calibration_already_present", document = document)
@@ -169,7 +170,8 @@ class ProfileStore {
         if (encodedCalibration.isBlank()) {
             return SaveProfileResult.Rejected("calibration_empty", document = load().document)
         }
-        val document = load().document
+        val document = loadEditableDocumentForCalibrationMutation()
+            ?: return SaveProfileResult.Rejected("profile_document_rejected", document = ProfileDocument.defaults())
         val active = document.activeProfile()
         return persist(
             document.copy(
@@ -217,6 +219,13 @@ class ProfileStore {
         preferences.saveProfiles(ProfileDocumentCodec.encode(document))
         return SaveProfileResult.Saved(document)
     }
+
+    private fun loadEditableDocumentForCalibrationMutation(): ProfileDocument? =
+        when (val result = load()) {
+            is ProfileStoreLoadResult.Loaded -> result.document
+            is ProfileStoreLoadResult.Defaulted -> result.document
+            is ProfileStoreLoadResult.Rejected -> null
+        }
 
     private fun ProfileDocument.withSafeActiveProfile(): ProfileDocument =
         if (profiles.any { profile -> profile.profileId == activeProfileId }) {

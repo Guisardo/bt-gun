@@ -31,7 +31,7 @@ private fun runtimePublishesTrustedUdpCallbackThroughWindowsBackend() {
     val bridge = RuntimeFakeWindowsDriverBridge()
     val backend = WindowsVirtualControllerBackend(bridge = bridge)
     val runtime = WindowsBackendRuntime(
-        config = WindowsBackendRuntimeConfig(bridgePath = "/tmp/btgun-driver-bridge.exe"),
+        config = WindowsBackendRuntimeConfig(bridgePath = "/tmp/btgun-driver-bridge.exe", outputDrainIntervalMillis = 1L),
         backend = backend,
         nowElapsedNanos = { 3_000_000_000L },
     )
@@ -45,21 +45,26 @@ private fun runtimePublishesTrustedUdpCallbackThroughWindowsBackend() {
         sequence = 42L,
     )
 
-    runtime.attach(server)
-    server.onUdpInputReceived(input)
+    try {
+        runtime.attach(server)
+        server.onUdpInputReceived(input)
 
-    val expected = WindowsHidReportPacker.packInputReport(com.btgun.desktop.backend.UdpControllerStateAdapter.toState(input))
-    expectEquals("backend started", com.btgun.desktop.backend.BackendLifecycleState.STARTED, backend.lifecycleState)
-    expectEquals("one bridge submission", 1, bridge.submitted.size)
-    expectByteArrayEquals("submitted packed report", expected.bytes, bridge.submitted.single().bytes)
-    expectEquals("report metadata sequence", 42L, bridge.submitted.single().sourceSequence)
-    expectTrue("last publish recorded", runtime.diagnostics().lastPublishResult is com.btgun.desktop.backend.BackendPublishResult.Published)
+        val expected = WindowsHidReportPacker.packInputReport(com.btgun.desktop.backend.UdpControllerStateAdapter.toState(input))
+        expectEquals("backend started", com.btgun.desktop.backend.BackendLifecycleState.STARTED, backend.lifecycleState)
+        expectEquals("one bridge submission", 1, bridge.submitted.size)
+        expectByteArrayEquals("submitted packed report", expected.bytes, bridge.submitted.single().bytes)
+        expectEquals("report metadata sequence", 42L, bridge.submitted.single().sourceSequence)
+        expectTrue("last publish recorded", runtime.diagnostics().lastPublishResult is com.btgun.desktop.backend.BackendPublishResult.Published)
+        expectEquals("diagnostic source sequence observed through bridge status", 42L, runtime.diagnostics().lastSourceSequence)
+    } finally {
+        runtime.close()
+    }
 }
 
 private fun runtimePreservesExistingUdpCallbackWhenAttached() {
     val bridge = RuntimeFakeWindowsDriverBridge()
     val runtime = WindowsBackendRuntime(
-        config = WindowsBackendRuntimeConfig(bridgePath = "/tmp/btgun-driver-bridge.exe"),
+        config = WindowsBackendRuntimeConfig(bridgePath = "/tmp/btgun-driver-bridge.exe", outputDrainIntervalMillis = 1L),
         backend = WindowsVirtualControllerBackend(bridge = bridge),
         nowElapsedNanos = { 3_000_000_000L },
     )
@@ -68,17 +73,21 @@ private fun runtimePreservesExistingUdpCallbackWhenAttached() {
     val input = receivedInput(sequence = 43L)
     server.onUdpInputReceived = observed::add
 
-    runtime.attach(server)
-    server.onUdpInputReceived(input)
+    try {
+        runtime.attach(server)
+        server.onUdpInputReceived(input)
 
-    expectEquals("existing callback kept", listOf(input), observed)
-    expectEquals("runtime still published", 1, bridge.submitted.size)
+        expectEquals("existing callback kept", listOf(input), observed)
+        expectEquals("runtime still published", 1, bridge.submitted.size)
+    } finally {
+        runtime.close()
+    }
 }
 
 private fun staleInputPublishClearsButtonsAndStickButKeepsAim() {
     val bridge = RuntimeFakeWindowsDriverBridge()
     val runtime = WindowsBackendRuntime(
-        config = WindowsBackendRuntimeConfig(bridgePath = "/tmp/btgun-driver-bridge.exe"),
+        config = WindowsBackendRuntimeConfig(bridgePath = "/tmp/btgun-driver-bridge.exe", outputDrainIntervalMillis = 1L),
         backend = WindowsVirtualControllerBackend(bridge = bridge),
         nowElapsedNanos = { 3_000_000_000L },
     )
@@ -93,23 +102,27 @@ private fun staleInputPublishClearsButtonsAndStickButKeepsAim() {
         sequence = 44L,
     )
 
-    runtime.attach(server)
-    server.onUdpInputReceived(input)
+    try {
+        runtime.attach(server)
+        server.onUdpInputReceived(input)
 
-    val bytes = bridge.submitted.single().bytes
-    expectEquals("stale button bits clear", 0, bytes[1].toInt() and 0xff)
-    expectEquals("stale stick x clears", 0, bytes.readInt16Le(2))
-    expectEquals("stale stick y clears", 0, bytes.readInt16Le(4))
-    expectEquals("stale aim x kept", 16_384, bytes.readInt16Le(6))
-    expectEquals("stale aim y kept", -8_192, bytes.readInt16Le(8))
-    expectEquals("diagnostic stale", true, runtime.diagnostics().stale)
+        val bytes = bridge.submitted.single().bytes
+        expectEquals("stale button bits clear", 0, bytes[1].toInt() and 0xff)
+        expectEquals("stale stick x clears", 0, bytes.readInt16Le(2))
+        expectEquals("stale stick y clears", 0, bytes.readInt16Le(4))
+        expectEquals("stale aim x kept", 16_384, bytes.readInt16Le(6))
+        expectEquals("stale aim y kept", -8_192, bytes.readInt16Le(8))
+        expectEquals("diagnostic stale", true, runtime.diagnostics().stale)
+    } finally {
+        runtime.close()
+    }
 }
 
 private fun backendOutputReportRoutesToAuthenticatedPhoneHaptic() {
     val bridge = RuntimeFakeWindowsDriverBridge()
     bridge.outputReports.add(outputReport(strength = 192, durationMs = 150, ttlMs = 600))
     val runtime = WindowsBackendRuntime(
-        config = WindowsBackendRuntimeConfig(bridgePath = "/tmp/btgun-driver-bridge.exe"),
+        config = WindowsBackendRuntimeConfig(bridgePath = "/tmp/btgun-driver-bridge.exe", outputDrainIntervalMillis = 1L),
         backend = WindowsVirtualControllerBackend(bridge = bridge),
         nowElapsedNanos = { 3_000_000_000L },
     )
@@ -121,33 +134,47 @@ private fun backendOutputReportRoutesToAuthenticatedPhoneHaptic() {
     val outbound = Channel<ControlEnvelope>(Channel.UNLIMITED)
     server.registerActiveControlSessionForTest((trusted as ControlAuthenticationResult.Accepted).trustedSession, outbound)
 
-    runtime.attach(server)
-    server.onUdpInputReceived(receivedInput(sequence = 45L))
+    try {
+        runtime.attach(server)
+        waitUntil("output report routed") {
+            runtime.diagnostics().outputHapticCommandsRouted == 1L
+        }
 
-    val envelope = outbound.tryReceive().getOrNull()
-    expectEquals("haptic send", HapticSendResult.Sent, runtime.diagnostics().lastHapticSendResult)
-    expectEquals("reserved haptic command", ControlMessageType.RESERVED_HAPTIC_COMMAND, envelope?.type)
-    expectEquals("command id from output report drain", "windows-output-report-1", envelope?.body?.stringField("commandId"))
-    expectEquals("strength from output report bytes", (192.0 / 255.0).toString(), envelope?.body?.stringField("strength"))
-    expectEquals("duration from output report bytes", "150", envelope?.body?.stringField("durationMs"))
-    expectEquals("ttl from output report bytes", "600", envelope?.body?.stringField("ttlMs"))
-    expectEquals("pattern not synthesized", null, envelope?.body?.get("pattern")?.jsonPrimitive?.contentOrNull)
+        val envelope = outbound.tryReceive().getOrNull()
+        expectEquals("haptic send", HapticSendResult.Sent, runtime.diagnostics().lastHapticSendResult)
+        expectEquals("reserved haptic command", ControlMessageType.RESERVED_HAPTIC_COMMAND, envelope?.type)
+        expectEquals("command id from output report drain", "windows-output-report-1", envelope?.body?.stringField("commandId"))
+        expectEquals("strength from output report bytes", (192.0 / 255.0).toString(), envelope?.body?.stringField("strength"))
+        expectEquals("duration from output report bytes", "150", envelope?.body?.stringField("durationMs"))
+        expectEquals("ttl from output report bytes", "600", envelope?.body?.stringField("ttlMs"))
+        expectEquals("pattern not synthesized", null, envelope?.body?.get("pattern")?.jsonPrimitive?.contentOrNull)
+        expectEquals("no input needed for output drain", 0, bridge.submitted.size)
+    } finally {
+        runtime.close()
+    }
 }
 
 private fun outputReportWithoutActiveAndroidSessionRecordsNoSession() {
     val bridge = RuntimeFakeWindowsDriverBridge()
     bridge.outputReports.add(outputReport(strength = 64, durationMs = 75, ttlMs = 250))
     val runtime = WindowsBackendRuntime(
-        config = WindowsBackendRuntimeConfig(bridgePath = "/tmp/btgun-driver-bridge.exe"),
+        config = WindowsBackendRuntimeConfig(bridgePath = "/tmp/btgun-driver-bridge.exe", outputDrainIntervalMillis = 1L),
         backend = WindowsVirtualControllerBackend(bridge = bridge),
         nowElapsedNanos = { 3_000_000_000L },
     )
     val server = ControlServer(registry = testRegistry())
 
-    runtime.attach(server)
-    server.onUdpInputReceived(receivedInput(sequence = 46L))
+    try {
+        runtime.attach(server)
+        waitUntil("output report routed without active session") {
+            runtime.diagnostics().lastHapticSendResult == HapticSendResult.NoActiveSession
+        }
 
-    expectEquals("no session recorded", HapticSendResult.NoActiveSession, runtime.diagnostics().lastHapticSendResult)
+        expectEquals("no session recorded", HapticSendResult.NoActiveSession, runtime.diagnostics().lastHapticSendResult)
+        expectEquals("no input needed for output drain without session", 0, bridge.submitted.size)
+    } finally {
+        runtime.close()
+    }
 }
 
 private class RuntimeFakeWindowsDriverBridge : WindowsDriverBridgeClient {
@@ -163,7 +190,12 @@ private class RuntimeFakeWindowsDriverBridge : WindowsDriverBridgeClient {
         outputReports.removeFirstOrNull()
 
     override fun readStatus(): WindowsDriverBridgeStatus =
-        WindowsDriverBridgeStatus(driverStarted = true, vhfStarted = true, submittedInputReports = submitted.size.toLong())
+        WindowsDriverBridgeStatus(
+            driverStarted = true,
+            vhfStarted = true,
+            submittedInputReports = submitted.size.toLong(),
+            lastInputSequence = submitted.lastOrNull()?.sourceSequence ?: 0L,
+        )
 
     override fun close() = Unit
 }
@@ -244,6 +276,16 @@ private fun testRegistry(): PairingSessionRegistry =
 
 private fun kotlinx.serialization.json.JsonObject.stringField(name: String): String? =
     get(name)?.jsonPrimitive?.contentOrNull
+
+private fun waitUntil(label: String, timeoutMillis: Long = 1_000L, condition: () -> Boolean) {
+    val deadline = System.nanoTime() + (timeoutMillis * 1_000_000L)
+    while (!condition()) {
+        if (System.nanoTime() >= deadline) {
+            throw AssertionError("$label timed out after $timeoutMillis ms")
+        }
+        Thread.sleep(5L)
+    }
+}
 
 private fun ByteArray.readInt16Le(offset: Int): Int {
     val value = (this[offset].toInt() and 0xff) or ((this[offset + 1].toInt() and 0xff) shl 8)

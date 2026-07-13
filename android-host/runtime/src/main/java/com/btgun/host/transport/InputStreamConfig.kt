@@ -7,8 +7,8 @@ enum class InputFrameFormat(val wireName: String) {
     COMPACT_V2("compact_v2");
 
     companion object {
-        fun fromWireName(value: String?): InputFrameFormat =
-            entries.firstOrNull { format -> format.wireName == value } ?: V1
+        fun fromWireName(value: String): InputFrameFormat? =
+            entries.firstOrNull { format -> format.wireName == value }
     }
 }
 

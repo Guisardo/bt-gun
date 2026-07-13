@@ -71,6 +71,7 @@ import com.btgun.host.profile.MappedControllerState
 import com.btgun.host.profile.ProfileMapper
 import com.btgun.host.profile.ProfileStore
 import com.btgun.host.profile.ProfileStoreLoadResult
+import com.btgun.host.profile.SaveProfileResult
 import com.btgun.host.profile.SmoothingMode
 import com.btgun.host.recenter.ReloadHoldRecenter
 import com.btgun.host.recenter.ReloadHoldState
@@ -630,6 +631,8 @@ class HostSessionService : Service() {
             ACTION_CONNECT_MANUAL_DESKTOP -> connectManualDesktop(intent)
             ACTION_STOP_DESKTOP_CONTROL -> stopDesktopControl()
             ACTION_RELOAD_ACTIVE_PROFILE -> reloadActiveProfile()
+            ACTION_CLOSE_OUTPUT_SEND_GATE -> setOutputSendGate(open = false)
+            ACTION_OPEN_OUTPUT_SEND_GATE -> setOutputSendGate(open = true)
             ACTION_SOFT_CONTROL_DOWN -> handleSoftControl(intent.getStringExtra(EXTRA_SOFT_CONTROL), pressed = true)
             ACTION_SOFT_CONTROL_UP -> handleSoftControl(intent.getStringExtra(EXTRA_SOFT_CONTROL), pressed = false)
             ACTION_START_AIM_CALIBRATION -> startAimCalibrationFromMenu()
@@ -795,7 +798,7 @@ class HostSessionService : Service() {
         ) {
             return
         }
-        val timeoutMessage = "gun connection timeout after ${GUN_CONNECTION_WATCHDOG_MILLIS}ms; restart gun and tap Connect gun"
+        val timeoutMessage = "gun connection timeout after ${GUN_CONNECTION_WATCHDOG_MILLIS}ms; restart gun; app will reconnect automatically"
         AndroidLog.w(TAG, timeoutMessage)
         adapter?.stopSession()
         adapter = null
@@ -870,6 +873,14 @@ class HostSessionService : Service() {
         publishVisualizerStatus()
         fanOutBluetoothHidLiveInput()
         sendUdpSnapshot(throttled = false)
+    }
+
+    private fun setOutputSendGate(open: Boolean) {
+        playModeController.setOutputGateOpen(open)
+        if (open) {
+            fanOutBluetoothHidLiveInput()
+            sendUdpSnapshot(throttled = false)
+        }
     }
 
     private fun sendActiveProfileMetadata(client: DesktopControlClient) {
@@ -1459,14 +1470,18 @@ class HostSessionService : Service() {
             .build()
     }
 
-    private fun openAppPendingIntent(): PendingIntent =
-        PendingIntent.getActivity(
+    private fun openAppPendingIntent(): PendingIntent {
+        val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
+            ?.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            ?: Intent(this, MainActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        return PendingIntent.getActivity(
             this,
             NOTIFICATION_OPEN_APP_REQUEST_CODE,
-            Intent(this, MainActivity::class.java)
-                .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP),
+            launchIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or immutablePendingIntentFlag(),
         )
+    }
 
     private fun serviceActionPendingIntent(action: HostNotificationActionSpec): PendingIntent =
         PendingIntent.getService(
@@ -1560,14 +1575,20 @@ class HostSessionService : Service() {
     private fun loadCalibrationForActiveProfile() {
         val profileCalibration = currentState.activeProfile.aimCalibration
         activeAimCalibration = AimCalibrationCodec.decode(profileCalibration)
-        if (activeAimCalibration == null) {
+        if (activeAimCalibration != null) {
+            aimCalibrationStore.clear()
+        } else {
             val legacyEncoded = aimCalibrationStore.loadEncoded()
             val legacyCalibration = AimCalibrationCodec.decode(legacyEncoded)
             if (legacyCalibration != null) {
-                profileStore.migrateActiveProfileCalibration(legacyEncoded)
-                aimCalibrationStore.clear()
-                currentState = profileRuntime.reloadActiveProfile(currentState)
-                activeAimCalibration = legacyCalibration
+                when (profileStore.migrateActiveProfileCalibration(legacyEncoded)) {
+                    is SaveProfileResult.Saved -> {
+                        aimCalibrationStore.clear()
+                        currentState = profileRuntime.reloadActiveProfile(currentState)
+                        activeAimCalibration = legacyCalibration
+                    }
+                    is SaveProfileResult.Rejected -> Unit
+                }
             }
         }
         aimCalibrationSession.setActiveCalibration(activeAimCalibration)
@@ -1880,16 +1901,27 @@ class HostSessionService : Service() {
         )
         when (outcome) {
             is AimCalibrationCaptureOutcome.Completed -> {
-                activeAimCalibration = outcome.calibration
-                aimCalibrationStore.save(outcome.calibration)
-                profileStore.saveActiveProfileCalibration(AimCalibrationCodec.encode(outcome.calibration))
-                currentState = profileRuntime.reloadActiveProfile(currentState)
-                currentRawOrigin = baseOrigin + outcome.rawCenter
-                calibrationBaseRawOrigin = null
-                currentState = currentState.copy(
-                    aimCalibrationState = aimCalibrationSession.state,
-                    lastError = null,
-                )
+                when (val saved = profileStore.saveActiveProfileCalibration(AimCalibrationCodec.encode(outcome.calibration))) {
+                    is SaveProfileResult.Saved -> {
+                        activeAimCalibration = outcome.calibration
+                        aimCalibrationStore.clear()
+                        currentState = profileRuntime.reloadActiveProfile(currentState)
+                        currentRawOrigin = baseOrigin + outcome.rawCenter
+                        calibrationBaseRawOrigin = null
+                        currentState = currentState.copy(
+                            aimCalibrationState = aimCalibrationSession.state,
+                            lastError = null,
+                        )
+                    }
+                    is SaveProfileResult.Rejected -> {
+                        aimCalibrationSession.setActiveCalibration(activeAimCalibration)
+                        calibrationBaseRawOrigin = null
+                        currentState = currentState.copy(
+                            aimCalibrationState = aimCalibrationSession.state,
+                            lastError = "Aim calibration save failed: ${saved.reason}",
+                        )
+                    }
+                }
             }
             is AimCalibrationCaptureOutcome.Failed -> {
                 currentState = currentState.copy(
@@ -1983,6 +2015,8 @@ class HostSessionService : Service() {
         const val ACTION_CONNECT_MANUAL_DESKTOP: String = "com.btgun.host.action.CONNECT_MANUAL_DESKTOP"
         const val ACTION_STOP_DESKTOP_CONTROL: String = "com.btgun.host.action.STOP_DESKTOP_CONTROL"
         const val ACTION_RELOAD_ACTIVE_PROFILE: String = "com.btgun.host.action.RELOAD_ACTIVE_PROFILE"
+        const val ACTION_CLOSE_OUTPUT_SEND_GATE: String = "com.btgun.host.action.CLOSE_OUTPUT_SEND_GATE"
+        const val ACTION_OPEN_OUTPUT_SEND_GATE: String = "com.btgun.host.action.OPEN_OUTPUT_SEND_GATE"
         const val ACTION_SOFT_CONTROL_DOWN: String = "com.btgun.host.action.SOFT_CONTROL_DOWN"
         const val ACTION_SOFT_CONTROL_UP: String = "com.btgun.host.action.SOFT_CONTROL_UP"
         const val ACTION_START_AIM_CALIBRATION: String = "com.btgun.host.action.START_AIM_CALIBRATION"

@@ -3,6 +3,7 @@ package com.btgun.host.play
 fun main() {
     startsInNoneAndGatesOutputs()
     switchingModesRequiresPreviousStop()
+    outputGateCanPrepareThenOpenSelectedMode()
 }
 
 private fun startsInNoneAndGatesOutputs() {
@@ -34,6 +35,24 @@ private fun switchingModesRequiresPreviousStop() {
     val stopped = controller.stop()
     expectEquals("stop previous", PlayMode.BLUETOOTH_HID, stopped.previous)
     expectEquals("stopped", PlayMode.NONE, controller.mode)
+}
+
+private fun outputGateCanPrepareThenOpenSelectedMode() {
+    val controller = PlayModeController()
+
+    controller.setOutputGateOpen(false)
+    controller.switchTo(PlayMode.LAN)
+    expectEquals("lan prepared closed", false, controller.canSendLan)
+
+    controller.setOutputGateOpen(true)
+    expectEquals("lan play ready open", true, controller.canSendLan)
+
+    controller.setOutputGateOpen(false)
+    controller.switchTo(PlayMode.BLUETOOTH_HID)
+    expectEquals("hid prepared closed", false, controller.canSendBluetoothHid)
+
+    controller.setOutputGateOpen(true)
+    expectEquals("hid play ready open", true, controller.canSendBluetoothHid)
 }
 
 private fun expectEquals(label: String, expected: Any?, actual: Any?) {

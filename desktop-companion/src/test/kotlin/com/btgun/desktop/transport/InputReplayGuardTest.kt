@@ -1,9 +1,17 @@
 package com.btgun.desktop.transport
 
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import java.io.File
+
 fun main() {
     replayGuardAcceptsFirstValidFrameAndRejectsReplayCases()
     replayGuardRejectsWrongSessionMalformedBadMacAgeExpiredAndAcceptsClockSkewedDatagrams()
     replayGuardAcceptsCompactFrameThroughMuxAndUsesSendTimestampFreshness()
+    replayGuardConsumesSharedFixtureMatrix()
     timeoutClearsControlsButPreservesRawMotion()
 }
 
@@ -39,9 +47,10 @@ private fun replayGuardAcceptsFirstValidFrameAndRejectsReplayCases() {
 }
 
 private fun replayGuardAcceptsCompactFrameThroughMuxAndUsesSendTimestampFreshness() {
+    val config = fixtureConfig().copy(frameFormat = InputFrameFormat.COMPACT_V2)
     val guard = InputReplayGuard(
         trustedControlSessionId = CONTROL_SESSION_ID,
-        config = fixtureConfig(),
+        config = config,
     )
     val compact = UdpInputFrameCodec.encodeCompact(
         frame(
@@ -50,7 +59,7 @@ private fun replayGuardAcceptsCompactFrameThroughMuxAndUsesSendTimestampFreshnes
             sendElapsedNanos = 5_000_100_000L,
             buttonBitmask = 0x101,
         ),
-        fixtureConfig(),
+        config,
     )
     val staleBySendElapsed = UdpInputFrameCodec.encodeCompact(
         frame(
@@ -58,7 +67,7 @@ private fun replayGuardAcceptsCompactFrameThroughMuxAndUsesSendTimestampFreshnes
             captureElapsedNanos = 5_000_000_000L,
             sendElapsedNanos = 5_151_000_001L,
         ),
-        fixtureConfig(),
+        config,
     )
 
     expectAccepted(
@@ -72,6 +81,46 @@ private fun replayGuardAcceptsCompactFrameThroughMuxAndUsesSendTimestampFreshnes
         InputReplayRejectReason.AGE_EXPIRED,
         guard.acceptDatagram(staleBySendElapsed, receivedElapsedNanos = 900_000_000_000_100L, controlSessionId = CONTROL_SESSION_ID),
     )
+}
+
+private fun replayGuardConsumesSharedFixtureMatrix() {
+    val v1Guard = InputReplayGuard(
+        trustedControlSessionId = CONTROL_SESSION_ID,
+        config = fixtureConfig(),
+    )
+    val v2Guard = InputReplayGuard(
+        trustedControlSessionId = CONTROL_SESSION_ID,
+        config = fixtureConfig().copy(frameFormat = InputFrameFormat.COMPACT_V2),
+    )
+    val cases = replayGuardMatrixDatagrams()
+    val expectedCaseIds = listOf(
+        "v1-good-snapshot",
+        "v1-duplicate-seq",
+        "v2-good-snapshot",
+        "v2-old-seq",
+        "v1-stale-age",
+        "v2-stale-age",
+        "v1-bad-hmac",
+        "v2-bad-hmac",
+        "v1-wrong-stream",
+        "v2-wrong-stream",
+        "unexpected-format",
+    )
+
+    expectEquals("matrix replay case ids", expectedCaseIds, cases.map { it.caseId })
+    cases.forEach { case ->
+        val guard = if (case.frameFormat == "compact_v2") v2Guard else v1Guard
+        val decision = guard.acceptDatagram(
+            bytes = hexToBytes(case.hex),
+            receivedElapsedNanos = MATRIX_RECEIVED_ELAPSED_NANOS + case.replayOrder,
+            controlSessionId = CONTROL_SESSION_ID,
+        )
+        if (case.expectedReplay == "ACCEPTED") {
+            expectMatrixAccepted(case.caseId, decision, sequence = requireNotNull(case.sequence))
+        } else {
+            expectRejected(case.caseId, InputReplayRejectReason.valueOf(case.expectedReplay), decision)
+        }
+    }
 }
 
 private fun replayGuardRejectsWrongSessionMalformedBadMacAgeExpiredAndAcceptsClockSkewedDatagrams() {
@@ -161,6 +210,13 @@ private fun expectAccepted(label: String, actual: InputReplayDecision, sequence:
     expectTrue("$label not stale", !input.stale)
 }
 
+private fun expectMatrixAccepted(label: String, actual: InputReplayDecision, sequence: Long) {
+    expectTrue(label, actual is InputReplayDecision.Accepted)
+    val input = (actual as InputReplayDecision.Accepted).input
+    expectEquals("$label sequence", sequence, input.lastAcceptedSequence)
+    expectTrue("$label not stale", !input.stale)
+}
+
 private fun expectRejected(label: String, expected: InputReplayRejectReason, actual: InputReplayDecision) {
     expectTrue(label, actual is InputReplayDecision.Rejected)
     expectEquals(label, expected, (actual as InputReplayDecision.Rejected).reason)
@@ -224,7 +280,58 @@ private fun expectTrue(label: String, condition: Boolean) {
     }
 }
 
+private data class ReplayGuardMatrixCase(
+    val caseId: String,
+    val frameFormat: String,
+    val replayOrder: Long,
+    val expectedReplay: String,
+    val hex: String,
+    val sequence: Long?,
+)
+
+private fun replayGuardMatrixDatagrams(): List<ReplayGuardMatrixCase> {
+    val file = replayGuardRepoFile("fixtures/replay/udp-golden/input-stream-v1-v2-matrix.jsonl")
+    if (!file.exists()) {
+        throw AssertionError("missing shared replay matrix fixture: ${file.path}")
+    }
+    return file.readLines()
+        .map { it.trim() }
+        .filter { it.isNotEmpty() && !it.startsWith("#") }
+        .map { Json.parseToJsonElement(it).jsonObject }
+        .filter { it.guardStringField("record_type") == "datagram" }
+        .map { row ->
+            ReplayGuardMatrixCase(
+                caseId = row.guardStringField("case_id"),
+                frameFormat = row.guardStringField("frame_format"),
+                replayOrder = row.guardLongField("replay_order"),
+                expectedReplay = row.guardStringField("expected_replay"),
+                hex = row.guardStringField("hex"),
+                sequence = row.guardLongFieldOrNull("sequence"),
+            )
+        }
+        .sortedBy { it.replayOrder }
+}
+
+private fun JsonObject.guardStringField(name: String): String =
+    this[name]?.jsonPrimitive?.contentOrNull
+        ?: throw AssertionError("missing string field $name")
+
+private fun JsonObject.guardLongField(name: String): Long =
+    guardStringField(name).toLong()
+
+private fun JsonObject.guardLongFieldOrNull(name: String): Long? =
+    this[name]?.jsonPrimitive?.contentOrNull?.toLong()
+
+private fun replayGuardRepoFile(path: String): File =
+    listOf(File(path), File("../$path"), File("../../$path"))
+        .firstOrNull { it.exists() }
+        ?: File(path)
+
+private fun hexToBytes(value: String): ByteArray =
+    value.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
+
 private const val CONTROL_SESSION_ID = "control-sid-1"
 private const val STREAM_SESSION_ID_HEX = "00112233445566778899aabbccddeeff"
 private const val OTHER_STREAM_SESSION_ID_HEX = "ffeeddccbbaa99887766554433221100"
 private const val HMAC_KEY_BASE64URL = "ASNFZ4mrze_-3LqYdlQyEAEjRWeJq83v_ty6mHZUMhA"
+private const val MATRIX_RECEIVED_ELAPSED_NANOS = 900_000_000_000_000L
